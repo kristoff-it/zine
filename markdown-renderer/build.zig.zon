@@ -1,0 +1,11 @@
+.{
+    .name = "markdown-renderer",
+    .version = "0.0.0",
+    .dependencies = .{
+        .gfm = .{
+            .url = "git+https://github.com/andrewrk/cmark-gfm.git#343b8c4b46e2ca2e4b067b73420551b30a74b593",
+            .hash = "1220ff08867af0d5363fedd5d49ec4c102b3f97653475620fc60fff87ac5aed13f6d",
+        },
+    },
+    .paths = .{"."},
+}
