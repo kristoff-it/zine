@@ -1,0 +1,10 @@
+.{
+    .name = "www.ziglang.org",
+    .version = "0.0.0",
+    .dependencies = .{
+        .zashi = .{
+            .path = "../zashi",
+        },
+    },
+    .paths = .{"."},
+}
