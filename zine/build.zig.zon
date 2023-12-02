@@ -9,6 +9,9 @@
         .@"markdown-renderer" = .{
             .path = "../markdown-renderer",
         },
+        .frontmatter = .{
+            .path = "../frontmatter",
+        },
     },
     .paths = .{
         "LICENSE",

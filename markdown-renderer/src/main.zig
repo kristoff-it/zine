@@ -1,15 +1,17 @@
 const std = @import("std");
+const frontmatter = @import("frontmatter");
+
 const c = @cImport({
     @cInclude("cmark-gfm.h");
 });
 
 pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-    defer arena.deinit();
+    var arena_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer arena_impl.deinit();
 
-    const ally = arena.allocator();
+    const arena = arena_impl.allocator();
 
-    const args = try std.process.argsAlloc(ally);
+    const args = try std.process.argsAlloc(arena);
     const in_path = args[1];
     const out_path = args[2];
 
@@ -20,7 +22,12 @@ pub fn main() !void {
         };
         defer in_file.close();
 
-        break :in_string try in_file.reader().readAllAlloc(ally, 1024);
+        var buf_reader = std.io.bufferedReader(in_file.reader());
+        const r = buf_reader.reader();
+        const fm = try frontmatter.parse(r, arena);
+        _ = fm; // TODO: decide if we need this at all or not
+
+        break :in_string try r.readAllAlloc(arena, 1024);
     };
 
     const out_file = std.fs.cwd().createFile(out_path, .{}) catch |err| {
