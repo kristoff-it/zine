@@ -12,6 +12,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.addModule("frontmatter", b.dependency("frontmatter", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("frontmatter"));
 
     exe.linkLibrary(gfm.artifact("cmark-gfm"));
     exe.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
@@ -35,6 +39,11 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    unit_tests.addModule("frontmatter", b.dependency("frontmatter", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("frontmatter"));
 
     unit_tests.linkLibrary(gfm.artifact("cmark-gfm"));
     unit_tests.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
