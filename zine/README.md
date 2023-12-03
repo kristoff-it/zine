@@ -18,6 +18,11 @@ might not be there yet.**
 The Zine templating language differs from other common templating languages in 
 order to fullfill the following goals:
 
+- normal html syntax highlighting should not break because of the templating language
+- template composition should naturally align with HTML elements; in other words
+  the templating language should discourage using it to perform free-form text
+  manipulation (ie macros)
+
 #### Introduction to Layouts
 In Zine a "layout" is an html file used to style content.
 
