@@ -143,7 +143,7 @@ and a `<body>` named "main".
 
 We'll see why this matters in just a moment.
 
-#### Resolving a template's definitions
+#### Defining blocks
 
 To define a block declaration in a template, a layout must use the 
 `zine-define` attribute in the same type of element that the parent template 
@@ -194,7 +194,7 @@ takes is for `baseof.html` to look like this:
 <!DOCTYPE html>
 <html lang="{{$lang}}">
     <head></head>
-    {{- block "main" . }}{{- end }}
+    {{ block "main" . }}{{ end }}
 </html>
 ```
 That's easy to notice and fix once:
@@ -205,7 +205,7 @@ That's easy to notice and fix once:
     <head></head>
     <body>
         <div id="content">
-        {{- block "main" . }}{{- end }}
+        {{ block "main" . }}{{ end }}
         </div>
     </body>
 </html>
@@ -258,8 +258,8 @@ discard it simply by not using `<super>`:
 
 #### Inheriting attributes using `super`
 
-This section calls `super` a keyword and not a tag because it can also
-be used as an attribute.
+`super` is a keyword and not (just) a tag because it can also be used as an 
+attribute.
 
 ```html
 <footer zine-block="footer" style="font-size:0.5em;font-style:italic;">
@@ -391,7 +391,7 @@ two different things, depending on the context:
 ```
 
 For example, in this case "foo", "bar" and "baz" are a list of elements that 
-will appear verbatim in the final output, while "title" and "body" won't even
+will appear verbatim in the final output, while "title" and "main" won't even
 be siblings in the final output.
 
 To find your bearings more easily, keep in mind that what you're seeing is *not*
@@ -554,7 +554,7 @@ as `base.html`. To do so it has to both define and expose it again, and that's
 what `zine-extend` does all at once.
 
 In a sense `zine-extend` is like doing both `zine-define` and `zine-block` on the
-same element.
+same element, using the same name twice.
 
 ```html
 <title zine-define="title" zine-block="title"><super/></title>
