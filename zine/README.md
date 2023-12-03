@@ -38,7 +38,7 @@ All markdown files must declare the layout they intend to use.
 ```md
 ---
   ...
-  "title": "Homepage",
+  "title": "Home",
   "layout": "page.html",
   ...
 ---
@@ -61,7 +61,7 @@ Hello World!
 <!DOCTYPE html>
 <html>
   <head>
-     <title>Homepage</title>
+     <title>Home</title>
   </head>
   <body>
     <p>Hello World!</p>
@@ -78,10 +78,10 @@ Like other similar templating systems, Zine gives you the ability to create
 extension chains between your layouts.
 
 While the names of top-level directories can be customized as you please, inside
-the layout directory, all template files must be placed inside the `templates`
+the layout directory, all template files must be placed inside the `templates/`
 directory.
 
-In Zine lingo, a "template" is a layout that has unresolved definitions.
+In Zine lingo, a "template" is a layout that has undefined block declarations.
 
 Here's an example:
 
@@ -101,45 +101,42 @@ Here's an example:
 ```html
 <!DOCTYPE html>
 <html>
-  <head zine-define="head">
-    <title zine-define="title"> - website.com</title>
+  <head zine-block="head">
+    <title zine-block="title"> - website.com</title>
     <meta name="description" content="official website for website.com">
   </head>
-  <body zine-define="main"></body>
+  <body zine-block="main"></body>
 </html>
 ```
 
 *layouts/page.html*
 ```html
 <super template="base.html">
-  <head zine-block="head">
+  <head zine-define="head">
     <super>
-      <title zine-block="title">
+      <title zine-define="title">
         <span zine-inline-var="$page.title"></span> - <super/>
       </title>
     </super>
   </head>
-  <body zine-block="main" zine-var="$page.content"></body>
+  <body zine-define="main" zine-var="$page.content"></body>
 </super>
 ```
 
+Let's unpack what we're seeing here. While previously `page.html` was a 
+complete layout, it now implements `base.html`.
 
-Let's unpack what we're seeing here.
+`base.html` is the tail of the extension chain (which is very short in this 
+case, we'll see later more complex examples) and as such it looks like a normal 
+HTML file with just some inner parts missing.
 
-While previously `page.html` was a complete layout, it now implements `base.html`.
+The inner parts that are missing are defined using the `zine-block` attribute.
 
-`base.html` is the tail of the extension chain (we'll see later more complex examples)
-and as such it looks like a normal HTML file with just some inner parts missing.
-
-The inner parts that are missing are defined using the `zine-define` attribute.
-
-**Looking at the `zine-define`s of a template will tell you what the interface 
+**Looking at the `zine-block`s of a template will tell you what the interface 
 of the template is.**
 
 All layouts and templates that intend to implement a given template must fullfill
-its interface.
-
-In this example `base.html` defines `"head"`, `"title"`, and `"main"`.
+its interface. In this example `base.html` defines `"head"`, `"title"`, and `"main"`.
 
 To be more precise, `base.html` defines a `<head>` named "head", a `<title>` named "title", 
 and a `<body>` named "main". 
@@ -148,30 +145,30 @@ We'll see why this matters in just a moment.
 
 #### Resolving a template's definitions
 
-To fullfill a definition in a template, a layout must use the `zine-block` attribute 
-in the same type of element that the parent template exposes.
+To define a block declaration in a template, a layout must use the 
+`zine-define` attribute in the same type of element that the parent template 
+exposes.
 
-For example, `base.html` defines a `<body>` named "main" and so `page.html` must
-fullfill it using the same tag:
+For example, `base.html` declares a `<body>` named "main" and so `page.html` must
+define it using the same tag:
 
 ```html
-<body zine-block="main" zine-var="$page.content"></body>
+<body zine-define="main" zine-var="$page.content"></body>
 ```
 
 Using a different tag results in a compilation error:
 
-
 ```html
-<div zine-block="main" zine-var="$page.content"></div>
+<div zine-define="main" zine-var="$page.content"></div>
 ```
 
 ```
 layouts/page.html:10:0: error: block "main" expected to be a `<body>` element.
-   <div zine-block="main" zine-var="$page.content"></div>
+   <div zine-define="main" zine-var="$page.content"></div>
     ^^^
 
-layouts/templates/base.html:4:1 note: "main" block defined here
-    <body zine-define="main"></body>
+layouts/templates/base.html:4:1 note: "main" block declared here
+    <body zine-block="main"></body>
 ```
 
 This might seem a bit verbose but it gives us a lightweight form of *typed* 
@@ -227,14 +224,13 @@ to steer you towards the right path.
 
 #### The `super` keyword
 
-In the previous example, `base.html` defined "title" as such:
+In the previous example, `base.html` declared "title" this way:
 ```html
-<title zine-define="title"> - website.com</title>
+<title zine-block="title"> - website.com</title>
 ```
 
-As you can see the template has some text inside the title definition.
-
-That text is meant to be used as a suffix, in order to create titles like these:
+As you can see the template has some text inside the title element. That text 
+is meant to be used as a suffix, in order to create titles like these:
 ```
 Homepage - website.com
 About - website.com
@@ -242,10 +238,10 @@ Page Foo - website.com
 ```
 
 This is another common feature of templating languages, and in Zine this is done
-by using `<super>` when fullfilling the definition in a `zine-block`:
+by using `<super>` when defining a block:
 
 ```html
-<title zine-block="title">
+<title zine-define="title">
   <span zine-inline-var="$page.title"></span> - <super/>
 </title>
 
@@ -257,7 +253,7 @@ In case we don't care about what the parent template is offering us, we can
 discard it simply by not using `<super>`:
 
 ```html
-<title zine-block="title">whatever</title>
+<title zine-define="title">whatever</title>
 ```
 
 #### Inheriting attributes using `super`
@@ -266,13 +262,13 @@ This section calls `super` a keyword and not a tag because it can also
 be used as an attribute.
 
 ```html
-<footer zine-define="footer" style="font-size:0.5em;font-style:italic;">
+<footer zine-block="footer" style="font-size:0.5em;font-style:italic;">
  All rights reserved.
 </footer>
 ```
 
 ```html
-<footer zine-block="footer" super>
+<footer zine-define="footer" super>
   CC-3.0-BY
 </footer>
 
@@ -292,72 +288,72 @@ Let's take a look at the templating example from before one last time.
 ```html
 <!DOCTYPE html>
 <html>
-  <head zine-define="head">
-    <title zine-define="title"> - website.com</title>
+  <head zine-block="head">
+    <title zine-block="title"> - website.com</title>
     <meta name="description" content="official website for website.com">
   </head>
-  <body zine-define="main"></body>
+  <body zine-block="main"></body>
 </html>
 ```
 
 *layouts/page.html*
 ```html
 <super template="base.html">
-  <head zine-block="head">
+  <head zine-define="head">
     <super>
-      <title zine-block="title">
+      <title zine-define="title">
         <span zine-inline-var="$page.title"></span> - <super/>
       </title>
     </super>
   </head>
-  <body zine-block="main" zine-var="$page.content"></body>
+  <body zine-define="main" zine-var="$page.content"></body>
 </super>
 ```
 
-As you can see in this example, `base.html` has two definitions netsted into 
-one another.
+As you can see in this example, `base.html` has two block declarations netsted 
+into one another.
 
 In the previous section we analyzed what was happening with regards to the 
-"title" definition, but ignored the fact that it's nested inside "head". This 
-is a more complex example, but it's solution is fundamentally the same as it 
+"title" block, but ignored the fact that it's nested inside "head". This 
+is a more complex example, but the solution is fundamentally the same as it 
 was before when looking just at "title".
 
-If one wants to fully re-define the entire "head" block, one can simply avoid
-using `super` altogether:
+To fully re-define the entire "head" block, one can simply avoid using `super` 
+altogether:
 
 ```html
-<head zine-block="head">
+<head zine-define="head">
    <title>website.com</title>
 </head>
 ```
 
-If instead one wants to inherit the contents of "head", then they must fullfill
-all the definitions contained therein:
+To inherit the contents of "head" instead, one must define all the block 
+declarations contained therein:
 
 ```html
-<head zine-block="head">
+<head zine-define="head">
   <super>
-    <title zine-block="title">website.com</title>
+    <title zine-define="title">website.com</title>
   </super>
 </head>
 ```
 
-And, recursively, one can make the same choice for any nested definition. In
-this last example we opted for dropping the inherited content for "title", but
-we could also have kept it like we did in a previous section.
+And, recursively, one can make the same choice for any nested block declaration. 
+In this last example we opted for dropping the inherited content for "title", 
+but we could also have kept it like we did in a previous section.
 
-When the content inherited from a definition doesn't contain any nested 
-`zine-define`, you can use the short form `<super/>`, while in the opposite 
-case you must use the full tag pair `<super></super>` because you have to 
-fullfill all defines with a corresponding `zine-block` child.
+When the content inherited from a block declaration doesn't contain any nested 
+`zine-block`s, you can use the short form `<super/>` while, in the opposite 
+case, you must use the full tag pair `<super></super>` because you have to 
+define all nested blocks as well.
 
-Lastly, when a layout implements a template, it must declare it's doing so by using
-a top-level `<super>` tag with a `template` attribute pointing at the 
+Lastly, when a layout implements a template, it must declare it's doing so by 
+using a top-level `<super>` tag with a `template` attribute pointing at the 
 corresponding template inside `templates/`.
 
 This file structure is hard-coded because Zine expects all layouts outside of 
 `templates/` to be leaf nodes that evaluate to a final layout (ie a layout 
-without any unfulfilled definitions).
+without any undefined blocks).
 
 For your convenience you are allowed to create nested directories inside both 
 the layout directory and `templates/`.
@@ -368,25 +364,25 @@ When you're looking at a layout that implements a template, you are looking at
 two different things, depending on the context:
 
 - a concrete list of html elements that will show up as-is in the final output.
-- a list of blocks that will then be interpolated with whatever else the parent
-  template adds on top.
+- a list of block definitions that will then be interpolated with whatever else 
+  the parent template adds on top.
 
 *layouts/templates/base.html*
 ```html
 <!DOCTYPE html>
 <html>
   <head>
-    <title zine-define="title"></title>
+    <title zine-block="title"></title>
     <meta name="description" content="official website for website.com">
   </head>
-  <body zine-define="main"></body>
+  <body zine-block="main"></body>
 </html>
 ```
 *layouts/page.html*
 ```html
 <super template="base.html">
-  <title zine-block="title">another-website.com</title>
-  <body zine-block="main">
+  <title zine-define="title">another-website.com</title>
+  <body zine-define="main">
     <p>foo</p>
     <p>bar</p>
     <p>baz</p>
@@ -398,20 +394,20 @@ For example, in this case "foo", "bar" and "baz" are a list of elements that
 will appear verbatim in the final output, while "title" and "body" won't even
 be siblings in the final output.
 
-To more easily find your bearings, keep in mind that what you're seeing is *not*
+To find your bearings more easily, keep in mind that what you're seeing is *not*
 what you'll get only when looking at the direct chindren of a `<super>` element.
 
 To increase visibility of which-is-what, you can add empty lines and HTML 
-comments between blocks:
+comments between block definitions:
 
 ```html
 <super template="base.html">
 
   <!-- template also includes meta tags -->
-  <title zine-block="title">another-website.com</title>
+  <title zine-define="title">another-website.com</title>
 
   <!-- main content -->
-  <body zine-block="main">
+  <body zine-define="main">
     <p>foo</p>
     <p>bar</p>
     <p>baz</p>
@@ -426,19 +422,19 @@ not be present in the final output.
 
 #### Templates extending templates
 
-In all examples until now, we always had a layout implement a template without
+In all examples until now, we always had a layout complete a template without
 any intermediate links, but it's fairly common to want to have a template extend
-another (and have the final layout implement that one).
+another.
 
 *layouts/templates/base.html*
 ```html
 <!DOCTYPE html>
 <html>
-  <head zine-define="head">
-    <title zine-define="title"> - website.com</title>
+  <head zine-block="head">
+    <title zine-block="title"> - website.com</title>
     <meta name="description" content="official website for website.com">
   </head>
-  <body zine-define="main"></body>
+  <body zine-block="main"></body>
 </html>
 ```
 
@@ -457,11 +453,11 @@ another (and have the final layout implement that one).
   </head>
 
   <!-- adds a menu and pushes the main content into a div -->
-  <body zine-block="main">
-    <nav zine-define="menu" style="font-style=bold;">
+  <body zine-define="main">
+    <nav zine-block="menu" style="font-style=bold;">
       <a href="/">Home</a>
     </nav>
-    <div zine-define="main"></div>
+    <div zine-block="main"></div>
   </body>
   
 </super>
@@ -473,31 +469,31 @@ another (and have the final layout implement that one).
 <super template="with-menu.html">
 
   <!-- comments are allowed between definitions inside a super element -->
-  <head zine-block="head">
+  <head zine-define="head">
     <super>
       <!-- same is true for nested <super> elements -->
-      <title zine-block="title">
+      <title zine-define="title">
         <span zine-inline-var="$page.title"></span> - <super/>
       </title>
     </super>
   </head>
   
   <!-- the next block also inherits all attributes defined in the parent's nav tag -->
-  <nav zine-block="menu" super>
+  <nav zine-define="menu" super>
     <super/>
     - <span zine-var="$page.title"></span> 
   </nav>
   
   <!-- in this template "main" is a div, not <body> -->
   <!-- maybe not a great idea, but at least we know -->
-  <div zine-block="main" zine-var="$page.content"></div>
+  <div zine-define="main" zine-var="$page.content"></div>
   
 </super>
 ```
 
-The concept is truly straingt-forward once you think about it: to extend a 
-template you must fullfill its definitions, and in turn you must expose new
-definitions of your own so that a final layout can fullfill those instead.
+The concept is truly straight-forward once you think about it: to extend a 
+template you must define its blocks, and in turn expose new block declarations
+of your own so that a final layout can define those instead.
 
 Interface exposed by `base.html`:
 ```
@@ -517,31 +513,30 @@ with-menu.html
 ```
 
 A slightly involved, but ultimately very clear example is what `with-menu.html` 
-is doing with "main". In `base.html` "main" is defined as a simple `<body>` 
+is doing with "main". In `base.html` "main" is declared as a simple `<body>` 
 element, but `with-menu.html` wants to hardcode in there a `<nav>` element and 
-have the final layout place its "main" content next to it.
+have consumer layouts place their "main" content next to it.
 
-To achieve that, `with-menu.html` fulfills "main" from `base.html` and exposes its
+To achieve that, `with-menu.html` defines "main" from `base.html` and exposes its
 own version of "main". Note that here the intent is to force the consumer layout 
 to include the navigation menu, without any way of avoiding it. We'll see later
-a more flexible take on this general idea.
+a less forceful version this idea.
 
 ```html
-<body zine-block="main">
-  <nav zine-define="menu" style="font-style=bold;">
+<body zine-define="main">
+  <nav zine-block="menu" style="font-style=bold;">
     <a href="/">Home</a>
   </nav>
-  <div zine-define="main"></div>
+  <div zine-block="main"></div>
 </body>
 ```
 
 It's up for debate whether `with-menu.html` should have given a different name 
-to its new definition of "main" or not, since what was before a `<body>` block 
-has now become a div. In any case the final layout will know which is going to 
-be the container element for the block, since it has to use the correct tag 
-anyway.
+to its new "main" block or not, since what was before a `<body>` block has now 
+become a div. In any case, the final layout will know which is going to be the 
+container element for the block, since it has to use the correct element anyway.
 
-When a template wants to "re-export" a definition from the template it's 
+When a template wants to "re-export" a block declaration from the template it's 
 extending, it can use `zine-extend`:
 
 ```html
@@ -555,25 +550,49 @@ extending, it can use `zine-extend`:
 </head>
 ```
 Here `with-menu.html` wants to offer the same interface for "head" (and "title")
-as `base.html`. To do so it has to both fullfill the definition and expose it 
-again, and that's what `zig-extend` does all at once.
+as `base.html`. To do so it has to both define and expose it again, and that's 
+what `zine-extend` does all at once.
 
-In a sense `zig-extend` is like doing both `zig-block` and `zig-define` on the
+In a sense `zine-extend` is like doing both `zine-define` and `zine-block` on the
 same element.
 
 ```html
-<title zine-block="title" zine-define="title"><super/></title>
+<title zine-define="title" zine-block="title"><super/></title>
 ```
 Note that the above is only meant to show the concept and it's actually a 
-compile error (what will tell you to use `zig-extend` instead).
+compile error (what will tell you to use `zine-extend` instead).
 
-That said you are allowed to use both attributes to rename a definition, if 
+That said, you are allowed to use both attributes to rename a definition, if 
 that's what you want.
 
 ```html
 <!-- this is actually ok -->
-<title zine-block="title" zine-define="cool-title"> ⚡ <super/></title>
+<title zine-define="title" zine-block="cool-title"> ⚡ <super/></title>
 ```
+
+If `with-menu.html` wanted to give consumers the option of removing the 
+navigation menu, then it could have used `zine-extend` instead, like so:
+
+```html
+<body zine-extend="main">
+  <nav zine-block="menu" style="font-style=bold;">
+    <a href="/">Home</a>
+  </nav>
+</body>
+```
+
+That's definitely more permissive and flexible than before, but it's also more
+open to misuse, like moving the navigation menu below the main content by mistake.
+
+```html
+<body zine-define="main">
+  <div> Hello World </div>
+  <super>
+    <nav zine-define="menu"><super/></nav>
+  </super>
+</body>
+```
+
 
 #### For, if and other operators
 
