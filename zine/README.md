@@ -129,7 +129,7 @@ Here's an example:
 ```
 
 Let's unpack what we're seeing here. While previously `page.html` was a 
-complete layout, it now implements `base.html`.
+complete layout, it now completes `base.html`.
 
 `base.html` is the tail of the extension chain (which is very short in this 
 case, we'll see later more complex examples) and as such it looks like a normal 
@@ -140,7 +140,7 @@ The inner parts that are missing are defined using the `zine-block` attribute.
 **Looking at the `zine-block`s of a template will tell you what the interface 
 of the template is.**
 
-All layouts and templates that intend to implement a given template must fullfill
+All layouts that intend to complete a given template must fullfill
 its interface. In this example `base.html` declares `"head"`, `"title"`, and `"main"`.
 
 To be more precise, `base.html` declares a `<head>` named "head", a `<title>` named "title", 
@@ -362,7 +362,7 @@ When the content inherited from a block declaration doesn't contain any nested
 case, you must use the full tag pair `<super></super>` because you have to 
 define all nested blocks as well.
 
-Lastly, when a layout implements a template, it must declare it's doing so by 
+Lastly, when a layout completes a template, it must declare it's doing so by 
 using a top-level `<super>` tag with a `template` attribute pointing at the 
 corresponding template inside `templates/`.
 
@@ -375,7 +375,7 @@ the layout directory and `templates/`.
 
 #### Interpreting `super` visually
 
-When you're looking at a layout that implements a template, you are looking at 
+When you're looking at a layout that completes a template, you are looking at 
 two different things, depending on the context:
 
 - a concrete list of html elements that will show up as-is in the final output.
@@ -481,7 +481,7 @@ another.
 
 *layouts/page.html*
 ```html
-<!-- this time we're implementing a different template -->
+<!-- this time we're completing a different template -->
 <super template="with-menu.html">
 
   <!-- comments are allowed between definitions inside a super element -->
