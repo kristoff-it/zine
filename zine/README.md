@@ -76,7 +76,7 @@ Hello World!
 
 #### Templated Layouts
 
-It's common for Zine project to have more than one layout, and it's also common
+It's common for Zine projects to have more than one layout, and it's also common
 for layouts to share common boilerplate (eg the doctype, the <html> tag, etc).
 
 Like other similar templating systems, Zine gives you the ability to create
@@ -141,28 +141,30 @@ The inner parts that are missing are defined using the `zine-block` attribute.
 of the template is.**
 
 All layouts and templates that intend to implement a given template must fullfill
-its interface. In this example `base.html` defines `"head"`, `"title"`, and `"main"`.
+its interface. In this example `base.html` declares `"head"`, `"title"`, and `"main"`.
 
-To be more precise, `base.html` defines a `<head>` named "head", a `<title>` named "title", 
+To be more precise, `base.html` declares a `<head>` named "head", a `<title>` named "title", 
 and a `<body>` named "main". 
 
 We'll see why this matters in just a moment.
 
 #### Defining blocks
 
-To define a block declaration in a template, a layout must use the 
+In a layout, to define a block definition from a template, the layout must use the 
 `zine-define` attribute in the same type of element that the parent template 
 exposes.
 
 For example, `base.html` declares a `<body>` named "main" and so `page.html` must
 define it using the same tag:
 
+*layout*
 ```html
 <body zine-define="main" zine-var="$page.content"></body>
 ```
 
 Using a different tag results in a compilation error:
 
+*layout*
 ```html
 <div zine-define="main" zine-var="$page.content"></div>
 ```
@@ -230,6 +232,8 @@ to steer you towards the right path.
 #### The `super` keyword
 
 In the previous example, `base.html` declared "title" this way:
+
+*template*
 ```html
 <title zine-block="title"> - website.com</title>
 ```
@@ -245,6 +249,7 @@ Page Foo - website.com
 This is another common feature of templating languages, and in Zine this is done
 by using `<super>` when defining a block:
 
+*layout*
 ```html
 <title zine-define="title">
   <span zine-inline-var="$page.title"></span> - <super/>
@@ -257,6 +262,7 @@ order to obtain the intended effect.
 In case we don't care about what the parent template is offering us, we can 
 discard it simply by not using `<super>`:
 
+*layout*
 ```html
 <title zine-define="title">whatever</title>
 ```
@@ -266,12 +272,14 @@ discard it simply by not using `<super>`:
 `super` is a keyword and not (just) a tag because it can also be used as an 
 attribute.
 
+*template*
 ```html
 <footer zine-block="footer" style="font-size:0.5em;font-style:italic;">
  All rights reserved.
 </footer>
 ```
 
+*layout*
 ```html
 <footer zine-define="footer" super>
   CC-3.0-BY
@@ -326,6 +334,7 @@ was before when looking just at "title".
 To fully re-define the entire "head" block, one can simply avoid using `super` 
 altogether:
 
+*layout*
 ```html
 <head zine-define="head">
    <title>website.com</title>
@@ -335,6 +344,7 @@ altogether:
 To inherit the contents of "head" instead, one must define all the block 
 declarations contained therein:
 
+*layout*
 ```html
 <head zine-define="head">
   <super>
@@ -405,6 +415,7 @@ what you'll get only when looking at the direct chindren of a `<super>` element.
 To increase visibility of which-is-what, you can add empty lines and HTML 
 comments between block definitions:
 
+*layout*
 ```html
 <super template="base.html">
 
@@ -527,6 +538,7 @@ own version of "main". Note that here the intent is to force the consumer layout
 to include the navigation menu, without any way of avoiding it. We'll see later
 a less forceful version this idea.
 
+*template*
 ```html
 <body zine-define="main">
   <nav zine-block="menu" style="font-style=bold;">
@@ -544,6 +556,7 @@ container element for the block, since it has to use the correct element anyway.
 When a template wants to "re-export" a block declaration from the template it's 
 extending, it can use `zine-extend`:
 
+*template*
 ```html
 <head zine-extend="head">
   <super>
@@ -561,6 +574,7 @@ what `zine-extend` does all at once.
 In a sense `zine-extend` is like doing both `zine-define` and `zine-block` on the
 same element, using the same name twice.
 
+*template*
 ```html
 <title zine-define="title" zine-block="title"><super/></title>
 ```
@@ -570,6 +584,7 @@ compile error (what will tell you to use `zine-extend` instead).
 That said, you are allowed to use both attributes to rename a definition, if 
 that's what you want.
 
+*template*
 ```html
 <!-- this is actually ok -->
 <title zine-define="title" zine-block="cool-title"> ⚡ <super/></title>
@@ -578,6 +593,7 @@ that's what you want.
 If `with-menu.html` wanted to give consumers the option of removing the 
 navigation menu, then it could have used `zine-extend` instead, like so:
 
+*template*
 ```html
 <body zine-extend="main">
   <nav zine-block="menu" style="font-style=bold;">
@@ -589,6 +605,7 @@ navigation menu, then it could have used `zine-extend` instead, like so:
 That's definitely more permissive and flexible than before, but it's also more
 open to misuse, like moving the navigation menu below the main content by mistake.
 
+*layout*
 ```html
 <body zine-define="main">
   <div> Hello World </div>
