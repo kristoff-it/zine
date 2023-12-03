@@ -9,9 +9,9 @@ Alpha stage, come back in a while.
 
 
 ## Design
-** NOTE: this section contains design ideas phrased as documentation. The actual
+**NOTE: this section contains design ideas phrased as documentation. The actual
 implementation of what is described in this section might or (most probably) 
-might not be there yet. **
+might not be there yet.**
 
 ### Templating Language
 
@@ -124,7 +124,7 @@ Here's an example:
 ```
 
 
-Let's unpack what we've seen here.
+Let's unpack what we're seeing here.
 
 While previously `page.html` was a complete layout, it now implements `base.html`.
 
@@ -136,12 +136,12 @@ The inner parts that are missing are defined using the `zine-define` attribute.
 **Looking at the `zine-define`s of a template will tell you what the interface 
 of the template is.**
 
-All layouts and templates that intend to implements a given template must fullfill
+All layouts and templates that intend to implement a given template must fullfill
 its interface.
 
 In this example `base.html` defines `"head"`, `"title"`, and `"main"`.
 
-Actually, `base.html` defines a `<head>` named "head", a `<title>` named "title", 
+To be more precise, `base.html` defines a `<head>` named "head", a `<title>` named "title", 
 and a `<body>` named "main". 
 
 We'll see why this matters in just a moment.
@@ -175,7 +175,7 @@ layouts/templates/base.html:4:1 note: "main" block defined here
 ```
 
 This might seem a bit verbose but it gives us a lightweight form of *typed* 
-templating: in Zine we always know what is the the container element that our
+templating: in Zine we always know what is the container element that our
 layout is going to fill in.
 
 Contrast this with Hugo (and similar systems):
@@ -257,15 +257,12 @@ In case we don't care about what the parent template is offering us, we can
 discard it simply by not using `<super>`:
 
 ```html
-<title zine-block="title">
-  whatever
-</title>
-
+<title zine-block="title">whatever</title>
 ```
 
 #### Inheriting attributes using `super`
 
-This section mentions calls `super` a keyword and not a tag because it can also
+This section calls `super` a keyword and not a tag because it can also
 be used as an attribute.
 
 ```html
@@ -283,7 +280,7 @@ be used as an attribute.
 
 In this example we declined to inherit the parent template's `<footer>` contents
 but we still wanted to inherit the `style` attribute (and any other non-zine-prefixed
-attribute).
+attributes).
 
 Note that duplicate attributes will cause a compile error. 
 
@@ -326,7 +323,7 @@ is a more complex example, but it's solution is fundamentally the same as it
 was before when looking just at "title".
 
 If one wants to fully re-define the entire "head" block, one can simply avoid
-using `super` alltogether:
+using `super` altogether:
 
 ```html
 <head zine-block="head">
