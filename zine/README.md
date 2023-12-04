@@ -15,14 +15,24 @@ might not be there yet.**
 
 ### Templating Language
 
-The Zine templating language differs from other common templating languages in 
-order to fullfill the following goals:
+The Zine templating language is designed to integrate with HTML, instead of being
+a completely separate language (usually based on `{{ double curlies }}`).
+
+This is why:
 
 - normal html syntax highlighting should not break because of the templating language
 - template composition should naturally align with HTML elements; in other words
   the templating language should discourage using it to perform free-form text
   manipulation (ie macros)
 
+Parsing the templating language requires also parsing HTML, which is more 
+complicated than just treating the templating language as a layer above, but 
+since our goal is to output valid HTML, parsing it at compile time allows us to 
+catch syntax errors immediately, instead of outputting completely broken HTML 
+(because of the templating language) that then gets interpreted in creative 
+ways by the browser as it attempts to make sense of it.
+
+  
 #### Introduction to Layouts
 In Zine a "layout" is an html file used to style content.
 
