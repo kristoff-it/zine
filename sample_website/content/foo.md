@@ -2,9 +2,7 @@
 {
   "title": "Hello World!",
   "draft": false,
-  "aliases": [
-    "/old-website/sections/foo/",
-  ],
+  "layout": "page.html",
   "custom": {
     "foo": 50
   }
@@ -15,5 +13,3 @@ Hello **World**!
 # Banana 123
 
 Another line test
-
-success!

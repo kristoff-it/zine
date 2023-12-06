@@ -4,6 +4,7 @@ const json = std.json;
 pub const Header = struct {
     title: []const u8 = "",
     draft: bool = false,
+    layout: []const u8 = "",
     custom: json.Value = .null,
 };
 
