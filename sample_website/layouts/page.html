@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
-  <head zine-define="head">
-    <title zine-define="title"> - <span zine-inline-var="$config.title"></span></title>
+  <head id="head">
+    <title id="title">My Blog</title>
     <meta name="description" content="">
     <meta name="twitter:card" content="summary">
     <meta name="twitter:site" content="@croloris">
@@ -12,6 +12,19 @@
     <meta property="og:title" content="Loris Cro's Personal Website">
     <meta property="og:type" content="website">
     <meta property="og:image" content="https://krisoff.it/logo.png">
+    
+    <style>
+      body {
+        background-color: #555;
+        color: #bbb;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+    </style>
+    
+    <super>
   </head>
-  <body zine-define="main"></body>
+  <body id="main" var="$page.content">
+  </body>
 </html>
