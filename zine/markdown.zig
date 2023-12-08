@@ -5,7 +5,7 @@ const templating = @import("templating.zig");
 pub fn scan(
     project: *std.Build,
     zine_dep: *std.Build.Dependency,
-    layouts: std.StringHashMap(templating.Layout),
+    layout_dir_path: []const u8,
     content_dir_path: []const u8,
 ) !void {
     const content_dir = try std.fs.cwd().openDir(
@@ -46,7 +46,7 @@ pub fn scan(
             if (!fm.draft) try addMarkdownRender(
                 project,
                 zine_dep,
-                layouts,
+                layout_dir_path,
                 fm,
                 content_dir_path,
                 dir_entry.path,
@@ -87,7 +87,7 @@ pub fn scan(
                         if (!fm.draft) try addMarkdownRender(
                             project,
                             zine_dep,
-                            layouts,
+                            layout_dir_path,
                             fm,
                             content_dir_path,
                             dir_entry.path,
@@ -111,19 +111,20 @@ pub fn scan(
 
 fn addMarkdownRender(
     project: *std.Build,
-    zine: *const std.Build.Dependency,
-    layouts: std.StringHashMap(templating.Layout),
+    zine_dep: *const std.Build.Dependency,
+    layouts_dir_path: []const u8,
     fm: frontmatter.Header,
     content_dir_path: []const u8,
-    /// Must be relative to `content_dir_root`
+    /// Must be relative to `content_dir_path`
     path: []const u8,
     md_basename: []const u8,
 ) !void {
     const in_path = project.pathJoin(&.{ content_dir_path, path, md_basename });
+    const layout_path = project.pathJoin(&.{ layouts_dir_path, fm.layout });
     const out_basename = md_basename[0 .. md_basename.len - 3];
     const out_path = project.pathJoin(&.{ path, out_basename, "index.html" });
 
-    const renderer = zine.builder.dependency(
+    const renderer = zine_dep.builder.dependency(
         "markdown-renderer",
         .{},
     ).artifact("markdown-renderer");
@@ -132,17 +133,26 @@ fn addMarkdownRender(
     render_step.addFileArg(.{ .path = in_path });
     const rendered_md = render_step.addOutputFileArg(out_basename);
 
-    const layout = layouts.get(fm.layout) orelse {
-        std.debug.print(
-            "Unable to find layout `{s}` in `{s}/{s}`\n",
-            .{ fm.layout, path, md_basename },
-        );
-        return error.FileNotFound;
-    };
+    // TODO: re-enable to compile layouts instead of runtime interpretation:
 
-    const layout_step = project.addRunArtifact(layout.exe);
-    layout_step.addFileArg(rendered_md);
+    // const layout = layouts.get(fm.layout) orelse {
+    //     std.debug.print(
+    //         "Unable to find layout `{s}` in `{s}/{s}`\n",
+    //         .{ fm.layout, path, md_basename },
+    //     );
+    //     return error.FileNotFound;
+    // };
+
+    // const layout_step = project.addRunArtifact(layout.exe);
+    // layout_step.addFileArg(rendered_md);
+    // const final_html = layout_step.addOutputFileArg(out_basename);
+
+    const super = zine_dep.builder.dependency("super", .{}).artifact("super");
+    const layout_step = project.addRunArtifact(super);
     const final_html = layout_step.addOutputFileArg(out_basename);
+    layout_step.addFileArg(rendered_md);
+    layout_step.addFileArg(.{ .path = layout_path });
+    layout_step.addArg(project.pathJoin(&.{ layouts_dir_path, "templates" }));
 
     const target_output = project.addInstallFile(final_html, out_path);
     project.getInstallStep().dependOn(&target_output.step);

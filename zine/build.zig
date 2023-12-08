@@ -11,8 +11,8 @@ pub const AddWebsiteOptions = struct {
 pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
     const zine_dep = project.dependency("zine", .{});
     setupDevelopmentServer(project, zine_dep);
-    const layouts = try templating.scan(project, zine_dep, opts.layouts_dir_path);
-    try markdown.scan(project, zine_dep, layouts, opts.content_dir_path);
+    // const layouts = try templating.scan(project, zine_dep, opts.layouts_dir_path);
+    try markdown.scan(project, zine_dep, opts.layouts_dir_path, opts.content_dir_path);
 }
 
 fn setupDevelopmentServer(project: *std.Build, zine_dep: *std.Build.Dependency) void {
