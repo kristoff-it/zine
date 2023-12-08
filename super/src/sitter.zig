@@ -58,19 +58,38 @@ pub const Node = struct {
         return html[off.start..off.end];
     }
 
+    const LinePos = struct { line: []const u8, start: u32 };
+    /// Finds the line around a Node. Choose simple nodes
+    //  if you don't want unwanted newlines in the middle.
+    pub fn line(self: Node, html: []const u8) LinePos {
+        const off = self.offset();
+
+        var idx = off.start;
+        const s = while (idx > 0) : (idx -= 1) {
+            if (html[idx] == '\n') break idx + 1;
+        } else 0;
+
+        idx = off.end;
+        const e = while (idx < html.len) : (idx += 1) {
+            if (html[idx] == '\n') break idx;
+        } else html.len - 1;
+
+        return .{ .line = html[s..e], .start = s };
+    }
+
     const Point = struct { row: u32, col: u32 };
-    const Position = struct { start: Point, end: Point };
-    pub fn selection(self: Node) Position {
+    const Selection = struct { start: Point, end: Point };
+    pub fn selection(self: Node) Selection {
         const s = c.ts_node_start_point(self.n);
         const e = c.ts_node_end_point(self.n);
         return .{
             .start = .{
-                .row = s.row,
-                .col = s.column,
+                .row = s.row + 1,
+                .col = s.column + 1,
             },
             .end = .{
-                .row = e.row,
-                .col = e.column,
+                .row = e.row + 1,
+                .col = e.column + 1,
             },
         };
     }
@@ -178,6 +197,14 @@ pub const Cursor = struct {
         c.ts_tree_cursor_reset(&self.c, n.n);
     }
 
+    pub fn copy(self: *Cursor) Cursor {
+        return .{ .c = c.ts_tree_cursor_copy(&self.c) };
+    }
+
+    pub fn destroy(self: *Cursor) void {
+        c.ts_tree_cursor_delete(&self.c);
+    }
+
     // Allows to use Cursor as a DFS-style iterator
     const IterItem = struct { node: Node, dir: enum { in, next, out } };
     pub fn next(self: *Cursor) ?IterItem {
@@ -225,8 +252,12 @@ pub const Element = struct {
     const Attr = struct {
         node: Node,
 
+        pub fn nameNode(self: Attr) Node {
+            return self.node.childAt(0).?;
+        }
+
         pub fn name(self: Attr, html: []const u8) []const u8 {
-            return self.node.childAt(0).?.string(html);
+            return self.nameNode().string(html);
         }
 
         pub fn value(self: Attr, html: []const u8) ?[]const u8 {
