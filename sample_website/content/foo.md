@@ -8,8 +8,8 @@
   }
 }  
 --- 
-Hello **World**!
+# Welcome to my website
 
-# Banana 123
+Where an alert triggers on **every** load. 
 
-Another line test
+You're welcome.

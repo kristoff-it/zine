@@ -1,24 +1,49 @@
 const std = @import("std");
 const sitter = @import("sitter.zig");
 
-pub fn main() !void {
+/// Used to catch programming errors where a function fails to report
+/// correctly that an error has occurred.
+const Reported = error{
+    /// The error has been fully reported.
+    Reported,
+    /// The error has been reported but we should also print the
+    /// interface of the template we are extending.
+    WantInterface,
+};
+
+pub fn main() void {
     var arena_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     defer arena_impl.deinit();
 
     const arena = arena_impl.allocator();
 
-    const args = try std.process.argsAlloc(arena);
+    const args = std.process.argsAlloc(arena) catch fatal("out of memory", .{});
     const out_path = args[1];
     const rendered_md_path = args[2];
-    const layout_path = args[3];
-    const templates_dir_path = args[4];
+    const md_name = args[3];
+    const layout_path = args[4];
+    const layout_name = args[5];
+    const templates_dir_path = args[6];
 
-    const rendered_md_string = try readFile(rendered_md_path, arena);
-    const layout_html = try readFile(layout_path, arena);
+    const rendered_md_string = readFile(rendered_md_path, arena) catch |err| {
+        fatal("error while opening the rendered markdown file:\n{s}\n{s}\n", .{
+            rendered_md_path,
+            @errorName(err),
+        });
+    };
+
+    const layout_html = readFile(layout_path, arena) catch |err| {
+        fatal("error while opening the layout file:\n{s}\n{s}\n", .{
+            layout_path,
+            @errorName(err),
+        });
+    };
 
     const out_file = std.fs.cwd().createFile(out_path, .{}) catch |err| {
-        std.debug.print("Error while creating file: {s}\n", .{out_path});
-        return err;
+        fatal("error while creating output file: {s}\n{s}\n", .{
+            out_path,
+            @errorName(err),
+        });
     };
     defer out_file.close();
 
@@ -26,7 +51,13 @@ pub fn main() !void {
     const w = buf_writer.writer();
 
     var layouts = std.ArrayList(Layout).init(arena);
-    try layouts.append(Layout.init(layout_html, arena, rendered_md_string));
+    layouts.append(Layout.init(
+        layout_name,
+        layout_path,
+        layout_html,
+        arena,
+        rendered_md_string,
+    )) catch fatal("out of memory", .{});
 
     // current layout index
     var idx: usize = 0;
@@ -36,12 +67,38 @@ pub fn main() !void {
     while (quota > 0) : (quota -= 1) {
         const l = &layouts.items[idx];
 
-        switch (try l.analyze(w)) {
+        const continuation = l.analyze(w) catch |err| switch (err) {
+            error.Reported => fatalTrace(idx -| 1, layouts.items, md_name),
+            error.WantInterface => {
+                layouts.items[idx + 1].showInterface();
+                fatalTrace(idx, layouts.items, md_name);
+            },
+        };
+        switch (continuation) {
             .full_end => break,
-            .zine => |t| {
-                const path = try std.fs.path.join(arena, &.{ templates_dir_path, t });
-                const template_html = try readFile(path, arena);
-                try layouts.append(Layout.init(template_html, arena, rendered_md_string));
+            .zine => |z| {
+                const path = std.fs.path.join(arena, &.{
+                    templates_dir_path,
+                    z.template,
+                }) catch fatal("out of memory", .{});
+                const template_html = readFile(path, arena) catch |err| {
+                    l.reportError(
+                        z.node,
+                        "FILE I/O ERROR",
+                        "An errror occurred while reading a file.",
+                    ) catch {};
+                    std.debug.print("The error encountered: {s}\n", .{
+                        @errorName(err),
+                    });
+                    fatalTrace(idx, layouts.items, md_name);
+                };
+                layouts.append(Layout.init(
+                    z.template,
+                    path,
+                    template_html,
+                    arena,
+                    rendered_md_string,
+                )) catch fatal("out of memory", .{});
                 idx += 1;
             },
             .super => |id| {
@@ -51,7 +108,10 @@ pub fn main() !void {
                 idx -= 1;
 
                 const super = &layouts.items[idx];
-                try super.moveCursorToBlock(id, w);
+                super.moveCursorToBlock(id, w) catch {
+                    l.showInterface();
+                    fatalTrace(idx, layouts.items, md_name);
+                };
             },
             .block_end => {
                 idx += 1;
@@ -64,16 +124,38 @@ pub fn main() !void {
         @panic("TODO: explain that there probably was an infinite loop");
     }
 
-    for (layouts.items) |l| try l.finalCheck();
+    for (layouts.items, 0..) |l, i| l.finalCheck() catch |err| switch (err) {
+        error.Reported => fatalTrace(i -| 1, layouts.items, md_name),
+        error.WantInterface => {
+            layouts.items[i + 1].showInterface();
+            fatalTrace(i, layouts.items, md_name);
+        },
+    };
 
-    try buf_writer.flush();
+    buf_writer.flush() catch |err| {
+        fatal("error writing to the output file: {s}", .{@errorName(err)});
+    };
+}
+
+fn fatalTrace(idx: usize, items: []const Layout, md_name: []const u8) noreturn {
+    std.debug.print("trace:\n", .{});
+    var cursor = idx;
+    while (cursor > 0) : (cursor -= 1) {
+        std.debug.print("\ttemplate `{s}`,\n", .{
+            items[cursor].name,
+        });
+    }
+
+    std.debug.print("\tlayout `{s}`,\n", .{items[0].name});
+
+    fatal("\tcontent `{s}`.\n", .{
+        md_name,
+    });
 }
 
 fn readFile(path: []const u8, arena: std.mem.Allocator) ![]const u8 {
-    const file = std.fs.cwd().openFile(path, .{}) catch |err| {
-        std.debug.print("Error while opening file: {s}\n", .{path});
-        return err;
-    };
+    const file = try std.fs.cwd().openFile(path, .{});
+
     defer file.close();
 
     var buf_reader = std.io.bufferedReader(file.reader());
@@ -87,8 +169,10 @@ fn is(str1: []const u8, str2: []const u8) bool {
 }
 
 const Layout = struct {
+    name: []const u8,
+    path: []const u8,
     html: []const u8,
-    print_cursor: usize,
+    print_cursor: usize = 0,
     tree: sitter.Tree,
 
     // Template-wide analysis
@@ -111,12 +195,19 @@ const Layout = struct {
         state: enum { new, analysis, done } = .new,
     };
 
-    pub fn init(html: []const u8, arena: std.mem.Allocator, md: []const u8) Layout {
+    pub fn init(
+        name: []const u8,
+        path: []const u8,
+        html: []const u8,
+        arena: std.mem.Allocator,
+        md: []const u8,
+    ) Layout {
         const tree = sitter.Tree.init(html);
         return .{
+            .name = name,
+            .path = path,
             .html = html,
             .md = md,
-            .print_cursor = 0,
             .tree = tree,
             .cursor = tree.root().cursor(),
             .blocks = std.StringHashMap(Block).init(arena),
@@ -128,7 +219,13 @@ const Layout = struct {
             var it = self.blocks.valueIterator();
             while (it.next()) |block| switch (block.state) {
                 .new => {
-                    @panic("TODO: explain a template has a superfluous block");
+                    const bad = block.elem.node.childAt(0).?.childAt(0).?;
+                    self.reportError(bad, "UNBOUND BLOCK",
+                        \\Found an unbound block, i.e. the extended template doesn't declare 
+                        \\a corresponding super block. Either remove it from the current
+                        \\template, or add a <super> in the extended template. 
+                    ) catch {};
+                    return Reported.WantInterface;
                 },
                 .analysis => {
                     @panic("programming error: a block was never analyzed fully");
@@ -142,7 +239,22 @@ const Layout = struct {
         }
     }
 
-    pub fn moveCursorToBlock(self: *Layout, id: []const u8, writer: anytype) !void {
+    pub fn showInterface(self: Layout) void {
+        std.debug.print("\nInterface for the extended template ({s}):\n", .{self.name});
+
+        var cursor = self.tree.root().cursor();
+        defer cursor.destroy();
+
+        while (cursor.next()) |s| {
+            const elem = s.node.toElement() orelse continue;
+            if (!is(elem.tag(self.html), "super")) continue;
+            const id = self.findSuperId(elem) orelse continue;
+            std.debug.print("\t{s}\n", .{id});
+        }
+        std.debug.print("\n", .{});
+    }
+
+    pub fn moveCursorToBlock(self: *Layout, id: []const u8, writer: anytype) Reported!void {
         if (!self.block_mode) {
             @panic("programming error: layout is not in block mode");
         }
@@ -154,7 +266,12 @@ const Layout = struct {
         }
 
         const block = self.blocks.getPtr(id) orelse {
-            @panic("TODO: explain we couldn't find a block that we were supposed to extend");
+            std.debug.print(
+                \\Missing `{s}` block in {s}.
+                \\All <super> blocks from the parent template ({s}) must be defined. 
+                \\
+            , .{ id, self.name, self.extends.? });
+            return error.WantInterface;
         };
 
         if (block.state != .new) {
@@ -211,7 +328,7 @@ const Layout = struct {
                 @panic("TODO: explain that an id attribute must always have a value");
             };
 
-            const gop = try self.blocks.getOrPut(id);
+            const gop = self.blocks.getOrPut(id) catch fatal("out of memory", .{});
             if (gop.found_existing) {
                 @panic("TODO: explain that a duplicate id was found");
             }
@@ -224,8 +341,8 @@ const Layout = struct {
     }
 
     pub const Continuation = union(enum) {
-        // A <zine> was found, contains template name
-        zine: []const u8,
+        // A <zine> was found, contains template name and the zine node
+        zine: Zine,
         // A <super> was found, contains relative id
         super: []const u8,
         // The block was analyzed to completion (in block mode)
@@ -234,7 +351,7 @@ const Layout = struct {
         full_end,
     };
 
-    pub fn analyze(self: *Layout, writer: anytype) !Continuation {
+    pub fn analyze(self: *Layout, writer: anytype) Reported!Continuation {
         if (!self.cursor_busy) {
             @panic("programming error: tried to use an unset cursor");
         }
@@ -248,9 +365,9 @@ const Layout = struct {
 
             // on zine, return template
             if (is(elem.tag(self.html), "zine")) {
-                const template = try self.analyzeZineElem(elem);
+                const zine = try self.analyzeZineElem(elem);
                 try self.setBlockMode();
-                return .{ .zine = template };
+                return .{ .zine = zine };
             }
 
             // on super, return relative id
@@ -284,25 +401,44 @@ const Layout = struct {
                 break :blk last.start();
             };
 
-            try writer.writeAll(self.html[self.print_cursor..end]);
+            writer.writeAll(self.html[self.print_cursor..end]) catch |err| {
+                fatal("error writing to output file: {s}", .{@errorName(err)});
+            };
             self.print_cursor = end;
             self.current_block_id = null;
             return .block_end;
         }
 
-        try writer.writeAll(self.html[self.print_cursor..]);
+        writer.writeAll(self.html[self.print_cursor..]) catch |err| {
+            fatal("error writing to output file: {s}", .{@errorName(err)});
+        };
 
         self.print_cursor = self.html.len - 1;
         self.cursor_busy = false;
         return .full_end;
     }
 
-    pub fn analyzeZineElem(self: *Layout, elem: sitter.Element) ![]const u8 {
-        if (self.extends != null) {
-            @panic("TODO: explain that a template can only have one zine tag");
-        }
-
+    const Zine = struct {
+        template: []const u8,
+        node: sitter.Node,
+    };
+    pub fn analyzeZineElem(self: *Layout, elem: sitter.Element) !Zine {
+        // validation
         {
+            if (self.extends != null) {
+                @panic("TODO: explain that a template can only have one zine tag");
+            }
+
+            if (elem.node.childAt(1) != null) {
+                return self.reportError(elem.node.childAt(0).?, "BAD ZINE TAG",
+                    \\The zine tag must be closed immediately (i.e.: <zine template="foo.html"/>).
+                    \\It must be done otherwise parsers will assume that all 
+                    \\content after is *inside* of it.
+                    \\
+                    \\Cursed read: https://www.w3.org/TR/2014/REC-html5-20141028/syntax.html#optional-tags
+                );
+            }
+
             const parent_isnt_root = !self.tree.root().eq(elem.node.parent().?);
             var prev = elem.node.prev();
             const any_elem_before = while (prev) |p| : (prev = p.prev()) {
@@ -314,28 +450,37 @@ const Layout = struct {
             }
         }
 
-        var state: union(enum) { template, end: []const u8 } = .template;
+        var state: union(enum) { template, end: Zine } = .template;
         var attrs = elem.attrs();
         while (attrs.next()) |attr| switch (state) {
             .template => {
                 if (!is(attr.name(self.html), "template")) {
-                    @panic("TODO: explain that zine tag must have only a template attr");
+                    std.debug.print("TODO: explain that zine tag must have only a template attr", .{});
+                    std.process.exit(1);
                 }
 
                 const value = attr.value(self.html) orelse {
                     @panic("TODO: explain that template must have a value");
                 };
 
-                state = .{ .end = value };
+                state = .{
+                    .end = .{
+                        .template = value,
+                        .node = attr.nameNode(),
+                    },
+                };
             },
             .end => {
-                @panic("TODO: explain that zine must only have the template attribute");
+                const name_node = attr.node.childAt(0).?;
+                return self.reportError(name_node, "BAD ZINE TAG",
+                    \\Unwanted attribute in <zine> tag: it can only contain a `template` attribute.
+                );
             },
         };
 
         switch (state) {
             .end => |t| {
-                self.extends = t;
+                self.extends = t.template;
                 return t;
             },
             .template => {
@@ -344,20 +489,75 @@ const Layout = struct {
         }
     }
 
+    fn reportError(
+        self: Layout,
+        bad_node: sitter.Node,
+        title: []const u8,
+        msg: []const u8,
+    ) Reported {
+        const pos = bad_node.selection();
+        const line_pos = bad_node.line(self.html);
+        const offset = bad_node.offset();
+        const len = offset.end - offset.start;
+        const spaces_len = offset.start - line_pos.start;
+
+        var buf: [1024]u8 = undefined;
+
+        const highlight = if (len + spaces_len < 1024) blk: {
+            const h = buf[0 .. len + spaces_len];
+            @memset(h[0..spaces_len], ' ');
+            @memset(h[spaces_len..][0..len], '^');
+            break :blk h;
+        } else "";
+
+        std.debug.print(
+            \\
+            \\---------- {s} ----------
+            \\{s}
+            \\
+            \\({s}) {s}:{}:{}:
+            \\{s}
+            \\{s}
+            \\
+        , .{
+            title,         msg,
+            self.name,     self.path,
+            pos.start.row, pos.start.col,
+            line_pos.line, highlight,
+        });
+        return error.Reported;
+    }
+
     fn analyzeSuperElem(self: *Layout, elem: sitter.Element, writer: anytype) ![]const u8 {
         // Validate
         if (elem.node.childAt(1) != null) {
-            @panic("TODO: explain that super is a void tag");
+            return self.reportError(elem.node.childAt(0).?, "BAD SUPER TAG",
+                \\The super tag must be closed immediately (i.e.: <super/>).
+                \\It must be done otherwise parsers will assume that all 
+                \\content after is *inside* of it.
+                \\
+                \\Cursed read: https://www.w3.org/TR/2014/REC-html5-20141028/syntax.html#optional-tags
+            );
         }
 
         if (elem.node.childAt(0).?.childAt(1) != null) {
-            @panic("TODO: explain that super must not have attributes");
+            std.debug.print("TODO: explain that super must not have attributes", .{});
+            std.process.exit(1);
         }
 
         // Print the template up until <super>
         const offset = elem.node.offset();
-        try writer.writeAll(self.html[self.print_cursor..offset.start]);
+        writer.writeAll(self.html[self.print_cursor..offset.start]) catch |err| {
+            fatal("error writing to output file: {s}", .{@errorName(err)});
+        };
         self.print_cursor = offset.end;
+
+        return self.findSuperId(elem) orelse {
+            @panic("TODO: explain that a <super> must always have an element with an id in its ancestry");
+        };
+    }
+
+    fn findSuperId(self: Layout, elem: sitter.Element) ?[]const u8 {
 
         // Find relative id
         var parent = elem.node.parent();
@@ -372,10 +572,8 @@ const Layout = struct {
 
             return id;
         }
-
-        @panic("TODO: explain that a <super> must always have an element with an id in its ancestry");
+        return null;
     }
-
     // Return true if it found a var="$page.content" attribute
     fn analyzeTag(
         self: *Layout,
@@ -384,7 +582,7 @@ const Layout = struct {
         opts: struct {
             skip_start_tag: bool = false,
         },
-    ) !void {
+    ) Reported!void {
         var attrs = elem.attrs();
         var before_var_attr = elem.tagNode().end();
         while (attrs.next()) |attr| : (before_var_attr = attr.node.end()) {
@@ -414,13 +612,24 @@ const Layout = struct {
             // Print everything up (but not including) the var attribute.
             {
                 if (!opts.skip_start_tag) {
-                    try writer.writeAll(self.html[self.print_cursor..before_var_attr]);
-                    try writer.writeByte('>');
+                    writer.writeAll(self.html[self.print_cursor..before_var_attr]) catch |err| {
+                        fatal("error writing to output file: {s}", .{@errorName(err)});
+                    };
+                    writer.writeByte('>') catch |err| {
+                        fatal("error writing to output file: {s}", .{@errorName(err)});
+                    };
                 }
-                try writer.writeAll(self.md);
+                writer.writeAll(self.md) catch |err| {
+                    fatal("error writing to output file: {s}", .{@errorName(err)});
+                };
             }
 
             self.print_cursor = end_tag.start();
         }
     }
 };
+
+fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
+    std.debug.print(fmt, args);
+    std.process.exit(1);
+}

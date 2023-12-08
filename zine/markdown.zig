@@ -151,7 +151,9 @@ fn addMarkdownRender(
     const layout_step = project.addRunArtifact(super);
     const final_html = layout_step.addOutputFileArg(out_basename);
     layout_step.addFileArg(rendered_md);
+    layout_step.addArg(project.pathJoin(&.{ path, md_basename }));
     layout_step.addFileArg(.{ .path = layout_path });
+    layout_step.addArg(fm.layout);
     layout_step.addArg(project.pathJoin(&.{ layouts_dir_path, "templates" }));
 
     const target_output = project.addInstallFile(final_html, out_path);
