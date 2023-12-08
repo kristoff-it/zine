@@ -12,6 +12,9 @@
         .frontmatter = .{
             .path = "../frontmatter",
         },
+        .super = .{
+            .path = "../super",
+        },
     },
     .paths = .{
         "LICENSE",
