@@ -34,6 +34,16 @@ pub const Tree = struct {
 pub const Node = struct {
     n: c.TSNode,
 
+    pub fn debug(self: Node) void {
+        const c_str = c.ts_node_string(self.n);
+        const str = std.mem.span(c_str);
+        std.debug.print("\n{s}\n", .{str});
+    }
+
+    pub fn missing(self: Node) bool {
+        return c.ts_node_is_missing(self.n);
+    }
+
     pub fn eq(self: Node, other: Node) bool {
         return c.ts_node_eq(self.n, other.n);
     }
@@ -58,10 +68,10 @@ pub const Node = struct {
         return html[off.start..off.end];
     }
 
-    const LinePos = struct { line: []const u8, start: u32 };
+    const LineOff = struct { line: []const u8, start: u32 };
     /// Finds the line around a Node. Choose simple nodes
     //  if you don't want unwanted newlines in the middle.
-    pub fn line(self: Node, html: []const u8) LinePos {
+    pub fn line(self: Node, html: []const u8) LineOff {
         const off = self.offset();
 
         var idx = off.start;
@@ -150,8 +160,17 @@ pub const Node = struct {
     }
 
     pub fn toElement(self: Node) ?Element {
-        if (!std.mem.eql(u8, "element", self.nodeType())) return null;
+        const t = self.nodeType();
+        if (!std.mem.eql(u8, t, "element")) return null;
         return .{ .node = self };
+    }
+
+    pub fn toTag(self: Node) ?Tag {
+        const t = self.nodeType();
+        const is_start = std.mem.eql(u8, t, "start_tag");
+        const is_self_closing = std.mem.eql(u8, t, "self_closing_tag");
+        if (!is_start and !is_self_closing) return null;
+        return .{ .node = self, .is_self_closing = is_self_closing };
     }
 
     pub fn cursor(self: Node) Cursor {
@@ -187,6 +206,13 @@ pub const Cursor = struct {
             return self.node();
         return null;
     }
+
+    pub fn lastChild(self: *Cursor) ?Node {
+        if (c.ts_tree_cursor_goto_last_child(&self.c))
+            return self.node();
+        return null;
+    }
+
     pub fn child(self: *Cursor) ?Node {
         if (c.ts_tree_cursor_goto_first_child(&self.c))
             return self.node();
@@ -220,16 +246,21 @@ pub const Cursor = struct {
 
 pub const Element = struct {
     node: Node,
-
-    pub fn tag(self: Element, html: []const u8) []const u8 {
-        return self.tagNode().string(html);
+    pub fn tag(self: Element) Tag {
+        return self.node.childAt(0).?.toTag().?;
     }
-    pub fn tagNode(self: Element) Node {
-        return self.node.childAt(0).?.childAt(0).?;
+};
+
+pub const Tag = struct {
+    node: Node,
+    is_self_closing: bool,
+
+    pub fn name(self: Tag) Node {
+        return self.node.childAt(0).?;
     }
 
-    pub fn attrs(self: Element) AttrIterator {
-        const maybe_attr = self.node.childAt(0).?.childAt(1) orelse {
+    pub fn attrs(self: Tag) AttrIterator {
+        const maybe_attr = self.node.childAt(1) orelse {
             return .{ .current = null };
         };
 
@@ -240,10 +271,10 @@ pub const Element = struct {
         return .{ .current = maybe_attr };
     }
 
-    pub fn findAttr(self: Element, html: []const u8, name: []const u8) ?Attr {
+    pub fn findAttr(self: Tag, html: []const u8, attr_name: []const u8) ?Attr {
         var it = self.attrs();
         return while (it.next()) |attr| {
-            if (std.mem.eql(u8, attr.name(html), name)) {
+            if (std.mem.eql(u8, attr.name().string(html), attr_name)) {
                 break attr;
             }
         } else null;
@@ -252,12 +283,8 @@ pub const Element = struct {
     const Attr = struct {
         node: Node,
 
-        pub fn nameNode(self: Attr) Node {
+        pub fn name(self: Attr) Node {
             return self.node.childAt(0).?;
-        }
-
-        pub fn name(self: Attr, html: []const u8) []const u8 {
-            return self.nameNode().string(html);
         }
 
         pub fn value(self: Attr, html: []const u8) ?[]const u8 {
