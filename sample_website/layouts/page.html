@@ -1,13 +1,23 @@
-<zine template="with-menu.html"/>
+<!-- foo bar baz -->
+<!-- foo bar baz -->
+
+
+<!-- foo bar baz -->
+
+<extend template="with-menu.html"/>
+<title id="title">Whoo-hoo!</title>
 
 <head id="head">
-  <script>
+  <script> 
      alert("lmao");
   </script>
+  <link src="foo.css">
 </head>
 
-<div id="menu">
+<nav debug id="menu">
   menu item
-</div>
+  <div>whoops!
+  arst
+</nav>
 
-<body id="main" var="$page.content"></body>
+<div id="content" var="$page.content"></div>

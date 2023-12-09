@@ -155,6 +155,7 @@ fn addMarkdownRender(
     layout_step.addFileArg(.{ .path = layout_path });
     layout_step.addArg(fm.layout);
     layout_step.addArg(project.pathJoin(&.{ layouts_dir_path, "templates" }));
+    _ = layout_step.addDepFileOutputArg("templates.d");
 
     const target_output = project.addInstallFile(final_html, out_path);
     project.getInstallStep().dependOn(&target_output.step);
