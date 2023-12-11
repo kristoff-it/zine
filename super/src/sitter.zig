@@ -120,6 +120,12 @@ pub const Node = struct {
         return .{ .n = ch };
     }
 
+    pub fn lastChild(self: Node) ?Node {
+        const count = self.childCount();
+        if (count == 0) return null;
+        return self.childAt(count - 1);
+    }
+
     pub fn prev(self: Node) ?Node {
         const p = c.ts_node_prev_named_sibling(self.n);
         if (c.ts_node_is_null(p)) return null;

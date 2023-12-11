@@ -480,13 +480,9 @@ const Template = struct {
         while (self.cursor.next()) |item| {
             // self.debug(item.node, "analyzing", .{});
 
-            if (is(item.node.nodeType(), "erroneous_end_tag")) {
-                return self.reportError(item.node, "HTML SYNTAX ERROR",
-                    \\An HTML syntax error was found in a template.
-                );
-            }
-
-            if (is(item.node.nodeType(), "MISSING _implicit_end_tag")) {
+            if (is(item.node.nodeType(), "erroneous_end_tag") or
+                is(item.node.nodeType(), "MISSING _implicit_end_tag"))
+            {
                 return self.reportError(item.node, "HTML SYNTAX ERROR",
                     \\An HTML syntax error was found in a template.
                 );
@@ -535,6 +531,7 @@ const Template = struct {
                 @panic("programming error: analysis was called in block mode but no block was active");
             };
 
+            // programming errors
             self.cursor_busy = false;
             const block = self.blocks.getPtr(id).?;
             if (block.state != .analysis) {
@@ -542,7 +539,7 @@ const Template = struct {
             }
             block.state = .done;
 
-            const end = block.elem.node.end();
+            const end = block.elem.node.lastChild().?.start();
 
             writer.writeAll(self.html[self.print_cursor..end]) catch |err| {
                 fatal("error writing to output file: {s}", .{@errorName(err)});
