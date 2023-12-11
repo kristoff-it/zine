@@ -1,4 +1,8 @@
 const std = @import("std");
+const Tokenizer = @This();
+
+code: [:0]const u8,
+idx: usize = 0,
 
 pub const Token = struct {
     tag: Tag,
@@ -8,6 +12,41 @@ pub const Token = struct {
         start: usize,
         end: usize,
     };
+
+    pub fn src(self: Token, code: []const u8) []const u8 {
+        return code[self.loc.start..self.loc.end];
+    }
+
+    // Always returns an allocated string
+    pub fn unquote(
+        self: Token,
+        code: []const u8,
+        gpa: std.mem.Allocator,
+    ) ![]const u8 {
+        var out = std.ArrayList(u8).init(gpa);
+        const s = self.src(code);
+        const quote = s[0];
+        const quoteless = s[1 .. s.len - 2];
+
+        var last = quote;
+        var skipped = false;
+        for (quoteless) |c| {
+            if (c == '\\' and last == '\\' and !skipped) {
+                skipped = true;
+                last = c;
+                continue;
+            }
+            if (c == quote and last == '\\' and !skipped) {
+                out.items[out.items.len - 1] = quote;
+                last = c;
+                continue;
+            }
+            try out.append(c);
+            skipped = false;
+            last = c;
+        }
+        return out.items;
+    }
 
     pub const Tag = enum {
         invalid,
@@ -37,125 +76,121 @@ pub const Token = struct {
     };
 };
 
-const Tokenizer = struct {
-    code: [:0]const u8,
-    idx: usize = 0,
-    const State = enum {
-        invalid,
-        start,
-        identifier,
-        number,
-        string,
-    };
-
-    pub fn next(self: *Tokenizer) ?Token {
-        var state: State = .start;
-        var res: Token = .{
-            .tag = .invalid,
-            .loc = .{
-                .start = self.idx,
-                .end = undefined,
-            },
-        };
-        while (true) : (self.idx += 1) {
-            const c = self.code[self.idx];
-
-            switch (state) {
-                .start => switch (c) {
-                    else => {
-                        state = .invalid;
-                    },
-                    0 => return null,
-                    ' ' => {},
-                    'a'...'z', 'A'...'Z', '_' => {
-                        state = .identifier;
-                    },
-                    '"', '\'' => {
-                        state = .string;
-                    },
-                    '0'...'9', '-' => {
-                        state = .number;
-                    },
-
-                    '$' => {
-                        self.idx += 1;
-                        res.tag = .dollar;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                    ',' => {
-                        self.idx += 1;
-                        res.tag = .comma;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                    '.' => {
-                        self.idx += 1;
-                        res.tag = .dot;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                    '(' => {
-                        self.idx += 1;
-                        res.tag = .lparen;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                    ')' => {
-                        self.idx += 1;
-                        res.tag = .rparen;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                },
-                .identifier => switch (c) {
-                    'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
-                    else => {
-                        res.tag = .identifier;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                },
-                .string => switch (c) {
-                    0 => {
-                        res.tag = .string;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-
-                    '"', '\'' => if (c == self.code[res.loc.start] and
-                        evenSlashes(self.code[0..self.idx]))
-                    {
-                        self.idx += 1;
-                        res.tag = .string;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                    else => {},
-                },
-                .number => switch (c) {
-                    '0'...'9', '.', '_' => {},
-                    else => {
-                        res.tag = .number;
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                },
-                .invalid => switch (c) {
-                    'a'...'z',
-                    'A'...'Z',
-                    '0'...'9',
-                    => {},
-                    else => {
-                        res.loc.end = self.idx;
-                        break;
-                    },
-                },
-            }
-        }
-        return res;
-    }
+const State = enum {
+    invalid,
+    start,
+    identifier,
+    number,
+    string,
 };
+
+pub fn next(self: *Tokenizer) ?Token {
+    var state: State = .start;
+    var res: Token = .{
+        .tag = .invalid,
+        .loc = .{
+            .start = self.idx,
+            .end = undefined,
+        },
+    };
+    while (true) : (self.idx += 1) {
+        const c = self.code[self.idx];
+
+        switch (state) {
+            .start => switch (c) {
+                else => {
+                    state = .invalid;
+                },
+                0 => return null,
+                ' ' => {},
+                'a'...'z', 'A'...'Z', '_' => {
+                    state = .identifier;
+                },
+                '"', '\'' => {
+                    state = .string;
+                },
+                '0'...'9', '-' => {
+                    state = .number;
+                },
+
+                '$' => {
+                    self.idx += 1;
+                    res.tag = .dollar;
+                    res.loc.end = self.idx;
+                    break;
+                },
+                ',' => {
+                    self.idx += 1;
+                    res.tag = .comma;
+                    res.loc.end = self.idx;
+                    break;
+                },
+                '.' => {
+                    self.idx += 1;
+                    res.tag = .dot;
+                    res.loc.end = self.idx;
+                    break;
+                },
+                '(' => {
+                    self.idx += 1;
+                    res.tag = .lparen;
+                    res.loc.end = self.idx;
+                    break;
+                },
+                ')' => {
+                    self.idx += 1;
+                    res.tag = .rparen;
+                    res.loc.end = self.idx;
+                    break;
+                },
+            },
+            .identifier => switch (c) {
+                'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
+                else => {
+                    res.tag = .identifier;
+                    res.loc.end = self.idx;
+                    break;
+                },
+            },
+            .string => switch (c) {
+                0 => {
+                    res.tag = .string;
+                    res.loc.end = self.idx;
+                    break;
+                },
+
+                '"', '\'' => if (c == self.code[res.loc.start] and
+                    evenSlashes(self.code[0..self.idx]))
+                {
+                    self.idx += 1;
+                    res.tag = .string;
+                    res.loc.end = self.idx;
+                    break;
+                },
+                else => {},
+            },
+            .number => switch (c) {
+                '0'...'9', '.', '_' => {},
+                else => {
+                    res.tag = .number;
+                    res.loc.end = self.idx;
+                    break;
+                },
+            },
+            .invalid => switch (c) {
+                'a'...'z',
+                'A'...'Z',
+                '0'...'9',
+                => {},
+                else => {
+                    res.loc.end = self.idx;
+                    break;
+                },
+            },
+        }
+    }
+    return res;
+}
 
 fn evenSlashes(str: []const u8) bool {
     var i = str.len - 1;

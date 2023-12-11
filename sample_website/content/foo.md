@@ -2,7 +2,7 @@
 {
   "title": "Hello World!",
   "draft": false,
-  "layout": "page.html",
+  "layout": "list.html",
   "custom": {
     "foo": 50
   }
@@ -13,3 +13,7 @@
 Where an alert triggers on **every** load. 
 
 You're welcome.
+
+```zig 
+const foo = @import("foo.zig");
+```
