@@ -1,5 +1,6 @@
 const std = @import("std");
 const sitter = @import("sitter.zig");
+const script = @import("script.zig");
 
 /// Used to catch programming errors where a function fails to report
 /// correctly that an error has occurred.
@@ -154,14 +155,21 @@ pub fn main() void {
 
                 const super_template = &templates.items[idx];
                 // std.debug.print("{s} -- {s} --> {s}\n", .{ t.name, id, super.name });
-                super_template.moveCursorToBlock(s, out_writer) catch |err| {
-                    if (err == error.ShowSuper) {
+                super_template.moveCursorToBlock(s, out_writer) catch |err| switch (err) {
+                    error.ShowSuper => {
                         std.debug.print("note: extended block defined here:", .{});
                         t.templateDiagnostics(s.tag_name);
-                    }
+                        t.showInterface();
+                        fatalTrace(idx, templates.items, md_name);
+                    },
+                    error.WantInterface => {
+                        t.showInterface();
+                        fatalTrace(idx, templates.items, md_name);
+                    },
 
-                    t.showInterface();
-                    fatalTrace(idx, templates.items, md_name);
+                    error.Reported => {
+                        fatalTrace(idx, templates.items, md_name);
+                    },
                 };
             },
             .block_end => {
@@ -238,19 +246,22 @@ const Template = struct {
     html: []const u8,
     print_cursor: usize = 0,
     tree: sitter.Tree,
+    arena: std.mem.Allocator,
 
     // Template-wide analysis
     cursor: sitter.Cursor,
     cursor_busy: bool = true, // for programming errors
+    script_vm: script.Interpreter,
+    if_stack: std.ArrayListUnmanaged(IfBlock) = .{},
 
     // Analysis of `<extend/>`
     extends: ?[]const u8 = null,
 
     // Analysis of blocks
-    blocks: std.StringHashMap(Block),
+    blocks: std.StringHashMapUnmanaged(Block) = .{},
     block_mode: bool = false, // for programming errors
     current_block_id: ?[]const u8 = null, // for programming errors
-    interface: std.StringHashMap(sitter.Node),
+    interface: std.StringHashMapUnmanaged(sitter.Node) = .{},
 
     // Scripting
     md: []const u8,
@@ -259,6 +270,12 @@ const Template = struct {
         elem: sitter.Element,
         tag_name: sitter.Node,
         state: enum { new, analysis, done } = .new,
+    };
+
+    const IfBlock = struct {
+        result: bool,
+        node: sitter.Node,
+        name: sitter.Node,
     };
 
     pub fn init(
@@ -278,8 +295,18 @@ const Template = struct {
             .md = md,
             .tree = tree,
             .cursor = tree.root().cursor(),
-            .blocks = std.StringHashMap(Block).init(arena),
-            .interface = std.StringHashMap(sitter.Node).init(arena),
+            .arena = arena,
+            .script_vm = script.Interpreter.init(.{
+                .version = "v0",
+                .page = .{
+                    .title = "test",
+                    .draft = false,
+                    .content = md,
+                },
+                .site = .{
+                    .name = "my website",
+                },
+            }),
         };
     }
 
@@ -437,11 +464,17 @@ const Template = struct {
                 @panic("TODO: explain that in a template with <extend> all top-level elements must have an id");
             };
 
-            const id = id_attr.value(self.html) orelse {
+            const id_value = id_attr.value() orelse {
                 @panic("TODO: explain that an id attribute must always have a value");
             };
 
-            const gop = self.blocks.getOrPut(id) catch fatal("out of memory", .{});
+            const id = id_value.unquote(self.html);
+
+            if (std.mem.indexOfScalar(u8, id, '$')) |_| {
+                @panic("TODO: explain that you can't put any scripting stuff in id");
+            }
+
+            const gop = self.blocks.getOrPut(self.arena, id) catch fatal("out of memory", .{});
             if (gop.found_existing) {
                 self.reportError(tag.name(), "DUPLICATE BLOCK", "A duplicate block was found.") catch {};
                 std.debug.print("note: previous definition found here:", .{});
@@ -502,7 +535,7 @@ const Template = struct {
             // on super, return relative id
             if (is(name, "super")) {
                 const s = try self.analyzeSuper(elem, writer);
-                const gop = self.interface.getOrPut(s.id) catch fatal("out of memory", .{});
+                const gop = self.interface.getOrPut(self.arena, s.id) catch fatal("out of memory", .{});
                 if (gop.found_existing) {
                     self.reportError(elem_name, "UNEXPECTED SUPER TAG",
                         \\All <super/> tags must have an ancestor element with an id,
@@ -601,13 +634,15 @@ const Template = struct {
                     std.process.exit(1);
                 }
 
-                const value = attr.value(self.html) orelse {
+                const value = attr.value() orelse {
                     @panic("TODO: explain that template must have a value");
                 };
 
+                const template_name = value.unquote(self.html);
+
                 state = .{
                     .end = .{
-                        .template = value,
+                        .template = template_name,
                         .node = attr_name,
                     },
                 };
@@ -736,71 +771,268 @@ const Template = struct {
             };
             const tag = parent_element.tag();
             const id_attr = tag.findAttr(self.html, "id") orelse continue;
-            const id = id_attr.value(self.html) orelse {
+            const value = id_attr.value() orelse {
                 @panic("TODO: explain that id must have a value");
             };
+
+            const id = value.unquote(self.html);
+            if (std.mem.indexOfScalar(u8, id, '$')) |_| {
+                @panic("TODO: explain that ids should not contain scripting");
+            }
 
             return .{ .id = id, .tag_name = tag.name(), .html = self.html };
         }
         return null;
     }
+
+    const AnalyzeOpts = struct {
+        skip_start_tag: bool = false,
+    };
     // Return true if it found a var="$page.content" attribute
     fn analyzeTag(
         self: *Template,
         elem: sitter.Element,
         writer: anytype,
-        opts: struct {
-            skip_start_tag: bool = false,
-        },
+        opts: AnalyzeOpts,
     ) Reported!void {
         const tag = elem.tag();
         var attrs = tag.attrs();
-        var before_var_attr = tag.node.end();
-        while (attrs.next()) |attr| : (before_var_attr = attr.node.end()) {
-            if (is(attr.name().string(self.html), "debug")) {
+        var last_attr_end = tag.name().end();
+
+        var attrs_seen = std.StringHashMap(sitter.Node).init(self.arena);
+        while (attrs.next()) |attr| : (last_attr_end = attr.node.end()) {
+            const name = attr.name();
+            const name_string = name.string(self.html);
+            // validation
+            {
+                const gop = attrs_seen.getOrPut(name_string) catch fatal("out of memory", .{});
+                if (gop.found_existing) {
+                    self.reportError(name, "DUPLICATE ATTRIBUTE",
+                        \\HTML elements cannot contain duplicated attributes
+                    ) catch {};
+                    std.debug.print("node: previous instance was here:", .{});
+                    self.templateDiagnostics(gop.value_ptr.*);
+                    return error.Reported;
+                }
+                gop.value_ptr.* = name;
+            }
+            if (is(name_string, "debug")) {
                 self.debug(elem.node, "found debug attribute", .{});
                 fatal("debug attribute found, aborting", .{});
             }
-            if (!is(attr.name().string(self.html), "var")) continue;
 
-            if (attrs.next() != null) {
-                @panic("TODO: explain that var must be the last attr");
-            }
-
-            const value = attr.value(self.html) orelse {
-                @panic("TODO: explain what was wrong");
-            };
-
-            if (!is(value, "$page.content")) {
-                @panic("TODO: implement var attrs");
-            }
-
-            // We expect the node to not have any children and to have a closing tag.
-            // const end_tag = elem.node.childAt(1) orelse {
-            //     @panic("TODO: explain why var tags cannot be placed in void tags");
-            // };
-
-            // if (!is(end_tag.nodeType(), "end_tag")) {
-            //     @panic("TODO: explain why var bodies must be empty");
-            // }
-
-            // Print everything up (but not including) the var attribute.
-            {
-                if (!opts.skip_start_tag) {
-                    writer.writeAll(self.html[self.print_cursor..before_var_attr]) catch |err| {
-                        fatal("error writing to output file: {s}", .{@errorName(err)});
-                    };
-                    writer.writeByte('>') catch |err| {
-                        fatal("error writing to output file: {s}", .{@errorName(err)});
-                    };
+            // var
+            if (is(name_string, "var")) {
+                if (attr.node.next() != null) {
+                    @panic("TODO: explain that var must be the last attr");
                 }
-                writer.writeAll(self.md) catch |err| {
+                try self.analyzeVarAttr(attr, opts, writer, last_attr_end);
+                self.print_cursor = elem.node.end();
+                continue;
+            }
+
+            // if
+            if (is(name_string, "if")) {
+                if (attr.node.next() != null) {
+                    @panic("TODO: explain that var must be the last attr");
+                }
+                const result = try self.analyzeIfAttr(elem, attr, opts, writer, last_attr_end);
+                self.if_stack.append(self.arena, .{
+                    .result = result,
+                    .node = elem.node,
+                    .name = name,
+                }) catch
+                    fatal("out of memory", .{});
+
+                continue;
+            }
+            // else
+            if (is(name_string, "else")) {
+                if (attr.value()) |v| {
+                    return self.reportError(v.node, "ELSE ATTRIBUTE WITH VALUE",
+                        \\`else` attributes cannot have a value.
+                    );
+                }
+                if (attr.node.next() != null) {
+                    @panic("TODO: explain that var must be the last attr");
+                }
+
+                const last_if = self.if_stack.popOrNull() orelse {
+                    return self.reportError(name, "LONELY ELSE",
+                        \\Elements with an `else` attribute must come right after
+                        \\an element with an `if` attribute. Make sure to nest them
+                        \\correctly.
+                    );
+                };
+
+                var current = last_if.node.next();
+                var distance: usize = 0;
+                while (current) |c| : (current = c.next()) {
+                    distance += 1;
+                    if (c.eq(elem.node)) break;
+                } else {
+                    return self.reportError(name, "LONELY ELSE",
+                        \\Elements with an `else` attribute must come right after
+                        \\an element with an `if` attribute. Make sure to nest them
+                        \\correctly.
+                    );
+                }
+
+                if (distance > 1) {
+                    self.reportError(name, "STRANDED ELSE",
+                        \\Elements with an `else` attribute must come right after
+                        \\an element with an `if` attribute. Make sure to nest them
+                        \\correctly.
+                    ) catch {};
+                    std.debug.print("\nnote: corresponding if: ", .{});
+                    self.templateDiagnostics(last_if.name);
+                    if (distance == 2) {
+                        std.debug.print("note: inbetween: ", .{});
+                    } else {
+                        std.debug.print("note: inbetween (plus {} more): ", .{distance - 1});
+                    }
+                    const inbetween = last_if.node.next().?;
+                    const bad = if (inbetween.toElement()) |e|
+                        e.tag().name()
+                    else
+                        inbetween;
+                    self.templateDiagnostics(bad);
+                    return error.Reported;
+                }
+
+                if (!last_if.result) {
+                    // Print everything up (but not including) the var attribute.
+                    if (!opts.skip_start_tag) {
+                        writer.writeAll(self.html[self.print_cursor..last_attr_end]) catch |err| {
+                            fatal("error writing to output file: {s}", .{@errorName(err)});
+                        };
+                        self.print_cursor = attr.node.end();
+                    }
+                } else {
+                    // Print everything up to the element start
+                    if (!opts.skip_start_tag) {
+                        writer.writeAll(self.html[self.print_cursor..elem.node.start()]) catch |err| {
+                            fatal("error writing to output file: {s}", .{@errorName(err)});
+                        };
+                        self.print_cursor = elem.node.end();
+                    }
+                }
+
+                continue;
+            }
+        }
+    }
+
+    fn analyzeVarAttr(
+        self: *Template,
+        attr: sitter.Tag.Attr,
+        opts: AnalyzeOpts,
+        writer: anytype,
+        last_attr_end: u32,
+    ) !void {
+        const value = attr.value() orelse {
+            @panic("TODO: explain that var needs a value");
+        };
+
+        // NOTE: it's fundamental to get right string memory management
+        //       semantics. In this case it doesn't matter because the
+        //       output string doesn't need to survive past this scope.
+        const code = value.unescape(self.html, self.arena) catch fatal("out of memory", .{});
+        defer code.free(self.arena);
+
+        // const diag: script.Interpreter.Diagnostics = .{};
+        const result = self.script_vm.run(code.str, self.arena, null) catch |err| {
+            // set the last arg to &diag when implementing this
+            self.reportError(value.node, "SCRIPT EVAL ERROR",
+                \\An error was encountered while evaluating a script.
+            ) catch {};
+
+            std.debug.print("Error: {}\n", .{err});
+            std.debug.print("TODO: show precise location of the error\n\n", .{});
+            return error.Reported;
+        };
+
+        const string = switch (result) {
+            .string => |s| s,
+            else => @panic("TODO: explain that a var tag evaluated to a non-string"),
+        };
+
+        // We expect the node to not have any children and to have a closing tag.
+        // const end_tag = elem.node.childAt(1) orelse {
+        //     @panic("TODO: explain why var tags cannot be placed in void tags");
+        // };
+
+        // if (!is(end_tag.nodeType(), "end_tag")) {
+        //     @panic("TODO: explain why var bodies must be empty");
+        // }
+
+        // Print everything up (but not including) the var attribute.
+        if (!opts.skip_start_tag) {
+            writer.writeAll(self.html[self.print_cursor..last_attr_end]) catch |err| {
+                fatal("error writing to output file: {s}", .{@errorName(err)});
+            };
+            writer.writeByte('>') catch |err| {
+                fatal("error writing to output file: {s}", .{@errorName(err)});
+            };
+        }
+        writer.writeAll(string) catch |err| {
+            fatal("error writing to output file: {s}", .{@errorName(err)});
+        };
+    }
+    fn analyzeIfAttr(
+        self: *Template,
+        elem: sitter.Element,
+        attr: sitter.Tag.Attr,
+        opts: AnalyzeOpts,
+        writer: anytype,
+        last_attr_end: u32,
+    ) !bool {
+        const value = attr.value() orelse {
+            @panic("TODO: explain that if needs a value");
+        };
+
+        // NOTE: it's fundamental to get right string memory management
+        //       semantics. In this case it doesn't matter because the
+        //       correct output is going to be a boolean.
+        const code = value.unescape(self.html, self.arena) catch fatal("out of memory", .{});
+        defer code.free(self.arena);
+
+        // const diag: script.Interpreter.Diagnostics = .{};
+        const result = self.script_vm.run(code.str, self.arena, null) catch |err| {
+            // set the last arg to &diag when implementing this
+            self.reportError(value.node, "SCRIPT EVAL ERROR",
+                \\An error was encountered while evaluating a script.
+            ) catch {};
+
+            std.debug.print("Error: {}\n", .{err});
+            std.debug.print("TODO: show precise location of the error\n\n", .{});
+            return error.Reported;
+        };
+
+        const should_print_element = switch (result) {
+            .bool => |b| b,
+            else => @panic("TODO: explain that an if tag evaluated to a non-bool"),
+        };
+
+        if (should_print_element) {
+            // Print everything up (but not including) the var attribute.
+            if (!opts.skip_start_tag) {
+                writer.writeAll(self.html[self.print_cursor..last_attr_end]) catch |err| {
                     fatal("error writing to output file: {s}", .{@errorName(err)});
                 };
+                self.print_cursor = attr.node.end();
             }
-
-            self.print_cursor = elem.node.end();
+        } else {
+            // Print everything up to the element start
+            if (!opts.skip_start_tag) {
+                writer.writeAll(self.html[self.print_cursor..elem.node.start()]) catch |err| {
+                    fatal("error writing to output file: {s}", .{@errorName(err)});
+                };
+                self.print_cursor = elem.node.end();
+            }
         }
+
+        return should_print_element;
     }
 
     fn unexpectedExtendTag(self: Template, tag_name: sitter.Node) Reported {

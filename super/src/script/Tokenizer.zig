@@ -1,7 +1,6 @@
 const std = @import("std");
 const Tokenizer = @This();
 
-code: [:0]const u8,
 idx: usize = 0,
 
 pub const Token = struct {
@@ -84,7 +83,7 @@ const State = enum {
     string,
 };
 
-pub fn next(self: *Tokenizer) ?Token {
+pub fn next(self: *Tokenizer, code: []const u8) ?Token {
     var state: State = .start;
     var res: Token = .{
         .tag = .invalid,
@@ -94,7 +93,7 @@ pub fn next(self: *Tokenizer) ?Token {
         },
     };
     while (true) : (self.idx += 1) {
-        const c = self.code[self.idx];
+        const c = if (self.idx >= code.len) 0 else code[self.idx];
 
         switch (state) {
             .start => switch (c) {
@@ -159,8 +158,8 @@ pub fn next(self: *Tokenizer) ?Token {
                     break;
                 },
 
-                '"', '\'' => if (c == self.code[res.loc.start] and
-                    evenSlashes(self.code[0..self.idx]))
+                '"', '\'' => if (c == code[res.loc.start] and
+                    evenSlashes(code[0..self.idx]))
                 {
                     self.idx += 1;
                     res.tag = .string;
@@ -205,7 +204,7 @@ fn evenSlashes(str: []const u8) bool {
 
 test "general language" {
     const Case = struct {
-        code: [:0]const u8,
+        code: []const u8,
         expected: []const Token.Tag,
     };
     const cases: []const Case = &.{
@@ -297,11 +296,11 @@ test "general language" {
     for (cases) |case| {
         // std.debug.print("Case: {s}\n", .{case.code});
 
-        var it: Tokenizer = .{ .code = case.code };
+        var it: Tokenizer = .{};
         for (case.expected) |ex| {
             errdefer std.debug.print("{any}\n", .{it});
 
-            const t = it.next() orelse return error.Null;
+            const t = it.next(case.code) orelse return error.Null;
             try std.testing.expectEqual(ex, t.tag);
             const src = case.code[t.loc.start..t.loc.end];
             // std.debug.print(".{s} => `{s}`\n", .{ @tagName(t.tag), src });
@@ -310,7 +309,7 @@ test "general language" {
             }
         }
 
-        try std.testing.expectEqual(@as(?Token, null), it.next());
+        try std.testing.expectEqual(@as(?Token, null), it.next(case.code));
     }
 }
 
@@ -331,19 +330,15 @@ test "strings" {
         \\'ba\\"nana5'
     .*;
     var cases_it = std.mem.tokenizeScalar(u8, &cases, '\n');
-    while (cases_it.next()) |c| {
-        @constCast(c.ptr)[c.len] = 0;
-        defer @constCast(c.ptr)[c.len] = '\n';
+    while (cases_it.next()) |case| {
+        errdefer std.debug.print("Case: {s}\n", .{case});
 
-        const case: [:0]const u8 = @ptrCast(c);
-        errdefer std.debug.print("Case: {s}\n", .{c});
-
-        var it: Tokenizer = .{ .code = case };
+        var it: Tokenizer = .{ };
         errdefer std.debug.print("Tokenizer idx: {}\n", .{it.idx});
-        const t = it.next() orelse return error.Null;
+        const t = it.next(case) orelse return error.Null;
         const src = case[t.loc.start..t.loc.end];
         errdefer std.debug.print(".{s} => `{s}`\n", .{ @tagName(t.tag), src });
         try std.testing.expectEqual(@as(Token.Tag, .string), t.tag);
-        try std.testing.expectEqual(@as(?Token, null), it.next());
+        try std.testing.expectEqual(@as(?Token, null), it.next(case));
     }
 }

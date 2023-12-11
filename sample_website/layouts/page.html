@@ -10,6 +10,8 @@
 </head>
 
 <nav id="menu">
+    <span if="$page.title.startsWith('test').not()">FAILURE!</span>
+    <span else>SUCCESS!!!</span>
 </nav>
 
 <div id="content" var="$page.content"></div>
