@@ -52,7 +52,19 @@ const Value = union(enum) {
     pub fn dot(self: Value, field: []const u8) !Value {
         switch (self) {
             .function => unreachable,
-            .int, .bool => @panic("TODO"),
+            .int => @panic("TODO"),
+            .bool => {
+                inline for (@typeInfo(BoolBuiltins).Struct.decls) |struct_field| {
+                    if (std.mem.eql(u8, struct_field.name, field)) {
+                        return Value.from(
+                            ScriptFunction,
+                            @field(BoolBuiltins, struct_field.name),
+                        );
+                    }
+                }
+
+                return error.NotFound;
+            },
             .string => {
                 inline for (@typeInfo(StringBuiltins).Struct.decls) |struct_field| {
                     if (std.mem.eql(u8, struct_field.name, field)) {
@@ -80,6 +92,17 @@ const Value = union(enum) {
         }
     }
 
+    const BoolBuiltins = struct {
+        pub fn not(args: []const Value) ScriptResult {
+            if (args.len != 1) return .{ .err = "wrong number of arguments" };
+            const b = switch (args[0]) {
+                .bool => |b| b,
+                else => return .{ .err = "expected bool argument" },
+            };
+            // TODO: arg being not a bool is actually a programming error
+            return .{ .ok = .{ .bool = !b } };
+        }
+    };
     const StringBuiltins = struct {
         pub fn len(args: []const Value) ScriptResult {
             if (args.len != 1) return .{ .err = "wrong number of arguments" };
@@ -106,17 +129,15 @@ const Value = union(enum) {
     };
 };
 
-pub const Interpreter = struct {
-    it: Tokenizer,
-    ctx: Context,
-    code: []const u8,
+pub const Diagnostics = struct {
+    loc: Token.Loc,
+};
 
-    pub fn init(code: [:0]const u8, ctx: Context) Interpreter {
-        return .{
-            .it = .{ .code = code },
-            .ctx = ctx,
-            .code = code,
-        };
+pub const Interpreter = struct {
+    ctx: Context,
+
+    pub fn init(ctx: Context) Interpreter {
+        return .{ .ctx = ctx };
     }
 
     const State = enum {
@@ -127,7 +148,15 @@ pub const Interpreter = struct {
         dot,
     };
 
-    pub fn run(self: *Interpreter, arena: std.mem.Allocator) !Value {
+    pub fn run(
+        self: *Interpreter,
+        code: []const u8,
+        arena: std.mem.Allocator,
+        diag: ?*Diagnostics,
+    ) !Value {
+        if (diag != null) @panic("TODO: implement diagnostics");
+
+        var it: Tokenizer = .{};
         var state: State = .start;
         var call_depth: usize = 0;
         var last_was_comma = false;
@@ -136,15 +165,17 @@ pub const Interpreter = struct {
         var stack = std.ArrayList(Value).init(arena);
         defer stack.deinit();
 
-        while (self.it.next()) |t| {
+        while (it.next(code)) |t| {
             switch (state) {
                 .start => switch (t.tag) {
                     .dollar => state = .saw_dollar,
-                    else => @panic("error"),
+                    else => return error.Eval,
                 },
                 .main => switch (t.tag) {
                     .dot => {
-                        if (last_was_function) @panic("function must be called");
+                        if (last_was_function) {
+                            return error.FunctionMustBeCalled;
+                        }
                         state = .dot;
                     },
                     .lparen => {
@@ -165,6 +196,7 @@ pub const Interpreter = struct {
 
                         call_depth -= 1;
                         last_was_comma = false;
+                        last_was_function = false;
                         if (call_depth == 0) {
                             state = .main;
                         } else {
@@ -179,7 +211,7 @@ pub const Interpreter = struct {
                         last_was_comma = true;
                         state = .call_args;
                     },
-                    else => @panic("error"),
+                    else => return error.Eval,
                 },
                 .call_args => switch (t.tag) {
                     .dollar => {
@@ -189,13 +221,13 @@ pub const Interpreter = struct {
                     .string => {
                         last_was_comma = false;
                         // TODO: this leaks memory!
-                        const src = try t.unquote(self.code, arena);
+                        const src = try t.unquote(code, arena);
                         const v = try Value.from([]const u8, src);
                         try stack.append(v);
                     },
                     .identifier => {
                         last_was_comma = false;
-                        const src = t.src(self.code);
+                        const src = t.src(code);
                         if (std.mem.eql(u8, "true", src)) {
                             const v = .{ .bool = true };
                             try stack.append(v);
@@ -215,19 +247,20 @@ pub const Interpreter = struct {
 
                         call_depth -= 1;
                         last_was_comma = false;
+                        last_was_function = false;
                         if (call_depth == 0) {
                             state = .main;
                         } else {
                             state = .call_args;
                         }
                     },
-                    else => @panic("error"),
+                    else => return error.Eval,
                 },
                 .dot => switch (t.tag) {
                     .identifier => {
                         last_was_function = false;
                         if (stack.items.len == 0) @panic("prorgramming error");
-                        const src = t.src(self.code);
+                        const src = t.src(code);
                         const v = stack.pop();
                         const new_value = try v.dot(src);
                         try stack.append(new_value);
@@ -238,11 +271,11 @@ pub const Interpreter = struct {
                         }
                         state = .main;
                     },
-                    else => @panic("error"),
+                    else => return error.Eval,
                 },
                 .saw_dollar => switch (t.tag) {
                     .identifier => {
-                        const src = t.src(self.code);
+                        const src = t.src(code);
                         var found = false;
                         inline for (std.meta.fields(Context)) |field| {
                             if (std.mem.eql(u8, field.name, src)) {
@@ -259,16 +292,19 @@ pub const Interpreter = struct {
                         }
                         state = .main;
                     },
-                    else => @panic("error"),
+                    else => return error.Eval,
                 },
             }
         }
 
+        if (last_was_function) {
+            return error.FunctionMustBeCalled;
+        }
         if (stack.items.len != 1) {
             for (stack.items, 0..) |v, idx| {
                 std.debug.print("[{}] - {any}\n", .{ idx, v });
             }
-            @panic("error");
+            return error.Eval;
         }
         return stack.pop();
     }
@@ -307,8 +343,8 @@ test "basic" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(code, test_ctx);
-    const result = try i.run(arena.allocator());
+    var i = Interpreter.init(test_ctx);
+    const result = try i.run(code, arena.allocator());
 
     const ex: Value = .{ .string = "v0" };
     try std.testing.expectEqualDeep(ex, result);
@@ -319,8 +355,8 @@ test "struct" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(code, test_ctx);
-    const result = try i.run(arena.allocator());
+    var i = Interpreter.init(test_ctx);
+    const result = try i.run(code, arena.allocator());
 
     const ex: Value = .{ .page = test_ctx.page };
     try std.testing.expectEqualDeep(ex, result);
@@ -331,8 +367,8 @@ test "dot" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(code, test_ctx);
-    const result = try i.run(arena.allocator());
+    var i = Interpreter.init(test_ctx);
+    const result = try i.run(code, arena.allocator());
 
     const ex: Value = .{ .string = test_ctx.page.content };
     try std.testing.expectEqualDeep(ex, result);
@@ -343,8 +379,8 @@ test "string.startsWith" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(code, test_ctx);
-    const result = try i.run(arena.allocator());
+    var i = Interpreter.init(test_ctx);
+    const result = try i.run(code, arena.allocator());
 
     const ex: Value = .{ .bool = true };
     try std.testing.expectEqualDeep(ex, result);
@@ -354,8 +390,8 @@ test "string.len" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(code, test_ctx);
-    const result = try i.run(arena.allocator());
+    var i = Interpreter.init(test_ctx);
+    const result = try i.run(code, arena.allocator());
 
     const ex: Value = .{ .int = 4 };
     try std.testing.expectEqualDeep(ex, result);
@@ -366,9 +402,8 @@ test "should not be able to use a fn as a value" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(code, test_ctx);
-    const result = try i.run(arena.allocator());
+    var i = Interpreter.init(test_ctx);
+    const result = i.run(code, arena.allocator());
 
-    const ex: Value = .{ .bool = true };
-    try std.testing.expectEqualDeep(ex, result);
+    try std.testing.expectError(error.FunctionMustBeCalled, result);
 }

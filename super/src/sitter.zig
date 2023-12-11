@@ -286,27 +286,57 @@ pub const Tag = struct {
         } else null;
     }
 
-    const Attr = struct {
+    pub const Attr = struct {
         node: Node,
+
+        pub const Value = struct {
+            node: Node,
+
+            pub const Managed = struct {
+                must_free: bool,
+                str: []const u8,
+
+                pub fn free(self: Managed, allocator: std.mem.Allocator) void {
+                    if (self.must_free) allocator.free(self.str);
+                }
+            };
+
+            pub fn unescape(
+                self: Value,
+                html: []const u8,
+                allocator: std.mem.Allocator,
+            ) !Managed {
+                const str = if (std.mem.eql(u8, self.node.nodeType(), "quoted_attribute_value"))
+                    self.node.childAt(0).?.string(html)
+                else
+                    self.node.string(html);
+
+                // TODO: html entities
+                _ = allocator;
+
+                return .{ .must_free = false, .str = str };
+            }
+
+            pub fn unquote(
+                self: Value,
+                html: []const u8,
+            ) []const u8 {
+                const str = if (std.mem.eql(u8, self.node.nodeType(), "quoted_attribute_value"))
+                    self.node.childAt(0).?.string(html)
+                else
+                    self.node.string(html);
+
+                return str;
+            }
+        };
 
         pub fn name(self: Attr) Node {
             return self.node.childAt(0).?;
         }
 
-        pub fn value(self: Attr, html: []const u8) ?[]const u8 {
-            var next = self.node.childAt(1) orelse return null;
-            if (std.mem.eql(u8, next.nodeType(), "quoted_attribute_value")) {
-                return next.childAt(0).?.string(html);
-            }
-            return next.string(html);
-        }
-
-        // Unescapes a quoted value
-        pub fn parseValue(self: Attr, allocator: std.mem.Allocator) []const u8 {
-            _ = self;
-            _ = allocator;
-
-            return "todo";
+        pub fn value(self: Attr) ?Value {
+            const n = self.node.childAt(1) orelse return null;
+            return .{ .node = n };
         }
     };
 
