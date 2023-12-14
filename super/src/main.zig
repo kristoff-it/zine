@@ -1,16 +1,11 @@
 const std = @import("std");
 const sitter = @import("sitter.zig");
 const script = @import("script.zig");
+const errors = @import("errors.zig");
+const fatal = errors.fatal;
+const oom = errors.oom;
 
-/// Used to catch programming errors where a function fails to report
-/// correctly that an error has occurred.
-const Reported = error{
-    /// The error has been fully reported.
-    Reported,
-    /// The error has been reported but we should also print the
-    /// interface of the template we are extending.
-    WantInterface,
-};
+const Reported = errors.Reported;
 
 pub fn main() void {
     var arena_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
@@ -18,7 +13,7 @@ pub fn main() void {
 
     const arena = arena_impl.allocator();
 
-    const args = std.process.argsAlloc(arena) catch fatal("out of memory", .{});
+    const args = std.process.argsAlloc(arena) catch oom();
     const out_path = args[1];
     const rendered_md_path = args[2];
     const md_name = args[3];
@@ -74,7 +69,7 @@ pub fn main() void {
         layout_html,
         arena,
         rendered_md_string,
-    )) catch fatal("out of memory", .{});
+    )) catch oom();
 
     // Same as Template.Extend, but it also remembers the slot in templates.
     const ExtendCtx = struct {
@@ -101,7 +96,7 @@ pub fn main() void {
         switch (continuation) {
             .full_end => break,
             .extend => |e| {
-                const gop = names.getOrPut(e.template) catch fatal("out of memory", .{});
+                const gop = names.getOrPut(e.template) catch oom();
                 if (gop.found_existing) {
                     t.reportError(
                         e.node,
@@ -122,7 +117,7 @@ pub fn main() void {
                 const template_path = std.fs.path.join(arena, &.{
                     templates_dir_path,
                     e.template,
-                }) catch fatal("out of memory", .{});
+                }) catch oom();
                 dep_writer.print("{s} ", .{template_path}) catch |err| {
                     fatal("error writing to the dep file: {s}", .{@errorName(err)});
                 };
@@ -144,7 +139,7 @@ pub fn main() void {
                     template_html,
                     arena,
                     rendered_md_string,
-                )) catch fatal("out of memory", .{});
+                )) catch oom();
                 idx += 1;
             },
             .super => |s| {
@@ -180,7 +175,7 @@ pub fn main() void {
             },
         }
     } else {
-        errorHeader("INFINITE LOOP",
+        errors.header("INFINITE LOOP",
             \\Super encountered a condition that caused an infinite loop.
             \\This should not have happened, please report this error to 
             \\the maintainers.
@@ -206,22 +201,6 @@ pub fn main() void {
     dep_buf_writer.flush() catch |err| {
         fatal("error writing to the dep file: {s}", .{@errorName(err)});
     };
-}
-
-fn fatalTrace(idx: usize, items: []const Template, md_name: []const u8) noreturn {
-    std.debug.print("trace:\n", .{});
-    var cursor = idx;
-    while (cursor > 0) : (cursor -= 1) {
-        std.debug.print("    template `{s}`,\n", .{
-            items[cursor].name,
-        });
-    }
-
-    std.debug.print("    layout `{s}`,\n", .{items[0].name});
-
-    fatal("    content `{s}`.\n", .{
-        md_name,
-    });
 }
 
 fn readFile(path: []const u8, arena: std.mem.Allocator) ![]const u8 {
@@ -384,7 +363,7 @@ const Template = struct {
         }
 
         const block = self.blocks.getPtr(super.id) orelse {
-            errorHeader("MISSING BLOCK",
+            errors.header("MISSING BLOCK",
                 \\Missing `{s}` block in {s}.
                 \\All <super/> blocks from the parent template must be defined. 
             , .{ super.id, self.name });
@@ -397,7 +376,6 @@ const Template = struct {
                 \\but with a different tag. The tags must match.
                 \\Ensuring that tags between templates match reduces mistakes.
             ) catch {};
-
             return error.ShowSuper;
         }
 
@@ -474,7 +452,7 @@ const Template = struct {
                 @panic("TODO: explain that you can't put any scripting stuff in id");
             }
 
-            const gop = self.blocks.getOrPut(self.arena, id) catch fatal("out of memory", .{});
+            const gop = self.blocks.getOrPut(self.arena, id) catch oom();
             if (gop.found_existing) {
                 self.reportError(tag.name(), "DUPLICATE BLOCK", "A duplicate block was found.") catch {};
                 std.debug.print("note: previous definition found here:", .{});
@@ -535,7 +513,7 @@ const Template = struct {
             // on super, return relative id
             if (is(name, "super")) {
                 const s = try self.analyzeSuper(elem, writer);
-                const gop = self.interface.getOrPut(self.arena, s.id) catch fatal("out of memory", .{});
+                const gop = self.interface.getOrPut(self.arena, s.id) catch oom();
                 if (gop.found_existing) {
                     self.reportError(elem_name, "UNEXPECTED SUPER TAG",
                         \\All <super/> tags must have an ancestor element with an id,
@@ -667,56 +645,6 @@ const Template = struct {
         }
     }
 
-    fn reportError(
-        self: Template,
-        bad_node: sitter.Node,
-        comptime title: []const u8,
-        comptime msg: []const u8,
-    ) Reported {
-        errorHeader(title, msg, .{});
-        self.templateDiagnostics(bad_node);
-        return error.Reported;
-    }
-
-    fn templateDiagnostics(
-        self: Template,
-        node: sitter.Node,
-    ) void {
-        const pos = node.selection();
-        const line_off = node.line(self.html);
-        const offset = node.offset();
-
-        // trim spaces
-        const line_trim_left = std.mem.trimLeft(u8, line_off.line, &std.ascii.whitespace);
-        const start_trim_left = line_off.start + line_off.line.len - line_trim_left.len;
-
-        const caret_len = offset.end - offset.start;
-        const caret_spaces_len = offset.start - start_trim_left;
-
-        const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
-
-        var buf: [1024]u8 = undefined;
-
-        const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
-            const h = buf[0 .. caret_len + caret_spaces_len];
-            @memset(h[0..caret_spaces_len], ' ');
-            @memset(h[caret_spaces_len..][0..caret_len], '^');
-            break :blk h;
-        } else "";
-
-        std.debug.print(
-            \\
-            \\({s}) {s}:{}:{}:
-            \\    {s}
-            \\    {s}
-            \\
-        , .{
-            self.name,     self.path,
-            pos.start.row, pos.start.col,
-            line_trim,     highlight,
-        });
-    }
-
     const Super = struct {
         id: []const u8,
         tag_name: sitter.Node,
@@ -805,7 +733,7 @@ const Template = struct {
             const name_string = name.string(self.html);
             // validation
             {
-                const gop = attrs_seen.getOrPut(name_string) catch fatal("out of memory", .{});
+                const gop = attrs_seen.getOrPut(name_string) catch oom();
                 if (gop.found_existing) {
                     self.reportError(name, "DUPLICATE ATTRIBUTE",
                         \\HTML elements cannot contain duplicated attributes
@@ -842,7 +770,7 @@ const Template = struct {
                     .node = elem.node,
                     .name = name,
                 }) catch
-                    fatal("out of memory", .{});
+                    oom();
 
                 continue;
             }
@@ -937,7 +865,7 @@ const Template = struct {
         // NOTE: it's fundamental to get right string memory management
         //       semantics. In this case it doesn't matter because the
         //       output string doesn't need to survive past this scope.
-        const code = value.unescape(self.html, self.arena) catch fatal("out of memory", .{});
+        const code = value.unescape(self.html, self.arena) catch oom();
         defer code.free(self.arena);
 
         // const diag: script.Interpreter.Diagnostics = .{};
@@ -994,7 +922,7 @@ const Template = struct {
         // NOTE: it's fundamental to get right string memory management
         //       semantics. In this case it doesn't matter because the
         //       correct output is going to be a boolean.
-        const code = value.unescape(self.html, self.arena) catch fatal("out of memory", .{});
+        const code = value.unescape(self.html, self.arena) catch oom();
         defer code.free(self.arena);
 
         // const diag: script.Interpreter.Diagnostics = .{};
@@ -1043,34 +971,43 @@ const Template = struct {
         );
     }
 
-    fn debug(self: Template, node: ?sitter.Node, comptime fmt: []const u8, args: anytype) void {
-        std.debug.print("\n", .{});
-        std.debug.print(fmt, args);
-        if (node) |n| {
-            std.debug.print("\n{s}\n", .{
-                n.string(self.html),
-            });
-            n.debug();
-            std.debug.print("\n", .{});
-        }
+    fn reportError(
+        self: Template,
+        bad_node: sitter.Node,
+        comptime title: []const u8,
+        comptime msg: []const u8,
+    ) Reported {
+        return errors.report(
+            self.name,
+            self.path,
+            bad_node,
+            self.html,
+            title,
+            msg,
+        );
+    }
+
+    fn templateDiagnostics(self: Template, bad_node: sitter.Node) Reported {
+        return errors.diagnostics(self.name, self.path, bad_node, self.html);
     }
 };
 
-fn errorHeader(
-    comptime title: []const u8,
-    comptime msg: []const u8,
-    msg_args: anytype,
-) void {
-    std.debug.print(
-        \\
-        \\---------- {s} ----------
-        \\
-    , .{title});
-    std.debug.print(msg, msg_args);
-    std.debug.print("\n", .{});
+fn fatalTrace(idx: usize, items: []const Template, md_name: []const u8) noreturn {
+    std.debug.print("trace:\n", .{});
+    var cursor = idx;
+    while (cursor > 0) : (cursor -= 1) {
+        std.debug.print("    template `{s}`,\n", .{
+            items[cursor].name,
+        });
+    }
+
+    std.debug.print("    layout `{s}`,\n", .{items[0].name});
+
+    fatal("    content `{s}`.\n", .{
+        md_name,
+    });
 }
 
-fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
-    std.debug.print(fmt, args);
-    std.process.exit(1);
+test {
+    _ = @import("parser.zig");
 }
