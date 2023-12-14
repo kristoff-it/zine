@@ -1,0 +1,1485 @@
+const SuperTree = @This();
+
+const std = @import("std");
+const sitter = @import("sitter.zig");
+const script = @import("script/interpreter.zig");
+const errors = @import("errors.zig");
+const oom = errors.oom;
+
+template_name: []const u8,
+template_path: []const u8,
+html: []const u8,
+root: *SuperNode,
+extends: ?*SuperNode = null,
+interface: std.StringHashMapUnmanaged(*SuperNode) = .{},
+blocks: std.StringHashMapUnmanaged(*SuperNode) = .{},
+
+const SuperNode = struct {
+    type: Type = .element,
+    elem: sitter.Element,
+    depth: u32,
+
+    parent: ?*SuperNode = null,
+    child: ?*SuperNode = null,
+    next: ?*SuperNode = null,
+    prev: ?*SuperNode = null,
+
+    // Evaluation
+    id_template: sitter.Tag.Attr = undefined,
+    if_else_loop: ScriptedAttr = undefined,
+    var_ctx: ScriptedAttr = undefined,
+    scripted_attrs: []ScriptedAttr = &.{},
+
+    const ScriptedAttr = struct {
+        attr: sitter.Tag.Attr,
+        code: sitter.Tag.Attr.Value.Managed,
+        eval: ?[]const u8 = null,
+    };
+
+    pub fn idAttr(self: SuperNode) sitter.Tag.Attr {
+        std.debug.assert(self.type.hasId());
+        return self.id_template;
+    }
+    pub fn idValue(self: SuperNode) sitter.Tag.Attr.Value {
+        return self.idAttr().value().?;
+    }
+
+    pub fn templateAttr(self: SuperNode) sitter.Tag.Attr {
+        std.debug.assert(self.type == .extend);
+        return self.id_template;
+    }
+
+    pub fn branchingAttr(self: SuperNode) ScriptedAttr {
+        std.debug.assert(self.type.branching() != .none);
+        return self.if_else_loop;
+    }
+    pub fn loopAttr(self: SuperNode) ScriptedAttr {
+        std.debug.assert(self.type.branching() == .loop);
+        return self.if_else_loop;
+    }
+    pub fn ifAttr(self: SuperNode) ScriptedAttr {
+        std.debug.assert(self.type.branching() == .@"if");
+        return self.if_else_loop;
+    }
+    pub fn elseAttr(self: SuperNode) ScriptedAttr {
+        std.debug.assert(self.type.branching() == .@"else");
+        return self.if_else_loop;
+    }
+    pub fn varAttr(self: SuperNode) ScriptedAttr {
+        std.debug.assert(self.type.branching() == .@"else");
+        return self.if_else_loop;
+    }
+
+    const Type = enum {
+        root,
+        extend,
+        super,
+
+        block,
+        block_var,
+        block_ctx,
+        block_if,
+        block_if_var,
+        block_if_ctx,
+        block_loop,
+        block_loop_var,
+        block_loop_ctx,
+
+        super_block,
+        super_block_ctx,
+        // TODO: enable these types once we implement super attributes
+        //super_block_if,
+        //super_block_if_ctx,
+        //super_block_loop,
+        //super_block_loop_ctx,
+
+        element,
+        element_var,
+        element_ctx,
+        element_if,
+        element_if_var,
+        element_if_ctx,
+        element_else,
+        element_else_var,
+        element_else_ctx,
+        element_loop,
+        element_loop_var,
+        element_loop_ctx,
+        element_id,
+        element_id_var,
+        element_id_ctx,
+        element_id_if,
+        element_id_if_var,
+        element_id_if_ctx,
+        element_id_else,
+        element_id_else_var,
+        element_id_else_ctx,
+        element_id_loop,
+        element_id_loop_var,
+        element_id_loop_ctx,
+
+        pub const Branching = enum { none, loop, @"if", @"else" };
+        pub fn branching(self: Type) Branching {
+            return switch (self) {
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                .element_loop,
+                .element_loop_var,
+                .element_loop_ctx,
+                .element_id_loop,
+                .element_id_loop_var,
+                .element_id_loop_ctx,
+                => .loop,
+                .block_if,
+                .block_if_var,
+                .block_if_ctx,
+                .element_if,
+                .element_if_var,
+                .element_if_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                => .@"if",
+                .element_else,
+                .element_else_var,
+                .element_else_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                => .@"else",
+                .root,
+                .extend,
+                .block,
+                .block_var,
+                .block_ctx,
+                .super_block,
+                .super_block_ctx,
+                .super,
+                .element,
+                .element_var,
+                .element_ctx,
+                .element_id,
+                .element_id_var,
+                .element_id_ctx,
+                => .none,
+            };
+        }
+
+        pub const Output = enum { none, @"var", ctx };
+        pub fn output(self: Type) Output {
+            return switch (self) {
+                .block_var,
+                .block_if_var,
+                .element_var,
+                .element_if_var,
+                .element_else_var,
+                => .@"var",
+                .block_ctx,
+                .block_if_ctx,
+                .block_loop_ctx,
+                .super_block_ctx,
+                .element_ctx,
+                .element_if_ctx,
+                .element_else_ctx,
+                .element_loop_ctx,
+                => .ctx,
+                else => .none,
+            };
+        }
+
+        const Role = enum { root, extend, block, super_block, super, element };
+        pub fn role(self: Type) Role {
+            return switch (self) {
+                .root => .root,
+                .extend => .extend,
+                .block,
+                .block_var,
+                .block_ctx,
+                .block_if,
+                .block_if_var,
+                .block_if_ctx,
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                => .block,
+                .super => .super,
+                .super_block,
+                .super_block_ctx,
+                => .super_block,
+                .element,
+                .element_var,
+                .element_ctx,
+                .element_if,
+                .element_if_var,
+                .element_if_ctx,
+                .element_else,
+                .element_else_var,
+                .element_else_ctx,
+                .element_loop,
+                .element_loop_var,
+                .element_loop_ctx,
+                .element_id,
+                .element_id_var,
+                .element_id_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                .element_id_loop,
+                .element_id_loop_var,
+                .element_id_loop_ctx,
+                => .element,
+            };
+        }
+        pub fn hasId(self: Type) bool {
+            return switch (self) {
+                else => false,
+                .block,
+                .block_var,
+                .block_ctx,
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                .super_block,
+                .super_block_ctx,
+                .element_id,
+                .element_id_var,
+                .element_id_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                .element_id_loop,
+                .element_id_loop_ctx,
+                => true,
+            };
+        }
+    };
+
+    pub fn childrenCount(self: SuperNode) usize {
+        var count: usize = 0;
+        var child = self.child;
+        while (child) |ch| : (child = ch.next) count += 1;
+        return count;
+    }
+
+    pub fn superBlock(self: SuperNode) *SuperNode {
+        std.debug.assert(self.type.role() == .super);
+        return self.parent.?;
+    }
+
+    pub fn debug(self: *const SuperNode, html: []const u8) void {
+        std.debug.print("\n\n-- DEBUG --\n", .{});
+        self.debugInternal(html, std.io.getStdErr().writer(), 0) catch unreachable;
+    }
+
+    // Allows passing in a writer, useful for tests
+    pub fn debugWriter(self: *const SuperNode, html: []const u8, w: anytype) void {
+        self.debugInternal(html, w, 0) catch unreachable;
+    }
+
+    fn debugInternal(
+        self: *const SuperNode,
+        html: []const u8,
+        w: anytype,
+        lvl: usize,
+    ) !void {
+        for (0..lvl) |_| try w.print("    ", .{});
+        try w.print("({s}", .{@tagName(self.type)});
+
+        if (self.type.hasId()) try w.print(" {s}", .{
+            self.idValue().node.string(html),
+        }) else if (self.type == .extend) try w.print(" {s}", .{
+            self.templateAttr().node.string(html),
+        });
+
+        if (self.child) |ch| {
+            std.debug.assert(ch.parent == self);
+            try w.print("\n", .{});
+            try ch.debugInternal(html, w, lvl + 1);
+            for (0..lvl) |_| try w.print("    ", .{});
+        }
+        try w.print(")\n", .{});
+
+        if (self.next) |sibling| {
+            std.debug.assert(sibling.prev == self);
+            std.debug.assert(sibling.parent == self.parent);
+            try sibling.debugInternal(html, w, lvl);
+        }
+    }
+};
+pub fn init(
+    arena: std.mem.Allocator,
+    template_name: []const u8,
+    template_path: []const u8,
+    html_tree: sitter.Tree,
+    html: []const u8,
+) !SuperTree {
+    const html_root = html_tree.root();
+    var self: SuperTree = .{
+        .template_name = template_name,
+        .template_path = template_path,
+        .html = html,
+        .root = arena.create(SuperNode) catch oom(),
+    };
+
+    self.root.* = .{
+        .type = .root,
+        .elem = .{ .node = html_root },
+        .depth = 0,
+    };
+
+    var cursor = html_root.cursor();
+    defer cursor.deinit();
+    var node = self.root;
+    var low_mark: u32 = 1;
+    while (cursor.next()) |item| {
+        const elem = item.node.toElement() orelse continue;
+        const depth = cursor.depth();
+
+        // Ensure that node always points at a node not more deeply nested
+        // than our current html_node.
+        if (item.dir == .out) {
+            while (node.depth > depth) {
+                node = node.prev orelse node.parent orelse unreachable;
+            }
+            if (low_mark > depth) low_mark = depth;
+        }
+
+        const new_node = try self.buildNode(arena, elem, depth) orelse continue;
+
+        // Iterface and block mode
+        switch (new_node.type.role()) {
+            .root, .super_block => unreachable,
+            .super, .element => {},
+            .extend => {
+                // sets block mode
+                std.debug.assert(self.extends == null);
+                self.extends = new_node;
+            },
+            .block => {
+                const id_value = new_node.idValue();
+                const gop = self.interface.getOrPut(arena, id_value.node.string(html)) catch oom();
+                if (gop.found_existing) {
+                    self.reportError(
+                        id_value.node,
+                        "DUPLICATE BLOCK DEFINITION",
+                        \\When a template extends another, top level elements
+                        \\are called "blocks" and define the value of a corresponding
+                        \\<super/> tag in the extended template by having the 
+                        \\same id of the <super/> tag's parent container.
+                        ,
+                    ) catch {};
+                    std.debug.print("note: previous definition:", .{});
+                    const other = gop.value_ptr.*.idValue().node;
+                    self.diagnostic(other);
+                    return error.Reported;
+                }
+
+                gop.value_ptr.* = new_node;
+            },
+        }
+
+        //ast
+
+        // var html_node = new_node.elem.node;
+        // var html_node_depth = new_node.depth;
+        // var last_same_depth = true;
+        // while (!html_node.eq(node.elem.node)) {
+        //     last_same_depth = html_node_depth == node.depth;
+
+        //     if (html_node.prev()) |p| {
+        //         html_node = p;
+        //         continue;
+        //     }
+
+        //     const html_parent = html_node.parent() orelse unreachable;
+        //     html_node = html_parent;
+        //     html_node_depth -= 1;
+        // }
+
+        if (low_mark == node.depth) {
+            std.debug.assert(node.next == null);
+            node.next = new_node;
+            new_node.prev = node;
+            new_node.parent = node.parent;
+        } else {
+            if (node.child) |c| {
+                var sibling = c;
+                while (sibling.next) |n| sibling = n;
+                sibling.next = new_node;
+                new_node.prev = sibling;
+                new_node.parent = node;
+            } else {
+                node.child = new_node;
+                new_node.parent = node;
+            }
+        }
+
+        try self.validateNodeInTree(new_node);
+
+        node = new_node;
+        low_mark = new_node.depth + 1;
+    }
+
+    return self;
+}
+
+fn buildNode(
+    self: *SuperTree,
+    arena: std.mem.Allocator,
+    elem: sitter.Element,
+    depth: u32,
+    // id_map: std.StringHashMapUnmanaged(sitter.Node),
+) !?*SuperNode {
+    const block_mode = self.extends != null;
+    var tmp_result: SuperNode = .{
+        .elem = elem,
+        .depth = depth,
+    };
+
+    std.debug.assert(depth > 0);
+    const block_context = block_mode and depth == 1;
+    if (block_context) tmp_result.type = .block;
+
+    const start_tag = elem.startTag();
+    const tag_name = start_tag.name();
+    // is it a special tag
+    {
+        const tag_name_string = tag_name.string(self.html);
+        if (is(tag_name_string, "extend")) {
+            tmp_result.type = switch (tmp_result.type) {
+                else => unreachable,
+                .element => .extend,
+                .block => blk: {
+                    // this is an error, but we're going to let it through
+                    // in order to report it as a duplicate extend tag error.
+                    break :blk .extend;
+                },
+            };
+
+            // validation
+            {
+                const parent_isnt_root = depth != 1;
+                var prev = elem.node.prev();
+                const any_elem_before = while (prev) |p| : (prev = p.prev()) {
+                    if (!is(p.nodeType(), "comment")) break true;
+                } else false;
+
+                if (parent_isnt_root or any_elem_before) {
+                    return self.reportError(tag_name, "UNEXPECTED EXTEND TAG",
+                        \\The <extend/> tag can only be present at the beginning of a 
+                        \\template and it can only be preceeded by HTML comments and
+                        \\whitespace. 
+                    );
+                }
+
+                if (!start_tag.is_self_closing) {
+                    return self.reportError(tag_name, "OPEN EXTEND TAG",
+                        \\The extend tag must be closed immediately (i.e.: <extend template="foo.html"/>).
+                        \\It must be done otherwise parsers will assume that all 
+                        \\content after is *inside* of it.
+                        \\
+                        \\Cursed read: https://www.w3.org/TR/2014/REC-html5-20141028/syntax.html#optional-tags
+                    );
+                }
+
+                var extend_attrs = start_tag.attrs();
+                const template_attr = extend_attrs.next() orelse {
+                    @panic("TODO: explain that super must have a template attr");
+                };
+
+                tmp_result.id_template = template_attr;
+
+                if (extend_attrs.next()) |a| {
+                    _ = a;
+                    @panic("TODO: explain that extend can't have attrs other than `template`");
+                }
+
+                const new_node = arena.create(SuperNode) catch oom();
+                new_node.* = tmp_result;
+                return new_node;
+            }
+        } else if (is(tag_name_string, "super")) {
+            tmp_result.type = switch (tmp_result.type) {
+                else => unreachable,
+                .element => .super,
+                .block => {
+                    return self.reportError(tag_name, "TOP LEVEL <SUPER/>",
+                        \\This template extends another template and as such it
+                        \\must only have block definitions at the top level.
+                        \\
+                        \\You *can* use <super/>, but it must be nested in a block. 
+                        \\Using <super/> will make this template extendable in turn.
+                    );
+                },
+            };
+
+            var super_attrs = start_tag.attrs();
+            if (super_attrs.next()) |a| {
+                _ = a;
+                @panic("TODO: explain that super can't have attrs");
+            }
+
+            //The immediate parent must have an id
+            const parent = tmp_result.elem.node.parent().?.toElement() orelse {
+                return self.reportError(tag_name, "<SUPER/> NOT IN AN ELEMENT",
+                    \\The <super/> tag can only exist nested inside another
+                    \\element, as that's how the templating system defines 
+                    \\extension points.
+                );
+            };
+
+            const parent_start_tag = parent.startTag();
+            var parent_attrs = parent_start_tag.attrs();
+            while (parent_attrs.next()) |attr| {
+                if (is(attr.name().string(self.html), "id")) {
+                    // We can assert that the value is present because
+                    // the parent element has already been validated.
+                    const value = attr.value().?;
+                    const gop = self.interface.getOrPut(
+                        arena,
+                        value.unquote(self.html),
+                    ) catch oom();
+                    if (gop.found_existing) {
+                        @panic("TODO: explain that the interface of this template has a collision");
+                    }
+
+                    const new_node = arena.create(SuperNode) catch oom();
+                    new_node.* = tmp_result;
+                    gop.value_ptr.* = new_node;
+                    return new_node;
+                }
+            } else {
+                self.reportError(tag_name, "<SUPER/> BLOCK HAS NO ID",
+                    \\The <super/> tag must exist directly under an element
+                    \\that specifies an `id` attribute.
+                ) catch {};
+                std.debug.print("note: the parent element:\n", .{});
+                self.diagnostic(parent_start_tag.name());
+                return error.Reported;
+            }
+        }
+    }
+
+    // programming errors
+    switch (tmp_result.type.role()) {
+        else => {},
+        .root, .extend, .super_block, .super => unreachable,
+    }
+
+    var attrs_seen = std.StringHashMap(sitter.Node).init(arena);
+    defer attrs_seen.deinit();
+
+    var scripted_attrs = std.ArrayList(sitter.Node).init(arena);
+    errdefer scripted_attrs.deinit();
+
+    var last_attr_end = tag_name.end();
+    var attrs = start_tag.attrs();
+    while (attrs.next()) |attr| : (last_attr_end = attr.node.end()) {
+        const name = attr.name();
+        const name_string = name.string(self.html);
+        // validation
+        {
+            const gop = attrs_seen.getOrPut(name_string) catch oom();
+            if (gop.found_existing) {
+                self.reportError(
+                    name,
+                    "DUPLICATE ATTRIBUTE",
+                    \\HTML elements cannot contain duplicate attributes.
+                    ,
+                ) catch {};
+                std.debug.print("node: previous instance was here:", .{});
+                self.diagnostic(gop.value_ptr.*);
+                return error.Reported;
+            }
+            gop.value_ptr.* = name;
+        }
+
+        if (is(name_string, "id")) {
+            tmp_result.type = switch (tmp_result.type) {
+                .element => .element_id,
+                .element_var => .element_id_var,
+                .element_ctx => .element_id_ctx,
+                .element_if => .element_id_if,
+                .element_if_var => .element_id_if_var,
+                .element_if_ctx => .element_id_if_ctx,
+                .element_else => .element_id_else,
+                .element_else_var => .element_id_else_var,
+                .element_else_ctx => .element_id_else_ctx,
+                .element_loop => .element_id_loop,
+                .element_loop_var => .element_id_loop_var,
+                .element_loop_ctx => .element_id_loop_ctx,
+
+                // no state transition
+                .block,
+                .block_var,
+                .block_ctx,
+                .block_if,
+                .block_if_var,
+                .block_if_ctx,
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                => |s| s,
+
+                .root,
+                .extend,
+                .super,
+                // never discovered yet
+                .super_block,
+                .super_block_ctx,
+                // duplicate detection
+                .element_id,
+                .element_id_var,
+                .element_id_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                .element_id_loop,
+                .element_id_loop_var,
+                .element_id_loop_ctx,
+                => unreachable,
+            };
+
+            const value = attr.value() orelse {
+                @panic("TODO: explain that id must have a value");
+            };
+
+            const maybe_code = value.unescape(arena, self.html) catch oom();
+            defer maybe_code.deinit(arena);
+
+            if (std.mem.indexOfScalar(u8, maybe_code.str, '$') != null) {
+                switch (tmp_result.type.role()) {
+                    .root, .extend, .super_block, .super => unreachable,
+                    .block => @panic("TODO: explain blocks can't have scripted id attrs"),
+                    .element => {},
+                }
+            } else {
+                // we can only statically analyze non-scripted ids
+
+                // TODO: implement this in a way that can account for branching
+
+                // const id_str = value.unquote(self.html);
+                // const gop = id_map.getOrPut(arena, id_str) catch oom();
+                // if (gop.found_existing) {
+                //     return errors.report(
+                //         template_name,
+                //         template_path,
+                //         attr.node,
+                //         self.html,
+                //         "DUPLICATE ID",
+                //         \\TODO: explain
+                //         ,
+                //     );
+                // }
+            }
+
+            tmp_result.id_template = attr;
+
+            continue;
+        }
+        if (is(name_string, "debug")) {
+            std.debug.print("\nfound debug attribute", .{});
+            std.debug.print("\n{s}\n", .{
+                name.string(self.html),
+            });
+            name.debug();
+            std.debug.print("\n", .{});
+
+            errors.fatal("debug attribute found, aborting", .{});
+        }
+
+        // var
+        if (is(name_string, "var")) {
+            if (attr.node.next() != null) {
+                return self.reportError(name, "MISPLACED VAR ATTRIBUTE",
+                    \\An element that prints the content of a variable must place
+                    \\the `var` attribute at the very end of the opening tag.
+                );
+            }
+
+            tmp_result.type = switch (tmp_result.type) {
+                .block => .block_var,
+                .block_if => .block_if_var,
+                .block_loop => .block_loop_var,
+                .element => .element_var,
+                .element_if => .element_if_var,
+                .element_else => .element_else_var,
+                .element_loop => .element_loop_var,
+                .element_id => .element_id_var,
+                .element_id_if => .element_id_if_var,
+                .element_id_else => .element_id_else_var,
+                .element_id_loop => .element_id_loop_var,
+
+                .block_ctx,
+                .block_if_ctx,
+                .block_loop_var,
+                .block_loop_ctx,
+                .element_ctx,
+                .element_if_ctx,
+                .element_else_ctx,
+                .element_loop_ctx,
+                .element_id_ctx,
+                .element_id_if_ctx,
+                .element_id_else_ctx,
+                .element_id_loop_ctx,
+                => {
+                    @panic("TODO: explain that a tag combination is wrong");
+                },
+
+                .root,
+                .extend,
+                .super,
+                // never discorvered yet
+                .super_block,
+                .super_block_ctx,
+                // duplicate attr detection
+                .block_var,
+                .block_if_var,
+                .element_var,
+                .element_if_var,
+                .element_else_var,
+                .element_loop_var,
+                .element_id_var,
+                .element_id_if_var,
+                .element_id_else_var,
+                .element_id_loop_var,
+                => unreachable,
+            };
+
+            const value = attr.value() orelse {
+                return self.reportError(name, "VAR MISSING VALUE",
+                    \\A `var` attribute requires a value that scripts what 
+                    \\to put in the relative element's body.
+                );
+            };
+
+            const code = value.unescape(arena, self.html) catch oom();
+            // TODO: typecheck the expression
+            if (std.mem.indexOfScalar(u8, code.str, '$') == null) {
+                return self.reportError(name, "UNSCRIPTED VAR",
+                    \\A `var` attribute requires a value that scripts what 
+                    \\to put in the relative element's body.
+                );
+            }
+            tmp_result.var_ctx = .{ .attr = attr, .code = code };
+
+            continue;
+        }
+
+        // template outside of <extend/>
+        if (is(name_string, "template")) {
+            @panic("TODO: explain that `template` can only go in extend tags");
+        }
+
+        // if
+        if (is(name_string, "if")) {
+            tmp_result.type = switch (tmp_result.type) {
+                .block => .block_if,
+                .block_var => .block_if_var,
+                .block_ctx => .block_if_ctx,
+                .element => .element_if,
+                .element_var => .element_if_var,
+                .element_ctx => .element_if_ctx,
+                .element_id => .element_id_if,
+                .element_id_var => .element_id_if_var,
+                .element_id_ctx => .element_id_if_ctx,
+
+                .block_if,
+                .block_if_var,
+                .block_if_ctx,
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                .element_else,
+                .element_else_var,
+                .element_else_ctx,
+                .element_loop,
+                .element_loop_var,
+                .element_loop_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                .element_id_loop,
+                .element_id_loop_var,
+                .element_id_loop_ctx,
+                => {
+                    self.reportError(name, "ALREADY BRANCHING",
+                        \\Elements can't have multiple branching attributes defined 
+                        \\at the same time.
+                    ) catch {};
+                    std.debug.print("note: this is the previous branching attribute:\n", .{});
+                    self.diagnostic(tmp_result.branchingAttr().attr.name());
+                    return error.Reported;
+                },
+
+                .root,
+                .extend,
+                .super,
+                // never discovered yet
+                .super_block,
+                .super_block_ctx,
+                // duplicate attribute
+                .element_if,
+                .element_if_var,
+                .element_if_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                => unreachable,
+            };
+
+            if (last_attr_end != tag_name.end()) {
+                @panic("TODO: explain that if must be the first attr");
+            }
+
+            const value = attr.value() orelse {
+                return self.reportError(name, "IF ATTRIBUTE WIHTOUT VALUE",
+                    \\When giving an `if` attribute to an element, you must always
+                    \\also provide a condition in the form of a value.
+                );
+            };
+
+            const code = value.unescape(arena, self.html) catch oom();
+            // TODO: typecheck the expression
+            tmp_result.if_else_loop = .{ .attr = attr, .code = code };
+
+            continue;
+        }
+
+        // else
+        if (is(name_string, "else")) {
+            tmp_result.type = switch (tmp_result.type) {
+                .element => .element_else,
+                .element_var => .element_else_var,
+                .element_ctx => .element_else_ctx,
+                .element_id => .element_id_else,
+                .element_id_var => .element_id_else_var,
+                .element_id_ctx => .element_id_else_ctx,
+
+                .block,
+                .block_var,
+                .block_ctx,
+                .block_if,
+                .block_if_var,
+                .block_if_ctx,
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                .element_if,
+                .element_if_var,
+                .element_if_ctx,
+                .element_else,
+                .element_else_var,
+                .element_else_ctx,
+                .element_loop,
+                .element_loop_var,
+                .element_loop_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                .element_id_loop,
+                .element_id_loop_var,
+                .element_id_loop_ctx,
+                => {
+                    @panic("TODO: explain why these blocks can't have an else attr");
+                },
+
+                .root,
+                .extend,
+                .super,
+                // never discovered yet
+                .super_block,
+                .super_block_ctx,
+                => unreachable,
+            };
+
+            if (last_attr_end != tag_name.end()) {
+                @panic("TODO: explain that else must be the first attr");
+            }
+            if (attr.value()) |v| {
+                return self.reportError(v.node, "ELSE ATTRIBUTE WITH VALUE",
+                    \\`else` attributes cannot have a value.
+                );
+            }
+
+            tmp_result.if_else_loop = .{ .attr = attr, .code = .{} };
+
+            continue;
+        }
+
+        // loop
+        if (is(name_string, "loop")) {
+            if (last_attr_end != tag_name.end()) {
+                @panic("TODO: explain that loop must be the first attr");
+            }
+
+            tmp_result.type = switch (tmp_result.type) {
+                .block => .block_loop,
+                .block_var => .block_loop_var,
+                .block_ctx => .block_loop_ctx,
+                .element => .element_loop,
+                .element_var => .element_loop_var,
+                .element_ctx => .element_loop_ctx,
+                .element_id => .element_id_loop,
+                .element_id_var => .element_id_loop_var,
+                .element_id_ctx => .element_id_loop_ctx,
+
+                .block_if,
+                .block_if_var,
+                .block_if_ctx,
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                .element_if,
+                .element_if_var,
+                .element_if_ctx,
+                .element_else,
+                .element_else_var,
+                .element_else_ctx,
+                .element_loop,
+                .element_loop_var,
+                .element_loop_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                .element_id_loop,
+                .element_id_loop_var,
+                .element_id_loop_ctx,
+                => {
+                    @panic("TODO: explain why these blocks can't have an else attr");
+                },
+
+                .root,
+                .extend,
+                .super,
+                // never discovered yet
+                .super_block,
+                .super_block_ctx,
+                => unreachable,
+            };
+
+            const value = attr.value() orelse {
+                @panic("TODO: explain that loop must have a value");
+            };
+
+            const code = value.unescape(arena, self.html) catch oom();
+            // TODO: typecheck the expression
+            tmp_result.if_else_loop = .{ .attr = attr, .code = code };
+
+            continue;
+        }
+    }
+
+    if (tmp_result.type == .element and scripted_attrs.items.len == 0) {
+        return null;
+    }
+
+    // TODO: see if the error reporting order makes sense
+    if (tmp_result.type.role() == .block) {
+        const name = tmp_result.elem.startTag().name();
+        return self.reportError(name, "BLOCK MISSING ID ATTRIBUTE",
+            \\When a template extends another template, all top level 
+            \\elements must specify an `id` that matches with a corresponding 
+            \\super block (i.e. the element parent of a <super/> tag in 
+            \\the extended template). 
+        );
+    }
+
+    const new_node = arena.create(SuperNode) catch oom();
+    new_node.* = tmp_result;
+    return new_node;
+}
+
+fn validateNodeInTree(self: SuperTree, node: *const SuperNode) !void {
+    // NOTE: This function should only validate rules that require
+    //       having inserted the node in the tree. anything that
+    //       can be tested sooner should go in self.buildNode().
+    //
+    // NOTE: We can only validate constraints *upwards* with regards
+    //       to the SuperTree.
+
+    switch (node.type.role()) {
+        .root => unreachable,
+        .element => {},
+
+        .extend => {
+            // if present, <extend/> must be the first tag in the document
+            // (validated on creation)
+            // TODO: check for empty body
+        },
+        .block => {
+            // blocks must have an id
+            // (validated on creation)
+
+            // blocks must be at depth = 1
+            // (validated on creation)
+        },
+
+        .super_block => {
+            // must have an id
+            // (validated on creation)
+
+            // must have a <super/> inside
+            // (validated when validating the <super/>)
+        },
+        .super => {
+            // <super/> must have super_block right above
+            // (validated on creation)
+
+            // // <super/> can't be inside any subtree with branching in it
+            // var out = node.parent;
+            // while (out) |o| : (out = o.parent) if (o.type.branching() != .none) {
+            //     self.reportError(node.elem.node, "<SUPER/> UNDER BRANCHING",
+            //         \\The <super/> tag is used to define a static template
+            //         \\extension hierarchy, and as such should not be placed
+            //         \\inside of elements that feature branching logic.
+            //     ) catch {};
+            //     std.debug.print("note: branching happening here:\n", .{});
+            //     self.diagnostic(o.branchingAttr().attr.name());
+            //     return error.Reported;
+            // };
+
+            // each super_block can only have one <super/> in it.
+            // TODO: see if this can be validated on construction
+            var up = node.prev;
+            while (up) |u| : (up = u.prev) switch (u.type) {
+                else => continue,
+                .super => {
+                    self.reportError(node.elem.node, "MULTIPLE SUPER TAGS UNDER SAME ID",
+                        \\TODO: write explanation
+                    ) catch {};
+                    std.debug.print("note: the other tag:\n", .{});
+                    self.diagnostic(u.elem.startTag().name());
+                    std.debug.print("note: both are relative to:\n", .{});
+                    self.diagnostic(node.superBlock().idValue().node);
+                    return error.Reported;
+                },
+            };
+        },
+    }
+
+    // nodes under a loop can't have ids
+    if (node.type.hasId()) {
+        var parent = node.parent;
+        while (parent) |p| : (parent = p.parent) switch (p.type.branching()) {
+            else => continue,
+            .loop => {
+                self.reportError(node.idAttr().name(), "ID UNDER LOOP",
+                    \\In a valid HTML document all `id` attributes must 
+                    \\have unique values.
+                    \\
+                    \\Giving an `id` attribute to elements under a loop
+                    \\makes that impossible. 
+                ) catch {};
+                std.debug.print("note: the loop:\n", .{});
+                self.diagnostic(p.loopAttr().attr.name());
+            },
+        };
+    }
+
+    // switch (node.type.branching()) {
+    //     else => {},
+    //     // `inline-else` must be right after `if`
+    //     .@"inline-else" => {
+    //         // compute distance
+    //         var distance: usize = 1;
+    //         var html_node = if (node.prev) |p| blk: {
+    //             break :blk if (p.type.branching() == .@"if") p.elem.node.next() else null;
+    //         } else null;
+
+    //         while (html_node) |n| : (html_node = n.next()) {
+    //             if (n.eq(node.elem.node)) break;
+    //             distance += 1;
+    //         } else {
+    //             // either the previous node was not an if, or, if it was,
+    //             // it did not connect to us.
+    //             const name = node.if_else_loop.attr.name();
+    //             return self.reportError(name, "LONELY ELSE",
+    //                 \\Elements with an `else` attribute must come right after
+    //                 \\an element with an `if` attribute. Make sure to nest them
+    //                 \\correctly.
+    //             );
+    //         }
+    //         // prev was set and it was an if node (html_node is set)
+    //         if (distance > 1) {
+    //             const name = node.if_else_loop.attr.name();
+    //             self.reportError(name, "STRANDED ELSE",
+    //                 \\Elements with an `else` attribute must come right after
+    //                 \\an element with an `if` attribute. Make sure to nest them
+    //                 \\correctly.
+    //             ) catch {};
+    //             std.debug.print("\nnote: potentially corresponding if: ", .{});
+    //             self.diagnostic(name);
+
+    //             if (distance == 2) {
+    //                 std.debug.print("note: inbetween: ", .{});
+    //             } else {
+    //                 std.debug.print("note: inbetween (plus {} more): ", .{distance - 1});
+    //             }
+    //             const inbetween = html_node.?.toElement();
+    //             const bad = if (inbetween) |e| e.startTag().name() else html_node.?;
+    //             self.diagnostic(bad);
+    //             return error.Reported;
+    //         }
+    //     },
+    // }
+}
+
+fn reportError(
+    self: SuperTree,
+    node: sitter.Node,
+    comptime title: []const u8,
+    comptime msg: []const u8,
+) errors.Reported {
+    return errors.report(
+        self.template_name,
+        self.template_path,
+        node,
+        self.html,
+        title,
+        msg,
+    );
+}
+
+fn diagnostic(
+    self: SuperTree,
+    node: sitter.Node,
+) void {
+    errors.diagnostic(
+        self.template_name,
+        self.template_path,
+        node,
+        self.html,
+    );
+}
+
+fn is(str1: []const u8, str2: []const u8) bool {
+    return std.mem.eql(u8, str1, str2);
+}
+
+test "basics" {
+    const case =
+        \\<div>Hello World!</div>
+    ;
+
+    const html_tree = sitter.Tree.init(case);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    // foo
+    const tree = try SuperTree.init(
+        arena.allocator(),
+        "foo.html",
+        "path/to/foo.html",
+        html_tree,
+        case,
+    );
+
+    const root = tree.root;
+    try std.testing.expectEqual(SuperNode.Type.root, root.type);
+
+    errdefer root.debug(case);
+
+    const null_ptr = @as(?*SuperNode, null);
+    try std.testing.expectEqual(null_ptr, root.parent);
+    try std.testing.expectEqual(null_ptr, root.next);
+    try std.testing.expectEqual(null_ptr, root.prev);
+    try std.testing.expectEqual(null_ptr, root.child);
+}
+
+test "var - errors" {
+    const cases =
+        \\<div var></div>
+        \\<div var="$page.content" else></div>
+        \\<div var="$page.content" if></div>
+        \\<div var="$page.content" loop></div>
+        \\<div var="$page.content" var></div>
+        \\<div var="not scripted"></div>
+    ;
+
+    var it = std.mem.tokenizeScalar(u8, cases, '\n');
+    while (it.next()) |case| {
+        const html_tree = sitter.Tree.init(case);
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+
+        const tree = SuperTree.init(
+            arena.allocator(),
+            "foo.html",
+            "path/to/foo.html",
+            html_tree,
+            case,
+        );
+
+        try std.testing.expectError(error.Reported, tree);
+    }
+}
+
+test "siblings" {
+    const case =
+        \\<div>
+        \\  Hello World!
+        \\  <span if="$foo"></span>
+        \\  <p var="$bar"></p>
+        \\</div>
+    ;
+    errdefer std.debug.print("--- CASE ---\n{s}\n", .{case});
+
+    const html_tree = sitter.Tree.init(case);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    // foo
+    const tree = try SuperTree.init(
+        arena.allocator(),
+        "foo.html",
+        "path/to/foo.html",
+        html_tree,
+        case,
+    );
+    var out = std.ArrayList(u8).init(arena.allocator());
+
+    const root = tree.root;
+    root.debugWriter(case, out.writer());
+
+    const ex =
+        \\(root
+        \\    (element_if)
+        \\    (element_var)
+        \\)
+        \\
+    ;
+    try std.testing.expectEqualStrings(ex, out.items);
+}
+
+test "nesting" {
+    const case =
+        \\<div loop="$page.authors">
+        \\  Hello World!
+        \\  <span if="$foo"></span>
+        \\  <p var="$bar"></p>
+        \\</div>
+    ;
+    errdefer std.debug.print("--- CASE ---\n{s}\n", .{case});
+
+    const html_tree = sitter.Tree.init(case);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    // foo
+    const tree = try SuperTree.init(
+        arena.allocator(),
+        "foo.html",
+        "path/to/foo.html",
+        html_tree,
+        case,
+    );
+
+    var out = std.ArrayList(u8).init(arena.allocator());
+
+    const root = tree.root;
+    root.debugWriter(case, out.writer());
+
+    const ex =
+        \\(root
+        \\    (element_loop
+        \\        (element_if)
+        \\        (element_var)
+        \\    )
+        \\)
+        \\
+    ;
+    try std.testing.expectEqualStrings(ex, out.items);
+}
+
+test "deeper nesting" {
+    const case =
+        \\<div loop="$page.authors">
+        \\  Hello World!
+        \\  <span if="$foo"></span>
+        \\  <div><p var="$bar"></p></div>
+        \\</div>
+    ;
+    errdefer std.debug.print("--- CASE ---\n{s}\n", .{case});
+
+    const html_tree = sitter.Tree.init(case);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    // foo
+    const tree = try SuperTree.init(
+        arena.allocator(),
+        "foo.html",
+        "path/to/foo.html",
+        html_tree,
+        case,
+    );
+
+    var out = std.ArrayList(u8).init(arena.allocator());
+
+    const root = tree.root;
+    root.debugWriter(case, out.writer());
+
+    const ex =
+        \\(root
+        \\    (element_loop
+        \\        (element_if)
+        \\        (element_var)
+        \\    )
+        \\)
+        \\
+    ;
+    try std.testing.expectEqualStrings(ex, out.items);
+}
+
+test "complex example" {
+    const case =
+        \\<div if="$page.authors">
+        \\  Hello World!
+        \\  <span if="$foo"></span>
+        \\  <span else>
+        \\    <p loop="foo" id="p-loop">
+        \\      <span var="$bar"></span>
+        \\    </p>
+        \\  </span>
+        \\  <div><p id="last" var="$bar"></p></div>
+        \\</div>
+    ;
+    errdefer std.debug.print("--- CASE ---\n{s}\n", .{case});
+
+    const html_tree = sitter.Tree.init(case);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    // foo
+    const tree = try SuperTree.init(
+        arena.allocator(),
+        "foo.html",
+        "path/to/foo.html",
+        html_tree,
+        case,
+    );
+
+    var out = std.ArrayList(u8).init(arena.allocator());
+
+    const root = tree.root;
+    root.debugWriter(case, out.writer());
+
+    const cex: usize = 3;
+    try std.testing.expectEqual(cex, root.child.?.childrenCount());
+
+    const ex =
+        \\(root
+        \\    (element_if
+        \\        (element_if)
+        \\        (element_else
+        \\            (element_id_loop "p-loop"
+        \\                (element_var)
+        \\            )
+        \\        )
+        \\        (element_id_var "last")
+        \\    )
+        \\)
+        \\
+    ;
+    try std.testing.expectEqualStrings(ex, out.items);
+}
+
+test "if-else-loop errors" {
+    const cases =
+        \\<div if></div>
+        \\<div else="$foo"></div>
+        \\<div else="bar"></div>
+        \\<div else if></div>
+        \\<div else if="$foo"></div>
+        \\<div else if="bar"></div>
+    ;
+
+    var it = std.mem.tokenizeScalar(u8, cases, '\n');
+    while (it.next()) |case| {
+        const html_tree = sitter.Tree.init(case);
+        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+        defer arena.deinit();
+
+        const tree = SuperTree.init(
+            arena.allocator(),
+            "foo.html",
+            "path/to/foo.html",
+            html_tree,
+            case,
+        );
+
+        try std.testing.expectError(error.Reported, tree);
+    }
+}
+
+test "super" {
+    const case =
+        \\<div if="$page.authors">
+        \\  Hello World!
+        \\  <span if="$foo"></span>
+        \\  <span else>
+        \\    <p loop="foo" id="p-loop">
+        \\      <span id="oops" var="$bar"></span>
+        \\      <span id="baz"></span>
+        \\      <super/>
+        \\    </p>
+        \\  </span>
+        \\  <div><p id="last" var="$bar"></p></div>
+        \\</div>
+    ;
+    errdefer std.debug.print("--- CASE ---\n{s}\n", .{case});
+
+    const html_tree = sitter.Tree.init(case);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    // foo
+    const tree = try SuperTree.init(
+        arena.allocator(),
+        "foo.html",
+        "path/to/foo.html",
+        html_tree,
+        case,
+    );
+
+    var out = std.ArrayList(u8).init(arena.allocator());
+
+    const root = tree.root;
+    root.debugWriter(case, out.writer());
+
+    const cex: usize = 3;
+    try std.testing.expectEqual(cex, root.child.?.childrenCount());
+
+    const ex =
+        \\(root
+        \\    (element_if
+        \\        (element_if)
+        \\        (element_else
+        \\            (element_id_loop "p-loop"
+        \\                (element_var)
+        \\            )
+        \\        )
+        \\        (element_id_var "last")
+        \\    )
+        \\)
+        \\
+    ;
+    try std.testing.expectEqualStrings(ex, out.items);
+}
