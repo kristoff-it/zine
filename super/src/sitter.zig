@@ -225,6 +225,10 @@ pub const Cursor = struct {
         return null;
     }
 
+    pub fn depth(self: *Cursor) u32 {
+        return c.ts_tree_cursor_current_depth(&self.c);
+    }
+
     pub fn reset(self: *Cursor, n: Node) void {
         c.ts_tree_cursor_reset(&self.c, n.n);
     }
@@ -233,7 +237,7 @@ pub const Cursor = struct {
         return .{ .c = c.ts_tree_cursor_copy(&self.c) };
     }
 
-    pub fn destroy(self: *Cursor) void {
+    pub fn deinit(self: *Cursor) void {
         c.ts_tree_cursor_delete(&self.c);
     }
 
@@ -252,8 +256,25 @@ pub const Cursor = struct {
 
 pub const Element = struct {
     node: Node,
-    pub fn tag(self: Element) Tag {
+
+    pub const voidTagMap = std.ComptimeStringMapWithEql(
+        void,
+        void_tags,
+        std.ascii.eqlIgnoreCase,
+    );
+
+    pub fn startTag(self: Element) Tag {
         return self.node.childAt(0).?.toTag().?;
+    }
+    pub fn endTag(self: Element) ?Node {
+        const last = self.node.childAt(self.node.childCount() - 1).?;
+        if (!std.mem.eql(u8, last.nodeType(), "end_tag")) return null;
+        return last;
+    }
+
+    pub fn isVoid(self: Element, html: []const u8) bool {
+        const tag_name = self.startTag().name().string(html);
+        return voidTagMap.has(tag_name);
     }
 };
 
@@ -293,18 +314,18 @@ pub const Tag = struct {
             node: Node,
 
             pub const Managed = struct {
-                must_free: bool,
-                str: []const u8,
+                must_free: bool = false,
+                str: []const u8 = &.{},
 
-                pub fn free(self: Managed, allocator: std.mem.Allocator) void {
+                pub fn deinit(self: Managed, allocator: std.mem.Allocator) void {
                     if (self.must_free) allocator.free(self.str);
                 }
             };
 
             pub fn unescape(
                 self: Value,
-                html: []const u8,
                 allocator: std.mem.Allocator,
+                html: []const u8,
             ) !Managed {
                 const str = if (std.mem.eql(u8, self.node.nodeType(), "quoted_attribute_value"))
                     self.node.childAt(0).?.string(html)
@@ -350,4 +371,30 @@ pub const Tag = struct {
             return .{ .node = cur };
         }
     };
+};
+
+const void_tags = .{
+    .{"area"},
+    .{"base"},
+    .{"basefont"},
+    .{"bgsound"},
+    .{"br"},
+    .{"col"},
+    .{"command"},
+    .{"embed"},
+    .{"frame"},
+    .{"hr"},
+    .{"image"},
+    .{"img"},
+    .{"input"},
+    .{"isindex"},
+    .{"keygen"},
+    .{"link"},
+    .{"menuitem"},
+    .{"meta"},
+    .{"nextid"},
+    .{"param"},
+    .{"source"},
+    .{"track"},
+    .{"wbr"},
 };
