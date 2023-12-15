@@ -108,7 +108,7 @@ const Value = union(enum) {
             if (args.len != 1) return .{ .err = "wrong number of arguments" };
             const str = switch (args[0]) {
                 .string => |s| s,
-                else => return .{ .err = "(haystack arg) expected string argument" },
+                else => return .{ .err = "expected string argument" },
             };
             return .{ .ok = .{ .int = str.len } };
         }
@@ -122,6 +122,7 @@ const Value = union(enum) {
                 .string => |s| s,
                 else => return .{ .err = "(needle arg) expected string argument" },
             };
+
             return .{
                 .ok = .{ .bool = std.mem.startsWith(u8, haystack, needle) },
             };

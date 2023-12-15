@@ -12,11 +12,11 @@
 
 Where an alert triggers on **every** load. 
 
-You're welcome.
+You're welcome :^)
 
 Here's a code snippet with some Zig in it:
+
 ```zig 
 const foo = @import("foo.zig");
 ```
-
 

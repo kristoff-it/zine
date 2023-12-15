@@ -2,7 +2,7 @@
 {
   "title": "Hello World!",
   "draft": false,
-  "layout": "page.html",
+  "layout": "simple.html",
   "custom": {
     "foo": 50
   }
