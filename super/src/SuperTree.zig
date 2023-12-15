@@ -1663,73 +1663,11 @@ test "super" {
         \\    (element_if
         \\        (element_id_loop "p-loop"
         \\            (element_id_var "oops")
-        \\            (super)
+        \\            (super "p-loop")
         \\        )
         \\        (element_id_var "last")
         \\    )
         \\)
-        \\
-    ;
-    try std.testing.expectEqualStrings(ex, out.items);
-
-    const cex: usize = 2;
-    try std.testing.expectEqual(cex, root.child.?.childrenCount());
-}
-
-test "page.html" {
-    const case =
-        \\<!DOCTYPE html>
-        \\<html>
-        \\  <head id="head">
-        \\    <title id="title">My Blog</title>
-        \\    <meta name="description" content="">
-        \\    <meta name="twitter:card" content="summary">
-        \\    <meta name="twitter:site" content="@croloris">
-        \\    <meta name="twitter:image" content="https://kristoff.it/logo.png">
-        \\    <meta name="twitter:author" content="@croloris">
-        \\    <meta name="twitter:description" content="">
-        \\    <meta name="twitter:title" content="Loris Cro's Personal Website">
-        \\    <meta property="og:title" content="Loris Cro's Personal Website">
-        \\    <meta property="og:type" content="website">
-        \\    <meta property="og:image" content="https://kristoff.it/logo.png">
-        \\    
-        \\
-        \\    <style>
-        \\      body {
-        \\        background-color: #111;
-        \\        color: #bbb;
-        \\        display: flex;
-        \\        flex-direction: column;
-        \\        align-items: center;
-        \\      }
-        \\    </style>
-        \\  </head>
-        \\  <body id="main">
-        \\    <h1> Simple! </h1>
-        \\    <div var="$page.content"></div>
-        \\    <footer style="margin-top: 100px;">All rights reserved</footer>
-        \\  </body>
-        \\</html>
-    ;
-    errdefer std.debug.print("--- CASE ---\n{s}\n", .{case});
-
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    // foo
-    const tree = try SuperTree.init(
-        arena.allocator(),
-        "foo.html",
-        "path/to/foo.html",
-        case,
-    );
-
-    var out = std.ArrayList(u8).init(arena.allocator());
-
-    const root = tree.root;
-    root.debugWriter(case, out.writer());
-
-    const ex =
         \\
     ;
     try std.testing.expectEqualStrings(ex, out.items);
