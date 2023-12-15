@@ -25,7 +25,7 @@ pub const Token = struct {
         var out = std.ArrayList(u8).init(gpa);
         const s = self.src(code);
         const quote = s[0];
-        const quoteless = s[1 .. s.len - 2];
+        const quoteless = s[1 .. s.len - 1];
 
         var last = quote;
         var skipped = false;

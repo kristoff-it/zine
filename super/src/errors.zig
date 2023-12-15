@@ -2,7 +2,7 @@ const std = @import("std");
 const sitter = @import("sitter.zig");
 const builtin = @import("builtin");
 
-const disable_printing = builtin.is_test and false;
+const disable_printing = builtin.is_test;
 
 /// Used to catch programming errors where a function fails to report
 /// correctly that an error has occurred.
@@ -19,17 +19,20 @@ pub fn report(
     template_path: []const u8,
     bad_node: sitter.Node,
     html: []const u8,
+    comptime error_code: []const u8,
     comptime title: []const u8,
     comptime msg: []const u8,
 ) Reported {
     header(title, msg);
-    diagnostic(template_name, template_path, bad_node, html);
+    const error_line = comptime "[" ++ error_code ++ "]";
+    diagnostic(template_name, template_path, error_line, bad_node, html);
     return error.Reported;
 }
 
 pub fn diagnostic(
     template_name: []const u8,
     template_path: []const u8,
+    comptime note_line: []const u8,
     node: sitter.Node,
     html: []const u8,
 ) void {
@@ -58,14 +61,19 @@ pub fn diagnostic(
 
     std.debug.print(
         \\
+        \\{s}
         \\({s}) {s}:{}:{}:
         \\    {s}
         \\    {s}
         \\
     , .{
-        template_name, template_path,
-        pos.start.row, pos.start.col,
-        line_trim,     highlight,
+        note_line,
+        template_name,
+        template_path,
+        pos.start.row,
+        pos.start.col,
+        line_trim,
+        highlight,
     });
 }
 
@@ -91,3 +99,14 @@ pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
 pub fn oom() noreturn {
     fatal("out of memory", .{});
 }
+
+// fn toLower(
+//     data: []const u8,
+//     comptime fmt: []const u8,
+//     options: std.fmt.FormatOptions,
+//     writer: anytype,
+// ) !void {
+//     for (data) |c| {
+//         writer.write(std.ascii.toLower(c));
+//     }
+// }

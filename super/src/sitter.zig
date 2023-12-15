@@ -256,13 +256,25 @@ pub const Cursor = struct {
 
 pub const Element = struct {
     node: Node,
+
+    pub const voidTagMap = std.ComptimeStringMapWithEql(
+        void,
+        void_tags,
+        std.ascii.eqlIgnoreCase,
+    );
+
     pub fn startTag(self: Element) Tag {
         return self.node.childAt(0).?.toTag().?;
     }
     pub fn endTag(self: Element) ?Node {
-        const last = self.node.childAt(self.node.childCount() - 1);
+        const last = self.node.childAt(self.node.childCount() - 1).?;
         if (!std.mem.eql(u8, last.nodeType(), "end_tag")) return null;
         return last;
+    }
+
+    pub fn isVoid(self: Element, html: []const u8) bool {
+        const tag_name = self.startTag().name().string(html);
+        return voidTagMap.has(tag_name);
     }
 };
 
@@ -359,4 +371,30 @@ pub const Tag = struct {
             return .{ .node = cur };
         }
     };
+};
+
+const void_tags = .{
+    .{"area"},
+    .{"base"},
+    .{"basefont"},
+    .{"bgsound"},
+    .{"br"},
+    .{"col"},
+    .{"command"},
+    .{"embed"},
+    .{"frame"},
+    .{"hr"},
+    .{"image"},
+    .{"img"},
+    .{"input"},
+    .{"isindex"},
+    .{"keygen"},
+    .{"link"},
+    .{"menuitem"},
+    .{"meta"},
+    .{"nextid"},
+    .{"param"},
+    .{"source"},
+    .{"track"},
+    .{"wbr"},
 };

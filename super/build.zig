@@ -15,6 +15,7 @@ pub fn build(b: *std.Build) void {
 
     exe.linkLibrary(ts.artifact("tree-sitter"));
     exe.linkLibC();
+    exe.strip = true;
 
     b.installArtifact(exe);
 
@@ -33,7 +34,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
-        // .filter = "complex",
+        .filter = "page.html",
     });
 
     unit_tests.linkLibrary(ts.artifact("tree-sitter"));
