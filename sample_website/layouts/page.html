@@ -1,5 +1,6 @@
 <extend template="with-menu.html"/>
 
+
 <title id="title" var="$page.title"></title>
 
 <head id="head">
@@ -12,8 +13,17 @@
 <nav if="$page.title.startsWith('arst').not()" id="menu">
    <a href="bar/">Bar</a>
    <a href="baz/">Baz</a>
+   <span>Nothing to show.</span>
 </nav>
 
 
-<div id="content" var="$page.content"></div>
+<div id="content"> 
+   <div var="$page.content"></div>
+   
+   Authors:
+   <div loop="$page.authors"> 
+      <span var="$loop.it"></span>
+      <span if="$loop.last.not()">, </span>
+   </div>
+</div>
 

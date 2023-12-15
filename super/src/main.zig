@@ -80,14 +80,15 @@ pub fn main() void {
         fatalTrace(0, &.{t}, md_name);
     };
 
-    templates.append(Template.init(
+    const layout = Template.init(
         arena,
         layout_name,
         layout_path,
         layout_tree,
         rendered_md_string,
         .layout,
-    )) catch oom();
+    ) catch oom();
+    templates.append(layout) catch oom();
 
     // load all templates, detect import loops
     {
@@ -96,11 +97,11 @@ pub fn main() void {
         ).init(arena);
         defer names.deinit();
 
-        while (templates.items[templates.items.len - 1].tree.extends) |ext| {
+        while (templates.items[templates.items.len - 1].extends) |ext| {
             const current_idx = templates.items.len - 1;
             const current = templates.items[current_idx];
             const template_value = ext.templateValue();
-            const template_name = template_value.unquote(current.tree.html);
+            const template_name = template_value.unquote(current.html);
 
             const gop = names.getOrPut(template_name) catch oom();
             if (gop.found_existing) {
@@ -152,14 +153,15 @@ pub fn main() void {
                 std.process.exit(1);
             };
 
-            templates.append(Template.init(
+            const t = Template.init(
                 arena,
                 template_name,
                 template_path,
                 tree,
                 rendered_md_string,
                 .template,
-            )) catch oom();
+            ) catch oom();
+            templates.append(t) catch oom();
         }
     }
 
@@ -198,7 +200,7 @@ pub fn main() void {
                 };
             },
             .end => {
-                if (t.tree.extends == null) break;
+                if (t.extends == null) break;
                 idx += 1;
                 assert(@src(), idx < templates.items.len);
             },
@@ -241,20 +243,39 @@ const Template = struct {
     html: []const u8,
     print_cursor: usize = 0,
     print_end: usize,
-    tree: SuperTree,
+    root: *SuperNode,
     arena: std.mem.Allocator,
     role: Role,
 
     // Template-wide analysis
-    cursor: SuperTree.SuperCursor,
+    eval_context: std.ArrayListUnmanaged(EvalContext) = .{},
     script_vm: script.Interpreter,
 
     // Analysis of blocks
+    extends: ?*SuperNode,
     blocks: std.StringHashMapUnmanaged(Block),
     interface: std.StringArrayHashMapUnmanaged(*SuperNode),
 
     // Scripting
     md: []const u8,
+
+    const EvalContext = union(enum) {
+        loop_condition: LoopCondition,
+        loop_iter: LoopIter,
+        default: SuperTree.SuperCursor,
+
+        const LoopIter = struct {
+            cursor: SuperTree.SuperCursor,
+            loop: script.LoopContext,
+        };
+
+        const LoopCondition = struct {
+            cursor_ptr: *SuperTree.SuperCursor,
+            print_cursor: usize,
+            items: []const script.Value,
+            index: usize,
+        };
+    };
 
     const Role = enum { layout, template };
 
@@ -265,23 +286,24 @@ const Template = struct {
         tree: SuperTree,
         md: []const u8,
         role: Role,
-    ) Template {
-        return .{
+    ) !Template {
+        var t: Template = .{
             .arena = arena,
             .role = role,
             .name = name,
             .path = path,
-            .html = tree.html,
             .md = md,
-            .tree = tree,
+            .root = tree.root,
+            .html = tree.html,
             .print_end = tree.html.len,
-            .cursor = tree.root.cursor(),
+            .extends = tree.extends,
             .blocks = tree.blocks,
             .interface = tree.interface,
             .script_vm = script.Interpreter.init(.{
                 .version = "v0",
                 .page = .{
                     .title = "test",
+                    .authors = &.{ "loris cro", "andrew kelley" },
                     .draft = false,
                     .content = md,
                 },
@@ -290,6 +312,10 @@ const Template = struct {
                 },
             }),
         };
+        try t.eval_context.append(arena, .{
+            .default = t.root.cursor(),
+        });
+        return t;
     }
 
     pub fn finalCheck(self: Template) void {
@@ -350,44 +376,18 @@ const Template = struct {
             , .{self.name});
         }
         std.debug.print("\n", .{});
-
-        // var cursor = self.tree.root().cursor();
-        // defer cursor.destroy();
-
-        // var found_first = false;
-
-        // while (cursor.next()) |s| {
-        //     const elem = s.node.toElement() orelse continue;
-        //     const tag = elem.tag();
-        //     if (!is(tag.name().string(self.html), "super")) continue;
-        //     const super = self.findSuperId(elem) orelse continue;
-        //     const super_tag_name = super.tag_name.string(super.html);
-        //     if (!found_first) {
-        //         found_first = true;
-        //         std.debug.print("\nExtended template interface ({s}):\n", .{self.name});
-        //     }
-        //     std.debug.print("\t<{s} id=\"{s}\"></{s}>\n", .{
-        //         super_tag_name,
-        //         super.id,
-        //         super_tag_name,
-        //     });
-        // }
-        // if (!found_first) {
-        //     std.debug.print(
-        //         \\The extended template has no interface!
-        //         \\Add <super/> tags to `{s}` to make it extensible.
-        //         \\
-        //     , .{self.name});
-        // }
-        // std.debug.print("\n", .{});
     }
 
     pub fn activateBlock(self: *Template, super_id: []const u8, writer: anytype) Reported!void {
-        assert(@src(), self.tree.extends != null);
+        assert(@src(), self.extends != null);
+        std.debug.assert(self.eval_context.items.len == 0);
 
         const block = self.blocks.getPtr(super_id).?;
 
-        self.cursor.reset(block.node);
+        self.eval_context.append(self.arena, .{
+            .default = block.node.cursor(),
+        }) catch oom();
+
         self.print_cursor = block.node.elem.startTag().node.end();
         self.print_end = block.node.elem.endTag().?.start();
 
@@ -407,7 +407,7 @@ const Template = struct {
                 if (!try self.evalIf(attr.name(), code.str)) {
                     self.print_cursor = block.node.elem.endTag().?.start();
                     // TODO: void tags :^)
-                    self.cursor.skipChildrenOfCurrentNode();
+                    self.eval_context.items[0].default.skipChildrenOfCurrentNode();
                 }
             },
         }
@@ -441,81 +441,142 @@ const Template = struct {
     };
 
     pub fn eval(self: *Template, writer: anytype) Reported!Continuation {
-        while (self.cursor.next()) |node| {
-            switch (node.type.role()) {
-                .root, .extend, .block, .super_block => {
-                    assert(@src(), false);
-                },
-                .super => {
-                    writer.writeAll(
-                        self.html[self.print_cursor..node.elem.node.start()],
-                    ) catch |err| return out(err);
-                    self.print_cursor = node.elem.node.end();
-                    return .{ .super = node };
-                },
-                .element => {},
-            }
-
-            switch (node.type.branching()) {
-                else => assert(@src(), false),
-                .none => {},
-                .@"if" => {
-                    const start_tag = node.elem.startTag();
-                    const scripted_attr = node.ifAttr();
-                    const attr = scripted_attr.attr;
-                    const value = node.ifValue();
-
-                    const up_to_attr = self.html[self.print_cursor..attr.node.start()];
-                    writer.writeAll(up_to_attr) catch |err| return out(err);
-                    const rest_of_start_tag = self.html[attr.node.end()..start_tag.node.end()];
-                    writer.writeAll(rest_of_start_tag) catch |err| return out(err);
-                    self.print_cursor = start_tag.node.end();
-
-                    // NOTE: it's fundamental to get right string memory management
-                    //       semantics. In this case it doesn't matter because the
-                    //       output is a bool.
-                    const code = value.unescape(self.arena, self.html) catch oom();
-                    defer code.deinit(self.arena);
-
-                    if (!try self.evalIf(attr.name(), code.str)) {
-                        self.print_cursor = node.elem.endTag().?.start();
-                        // TODO: void tags :^)
-                        self.cursor.skipChildrenOfCurrentNode();
+        while (self.eval_context.items.len > 0) {
+            const current_context = &self.eval_context.items[self.eval_context.items.len - 1];
+            switch (current_context.*) {
+                .default, .loop_iter => {},
+                .loop_condition => |*l| {
+                    self.print_cursor = l.print_cursor;
+                    if (l.index < l.items.len) {
+                        self.eval_context.append(self.arena, .{
+                            .loop_iter = .{
+                                .cursor = l.cursor_ptr.*,
+                                .loop = .{
+                                    .it = l.items[l.index],
+                                    .idx = l.index,
+                                },
+                            },
+                        }) catch oom();
+                        l.index += 1;
+                        continue;
+                    } else {
+                        l.cursor_ptr.skipChildrenOfCurrentNode();
+                        _ = self.eval_context.pop();
+                        continue;
                     }
                 },
             }
+            const cursor_ptr = switch (current_context.*) {
+                .default => |*d| d,
+                .loop_iter => |*li| &li.cursor,
+                .loop_condition => unreachable,
+            };
+            while (cursor_ptr.next()) |node| {
+                switch (node.type.role()) {
+                    .root, .extend, .block, .super_block => {
+                        assert(@src(), false);
+                    },
+                    .super => {
+                        writer.writeAll(
+                            self.html[self.print_cursor..node.elem.node.start()],
+                        ) catch |err| return out(err);
+                        self.print_cursor = node.elem.node.end();
+                        return .{ .super = node };
+                    },
+                    .element => {},
+                }
 
-            switch (node.type.output()) {
-                .none => {},
-                .@"var" => {
-                    const start_tag = node.elem.startTag();
-                    const scripted_attr = node.varAttr();
-                    const attr = scripted_attr.attr;
-                    const value = node.varValue();
+                switch (node.type.branching()) {
+                    else => @panic("TODO: more branching support in eval"),
+                    .none => {},
+                    .loop => {
+                        const start_tag = node.elem.startTag();
+                        const scripted_attr = node.ifAttr();
+                        const attr = scripted_attr.attr;
+                        const value = node.ifValue();
 
-                    // NOTE: it's fundamental to get right string memory management
-                    //       semantics. In this case it doesn't matter because the
-                    //       output string doesn't need to survive past this scope.
-                    const code = value.unescape(self.arena, self.html) catch oom();
-                    defer code.deinit(self.arena);
+                        const up_to_attr = self.html[self.print_cursor..attr.node.start()];
+                        writer.writeAll(up_to_attr) catch |err| return out(err);
+                        const rest_of_start_tag = self.html[attr.node.end()..start_tag.node.end()];
+                        writer.writeAll(rest_of_start_tag) catch |err| return out(err);
+                        self.print_cursor = start_tag.node.end();
 
-                    try self.evalVar(attr.name(), code.str, writer);
+                        const code = value.unescape(self.arena, self.html) catch oom();
+                        errdefer code.deinit(self.arena);
 
-                    const up_to_attr = self.html[self.print_cursor..attr.node.start()];
-                    writer.writeAll(up_to_attr) catch |err| return out(err);
-                    writer.writeByte('>') catch |err| return out(err);
-                    self.print_cursor = start_tag.node.end();
-                },
-                .ctx => @panic("TODO: implement ctx"),
+                        const items = try self.evalLoop(attr.name(), code.str);
+
+                        self.eval_context.append(self.arena, .{
+                            .loop_condition = .{
+                                .print_cursor = self.print_cursor,
+                                .cursor_ptr = cursor_ptr,
+                                .items = items,
+                                .index = 0,
+                            },
+                        }) catch oom();
+                    },
+                    .@"if" => {
+                        const start_tag = node.elem.startTag();
+                        const scripted_attr = node.ifAttr();
+                        const attr = scripted_attr.attr;
+                        const value = node.ifValue();
+
+                        const up_to_attr = self.html[self.print_cursor..attr.node.start()];
+                        writer.writeAll(up_to_attr) catch |err| return out(err);
+                        const rest_of_start_tag = self.html[attr.node.end()..start_tag.node.end()];
+                        writer.writeAll(rest_of_start_tag) catch |err| return out(err);
+                        self.print_cursor = start_tag.node.end();
+
+                        // NOTE: it's fundamental to get right string memory management
+                        //       semantics. In this case it doesn't matter because the
+                        //       output is a bool.
+                        const code = value.unescape(self.arena, self.html) catch oom();
+                        defer code.deinit(self.arena);
+
+                        if (!try self.evalIf(attr.name(), code.str)) {
+                            self.print_cursor = node.elem.endTag().?.start();
+                            // TODO: void tags :^)
+                            cursor_ptr.skipChildrenOfCurrentNode();
+                        }
+                    },
+                }
+
+                switch (node.type.output()) {
+                    .none => {},
+                    .@"var" => {
+                        const start_tag = node.elem.startTag();
+                        const scripted_attr = node.varAttr();
+                        const attr = scripted_attr.attr;
+                        const value = node.varValue();
+
+                        // NOTE: it's fundamental to get right string memory management
+                        //       semantics. In this case it doesn't matter because the
+                        //       output string doesn't need to survive past this scope.
+                        const code = value.unescape(self.arena, self.html) catch oom();
+                        defer code.deinit(self.arena);
+
+                        try self.evalVar(attr.name(), code.str, writer);
+
+                        const up_to_attr = self.html[self.print_cursor..attr.node.start()];
+                        writer.writeAll(up_to_attr) catch |err| return out(err);
+                        writer.writeByte('>') catch |err| return out(err);
+                        self.print_cursor = start_tag.node.end();
+                    },
+                    .ctx => @panic("TODO: implement ctx"),
+                }
+            }
+
+            if (self.eval_context.popOrNull()) |ctx| {
+                std.debug.assert(ctx != .loop_condition);
             }
         }
 
+        // finalization
         writer.writeAll(
             self.html[self.print_cursor..self.print_end],
         ) catch |err| return out(err);
 
         self.print_cursor = self.print_end;
-
         return .end;
     }
 
@@ -544,7 +605,7 @@ const Template = struct {
 
         const string = switch (result) {
             .string => |s| s,
-            else => @panic("TODO: explain that a var tag evaluated to a non-string"),
+            else => @panic("TODO: explain that a var attr evaluated to a non-string"),
         };
 
         writer.writeAll(string) catch |err| return out(err);
@@ -574,7 +635,35 @@ const Template = struct {
 
         switch (result) {
             .bool => |b| return b,
-            else => @panic("TODO: explain that a var tag evaluated to a non-string"),
+            else => @panic("TODO: explain that an if attr evaluated to a non-bool"),
+        }
+    }
+
+    fn evalLoop(
+        self: *Template,
+        script_attr_name: sitter.Node,
+        code: []const u8,
+    ) Reported![]const script.Value {
+
+        // const diag: script.Interpreter.Diagnostics = .{};
+        const result = self.script_vm.run(code, self.arena, null) catch |err| {
+            // set the last arg to &diag when implementing this
+            self.reportError(
+                script_attr_name,
+                "script_eval",
+                "SCRIPT EVAL ERROR",
+                \\An error was encountered while evaluating a script.
+                ,
+            ) catch {};
+
+            std.debug.print("Error: {}\n", .{err});
+            std.debug.print("TODO: show precise location of the error\n\n", .{});
+            return error.Reported;
+        };
+
+        switch (result) {
+            .array => |a| return a,
+            else => @panic("TODO: explain that a loop attr evaluated to a non-array"),
         }
     }
 

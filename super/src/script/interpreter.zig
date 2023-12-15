@@ -7,8 +7,16 @@ const Context = struct {
     page: Page,
     site: Site,
 };
+
+// $loop, available when in a loop
+pub const LoopContext = struct {
+    it: Value,
+    idx: usize,
+};
+
 const Page = struct {
     title: []const u8,
+    authors: []const []const u8,
     draft: bool,
     content: []const u8,
 };
@@ -27,38 +35,69 @@ const ScriptResult = union(enum) {
     }
 };
 
-const Value = union(enum) {
+pub const Value = union(enum) {
     function: ScriptFunction,
     page: Page,
     site: Site,
     string: []const u8,
     bool: bool,
     int: usize,
+    array: []const Value,
 
-    pub fn from(comptime T: type, payload: T) !Value {
+    pub fn from(
+        comptime T: type,
+        payload: T,
+        arena: ?std.mem.Allocator,
+    ) !Value {
         return switch (T) {
             []const u8 => .{ .string = payload },
             Page => .{ .page = payload },
             Site => .{ .site = payload },
             bool => .{ .bool = payload },
             ScriptFunction => .{ .function = payload },
-            else => @compileError("TODO"),
+            else => {
+                const info: std.builtin.Type = @typeInfo(T);
+                switch (info) {
+                    .Pointer => |p| {
+                        if (p.size != .Slice) @compileError("TODO");
+                        const array = try arena.?.alloc(Value, payload.len);
+                        for (array, payload) |*x, px| x.* = try from(p.child, px, arena);
+                        return .{ .array = array };
+                    },
+
+                    else => @compileError("TODO"),
+                }
+            },
         };
     }
     pub fn call(self: Value, args: []const Value) ScriptResult {
         return self.function(args);
     }
 
-    pub fn dot(self: Value, field: []const u8) !Value {
+    pub fn dot(self: Value, field: []const u8, arena: ?std.mem.Allocator) !Value {
         switch (self) {
             .function => unreachable,
             .int => @panic("TODO"),
+            .array => {
+                inline for (@typeInfo(ArrayBuiltins).Struct.decls) |struct_field| {
+                    if (std.mem.eql(u8, struct_field.name, field)) {
+                        return Value.from(
+                            ScriptFunction,
+                            @field(ArrayBuiltins, struct_field.name),
+                            arena,
+                        );
+                    }
+                }
+
+                return error.NotFound;
+            },
             .bool => {
                 inline for (@typeInfo(BoolBuiltins).Struct.decls) |struct_field| {
                     if (std.mem.eql(u8, struct_field.name, field)) {
                         return Value.from(
                             ScriptFunction,
                             @field(BoolBuiltins, struct_field.name),
+                            arena,
                         );
                     }
                 }
@@ -71,6 +110,7 @@ const Value = union(enum) {
                         return Value.from(
                             ScriptFunction,
                             @field(StringBuiltins, struct_field.name),
+                            arena,
                         );
                     }
                 }
@@ -83,6 +123,7 @@ const Value = union(enum) {
                         return Value.from(
                             struct_field.type,
                             @field(struct_value, struct_field.name),
+                            arena,
                         );
                     }
                 }
@@ -92,6 +133,17 @@ const Value = union(enum) {
         }
     }
 
+    const ArrayBuiltins = struct {
+        pub fn len(args: []const Value) ScriptResult {
+            if (args.len != 1) return .{ .err = "wrong number of arguments" };
+            const array = switch (args[0]) {
+                .array => |a| a,
+                else => return .{ .err = "expected array argument" },
+            };
+            // TODO: arg being not a bool is actually a programming error
+            return .{ .ok = .{ .int = array.len } };
+        }
+    };
     const BoolBuiltins = struct {
         pub fn not(args: []const Value) ScriptResult {
             if (args.len != 1) return .{ .err = "wrong number of arguments" };
@@ -223,7 +275,7 @@ pub const Interpreter = struct {
                         last_was_comma = false;
                         // TODO: this leaks memory!
                         const src = try t.unquote(code, arena);
-                        const v = try Value.from([]const u8, src);
+                        const v = try Value.from([]const u8, src, arena);
                         try stack.append(v);
                     },
                     .identifier => {
@@ -263,7 +315,7 @@ pub const Interpreter = struct {
                         if (stack.items.len == 0) @panic("prorgramming error");
                         const src = t.src(code);
                         const v = stack.pop();
-                        const new_value = try v.dot(src);
+                        const new_value = try v.dot(src, arena);
                         try stack.append(new_value);
                         if (new_value == .function) {
                             // the self argument
@@ -284,6 +336,7 @@ pub const Interpreter = struct {
                                 const v = try Value.from(
                                     field.type,
                                     @field(self.ctx, field.name),
+                                    null,
                                 );
                                 if (v == .function) {
                                     @panic("programming error: $var is a function");
@@ -331,6 +384,7 @@ const test_ctx: Context = .{
     .version = "v0",
     .page = .{
         .title = "Home",
+        .authors = &.{ "loris cro", "andrew kelley" },
         .draft = false,
         .content = "<p>Welcome!</p>",
     },
@@ -345,7 +399,7 @@ test "basic" {
     defer arena.deinit();
 
     var i = Interpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator());
+    const result = try i.run(code, arena.allocator(), null);
 
     const ex: Value = .{ .string = "v0" };
     try std.testing.expectEqualDeep(ex, result);
@@ -357,7 +411,7 @@ test "struct" {
     defer arena.deinit();
 
     var i = Interpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator());
+    const result = try i.run(code, arena.allocator(), null);
 
     const ex: Value = .{ .page = test_ctx.page };
     try std.testing.expectEqualDeep(ex, result);
@@ -369,7 +423,7 @@ test "dot" {
     defer arena.deinit();
 
     var i = Interpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator());
+    const result = try i.run(code, arena.allocator(), null);
 
     const ex: Value = .{ .string = test_ctx.page.content };
     try std.testing.expectEqualDeep(ex, result);
@@ -381,7 +435,7 @@ test "string.startsWith" {
     defer arena.deinit();
 
     var i = Interpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator());
+    const result = try i.run(code, arena.allocator(), null);
 
     const ex: Value = .{ .bool = true };
     try std.testing.expectEqualDeep(ex, result);
@@ -392,7 +446,7 @@ test "string.len" {
     defer arena.deinit();
 
     var i = Interpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator());
+    const result = try i.run(code, arena.allocator(), null);
 
     const ex: Value = .{ .int = 4 };
     try std.testing.expectEqualDeep(ex, result);
@@ -404,7 +458,22 @@ test "should not be able to use a fn as a value" {
     defer arena.deinit();
 
     var i = Interpreter.init(test_ctx);
-    const result = i.run(code, arena.allocator());
+    const result = i.run(code, arena.allocator(), null);
 
     try std.testing.expectError(error.FunctionMustBeCalled, result);
+}
+
+test "array" {
+    const code = "$page.authors";
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    var i = Interpreter.init(test_ctx);
+    const result = try i.run(code, arena.allocator(), null);
+
+    const ex: Value = .{ .array = &.{
+        .{ .string = "loris cro" },
+        .{ .string = "andrew kelley" },
+    } };
+    try std.testing.expectEqualDeep(ex, result);
 }

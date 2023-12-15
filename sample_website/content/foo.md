@@ -16,6 +16,8 @@ You're welcome :^)
 
 Here's a code snippet with some Zig in it:
 
+arst
+
 ```zig 
 const foo = @import("foo.zig");
 ```
