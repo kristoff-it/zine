@@ -1,17 +1,19 @@
 <extend template="with-menu.html"/>
 
-<title id="title">Whoo-hoo!</title>
+<title id="title" var="$page.title"></title>
 
 <head id="head">
   <script> 
      alert("lmao");
   </script>
-  <link src="foo.css">
+  <link rel="stylesheet" type="text/css" href="foo.css">
 </head>
 
-<nav id="menu">
-    <span if="$page.title.startsWith('test').not()">FAILURE!</span>
-    <span else>SUCCESS!!!</span>
+<nav if="$page.title.startsWith('arst').not()" id="menu">
+   <a href="bar/">Bar</a>
+   <a href="baz/">Baz</a>
 </nav>
 
+
 <div id="content" var="$page.content"></div>
+
