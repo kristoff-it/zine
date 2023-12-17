@@ -1,14 +1,7 @@
 const std = @import("std");
 const json = std.json;
 
-pub const Header = struct {
-    title: []const u8 = "",
-    draft: bool = false,
-    layout: []const u8 = "",
-    custom: json.Value = .null,
-};
-
-pub fn parse(reader: anytype, arena: std.mem.Allocator) !Header {
+pub fn parse(comptime Header: type, reader: anytype, arena: std.mem.Allocator) !Header {
     var json_string = std.ArrayList(u8).init(arena);
 
     var buf: [1024]u8 = undefined;
@@ -19,7 +12,7 @@ pub fn parse(reader: anytype, arena: std.mem.Allocator) !Header {
     while (true) : (fbs.reset()) {
         reader.streamUntilDelimiter(fbs.writer(), '\n', null) catch |err| switch (err) {
             error.EndOfStream => switch (state) {
-                .start => return .{},
+                .start => return error.BadFrontMatter,
                 .body => return error.BadFrontMatter,
             },
             else => return err,
@@ -31,7 +24,7 @@ pub fn parse(reader: anytype, arena: std.mem.Allocator) !Header {
                 if (std.mem.eql(u8, maybe_trimmed_dashes, "---")) {
                     state = .body;
                 } else {
-                    return .{};
+                    return error.BadFrontMatter;
                 }
             },
 

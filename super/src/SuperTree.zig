@@ -2,17 +2,17 @@ const SuperTree = @This();
 
 const std = @import("std");
 const sitter = @import("sitter.zig");
-const script = @import("script/interpreter.zig");
 const errors = @import("errors.zig");
-const oom = errors.oom;
+const ErrWriter = errors.ErrWriter;
 
+err: ErrWriter,
 template_name: []const u8,
 template_path: []const u8,
 html: []const u8,
 root: *SuperNode,
 extends: ?*SuperNode = null,
-interface: std.StringArrayHashMapUnmanaged(*SuperNode) = .{},
-blocks: std.StringHashMapUnmanaged(@import("main.zig").Block) = .{},
+interface: std.StringArrayHashMapUnmanaged(*const SuperNode) = .{},
+blocks: std.StringHashMapUnmanaged(*const SuperNode) = .{},
 
 pub const SuperNode = struct {
     type: Type = .element,
@@ -59,6 +59,9 @@ pub const SuperNode = struct {
     pub fn loopAttr(self: SuperNode) ScriptedAttr {
         std.debug.assert(self.type.branching() == .loop);
         return self.if_else_loop;
+    }
+    pub fn loopValue(self: SuperNode) sitter.Tag.Attr.Value {
+        return self.loopAttr().attr.value().?;
     }
     pub fn ifAttr(self: SuperNode) ScriptedAttr {
         std.debug.assert(self.type.branching() == .@"if");
@@ -411,17 +414,19 @@ pub const SuperCursor = struct {
 
 pub fn init(
     arena: std.mem.Allocator,
+    err_writer: ErrWriter,
     template_name: []const u8,
     template_path: []const u8,
     html: []const u8,
-) !SuperTree {
+) errors.FatalOOM!SuperTree {
     const html_tree = sitter.Tree.init(html);
     const html_root = html_tree.root();
     var self: SuperTree = .{
+        .err = err_writer,
         .template_name = template_name,
         .template_path = template_path,
         .html = html,
-        .root = arena.create(SuperNode) catch oom(),
+        .root = try arena.create(SuperNode),
     };
 
     self.root.* = .{
@@ -472,7 +477,7 @@ pub fn init(
             },
             .block => {
                 const id_value = new_node.idValue();
-                const gop = self.blocks.getOrPut(arena, id_value.unquote(html)) catch oom();
+                const gop = try self.blocks.getOrPut(arena, id_value.unquote(html));
                 if (gop.found_existing) {
                     self.reportError(
                         id_value.node,
@@ -484,12 +489,12 @@ pub fn init(
                         \\same id of the <super/> tag's parent container.
                         ,
                     ) catch {};
-                    const other = gop.value_ptr.*.node.idValue().node;
-                    self.diagnostic("note: previous definition:", other);
-                    return error.Reported;
+                    const other = gop.value_ptr.*.idValue().node;
+                    try self.diagnostic("note: previous definition:", other);
+                    return error.Fatal;
                 }
 
-                gop.value_ptr.* = .{ .node = new_node };
+                gop.value_ptr.* = new_node;
             },
         }
 
@@ -617,7 +622,7 @@ fn buildNode(
                     @panic("TODO: explain that extend can't have attrs other than `template`");
                 }
 
-                const new_node = arena.create(SuperNode) catch oom();
+                const new_node = try arena.create(SuperNode);
                 new_node.* = tmp_result;
                 return new_node;
             }
@@ -640,7 +645,19 @@ fn buildNode(
                 },
             };
 
-            if (!start_tag.is_self_closing) @panic("TODO: explain that super must be self-closing");
+            if (!start_tag.is_self_closing) {
+                return self.reportError(
+                    tag_name,
+                    "bad_super_tag",
+                    "BAD SUPER TAG",
+                    \\Super tags must be closed immediately (i.e.: <super/>).
+                    \\It must be done otherwise parsers will assume that all 
+                    \\subsequent content is *inside* of it.
+                    \\
+                    \\Cursed read: https://www.w3.org/TR/2014/REC-html5-20141028/syntax.html#optional-tags
+                    ,
+                );
+            }
 
             var super_attrs = start_tag.attrs();
             if (super_attrs.next()) |a| {
@@ -668,16 +685,16 @@ fn buildNode(
                     // We can assert that the value is present because
                     // the parent element has already been validated.
                     const value = attr.value().?;
-                    const gop = self.interface.getOrPut(
+                    const gop = try self.interface.getOrPut(
                         arena,
                         value.unquote(self.html),
-                    ) catch oom();
+                    );
                     if (gop.found_existing) {
                         @panic("TODO: explain that the interface of this template has a collision");
                     }
 
                     tmp_result.id_template_parentid = attr;
-                    const new_node = arena.create(SuperNode) catch oom();
+                    const new_node = try arena.create(SuperNode);
                     new_node.* = tmp_result;
                     gop.value_ptr.* = new_node;
                     return new_node;
@@ -691,11 +708,11 @@ fn buildNode(
                     \\that specifies an `id` attribute.
                     ,
                 ) catch {};
-                self.diagnostic(
+                try self.diagnostic(
                     "note: the parent element:",
                     parent_start_tag.name(),
                 );
-                return error.Reported;
+                return error.Fatal;
             }
         }
     }
@@ -732,7 +749,7 @@ fn buildNode(
         const name_string = name.string(self.html);
         // validation
         {
-            const gop = attrs_seen.getOrPut(name_string) catch oom();
+            const gop = try attrs_seen.getOrPut(name_string);
             if (gop.found_existing) {
                 self.reportError(
                     name,
@@ -741,11 +758,11 @@ fn buildNode(
                     \\HTML elements cannot contain duplicate attributes.
                     ,
                 ) catch {};
-                self.diagnostic(
+                try self.diagnostic(
                     "node: previous instance was here:",
                     gop.value_ptr.*,
                 );
-                return error.Reported;
+                return error.Fatal;
             }
             gop.value_ptr.* = name;
         }
@@ -803,7 +820,7 @@ fn buildNode(
                 @panic("TODO: explain that id must have a value");
             };
 
-            const maybe_code = value.unescape(arena, self.html) catch oom();
+            const maybe_code = try value.unescape(arena, self.html);
             defer maybe_code.deinit(arena);
 
             if (std.mem.indexOfScalar(u8, maybe_code.str, '$') != null) {
@@ -844,7 +861,7 @@ fn buildNode(
             name.debug();
             std.debug.print("\n", .{});
 
-            errors.fatal("debug attribute found, aborting", .{});
+            return self.fatal("debug attribute found, aborting", .{});
         }
 
         // var
@@ -920,7 +937,7 @@ fn buildNode(
                 );
             };
 
-            const code = value.unescape(arena, self.html) catch oom();
+            const code = try value.unescape(arena, self.html);
             // TODO: typecheck the expression
             if (std.mem.indexOfScalar(u8, code.str, '$') == null) {
                 return self.reportError(
@@ -982,11 +999,11 @@ fn buildNode(
                         \\at the same time.
                         ,
                     ) catch {};
-                    self.diagnostic(
+                    try self.diagnostic(
                         "note: this is the previous branching attribute:",
                         tmp_result.branchingAttr().attr.name(),
                     );
-                    return error.Reported;
+                    return error.Fatal;
                 },
 
                 .root,
@@ -1020,7 +1037,7 @@ fn buildNode(
                 );
             };
 
-            const code = value.unescape(arena, self.html) catch oom();
+            const code = try value.unescape(arena, self.html);
             // TODO: typecheck the expression
             tmp_result.if_else_loop = .{ .attr = attr, .code = code };
 
@@ -1152,7 +1169,7 @@ fn buildNode(
                 @panic("TODO: explain that loop must have a value");
             };
 
-            const code = value.unescape(arena, self.html) catch oom();
+            const code = try value.unescape(arena, self.html);
             // TODO: typecheck the expression
             tmp_result.if_else_loop = .{ .attr = attr, .code = code };
 
@@ -1180,7 +1197,7 @@ fn buildNode(
         );
     }
 
-    const new_node = arena.create(SuperNode) catch oom();
+    const new_node = try arena.create(SuperNode);
     new_node.* = tmp_result;
     return new_node;
 }
@@ -1251,15 +1268,15 @@ fn validateNodeInTree(self: SuperTree, node: *const SuperNode) !void {
                         \\TODO: write explanation
                         ,
                     ) catch {};
-                    self.diagnostic(
+                    try self.diagnostic(
                         "note: the other tag:",
                         start_tag.name(),
                     );
-                    self.diagnostic(
+                    try self.diagnostic(
                         "note: both are relative to:",
                         node.superBlock().id_value.node,
                     );
-                    return error.Reported;
+                    return error.Fatal;
 
                     // self.reportError(elem_name, "UNEXPECTED SUPER TAG",
                     //     \\All <super/> tags must have a parent element with an id,
@@ -1296,7 +1313,8 @@ fn validateNodeInTree(self: SuperTree, node: *const SuperNode) !void {
                     \\makes that impossible. 
                     ,
                 ) catch {};
-                self.diagnostic("note: the loop:\n", p.loopAttr().attr.name());
+                try self.diagnostic("note: the loop:\n", p.loopAttr().attr.name());
+                return error.Fatal;
             },
         };
     }
@@ -1349,14 +1367,19 @@ fn validateNodeInTree(self: SuperTree, node: *const SuperNode) !void {
     // }
 }
 
+fn fatal(self: SuperTree, comptime msg: []const u8, args: anytype) errors.Fatal {
+    return errors.fatal(self.err, msg, args);
+}
+
 fn reportError(
     self: SuperTree,
     node: sitter.Node,
     comptime error_code: []const u8,
     comptime title: []const u8,
     comptime msg: []const u8,
-) errors.Reported {
+) errors.Fatal {
     return errors.report(
+        self.err,
         self.template_name,
         self.template_path,
         node,
@@ -1371,8 +1394,9 @@ fn diagnostic(
     self: SuperTree,
     comptime note_line: []const u8,
     node: sitter.Node,
-) void {
-    errors.diagnostic(
+) !void {
+    return errors.diagnostic(
+        self.err,
         self.template_name,
         self.template_path,
         note_line,
@@ -1435,7 +1459,7 @@ test "var - errors" {
             case,
         );
 
-        try std.testing.expectError(error.Reported, tree);
+        try std.testing.expectError(error.Fatal, tree);
     }
 }
 
@@ -1623,7 +1647,7 @@ test "if-else-loop errors" {
             case,
         );
 
-        try std.testing.expectError(error.Reported, tree);
+        try std.testing.expectError(error.Fatal, tree);
     }
 }
 

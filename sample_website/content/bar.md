@@ -1,8 +1,9 @@
 ---
 {
   "title": "Hello World!",
+  "author": "loris cro",
   "draft": false,
-  "layout": "simple.html",
+  "layout": "page.html",
   "custom": {
     "foo": 50
   }

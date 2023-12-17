@@ -2,19 +2,33 @@ const std = @import("std");
 const sitter = @import("sitter.zig");
 const builtin = @import("builtin");
 
-const disable_printing = builtin.is_test;
+pub const ErrWriter = std.fs.File.Writer;
 
 /// Used to catch programming errors where a function fails to report
 /// correctly that an error has occurred.
-pub const Reported = error{
+pub const Fatal = error{
     /// The error has been fully reported.
-    Reported,
-    /// The error has been reported but we should also print the
-    /// interface of the template we are extending.
-    WantInterface,
+    Fatal,
+
+    /// There was an error while outputting to the error writer.
+    ErrIO,
+
+    /// There war an error while outputting to the out writer.
+    OutIO,
 };
 
+pub const FatalOOM = error{OutOfMemory} || Fatal;
+
+pub const FatalShow = Fatal || error{
+    /// The error has been reported but we should also print the
+    /// interface of the template we are extending.
+    FatalShowInterface,
+};
+
+pub const FatalShowOOM = error{OutOfMemory} || FatalShow;
+
 pub fn report(
+    writer: ErrWriter,
     template_name: []const u8,
     template_path: []const u8,
     bad_node: sitter.Node,
@@ -22,21 +36,21 @@ pub fn report(
     comptime error_code: []const u8,
     comptime title: []const u8,
     comptime msg: []const u8,
-) Reported {
-    header(title, msg);
+) Fatal {
+    try header(writer, title, msg);
     const error_line = comptime "[" ++ error_code ++ "]";
-    diagnostic(template_name, template_path, error_line, bad_node, html);
-    return error.Reported;
+    try diagnostic(writer, template_name, template_path, error_line, bad_node, html);
+    return error.Fatal;
 }
 
 pub fn diagnostic(
+    writer: ErrWriter,
     template_name: []const u8,
     template_path: []const u8,
     comptime note_line: []const u8,
     node: sitter.Node,
     html: []const u8,
-) void {
-    if (disable_printing) return;
+) error{ErrIO}!void {
     const pos = node.selection();
     const line_off = node.line(html);
     const offset = node.offset();
@@ -59,7 +73,7 @@ pub fn diagnostic(
         break :blk h;
     } else "";
 
-    std.debug.print(
+    writer.print(
         \\
         \\{s}
         \\({s}) {s}:{}:{}:
@@ -74,39 +88,28 @@ pub fn diagnostic(
         pos.start.col,
         line_trim,
         highlight,
-    });
+    }) catch return error.ErrIO;
 }
 
 pub fn header(
+    writer: ErrWriter,
     comptime title: []const u8,
     comptime msg: []const u8,
-) void {
-    if (disable_printing) return;
-    std.debug.print(
+) error{ErrIO}!void {
+    writer.print(
         \\
         \\---------- {s} ----------
         \\
-    , .{title});
-    std.debug.print(msg, .{});
-    std.debug.print("\n", .{});
+    , .{title}) catch return error.ErrIO;
+    writer.print(msg, .{}) catch return error.ErrIO;
+    writer.print("\n", .{}) catch return error.ErrIO;
 }
 
-pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
-    if (!disable_printing) std.debug.print(fmt, args);
-    std.process.exit(1);
+pub fn fatal(
+    writer: ErrWriter,
+    comptime fmt: []const u8,
+    args: anytype,
+) Fatal {
+    writer.print(fmt, args) catch return error.ErrIO;
+    return error.ErrIO;
 }
-
-pub fn oom() noreturn {
-    fatal("out of memory", .{});
-}
-
-// fn toLower(
-//     data: []const u8,
-//     comptime fmt: []const u8,
-//     options: std.fmt.FormatOptions,
-//     writer: anytype,
-// ) !void {
-//     for (data) |c| {
-//         writer.write(std.ascii.toLower(c));
-//     }
-// }
