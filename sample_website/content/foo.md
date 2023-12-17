@@ -1,8 +1,10 @@
 ---
 {
-  "title": "Hello World!",
+  "title": "Really?",
+  "author": "Loris Cro",
   "draft": false,
   "layout": "page.html",
+  "tags": ["tag1", "tag2"],
   "custom": {
     "foo": 50
   }
@@ -16,9 +18,6 @@ You're welcome :^)
 
 Here's a code snippet with some Zig in it:
 
-arst
-
 ```zig 
 const foo = @import("foo.zig");
 ```
-

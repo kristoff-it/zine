@@ -15,6 +15,9 @@
         .super = .{
             .path = "../super",
         },
+        .scripty = .{
+            .path = "../scripty",
+        },
     },
     .paths = .{
         "LICENSE",

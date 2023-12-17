@@ -13,17 +13,15 @@
 <nav if="$page.title.startsWith('arst').not()" id="menu">
    <a href="bar/">Bar</a>
    <a href="baz/">Baz</a>
-   <span>Nothing to show.</span>
 </nav>
 
 
 <div id="content"> 
+   <h5>Tags:
+      <span loop="$page.tags">
+         <span var="$loop.it"></span>
+      </span>
+   </h5>
    <div var="$page.content"></div>
-   
-   Authors:
-   <div loop="$page.authors"> 
-      <span var="$loop.it"></span>
-      <span if="$loop.last.not()">, </span>
-   </div>
 </div>
 

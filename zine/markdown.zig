@@ -1,6 +1,7 @@
 const std = @import("std");
 const frontmatter = @import("frontmatter");
 const templating = @import("templating.zig");
+const contexts = @import("contexts.zig");
 
 pub fn scan(
     project: *std.Build,
@@ -35,7 +36,7 @@ pub fn scan(
 
             var buf_reader = std.io.bufferedReader(file.reader());
             const r = buf_reader.reader();
-            const fm = frontmatter.parse(r, project.allocator) catch |err| {
+            const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
                 std.debug.print(
                     "Error while parsing the frontmatter header of `index.md` in /{s}\n",
                     .{dir_entry.path},
@@ -77,7 +78,7 @@ pub fn scan(
 
                         var buf_reader = std.io.bufferedReader(file.reader());
                         const r = buf_reader.reader();
-                        const fm = frontmatter.parse(r, project.allocator) catch |err| {
+                        const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
                             std.debug.print(
                                 "Error while parsing the frontmatter header of `{s}` in /{s}\n",
                                 .{ entry.name, dir_entry.path },
@@ -111,9 +112,9 @@ pub fn scan(
 
 fn addMarkdownRender(
     project: *std.Build,
-    zine_dep: *const std.Build.Dependency,
+    zine_dep: *std.Build.Dependency,
     layouts_dir_path: []const u8,
-    fm: frontmatter.Header,
+    fm: contexts.Page,
     content_dir_path: []const u8,
     /// Must be relative to `content_dir_path`
     path: []const u8,
@@ -122,34 +123,43 @@ fn addMarkdownRender(
     const in_path = project.pathJoin(&.{ content_dir_path, path, md_basename });
     const layout_path = project.pathJoin(&.{ layouts_dir_path, fm.layout });
     const out_basename = md_basename[0 .. md_basename.len - 3];
-    const out_path = project.pathJoin(&.{ path, out_basename, "index.html" });
+    const out_path = if (std.mem.eql(u8, out_basename, "index"))
+        project.pathJoin(&.{ path, "index.html" })
+    else
+        project.pathJoin(&.{ path, out_basename, "index.html" });
 
     const renderer = zine_dep.builder.dependency(
         "markdown-renderer",
         .{},
     ).artifact("markdown-renderer");
 
+    const assets = project.addWriteFiles();
+
     const render_step = project.addRunArtifact(renderer);
+    // assets_in_dir_path
+    render_step.addDirectoryArg(.{ .path = project.pathJoin(&.{ content_dir_path, path }) });
+    // assets_dep_path
+    _ = render_step.addDepFileOutputArg("assets.d");
+    // assets_out_dir_path
+    render_step.addDirectoryArg(assets.getDirectory());
+    // md_in_path
     render_step.addFileArg(.{ .path = in_path });
+    // html_out_path
     const rendered_md = render_step.addOutputFileArg(out_basename);
 
-    // TODO: re-enable to compile layouts instead of runtime interpretation:
+    // install all non-markdown files as assets
+    // const install_assets = project.addInstallDirectory(.{
+    //     .source_dir = assets.getDirectory(),
+    //     .install_dir = .prefix,
+    //     .install_subdir = project.pathJoin(&.{ path, out_basename }),
+    // });
 
-    // const layout = layouts.get(fm.layout) orelse {
-    //     std.debug.print(
-    //         "Unable to find layout `{s}` in `{s}/{s}`\n",
-    //         .{ fm.layout, path, md_basename },
-    //     );
-    //     return error.FileNotFound;
-    // };
+    // project.getInstallStep().dependOn(&install_assets.step);
 
-    // const layout_step = project.addRunArtifact(layout.exe);
-    // layout_step.addFileArg(rendered_md);
-    // const final_html = layout_step.addOutputFileArg(out_basename);
-
-    const super = zine_dep.builder.dependency("super", .{}).artifact("super");
-    const layout_step = project.addRunArtifact(super);
+    const super_exe = zine_dep.artifact("super_exe");
+    const layout_step = project.addRunArtifact(super_exe);
     const final_html = layout_step.addOutputFileArg(out_basename);
+    layout_step.addArg(content_dir_path);
     layout_step.addFileArg(rendered_md);
     layout_step.addArg(project.pathJoin(&.{ path, md_basename }));
     layout_step.addFileArg(.{ .path = layout_path });

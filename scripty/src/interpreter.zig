@@ -2,28 +2,12 @@ const std = @import("std");
 const Tokenizer = @import("Tokenizer.zig");
 const Token = Tokenizer.Token;
 
-const Context = struct {
-    version: []const u8,
-    page: Page,
-    site: Site,
+pub const Diagnostics = struct {
+    loc: Token.Loc,
 };
 
-// $loop, available when in a loop
-pub const LoopContext = struct {
-    it: Value,
-    idx: usize,
-};
-
-const Page = struct {
-    title: []const u8,
-    authors: []const []const u8,
-    draft: bool,
-    content: []const u8,
-};
-const Site = struct { name: []const u8 };
-
-const ScriptFunction = *const fn ([]const Value) ScriptResult;
-const ScriptResult = union(enum) {
+pub const ScriptFunction = *const fn ([]const Value) ScriptResult;
+pub const ScriptResult = union(enum) {
     ok: Value,
     err: []const u8,
 
@@ -35,10 +19,30 @@ const ScriptResult = union(enum) {
     }
 };
 
+pub const ExternalValue = struct {
+    value: *anyopaque,
+    path: ?[]const u8 = null,
+    dot_fn: DotFn,
+    call_fn: CallFn,
+    value_fn: ValueFn,
+
+    // pub const DotResult = error{FieldNotFound}!Value;
+    pub const DotFn = *const fn (
+        *anyopaque,
+        path: []const u8,
+        arena: std.mem.Allocator,
+    ) ScriptResult;
+    pub const CallFn = *const fn (*anyopaque, args: []const Value) ScriptResult;
+    pub const ValueFn = *const fn (*anyopaque) ScriptResult;
+
+    pub fn dot(self: ExternalValue, path: []const u8, arena: std.mem.Allocator) ScriptResult {
+        return self.dot_fn(self.value, path, arena);
+    }
+};
+
 pub const Value = union(enum) {
     function: ScriptFunction,
-    page: Page,
-    site: Site,
+    external: ExternalValue,
     string: []const u8,
     bool: bool,
     int: usize,
@@ -50,11 +54,12 @@ pub const Value = union(enum) {
         arena: ?std.mem.Allocator,
     ) !Value {
         return switch (T) {
-            []const u8 => .{ .string = payload },
-            Page => .{ .page = payload },
-            Site => .{ .site = payload },
-            bool => .{ .bool = payload },
+            ExternalValue => .{ .external = payload },
             ScriptFunction => .{ .function = payload },
+            Value => payload,
+            []const u8 => .{ .string = payload },
+            bool => .{ .bool = payload },
+            usize => .{ .int = payload },
             else => {
                 const info: std.builtin.Type = @typeInfo(T);
                 switch (info) {
@@ -64,8 +69,7 @@ pub const Value = union(enum) {
                         for (array, payload) |*x, px| x.* = try from(p.child, px, arena);
                         return .{ .array = array };
                     },
-
-                    else => @compileError("TODO"),
+                    else => @compileError("TODO: Value.from for " ++ @typeName(T)),
                 }
             },
         };
@@ -74,8 +78,9 @@ pub const Value = union(enum) {
         return self.function(args);
     }
 
-    pub fn dot(self: Value, field: []const u8, arena: ?std.mem.Allocator) !Value {
+    pub fn dot(self: Value, field: []const u8, arena: std.mem.Allocator) !Value {
         switch (self) {
+            .external => |ex| return ex.dot(field, arena).ok,
             .function => unreachable,
             .int => @panic("TODO"),
             .array => {
@@ -116,19 +121,6 @@ pub const Value = union(enum) {
                 }
 
                 return error.NotFound;
-            },
-            inline .page, .site => |struct_value| {
-                inline for (std.meta.fields(@TypeOf(struct_value))) |struct_field| {
-                    if (std.mem.eql(u8, struct_field.name, field)) {
-                        return Value.from(
-                            struct_field.type,
-                            @field(struct_value, struct_field.name),
-                            arena,
-                        );
-                    }
-                }
-
-                return error.FieldNotFound;
             },
         }
     }
@@ -182,17 +174,7 @@ pub const Value = union(enum) {
     };
 };
 
-pub const Diagnostics = struct {
-    loc: Token.Loc,
-};
-
-pub const Interpreter = struct {
-    ctx: Context,
-
-    pub fn init(ctx: Context) Interpreter {
-        return .{ .ctx = ctx };
-    }
-
+pub const ScriptyVM = struct {
     const State = enum {
         start,
         main,
@@ -202,7 +184,7 @@ pub const Interpreter = struct {
     };
 
     pub fn run(
-        self: *Interpreter,
+        ctx: ExternalValue,
         code: []const u8,
         arena: std.mem.Allocator,
         diag: ?*Diagnostics,
@@ -329,20 +311,9 @@ pub const Interpreter = struct {
                 .saw_dollar => switch (t.tag) {
                     .identifier => {
                         const src = t.src(code);
-                        var found = false;
-                        inline for (std.meta.fields(Context)) |field| {
-                            if (std.mem.eql(u8, field.name, src)) {
-                                found = true;
-                                const v = try Value.from(
-                                    field.type,
-                                    @field(self.ctx, field.name),
-                                    null,
-                                );
-                                if (v == .function) {
-                                    @panic("programming error: $var is a function");
-                                }
-                                try stack.append(v);
-                            }
+                        switch (ctx.dot(src, arena)) {
+                            .err => @panic("TODO"),
+                            .ok => |value| try stack.append(value),
                         }
                         state = .main;
                     },
@@ -380,7 +351,19 @@ pub const Interpreter = struct {
     }
 };
 
-const test_ctx: Context = .{
+const TestContext = struct {
+    version: []const u8,
+    page: struct {
+        title: []const u8,
+        authors: []const []const u8,
+        content: []const u8,
+    },
+    site: struct {
+        name: []const u8,
+    },
+};
+
+const test_ctx: TestContext = .{
     .version = "v0",
     .page = .{
         .title = "Home",
@@ -393,15 +376,17 @@ const test_ctx: Context = .{
     },
 };
 
+const TestInterpreter = ScriptyVM(TestContext);
+
 test "basic" {
     const code = "$version";
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(test_ctx);
+    var i = TestInterpreter.init(test_ctx);
     const result = try i.run(code, arena.allocator(), null);
 
-    const ex: Value = .{ .string = "v0" };
+    const ex: TestInterpreter.Value = .{ .string = "v0" };
     try std.testing.expectEqualDeep(ex, result);
 }
 
@@ -410,10 +395,10 @@ test "struct" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(test_ctx);
+    var i = TestInterpreter.init(test_ctx);
     const result = try i.run(code, arena.allocator(), null);
 
-    const ex: Value = .{ .page = test_ctx.page };
+    const ex: TestInterpreter.Value = .{ .page = test_ctx.page };
     try std.testing.expectEqualDeep(ex, result);
 }
 
@@ -422,10 +407,10 @@ test "dot" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(test_ctx);
+    var i = TestInterpreter.init(test_ctx);
     const result = try i.run(code, arena.allocator(), null);
 
-    const ex: Value = .{ .string = test_ctx.page.content };
+    const ex: TestInterpreter.Value = .{ .string = test_ctx.page.content };
     try std.testing.expectEqualDeep(ex, result);
 }
 
@@ -434,10 +419,10 @@ test "string.startsWith" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(test_ctx);
+    var i = TestInterpreter.init(test_ctx);
     const result = try i.run(code, arena.allocator(), null);
 
-    const ex: Value = .{ .bool = true };
+    const ex: TestInterpreter.Value = .{ .bool = true };
     try std.testing.expectEqualDeep(ex, result);
 }
 test "string.len" {
@@ -445,10 +430,10 @@ test "string.len" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(test_ctx);
+    var i = TestInterpreter.init(test_ctx);
     const result = try i.run(code, arena.allocator(), null);
 
-    const ex: Value = .{ .int = 4 };
+    const ex: TestInterpreter.Value = .{ .int = 4 };
     try std.testing.expectEqualDeep(ex, result);
 }
 
@@ -457,7 +442,7 @@ test "should not be able to use a fn as a value" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(test_ctx);
+    var i = TestInterpreter.init(test_ctx);
     const result = i.run(code, arena.allocator(), null);
 
     try std.testing.expectError(error.FunctionMustBeCalled, result);
@@ -468,10 +453,10 @@ test "array" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = Interpreter.init(test_ctx);
+    var i = TestInterpreter.init(test_ctx);
     const result = try i.run(code, arena.allocator(), null);
 
-    const ex: Value = .{ .array = &.{
+    const ex: TestInterpreter.Value = .{ .array = &.{
         .{ .string = "loris cro" },
         .{ .string = "andrew kelley" },
     } };
