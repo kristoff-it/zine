@@ -36,7 +36,7 @@ pub const Result = struct {
 };
 
 pub const Value = union(enum) {
-    global: []const u8, // path into the global namespace
+    lazy_path: []const u8,
     date: DateTime,
     string: String,
     bool: bool,
@@ -69,7 +69,7 @@ pub const Value = union(enum) {
         const field = path;
 
         switch (self) {
-            .global => unreachable,
+            .lazy_path => unreachable,
             .float => @panic("TODO: float support in scripty"),
             .nil => @panic("TODO: explain that you dotted on a nil"),
             inline else => |t| {
@@ -87,7 +87,7 @@ pub const Value = union(enum) {
 
     fn builtinFor(comptime tag: @typeInfo(Value).Union.tag_type.?) type {
         return switch (tag) {
-            .global, .err, .nil => @compileError("these tags can't have builtins"),
+            .lazy_path, .err, .nil => @compileError("these tags can't have builtins"),
             .float, .nil => @panic("TODO"),
             .date => DateBuiltins,
             .string => StringBuiltins,
