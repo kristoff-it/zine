@@ -1,6 +1,5 @@
 const std = @import("std");
 const super = @import("super");
-const frontmatter = super.frontmatter;
 const contexts = @import("contexts.zig");
 
 pub fn main() !void {
@@ -11,13 +10,15 @@ pub fn main() !void {
 
     const args = std.process.argsAlloc(arena) catch oom();
     const out_path = args[1];
-    const content_dir_path = args[2];
+    const install_subpath = args[2];
     const rendered_md_path = args[3];
     const md_name = args[4];
-    const layout_path = args[5];
-    const layout_name = args[6];
-    const templates_dir_path = args[7];
-    const dep_file_path = args[8];
+    const sections_meta_dir_path = args[5];
+    const layout_path = args[6];
+    const layout_name = args[7];
+    const templates_dir_path = args[8];
+    const dep_file_path = args[9];
+    const index_path = args[10];
 
     const rendered_md_string = readFile(rendered_md_path, arena) catch |err| {
         fatal("error while opening the rendered markdown file:\n{s}\n{s}\n", .{
@@ -28,6 +29,13 @@ pub fn main() !void {
 
     const layout_html = readFile(layout_path, arena) catch |err| {
         fatal("error while opening the layout file:\n{s}\n{s}\n", .{
+            layout_path,
+            @errorName(err),
+        });
+    };
+
+    const index_bytes = readFile(index_path, arena) catch |err| {
+        fatal("error while opening the index file:\n{s}\n{s}\n", .{
             layout_path,
             @errorName(err),
         });
@@ -58,17 +66,50 @@ pub fn main() !void {
     var out_buf_writer = std.io.bufferedWriter(out_file.writer());
     const out_writer = out_buf_writer.writer();
 
-    const fm_path = try std.fs.path.join(arena, &.{ content_dir_path, md_name });
-    const fm_string = readFile(fm_path, arena) catch |err| {
-        fatal("error reading the frontmatter file: {s}", .{@errorName(err)});
+    const page_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, install_subpath });
+    const page_string = readFile(page_path, arena) catch |err| {
+        fatal("error reading the page meta file '{s}': {s}", .{ page_path, @errorName(err) });
     };
 
-    var fbs = std.io.fixedBufferStream(fm_string);
-    const fm = try frontmatter.parse(contexts.Page, fbs.reader(), arena);
+    const page = try std.json.parseFromSliceLeaky(contexts.Page, arena, page_string, .{});
+    const prev_next = findPrevNext(index_bytes, install_subpath);
     var ctx: contexts.Template = .{
-        .page = fm,
+        .page = page,
     };
     ctx.page.content = rendered_md_string;
+    if (prev_next.prev) |p| {
+        const prev_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, p });
+        const prev_page = readFile(prev_path, arena) catch |err| {
+            fatal("error reading the prev page meta file '{s}': {s}", .{
+                prev_path,
+                @errorName(err),
+            });
+        };
+        var prev_meta = try std.json.parseFromSliceLeaky(
+            contexts.Page,
+            arena,
+            prev_page,
+            .{},
+        );
+
+        ctx.page._meta.prev = &prev_meta;
+    }
+    if (prev_next.next) |n| {
+        const next_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, n });
+        const next_page = readFile(next_path, arena) catch |err| {
+            fatal("error reading the next page meta file '{s}': {s}", .{
+                next_path,
+                @errorName(err),
+            });
+        };
+        var next_meta = try std.json.parseFromSliceLeaky(
+            contexts.Page,
+            arena,
+            next_page,
+            .{},
+        );
+        ctx.page._meta.next = &next_meta;
+    }
     var super_vm = super.SuperVM.init(
         arena,
         &ctx,
@@ -122,7 +163,7 @@ fn readFile(path: []const u8, arena: std.mem.Allocator) ![]const u8 {
     var buf_reader = std.io.bufferedReader(file.reader());
     const r = buf_reader.reader();
 
-    return r.readAllAlloc(arena, 4096);
+    return r.readAllAlloc(arena, 1024 * 1024 * 10);
 }
 
 pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
@@ -132,4 +173,21 @@ pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
 
 pub fn oom() noreturn {
     fatal("out of memory", .{});
+}
+
+const PrevNext = struct {
+    prev: ?[]const u8,
+    next: ?[]const u8,
+};
+
+fn findPrevNext(index: []const u8, needle: []const u8) PrevNext {
+    var it = std.mem.tokenizeScalar(u8, index, '\n');
+    var last: ?[]const u8 = null;
+    while (it.next()) |line| : (last = line) {
+        if (std.mem.eql(u8, line, needle)) {
+            return .{ .prev = last, .next = it.next() };
+        }
+    } else {
+        @panic("TODO: we're not in the index list?");
+    }
 }

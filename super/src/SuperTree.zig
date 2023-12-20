@@ -5,6 +5,8 @@ const sitter = @import("sitter.zig");
 const errors = @import("errors.zig");
 const ErrWriter = errors.ErrWriter;
 
+const log = std.log.scoped(.supertree);
+
 err: ErrWriter,
 template_name: []const u8,
 template_path: []const u8,
@@ -37,7 +39,7 @@ pub const SuperNode = struct {
     };
 
     pub fn idAttr(self: SuperNode) sitter.Tag.Attr {
-        std.debug.assert(self.type.hasId());
+        assert(@src(), self.type.hasId());
         return self.id_template_parentid;
     }
     pub fn idValue(self: SuperNode) sitter.Tag.Attr.Value {
@@ -45,7 +47,7 @@ pub const SuperNode = struct {
     }
 
     pub fn templateAttr(self: SuperNode) sitter.Tag.Attr {
-        std.debug.assert(self.type == .extend);
+        assert(@src(), self.type == .extend);
         return self.id_template_parentid;
     }
     pub fn templateValue(self: SuperNode) sitter.Tag.Attr.Value {
@@ -53,33 +55,37 @@ pub const SuperNode = struct {
     }
 
     pub fn branchingAttr(self: SuperNode) ScriptedAttr {
-        std.debug.assert(self.type.branching() != .none);
+        assert(@src(), self.type.branching() != .none);
         return self.if_else_loop;
     }
     pub fn loopAttr(self: SuperNode) ScriptedAttr {
-        std.debug.assert(self.type.branching() == .loop);
+        assert(@src(), self.type.branching() == .loop);
         return self.if_else_loop;
     }
     pub fn loopValue(self: SuperNode) sitter.Tag.Attr.Value {
         return self.loopAttr().attr.value().?;
     }
     pub fn ifAttr(self: SuperNode) ScriptedAttr {
-        std.debug.assert(self.type.branching() == .@"if");
+        assert(@src(), self.type.branching() == .@"if");
         return self.if_else_loop;
     }
     pub fn ifValue(self: SuperNode) sitter.Tag.Attr.Value {
         return self.ifAttr().attr.value().?;
     }
     pub fn elseAttr(self: SuperNode) ScriptedAttr {
-        std.debug.assert(self.type.branching() == .@"else");
+        assert(@src(), self.type.branching() == .@"else");
         return self.if_else_loop;
     }
     pub fn varAttr(self: SuperNode) ScriptedAttr {
-        std.debug.assert(self.type.output() == .@"var");
+        assert(@src(), self.type.output() == .@"var");
         return self.var_ctx;
     }
     pub fn varValue(self: SuperNode) sitter.Tag.Attr.Value {
         return self.varAttr().attr.value().?;
+    }
+
+    pub fn debugName(self: SuperNode, html: []const u8) []const u8 {
+        return self.elem.startTag().name().string(html);
     }
 
     const Type = enum {
@@ -310,7 +316,7 @@ pub const SuperNode = struct {
 
     pub const SuperBlock = struct { elem: sitter.Element, id_value: sitter.Tag.Attr.Value };
     pub fn superBlock(self: SuperNode) SuperBlock {
-        std.debug.assert(self.type.role() == .super);
+        assert(@src(), self.type.role() == .super);
         const id_value = self.id_template_parentid.value().?;
 
         return .{
@@ -340,7 +346,7 @@ pub const SuperNode = struct {
         lvl: usize,
     ) !void {
         for (0..lvl) |_| try w.print("    ", .{});
-        try w.print("({s}", .{@tagName(self.type)});
+        try w.print("({s} {}", .{ @tagName(self.type), self.depth });
 
         if (self.type.hasId()) {
             try w.print(" {s}", .{self.idValue().node.string(html)});
@@ -351,7 +357,7 @@ pub const SuperNode = struct {
         }
 
         if (self.child) |ch| {
-            std.debug.assert(ch.parent == self);
+            assert(@src(), ch.parent == self);
             try w.print("\n", .{});
             try ch.debugInternal(html, w, lvl + 1);
             for (0..lvl) |_| try w.print("    ", .{});
@@ -359,8 +365,8 @@ pub const SuperNode = struct {
         try w.print(")\n", .{});
 
         if (self.next) |sibling| {
-            std.debug.assert(sibling.prev == self);
-            std.debug.assert(sibling.parent == self.parent);
+            assert(@src(), sibling.prev == self);
+            assert(@src(), sibling.parent == self.parent);
             try sibling.debugInternal(html, w, lvl);
         }
     }
@@ -452,19 +458,29 @@ pub fn init(
             );
         }
 
-        const elem = item.node.toElement() orelse continue;
         const depth = cursor.depth();
+        const elem = item.node.toElement() orelse continue;
 
         // Ensure that node always points at a node not more deeply nested
         // than our current html_node.
-        if (item.dir == .out) {
-            while (node.depth > depth) {
-                node = node.prev orelse node.parent orelse unreachable;
-            }
-            if (low_mark > depth) low_mark = depth;
+        if (low_mark > depth) low_mark = depth;
+        while (node.parent) |p| {
+            log.debug("mark={} parent={}", .{ low_mark, p.depth });
+            if (low_mark > p.depth) break;
+            log.debug(
+                "node {s} {s} is being discarded",
+                .{ @tagName(node.type), node.debugName(html) },
+            );
+            node = p;
         }
 
         const new_node = try self.buildNode(arena, elem, depth) orelse continue;
+        log.debug("new {s} node (dp={} dr={s}): ", .{
+            @tagName(new_node.type),
+            new_node.depth,
+            @tagName(item.dir),
+            // node.debugName(html),
+        });
 
         // Iterface and block mode
         switch (new_node.type.role()) {
@@ -472,7 +488,7 @@ pub fn init(
             .super, .element => {},
             .extend => {
                 // sets block mode
-                std.debug.assert(self.extends == null);
+                assert(@src(), self.extends == null);
                 self.extends = new_node;
             },
             .block => {
@@ -516,12 +532,23 @@ pub fn init(
         //     html_node_depth -= 1;
         // }
 
-        if (low_mark == node.depth) {
-            std.debug.assert(node.next == null);
+        log.debug("node={} new={} low={}\n", .{
+            node.depth,
+            new_node.depth,
+            low_mark,
+        });
+        if (low_mark <= node.depth) {
+            log.debug("appended as a sibling", .{});
+            assert(@src(), node.next == null);
             node.next = new_node;
             new_node.prev = node;
             new_node.parent = node.parent;
         } else {
+            log.debug("appended as a child", .{});
+            assert(@src(), node.type.role() == .block or
+                node.type.role() == .root or
+                node.type.branching() != .none);
+
             if (node.child) |c| {
                 var sibling = c;
                 while (sibling.next) |n| sibling = n;
@@ -534,6 +561,7 @@ pub fn init(
             }
         }
 
+        self.root.debug(html);
         try self.validateNodeInTree(new_node);
 
         node = new_node;
@@ -556,7 +584,7 @@ fn buildNode(
         .depth = depth,
     };
 
-    std.debug.assert(depth > 0);
+    assert(@src(), depth > 0);
     const block_context = block_mode and depth == 1;
     if (block_context) tmp_result.type = .block;
 
@@ -854,12 +882,12 @@ fn buildNode(
             continue;
         }
         if (is(name_string, "debug")) {
-            std.debug.print("\nfound debug attribute", .{});
-            std.debug.print("\n{s}\n", .{
+            log.debug("\nfound debug attribute", .{});
+            log.debug("\n{s}\n", .{
                 name.string(self.html),
             });
             name.debug();
-            std.debug.print("\n", .{});
+            log.debug("\n", .{});
 
             return self.fatal("debug attribute found, aborting", .{});
         }
@@ -1023,7 +1051,14 @@ fn buildNode(
             };
 
             if (last_attr_end != tag_name.end()) {
-                @panic("TODO: explain that if must be the first attr");
+                return self.reportError(
+                    name,
+                    "bad_attr",
+                    "IF ATTRIBUTE MUST COME FIRST",
+                    \\When giving an 'if' attribute to an element, you must always place it 
+                    \\first in the attribute list.
+                    ,
+                );
             }
 
             const value = attr.value() orelse {
@@ -1698,4 +1733,16 @@ test "super" {
 
     const cex: usize = 2;
     try std.testing.expectEqual(cex, root.child.?.childrenCount());
+}
+// TODO: get rid of this once stack traces on arm64 work again
+fn assert(loc: std.builtin.SourceLocation, condition: bool) void {
+    if (!condition) {
+        std.debug.print("assertion error in {s} at {s}:{}:{}\n", .{
+            loc.fn_name,
+            loc.file,
+            loc.line,
+            loc.column,
+        });
+        std.process.exit(1);
+    }
 }

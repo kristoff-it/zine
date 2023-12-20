@@ -1,10 +1,9 @@
 const interpreter = @import("interpreter.zig");
+const types = @import("types.zig");
 
 pub const ScriptyVM = interpreter.ScriptyVM;
-pub const Value = interpreter.Value;
-pub const ExternalValue = interpreter.ExternalValue;
-pub const ScriptFunction = interpreter.ScriptFunction;
-pub const ScriptResult = interpreter.ScriptResult;
+pub const Result = types.Result;
+pub const Value = types.Value;
 
 test {
     _ = interpreter;

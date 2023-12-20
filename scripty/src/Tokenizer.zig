@@ -1,5 +1,7 @@
-const std = @import("std");
 const Tokenizer = @This();
+
+const std = @import("std");
+const String = @import("types.zig").String;
 
 idx: usize = 0,
 
@@ -10,41 +12,46 @@ pub const Token = struct {
     pub const Loc = struct {
         start: usize,
         end: usize,
+
+        pub fn unquote(
+            self: Loc,
+            gpa: std.mem.Allocator,
+            code: []const u8,
+        ) !String {
+            const s = code[self.start..self.end];
+            const quoteless = s[1 .. s.len - 1];
+
+            for (quoteless) |c| {
+                if (c == '\\') break;
+            } else {
+                return .{ .must_free = false, .bytes = quoteless };
+            }
+
+            const quote = s[0];
+            var out = std.ArrayList(u8).init(gpa);
+            var last = quote;
+            var skipped = false;
+            for (quoteless) |c| {
+                if (c == '\\' and last == '\\' and !skipped) {
+                    skipped = true;
+                    last = c;
+                    continue;
+                }
+                if (c == quote and last == '\\' and !skipped) {
+                    out.items[out.items.len - 1] = quote;
+                    last = c;
+                    continue;
+                }
+                try out.append(c);
+                skipped = false;
+                last = c;
+            }
+            return .{ .must_free = true, .bytes = try out.toOwnedSlice() };
+        }
     };
 
     pub fn src(self: Token, code: []const u8) []const u8 {
         return code[self.loc.start..self.loc.end];
-    }
-
-    // Always returns an allocated string
-    pub fn unquote(
-        self: Token,
-        code: []const u8,
-        gpa: std.mem.Allocator,
-    ) ![]const u8 {
-        var out = std.ArrayList(u8).init(gpa);
-        const s = self.src(code);
-        const quote = s[0];
-        const quoteless = s[1 .. s.len - 1];
-
-        var last = quote;
-        var skipped = false;
-        for (quoteless) |c| {
-            if (c == '\\' and last == '\\' and !skipped) {
-                skipped = true;
-                last = c;
-                continue;
-            }
-            if (c == quote and last == '\\' and !skipped) {
-                out.items[out.items.len - 1] = quote;
-                last = c;
-                continue;
-            }
-            try out.append(c);
-            skipped = false;
-            last = c;
-        }
-        return out.items;
     }
 
     pub const Tag = enum {
@@ -97,11 +104,9 @@ pub fn next(self: *Tokenizer, code: []const u8) ?Token {
 
         switch (state) {
             .start => switch (c) {
-                else => {
-                    state = .invalid;
-                },
+                else => state = .invalid,
                 0 => return null,
-                ' ' => {},
+                ' ' => res.loc.start += 1,
                 'a'...'z', 'A'...'Z', '_' => {
                     state = .identifier;
                 },
@@ -153,7 +158,7 @@ pub fn next(self: *Tokenizer, code: []const u8) ?Token {
             },
             .string => switch (c) {
                 0 => {
-                    res.tag = .string;
+                    res.tag = .invalid;
                     res.loc.end = self.idx;
                     break;
                 },
