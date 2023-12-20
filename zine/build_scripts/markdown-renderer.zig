@@ -1,21 +1,13 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
-
     const gfm = b.dependency("gfm", .{});
 
     const exe = b.addExecutable(.{
         .name = "markdown-renderer",
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
+        .root_source_file = .{ .path = "src/markdown-renderer.zig" },
     });
-    exe.addModule("frontmatter", b.dependency("frontmatter", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("frontmatter"));
+    exe.addModule("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
 
     exe.linkLibrary(gfm.artifact("cmark-gfm"));
     exe.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
@@ -36,14 +28,9 @@ pub fn build(b: *std.Build) void {
 
     const unit_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
     });
 
-    unit_tests.addModule("frontmatter", b.dependency("frontmatter", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("frontmatter"));
+    unit_tests.addModule("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
 
     unit_tests.linkLibrary(gfm.artifact("cmark-gfm"));
     unit_tests.linkLibrary(gfm.artifact("cmark-gfm-extensions"));

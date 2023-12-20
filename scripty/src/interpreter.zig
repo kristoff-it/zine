@@ -1,355 +1,155 @@
 const std = @import("std");
 const Tokenizer = @import("Tokenizer.zig");
-const Token = Tokenizer.Token;
+const Parser = @import("Parser.zig");
+const types = @import("types.zig");
+const Result = types.Result;
+const Value = types.Value;
+
+const log = std.log.scoped(.scripty_vm);
 
 pub const Diagnostics = struct {
-    loc: Token.Loc,
+    loc: Tokenizer.Token.Loc,
 };
 
-pub const ScriptFunction = *const fn ([]const Value) ScriptResult;
-pub const ScriptResult = union(enum) {
-    ok: Value,
-    err: []const u8,
+pub const RunError = error{ OutOfMemory, Quota };
 
-    pub fn unwrap(self: ScriptResult) Value {
-        switch (self) {
-            .ok => |v| return v,
-            .err => |e| @panic(e),
+pub fn ScriptyVM(comptime Context: type) type {
+    return struct {
+        parser: Parser = .{},
+        stack: std.MultiArrayList(Result) = .{},
+        /// Set to 0 to disable quota
+        quota: usize,
+
+        pub fn deinit(self: @This(), gpa: std.mem.Allocator) void {
+            self.stack.deinit(gpa);
         }
-    }
-};
 
-pub const ExternalValue = struct {
-    value: *anyopaque,
-    path: ?[]const u8 = null,
-    dot_fn: DotFn,
-    call_fn: CallFn,
-    value_fn: ValueFn,
+        pub fn run(
+            self: *@This(),
+            gpa: std.mem.Allocator,
+            code: []const u8,
+            ctx: *Context,
+            diag: ?*Diagnostics,
+        ) RunError!Result {
+            // On error make the vm usable again.
+            errdefer |err| switch (@as(RunError, err)) {
+                error.Quota => {},
+                else => self.stack.shrinkRetainingCapacity(0),
+            };
 
-    // pub const DotResult = error{FieldNotFound}!Value;
-    pub const DotFn = *const fn (
-        *anyopaque,
-        path: []const u8,
-        arena: std.mem.Allocator,
-    ) ScriptResult;
-    pub const CallFn = *const fn (*anyopaque, args: []const Value) ScriptResult;
-    pub const ValueFn = *const fn (*anyopaque) ScriptResult;
+            if (diag != null) @panic("TODO: implement diagnostics");
+            if (self.quota == 1) return error.Quota;
 
-    pub fn dot(self: ExternalValue, path: []const u8, arena: std.mem.Allocator) ScriptResult {
-        return self.dot_fn(self.value, path, arena);
-    }
-};
-
-pub const Value = union(enum) {
-    function: ScriptFunction,
-    external: ExternalValue,
-    string: []const u8,
-    bool: bool,
-    int: usize,
-    array: []const Value,
-
-    pub fn from(
-        comptime T: type,
-        payload: T,
-        arena: ?std.mem.Allocator,
-    ) !Value {
-        return switch (T) {
-            ExternalValue => .{ .external = payload },
-            ScriptFunction => .{ .function = payload },
-            Value => payload,
-            []const u8 => .{ .string = payload },
-            bool => .{ .bool = payload },
-            usize => .{ .int = payload },
-            else => {
-                const info: std.builtin.Type = @typeInfo(T);
-                switch (info) {
-                    .Pointer => |p| {
-                        if (p.size != .Slice) @compileError("TODO");
-                        const array = try arena.?.alloc(Value, payload.len);
-                        for (array, payload) |*x, px| x.* = try from(p.child, px, arena);
-                        return .{ .array = array };
+            while (self.parser.next(code)) |node| : ({
+                if (self.quota == 1) return error.Quota;
+                self.quota -|= 1;
+            }) {
+                switch (node.tag) {
+                    .syntax_error => {
+                        self.stack.shrinkRetainingCapacity(0);
+                        return .{
+                            .loc = node.loc,
+                            .value = .{ .err = "syntax error" },
+                        };
                     },
-                    else => @compileError("TODO: Value.from for " ++ @typeName(T)),
+                    .string => try self.stack.append(gpa, .{
+                        .value = .{ .string = try node.loc.unquote(gpa, code) },
+                        .loc = node.loc,
+                    }),
+                    .number => try self.stack.append(gpa, .{
+                        .value = .{ .int = 0 },
+                        .loc = node.loc,
+                    }),
+                    .true => try self.stack.append(gpa, .{
+                        .value = .{ .bool = true },
+                        .loc = node.loc,
+                    }),
+                    .false => try self.stack.append(gpa, .{
+                        .value = .{ .bool = false },
+                        .loc = node.loc,
+                    }),
+                    .path => {
+                        // log.err("(vm) {any} `{s}`", .{
+                        //     node.loc,
+                        //     code[node.loc.start..node.loc.end],
+                        // });
+                        const global = code[node.loc.start] == '$';
+                        const call = code[node.loc.end - 1] == '(';
+                        const start = node.loc.start + @intFromBool(global);
+                        const end = node.loc.end - @intFromBool(call);
+                        const path = code[start..end];
+                        if (global) {
+                            if (!call) {
+                                const value = try ctx.dot(gpa, path);
+                                try self.stack.append(gpa, .{
+                                    .loc = node.loc,
+                                    .value = value,
+                                });
+                            } else {
+                                try self.stack.append(gpa, .{
+                                    .loc = node.loc,
+                                    .value = .{ .global = path },
+                                });
+                            }
+                            continue;
+                        }
+
+                        const stack_values = self.stack.items(.value);
+                        const last = &stack_values[stack_values.len - 1];
+                        const value = try last.dot(gpa, path);
+                        if (value == .err) {
+                            self.stack.shrinkRetainingCapacity(0);
+                            const last_loc = self.stack.items(.loc)[stack_values.len - 1];
+                            return .{
+                                .loc = .{
+                                    .start = last_loc.start,
+                                    .end = end,
+                                },
+                                .value = value,
+                            };
+                        }
+                    },
+                    .apply => {
+                        const slice = self.stack.slice();
+                        const stack_locs = slice.items(.loc);
+                        var call_idx = stack_locs.len - 1;
+                        while (true) : (call_idx -= 1) {
+                            const current = stack_locs[call_idx];
+                            if (code[current.end - 1] == '(') break;
+                        }
+
+                        const stack_values = slice.items(.value);
+
+                        const path = stack_values[call_idx].global;
+                        const args = stack_values[call_idx + 1 ..];
+
+                        const result = try ctx.call(gpa, path, args);
+                        // const result = switch (value) {
+                        //     .global => ctx.dotAndCall(gpa, path, args),
+                        //     inline else => |v| v.dotAndCall(gpa, path, args),
+                        // };
+
+                        // Caller path becomes the new result
+                        stack_values[call_idx] = result;
+
+                        // Extend the loc to encompass the entire expression
+                        // (which also disables the value as a call path)
+                        stack_locs[call_idx].end = node.loc.end;
+
+                        // Remove arguments
+                        self.stack.shrinkRetainingCapacity(call_idx + 1);
+                    },
                 }
-            },
-        };
-    }
-    pub fn call(self: Value, args: []const Value) ScriptResult {
-        return self.function(args);
-    }
-
-    pub fn dot(self: Value, field: []const u8, arena: std.mem.Allocator) !Value {
-        switch (self) {
-            .external => |ex| return ex.dot(field, arena).ok,
-            .function => unreachable,
-            .int => @panic("TODO"),
-            .array => {
-                inline for (@typeInfo(ArrayBuiltins).Struct.decls) |struct_field| {
-                    if (std.mem.eql(u8, struct_field.name, field)) {
-                        return Value.from(
-                            ScriptFunction,
-                            @field(ArrayBuiltins, struct_field.name),
-                            arena,
-                        );
-                    }
-                }
-
-                return error.NotFound;
-            },
-            .bool => {
-                inline for (@typeInfo(BoolBuiltins).Struct.decls) |struct_field| {
-                    if (std.mem.eql(u8, struct_field.name, field)) {
-                        return Value.from(
-                            ScriptFunction,
-                            @field(BoolBuiltins, struct_field.name),
-                            arena,
-                        );
-                    }
-                }
-
-                return error.NotFound;
-            },
-            .string => {
-                inline for (@typeInfo(StringBuiltins).Struct.decls) |struct_field| {
-                    if (std.mem.eql(u8, struct_field.name, field)) {
-                        return Value.from(
-                            ScriptFunction,
-                            @field(StringBuiltins, struct_field.name),
-                            arena,
-                        );
-                    }
-                }
-
-                return error.NotFound;
-            },
-        }
-    }
-
-    const ArrayBuiltins = struct {
-        pub fn len(args: []const Value) ScriptResult {
-            if (args.len != 1) return .{ .err = "wrong number of arguments" };
-            const array = switch (args[0]) {
-                .array => |a| a,
-                else => return .{ .err = "expected array argument" },
-            };
-            // TODO: arg being not a bool is actually a programming error
-            return .{ .ok = .{ .int = array.len } };
-        }
-    };
-    const BoolBuiltins = struct {
-        pub fn not(args: []const Value) ScriptResult {
-            if (args.len != 1) return .{ .err = "wrong number of arguments" };
-            const b = switch (args[0]) {
-                .bool => |b| b,
-                else => return .{ .err = "expected bool argument" },
-            };
-            // TODO: arg being not a bool is actually a programming error
-            return .{ .ok = .{ .bool = !b } };
-        }
-    };
-    const StringBuiltins = struct {
-        pub fn len(args: []const Value) ScriptResult {
-            if (args.len != 1) return .{ .err = "wrong number of arguments" };
-            const str = switch (args[0]) {
-                .string => |s| s,
-                else => return .{ .err = "expected string argument" },
-            };
-            return .{ .ok = .{ .int = str.len } };
-        }
-        pub fn startsWith(args: []const Value) ScriptResult {
-            if (args.len != 2) return .{ .err = "wrong number of arguments" };
-            const haystack = switch (args[0]) {
-                .string => |s| s,
-                else => return .{ .err = "(haystack arg) expected string argument" },
-            };
-            const needle = switch (args[1]) {
-                .string => |s| s,
-                else => return .{ .err = "(needle arg) expected string argument" },
-            };
-
-            return .{
-                .ok = .{ .bool = std.mem.startsWith(u8, haystack, needle) },
-            };
-        }
-    };
-};
-
-pub const ScriptyVM = struct {
-    const State = enum {
-        start,
-        main,
-        call_args,
-        saw_dollar,
-        dot,
-    };
-
-    pub fn run(
-        ctx: ExternalValue,
-        code: []const u8,
-        arena: std.mem.Allocator,
-        diag: ?*Diagnostics,
-    ) !Value {
-        if (diag != null) @panic("TODO: implement diagnostics");
-
-        var it: Tokenizer = .{};
-        var state: State = .start;
-        var call_depth: usize = 0;
-        var last_was_comma = false;
-        var last_was_function = false;
-
-        var stack = std.ArrayList(Value).init(arena);
-        defer stack.deinit();
-
-        while (it.next(code)) |t| {
-            switch (state) {
-                .start => switch (t.tag) {
-                    .dollar => state = .saw_dollar,
-                    else => return error.Eval,
-                },
-                .main => switch (t.tag) {
-                    .dot => {
-                        if (last_was_function) {
-                            return error.FunctionMustBeCalled;
-                        }
-                        state = .dot;
-                    },
-                    .lparen => {
-                        if (!last_was_function) @panic("calling a non-function");
-                        if (stack.items.len < 2) return error.BadLParen;
-                        if (stack.items[stack.items.len - 2] != .function) {
-                            @panic("programming error: expected function");
-                        }
-                        state = .call_args;
-                        call_depth += 1;
-                    },
-                    .rparen => {
-                        if (call_depth == 0) {
-                            @panic("too many rparen");
-                        }
-
-                        try apply(&stack);
-
-                        call_depth -= 1;
-                        last_was_comma = false;
-                        last_was_function = false;
-                        if (call_depth == 0) {
-                            state = .main;
-                        } else {
-                            state = .call_args;
-                        }
-                    },
-                    .comma => {
-                        if (call_depth == 0) @panic("comma not in fn call");
-                        if (last_was_comma) {
-                            @panic("two commas");
-                        }
-                        last_was_comma = true;
-                        state = .call_args;
-                    },
-                    else => return error.Eval,
-                },
-                .call_args => switch (t.tag) {
-                    .dollar => {
-                        last_was_comma = false;
-                        state = .saw_dollar;
-                    },
-                    .string => {
-                        last_was_comma = false;
-                        // TODO: this leaks memory!
-                        const src = try t.unquote(code, arena);
-                        const v = try Value.from([]const u8, src, arena);
-                        try stack.append(v);
-                    },
-                    .identifier => {
-                        last_was_comma = false;
-                        const src = t.src(code);
-                        if (std.mem.eql(u8, "true", src)) {
-                            const v = .{ .bool = true };
-                            try stack.append(v);
-                        } else if (std.mem.eql(u8, "false", src)) {
-                            const v = .{ .bool = false };
-                            try stack.append(v);
-                        } else {
-                            @panic("not a bool");
-                        }
-                    },
-                    .rparen => {
-                        if (call_depth == 0) {
-                            @panic("too many rparen");
-                        }
-
-                        try apply(&stack);
-
-                        call_depth -= 1;
-                        last_was_comma = false;
-                        last_was_function = false;
-                        if (call_depth == 0) {
-                            state = .main;
-                        } else {
-                            state = .call_args;
-                        }
-                    },
-                    else => return error.Eval,
-                },
-                .dot => switch (t.tag) {
-                    .identifier => {
-                        last_was_function = false;
-                        if (stack.items.len == 0) @panic("prorgramming error");
-                        const src = t.src(code);
-                        const v = stack.pop();
-                        const new_value = try v.dot(src, arena);
-                        try stack.append(new_value);
-                        if (new_value == .function) {
-                            // the self argument
-                            try stack.append(v);
-                            last_was_function = true;
-                        }
-                        state = .main;
-                    },
-                    else => return error.Eval,
-                },
-                .saw_dollar => switch (t.tag) {
-                    .identifier => {
-                        const src = t.src(code);
-                        switch (ctx.dot(src, arena)) {
-                            .err => @panic("TODO"),
-                            .ok => |value| try stack.append(value),
-                        }
-                        state = .main;
-                    },
-                    else => return error.Eval,
-                },
             }
-        }
 
-        if (last_was_function) {
-            return error.FunctionMustBeCalled;
+            std.debug.assert(self.stack.items(.loc).len == 1);
+            const result = self.stack.pop();
+            std.debug.assert(result.value != .global);
+            std.debug.assert(result.value != .err);
+            return result;
         }
-        if (stack.items.len != 1) {
-            for (stack.items, 0..) |v, idx| {
-                std.debug.print("[{}] - {any}\n", .{ idx, v });
-            }
-            return error.Eval;
-        }
-        return stack.pop();
-    }
-
-    fn apply(stack: *std.ArrayList(Value)) !void {
-        const original_len = stack.items.len;
-        var cur = original_len - 1;
-        while (cur < stack.items.len) : (cur -%= 1) {
-            const v = stack.items[cur];
-            if (v == .function) {
-                const result = v.call(stack.items[cur + 1 ..]).unwrap();
-                stack.shrinkRetainingCapacity(cur);
-                try stack.append(result);
-                break;
-            }
-        } else {
-            @panic("no functions?");
-        }
-    }
-};
+    };
+}
 
 const TestContext = struct {
     version: []const u8,
@@ -361,6 +161,28 @@ const TestContext = struct {
     site: struct {
         name: []const u8,
     },
+
+    pub fn call(self: *TestContext, gpa: std.mem.Allocator, path: []const u8, args: []const Value) !Value {
+        _ = self;
+        _ = path;
+        _ = gpa;
+        _ = args;
+
+        @panic("TODO");
+    }
+    pub fn dot(self: *TestContext, gpa: std.mem.Allocator, path: []const u8) !Value {
+        _ = gpa;
+        if (std.mem.eql(u8, path, "page.title")) {
+            return .{
+                .string = .{
+                    .must_free = false,
+                    .bytes = self.page.title,
+                },
+            };
+        }
+
+        @panic("TODO");
+    }
 };
 
 const test_ctx: TestContext = .{
@@ -368,7 +190,6 @@ const test_ctx: TestContext = .{
     .page = .{
         .title = "Home",
         .authors = &.{ "loris cro", "andrew kelley" },
-        .draft = false,
         .content = "<p>Welcome!</p>",
     },
     .site = .{
@@ -379,86 +200,25 @@ const test_ctx: TestContext = .{
 const TestInterpreter = ScriptyVM(TestContext);
 
 test "basic" {
-    const code = "$version";
+    const code = "$page.title";
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var i = TestInterpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator(), null);
+    var t = test_ctx;
+    var vm: TestInterpreter = .{ .quota = 0 };
+    const result = try vm.run(arena.allocator(), code, &t, null);
 
-    const ex: TestInterpreter.Value = .{ .string = "v0" };
-    try std.testing.expectEqualDeep(ex, result);
-}
+    const ex: Result = .{
+        .loc = .{ .start = 0, .end = code.len },
+        .value = .{
+            .string = .{
+                .must_free = false,
+                .bytes = "Home",
+            },
+        },
+    };
 
-test "struct" {
-    const code = "$page";
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
+    errdefer std.debug.print("result = `{s}`\n", .{result.value.string.bytes});
 
-    var i = TestInterpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator(), null);
-
-    const ex: TestInterpreter.Value = .{ .page = test_ctx.page };
-    try std.testing.expectEqualDeep(ex, result);
-}
-
-test "dot" {
-    const code = "$page.content";
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var i = TestInterpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator(), null);
-
-    const ex: TestInterpreter.Value = .{ .string = test_ctx.page.content };
-    try std.testing.expectEqualDeep(ex, result);
-}
-
-test "string.startsWith" {
-    const code = "$page.title.startsWith('Home')";
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var i = TestInterpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator(), null);
-
-    const ex: TestInterpreter.Value = .{ .bool = true };
-    try std.testing.expectEqualDeep(ex, result);
-}
-test "string.len" {
-    const code = "$page.title.len()";
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var i = TestInterpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator(), null);
-
-    const ex: TestInterpreter.Value = .{ .int = 4 };
-    try std.testing.expectEqualDeep(ex, result);
-}
-
-test "should not be able to use a fn as a value" {
-    const code = "$page.title.startsWith($page.title.startsWith, true)";
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var i = TestInterpreter.init(test_ctx);
-    const result = i.run(code, arena.allocator(), null);
-
-    try std.testing.expectError(error.FunctionMustBeCalled, result);
-}
-
-test "array" {
-    const code = "$page.authors";
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var i = TestInterpreter.init(test_ctx);
-    const result = try i.run(code, arena.allocator(), null);
-
-    const ex: TestInterpreter.Value = .{ .array = &.{
-        .{ .string = "loris cro" },
-        .{ .string = "andrew kelley" },
-    } };
     try std.testing.expectEqualDeep(ex, result);
 }

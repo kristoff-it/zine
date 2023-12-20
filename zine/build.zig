@@ -27,19 +27,17 @@ pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
         .install_dir = .prefix,
         .install_subdir = "",
     });
+    project.getInstallStep().dependOn(&install_static.step);
 
     // Install images from the content directory
     // TODO: re-enable the more fine-grained asset collection approach
-
-    const install_assets = project.addInstallDirectory(.{
-        .source_dir = .{ .path = opts.content_dir_path },
-        .install_dir = .prefix,
-        .install_subdir = "",
-        .include_extensions = &.{ "png", "jpg", "jpeg", "webp", "webm", "gif" },
-    });
-
-    project.getInstallStep().dependOn(&install_assets.step);
-    project.getInstallStep().dependOn(&install_static.step);
+    // const install_assets = project.addInstallDirectory(.{
+    //     .source_dir = .{ .path = opts.content_dir_path },
+    //     .install_dir = .prefix,
+    //     .install_subdir = "",
+    //     .include_extensions = &.{ "png", "jpg", "jpeg", "webp", "webm", "gif" },
+    // });
+    // project.getInstallStep().dependOn(&install_assets.step);
 }
 
 fn setupDevelopmentServer(project: *std.Build, zine_dep: *std.Build.Dependency) void {
@@ -58,6 +56,10 @@ fn setupDevelopmentServer(project: *std.Build, zine_dep: *std.Build.Dependency) 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
+    // Define markdown-renderer executable
+    @import("build_scripts/markdown-renderer.zig").build(b);
+
     const exe = b.addExecutable(.{
         .name = "zine",
         .root_source_file = .{ .path = "server/main.zig" },
@@ -74,11 +76,11 @@ pub fn build(b: *std.Build) void {
 
     const super_exe = b.addExecutable(.{
         .name = "super_exe",
-        .root_source_file = .{ .path = "super.zig" },
+        .root_source_file = .{ .path = "src/super.zig" },
         .target = target,
         .optimize = optimize,
     });
-    super_exe.strip = true;
+    // super_exe.strip = true;
 
     super_exe.addModule("super", b.dependency("super", .{
         .target = target,
@@ -89,6 +91,17 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     }).builder.dependency("scripty", .{}).module("scripty"));
+
+    super_exe.addModule("datetime", b.dependency("super", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder.dependency(
+        "scripty",
+        .{},
+    ).builder.dependency(
+        "datetime",
+        .{},
+    ).module("zig-datetime"));
 
     b.installArtifact(super_exe);
 

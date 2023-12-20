@@ -1,5 +1,8 @@
 const std = @import("std");
 const frontmatter = @import("frontmatter");
+const contexts = @import("contexts.zig");
+
+const PageContext = contexts.Page;
 
 const c = @cImport({
     @cInclude("cmark-gfm.h");
@@ -17,6 +20,7 @@ pub fn main() !void {
     const assets_out_path = args[3];
     const md_in_path = args[4];
     const html_out_path = args[5];
+    const meta_out_path = args[6];
 
     var assets_in_dir = std.fs.cwd().openDir(assets_in_path, .{}) catch |err| {
         std.debug.print("Error while opening assets input dir: {s}\n", .{assets_in_path});
@@ -44,10 +48,9 @@ pub fn main() !void {
 
     var buf_reader = std.io.bufferedReader(in_file.reader());
     const r = buf_reader.reader();
-    const fm = try frontmatter.parse(std.json.Value, r, arena);
-    _ = fm;
+    var page = try frontmatter.parse(PageContext, r, arena);
 
-    const in_string = try r.readAllAlloc(arena, 1024);
+    const in_string = try r.readAllAlloc(arena, 1024 * 1024 * 10);
 
     const out_file = std.fs.cwd().createFile(html_out_path, .{}) catch |err| {
         std.debug.print("Error while creating file: {s}\n", .{html_out_path});
@@ -55,11 +58,21 @@ pub fn main() !void {
     };
     defer out_file.close();
 
+    const meta_out_file = std.fs.cwd().createFile(meta_out_path, .{}) catch |err| {
+        std.debug.print("Error while creating file: {s}\n", .{meta_out_path});
+        return err;
+    };
+    defer meta_out_file.close();
+
     const ast = c.cmark_parse_document(in_string.ptr, in_string.len, c.CMARK_OPT_DEFAULT).?;
 
     const iter = Iter.init(ast);
     defer iter.deinit();
 
+    // TODO: unicode this
+    page._meta.word_count = in_string.len / 6;
+
+    // Copy local images
     try assets_dep_file.writeAll("assets: ");
     var seen_assets = std.StringHashMap(void).init(arena);
     while (iter.next()) |node| {
@@ -91,6 +104,7 @@ pub fn main() !void {
     const html_raw: [*:0]const u8 = c.cmark_render_html(ast, c.CMARK_OPT_DEFAULT, null);
 
     try out_file.writeAll(std.mem.span(html_raw));
+    try std.json.stringify(page, .{}, meta_out_file.writer());
 }
 
 const Iter = struct {

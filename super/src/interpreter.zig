@@ -71,6 +71,7 @@ pub const SuperVM = struct {
         out_writer: OutWriter,
         err_writer: ErrWriter,
     ) SuperVM {
+        std.debug.print("SuperVM up!\n", .{});
         return .{
             .arena = arena,
             .content_name = content_name,
@@ -111,7 +112,7 @@ pub const SuperVM = struct {
     // Call this function to report an evaluation trace when the caller
     // failed to fetch a requested resource (eg templates, snippets, ...)
     pub fn resourceFetchError(self: *SuperVM, err: anyerror) void {
-        std.debug.assert(self.state == .want_template);
+        assert(@src(), self.state == .want_template);
         self.state = .fatal;
         std.debug.panic(
             "TODO: error reporting in resourceFetchError: {s}",
@@ -174,7 +175,7 @@ pub const SuperVM = struct {
                     if (err == error.FatalShowInterface) {
                         try self.templates.items[idx + 1].showInterface(self.err);
                     }
-                    return fatalTrace(self.content_name, self.templates.items[0..idx], self.err);
+                    return fatalTrace(self.content_name, self.templates.items[0 .. idx + 1], self.err);
                 },
             };
 
@@ -216,6 +217,7 @@ pub const SuperVM = struct {
 
     fn loadLayout(self: *SuperVM) errors.FatalOOM!void {
         const cartridge = self.state.init;
+        std.debug.print("layout load start\n", .{});
         const layout_tree = try SuperTree.init(
             self.arena,
             self.err,
@@ -232,6 +234,7 @@ pub const SuperVM = struct {
 
         try self.templates.append(self.arena, layout);
         self.state = .discovering_templates;
+        std.debug.print("layout loaded\n", .{});
     }
 
     const DiscoverException = error{ OutOfMemory, WantTemplate } || errors.Fatal;
@@ -264,7 +267,7 @@ pub const SuperVM = struct {
 
                 return fatalTrace(
                     self.content_name,
-                    self.templates.items[0..current_idx],
+                    self.templates.items[0 .. current_idx + 1],
                     self.err,
                 );
             }

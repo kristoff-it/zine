@@ -1,7 +1,17 @@
 const std = @import("std");
 const frontmatter = @import("frontmatter");
 const templating = @import("templating.zig");
-const contexts = @import("contexts.zig");
+const contexts = @import("src/contexts.zig");
+
+const MdIndexEntry = struct {
+    content_sub_path: []const u8,
+    md_name: []const u8,
+    fm: contexts.Page,
+
+    pub fn lessThan(_: void, lhs: MdIndexEntry, rhs: MdIndexEntry) bool {
+        return std.mem.lessThan(u8, lhs.fm.date, rhs.fm.date);
+    }
+};
 
 pub fn scan(
     project: *std.Build,
@@ -9,10 +19,13 @@ pub fn scan(
     layout_dir_path: []const u8,
     content_dir_path: []const u8,
 ) !void {
-    const content_dir = try std.fs.cwd().openDir(
+    const content_dir = std.fs.cwd().openDir(
         content_dir_path,
         .{ .iterate = true },
-    );
+    ) catch |err| {
+        std.debug.print("Unable to open the content directory, please create it before running `zig build`.\nError: {s}\n", .{@errorName(err)});
+        std.process.exit(1);
+    };
 
     const Entry = struct {
         dir: std.fs.Dir,
@@ -25,6 +38,7 @@ pub fn scan(
         .path = "",
     });
 
+    var md_index = std.ArrayList(MdIndexEntry).init(project.allocator);
     while (dir_stack.popOrNull()) |dir_entry| {
         defer {
             var d = dir_entry.dir;
@@ -38,21 +52,19 @@ pub fn scan(
             const r = buf_reader.reader();
             const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
                 std.debug.print(
-                    "Error while parsing the frontmatter header of `index.md` in /{s}\n",
-                    .{dir_entry.path},
+                    "Error while parsing the frontmatter header of '{s}/{s}/index.md'\n",
+                    .{ content_dir_path, dir_entry.path },
                 );
                 return err;
             };
 
-            if (!fm.draft) try addMarkdownRender(
-                project,
-                zine_dep,
-                layout_dir_path,
-                fm,
-                content_dir_path,
-                dir_entry.path,
-                "index.md",
-            );
+            if (!fm.draft) {
+                try md_index.append(.{
+                    .content_sub_path = project.dupe(dir_entry.path),
+                    .md_name = "index.md",
+                    .fm = fm,
+                });
+            }
         } else |index_md_err| {
             if (index_md_err != error.FileNotFound) {
                 std.debug.print(
@@ -85,15 +97,13 @@ pub fn scan(
                             );
                             return err;
                         };
-                        if (!fm.draft) try addMarkdownRender(
-                            project,
-                            zine_dep,
-                            layout_dir_path,
-                            fm,
-                            content_dir_path,
-                            dir_entry.path,
-                            try project.allocator.dupe(u8, entry.name),
-                        );
+                        if (!fm.draft) {
+                            try md_index.append(.{
+                                .content_sub_path = project.dupe(dir_entry.path),
+                                .md_name = try project.allocator.dupe(u8, entry.name),
+                                .fm = fm,
+                            });
+                        }
                     },
                     .directory => {
                         try dir_stack.append(.{
@@ -108,65 +118,128 @@ pub fn scan(
             }
         }
     }
+
+    const sections = project.addWriteFiles();
+    std.mem.sort(MdIndexEntry, md_index.items, {}, MdIndexEntry.lessThan);
+    const index = sections.add("__zine-index__.json", formatIndex(
+        project,
+        md_index.items,
+    ));
+    for (md_index.items) |md| try addMarkdownRender(
+        project,
+        zine_dep,
+        sections,
+        layout_dir_path,
+        md.fm.layout,
+        content_dir_path,
+        md.content_sub_path,
+        md.md_name,
+        index,
+    );
 }
 
 fn addMarkdownRender(
     project: *std.Build,
     zine_dep: *std.Build.Dependency,
+    sections: *std.Build.Step.WriteFile,
     layouts_dir_path: []const u8,
-    fm: contexts.Page,
+    layout_name: []const u8,
     content_dir_path: []const u8,
     /// Must be relative to `content_dir_path`
     path: []const u8,
     md_basename: []const u8,
+    index: std.Build.LazyPath,
 ) !void {
     const in_path = project.pathJoin(&.{ content_dir_path, path, md_basename });
-    const layout_path = project.pathJoin(&.{ layouts_dir_path, fm.layout });
+    const layout_path = project.pathJoin(&.{ layouts_dir_path, layout_name });
     const out_basename = md_basename[0 .. md_basename.len - 3];
     const out_path = if (std.mem.eql(u8, out_basename, "index"))
         project.pathJoin(&.{ path, "index.html" })
     else
         project.pathJoin(&.{ path, out_basename, "index.html" });
 
-    const renderer = zine_dep.builder.dependency(
-        "markdown-renderer",
-        .{},
-    ).artifact("markdown-renderer");
-
-    const assets = project.addWriteFiles();
-
+    const renderer = zine_dep.artifact("markdown-renderer");
     const render_step = project.addRunArtifact(renderer);
     // assets_in_dir_path
     render_step.addDirectoryArg(.{ .path = project.pathJoin(&.{ content_dir_path, path }) });
     // assets_dep_path
-    _ = render_step.addDepFileOutputArg("assets.d");
+    _ = render_step.addDepFileOutputArg("_zine_assets.d");
     // assets_out_dir_path
-    render_step.addDirectoryArg(assets.getDirectory());
+    const assets_dir = render_step.addOutputFileArg("");
     // md_in_path
     render_step.addFileArg(.{ .path = in_path });
     // html_out_path
     const rendered_md = render_step.addOutputFileArg(out_basename);
+    // frontmatter + computed metadata
+    const page_metadata = render_step.addOutputFileArg("_zine_page.json");
 
-    // install all non-markdown files as assets
-    // const install_assets = project.addInstallDirectory(.{
-    //     .source_dir = assets.getDirectory(),
-    //     .install_dir = .prefix,
-    //     .install_subdir = project.pathJoin(&.{ path, out_basename }),
-    // });
+    const install_subpath = if (std.mem.eql(u8, out_basename, "index"))
+        path
+    else
+        project.pathJoin(&.{ path, out_basename });
 
-    // project.getInstallStep().dependOn(&install_assets.step);
+    // collectd metadata
+    _ = sections.addCopyFile(page_metadata, install_subpath);
+
+    // install all referenced files as assets (only images are detected for now)
+    const install_assets = project.addInstallDirectory(.{
+        .source_dir = assets_dir,
+        .install_dir = .prefix,
+        .install_subdir = install_subpath,
+        .exclude_extensions = &.{ "_zine_assets.d", "_zine_index.html", "_zine_page.json" },
+    });
+    project.getInstallStep().dependOn(&install_assets.step);
+
+    std.fs.cwd().access(layout_path, .{}) catch |err| {
+        std.debug.print("Unable to find the layout '{s}' used by '{s}/{s}/{s}'\n. Please create it before running `zig build` again.\nError: {s}\n,", .{
+            layout_path,
+            content_dir_path,
+            path,
+            md_basename,
+            @errorName(err),
+        });
+        std.process.exit(1);
+    };
 
     const super_exe = zine_dep.artifact("super_exe");
     const layout_step = project.addRunArtifact(super_exe);
+    // output file
     const final_html = layout_step.addOutputFileArg(out_basename);
-    layout_step.addArg(content_dir_path);
+    // install subpath (used also to navigate sections_meta)
+    layout_step.addArg(install_subpath);
+    // rendered_md_path
     layout_step.addFileArg(rendered_md);
+    // md_name
     layout_step.addArg(project.pathJoin(&.{ path, md_basename }));
+    // location where the sections metadata lives
+    layout_step.addDirectoryArg(sections.getDirectory());
+    // layout_path
     layout_step.addFileArg(.{ .path = layout_path });
-    layout_step.addArg(fm.layout);
+    // layout_name
+    layout_step.addArg(layout_name);
+    // templates_dir_path
     layout_step.addArg(project.pathJoin(&.{ layouts_dir_path, "templates" }));
+    // dep file
     _ = layout_step.addDepFileOutputArg("templates.d");
+    // post index
+    layout_step.addFileArg(index);
 
     const target_output = project.addInstallFile(final_html, out_path);
     project.getInstallStep().dependOn(&target_output.step);
+}
+
+fn formatIndex(project: *std.Build, md_index: []const MdIndexEntry) []const u8 {
+    var out = std.ArrayList(u8).init(project.allocator);
+    const w = out.writer();
+    for (md_index) |md| {
+        if (std.mem.eql(u8, md.md_name, "index.md")) {
+            w.print("{s}\n", .{md.content_sub_path}) catch unreachable;
+        } else {
+            w.print("{s}{s}\n", .{
+                md.content_sub_path,
+                md.md_name[md.md_name.len - 4 ..],
+            }) catch unreachable;
+        }
+    }
+    return out.toOwnedSlice() catch unreachable;
 }
