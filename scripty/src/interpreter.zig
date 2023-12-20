@@ -78,35 +78,41 @@ pub fn ScriptyVM(comptime Context: type) type {
                         const start = node.loc.start + @intFromBool(global);
                         const end = node.loc.end - @intFromBool(call);
                         const path = code[start..end];
-                        if (global) {
-                            if (!call) {
-                                const value = try ctx.dot(gpa, path);
-                                try self.stack.append(gpa, .{
-                                    .loc = node.loc,
-                                    .value = value,
-                                });
-                            } else {
-                                try self.stack.append(gpa, .{
-                                    .loc = node.loc,
-                                    .value = .{ .global = path },
-                                });
-                            }
+
+                        if (call) {
+                            try self.stack.append(gpa, .{
+                                .loc = node.loc,
+                                .value = .{ .lazy_path = path },
+                            });
                             continue;
                         }
 
-                        const stack_values = self.stack.items(.value);
-                        const last = &stack_values[stack_values.len - 1];
-                        const value = try last.dot(gpa, path);
-                        if (value == .err) {
-                            self.stack.shrinkRetainingCapacity(0);
-                            const last_loc = self.stack.items(.loc)[stack_values.len - 1];
-                            return .{
-                                .loc = .{
-                                    .start = last_loc.start,
-                                    .end = end,
-                                },
+                        if (global) {
+                            const value = try ctx.dot(gpa, path);
+                            if (value == .err) {
+                                self.stack.shrinkRetainingCapacity(0);
+                                return .{ .loc = node.loc, .value = value };
+                            }
+                            try self.stack.append(gpa, .{
+                                .loc = node.loc,
                                 .value = value,
-                            };
+                            });
+                        } else {
+                            const stack_values = self.stack.items(.value);
+                            const last = &stack_values[stack_values.len - 1];
+                            const value = try last.dot(gpa, path);
+                            if (value == .err) {
+                                self.stack.shrinkRetainingCapacity(0);
+                                const locs = self.stack.items(.loc);
+                                const last_loc = locs[stack_values.len - 1];
+                                return .{
+                                    .loc = .{
+                                        .start = last_loc.start,
+                                        .end = end,
+                                    },
+                                    .value = value,
+                                };
+                            }
                         }
                     },
                     .apply => {
@@ -120,12 +126,16 @@ pub fn ScriptyVM(comptime Context: type) type {
 
                         const stack_values = slice.items(.value);
 
-                        const path = stack_values[call_idx].global;
+                        const path = stack_values[call_idx].lazy_path;
                         const args = stack_values[call_idx + 1 ..];
 
                         const result = try ctx.call(gpa, path, args);
+                        if (result == .err) {
+                            self.stack.shrinkRetainingCapacity(0);
+                            return .{ .loc = node.loc, .value = value };
+                        }
                         // const result = switch (value) {
-                        //     .global => ctx.dotAndCall(gpa, path, args),
+                        //     .lazy_path => ctx.dotAndCall(gpa, path, args),
                         //     inline else => |v| v.dotAndCall(gpa, path, args),
                         // };
 
@@ -144,7 +154,7 @@ pub fn ScriptyVM(comptime Context: type) type {
 
             std.debug.assert(self.stack.items(.loc).len == 1);
             const result = self.stack.pop();
-            std.debug.assert(result.value != .global);
+            std.debug.assert(result.value != .lazy_path);
             std.debug.assert(result.value != .err);
             return result;
         }
