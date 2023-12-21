@@ -1,10 +1,19 @@
 const std = @import("std");
 const scripty = @import("scripty");
+const super = @import("super");
 const datetime = @import("datetime").datetime;
 const timezones = @import("datetime").timezones;
 const DateTime = datetime.Datetime;
 const Date = datetime.Date;
 const Time = datetime.Time;
+
+const TemplateContext = struct {
+    page: Page,
+
+    // Globals specific to Super
+    loop: super.LoopContext,
+    @"if": super.Optional,
+};
 
 pub const Page = struct {
     title: []const u8,
@@ -14,7 +23,7 @@ pub const Page = struct {
     layout: []const u8,
     draft: bool = false,
     tags: []const []const u8 = &.{},
-    custom: std.json.Value = .null,
+    // custom: std.json.Value = .null,
     _meta: struct {
         word_count: usize = 0,
         prev: ?*Page = null,
@@ -22,162 +31,64 @@ pub const Page = struct {
     } = .{},
     content: []const u8 = "",
 
-    pub fn externalValue(self: *Page) scripty.ExternalValue {
-        return .{
-            .value = self,
-            .dot_fn = &dot,
-            .call_fn = &call,
-            .value_fn = &value,
-        };
-    }
-
-    fn dot(op: *anyopaque, path: []const u8, arena: std.mem.Allocator) scripty.ScriptResult {
-        const self: *Page = @alignCast(@ptrCast(op));
-
-        if (std.mem.eql(u8, path, "title")) {
-            return .{ .ok = .{ .string = self.title } };
+    pub const ScriptyBuiltins = struct {
+        pub fn nextPage(self: *Page, gpa: std.mem.Allocator, args: []const Value) Value {
+            if (args.len != 0) return Value.err("expected 0 arguments");
+            if (self._meta.next) |next| {
+                return super.Optional.something(Value.from(gpa, next));
+            } else {
+                return super.Optional.nothing();
+            }
         }
-        if (std.mem.eql(u8, path, "description")) {
-            return .{ .ok = .{ .string = self.description } };
+        pub fn prevPage(self: *Page, gpa: std.mem.Allocator, args: []const Value) Value {
+            if (args.len != 0) return Value.err("expected 0 arguments");
+            if (self._meta.prev) |prev| {
+                return super.Optional.something(Value.from(gpa, prev));
+            } else {
+                return super.Optional.nothing();
+            }
         }
-        if (std.mem.eql(u8, path, "author")) {
-            return .{ .ok = .{ .string = self.author } };
-        }
-        if (std.mem.eql(u8, path, "content")) {
-            return .{ .ok = .{ .string = self.content } };
-        }
-        if (std.mem.eql(u8, path, "word_count")) {
-            return .{ .ok = .{ .int = self._meta.word_count } };
-        }
-        if (std.mem.eql(u8, path, "prev")) {
-            const prev = self._meta.prev orelse return .{ .ok = .nil };
-            return .{ .ok = .{ .external = prev.externalValue() } };
-        }
-        if (std.mem.eql(u8, path, "next")) {
-            const next = self._meta.next orelse return .{ .ok = .nil };
-            return .{ .ok = .{ .external = next.externalValue() } };
-        }
-        if (std.mem.eql(u8, path, "has")) {
-            std.debug.print("given out has!\n", .{});
-            return .{ .ok = .{ .function = has } };
-        }
-        if (std.mem.eql(u8, path, "hasAny")) {
-            std.debug.print("given out has!\n", .{});
-            return .{ .ok = .{ .function = hasAny } };
-        }
-        if (std.mem.eql(u8, path, "date")) {
-            const d: DateTime = .{
-                .date = Date.parseIso(self.date[0..10]) catch return .{ .err = "unable to parse date" },
-                .time = Time.create(0, 0, 0, 0) catch unreachable,
-                .zone = &timezones.UTC,
-            };
-            return .{ .ok = .{ .date = d } };
-        }
-        if (std.mem.eql(u8, path, "tags")) {
-            const res = arena.alloc(scripty.Value, self.tags.len) catch {
-                return .{ .err = "oom" };
-            };
-
-            for (res, self.tags) |*r, t| r.* = .{ .string = t };
-
-            return .{ .ok = .{ .array = res } };
-        }
-
-        std.debug.panic("TODO: implement dot `{s}` for Zine.Page", .{path});
-    }
-
-    fn call(op: *anyopaque, args: []const scripty.Value) scripty.ScriptResult {
-        _ = op;
-        _ = args;
-        @panic("TODO call on zine page context");
-    }
-
-    fn value(op: *anyopaque) scripty.ScriptResult {
-        _ = op;
-        @panic("TODO value on zine page context");
-    }
+    };
 };
 
-fn has(args: []const scripty.Value, _: std.mem.Allocator) scripty.ScriptResult {
-    std.debug.print("has was called!\n", .{});
-    const self: *Page = @alignCast(@ptrCast(args[0].external.value));
-    var result = true;
-    for (args[1..]) |x| if (std.mem.eql(u8, x.string, "next")) {
-        if (self._meta.next == null) result = false;
-    } else if (std.mem.eql(u8, x.string, "prev")) {
-        if (self._meta.prev == null) result = false;
-    };
+const Value = union(enum) {
+    page: *Page,
+    super_iterator: *LoopIterator,
+    super_loop_ctx: *LoopContext,
+    super_optional: *Optional,
+    string: super.ManagedString,
+    date: DateTime,
+    bool: bool,
+    int: usize,
+    float: f64,
+    err: []const u8,
 
-    return .{ .ok = .{ .bool = result } };
-}
+    pub const LoopIterator = super.LoopIterator(Value);
+    pub const LoopContext = super.LoopContext(Value);
+    pub const Optional = super.Optional(Value);
 
-fn hasAny(args: []const scripty.Value, _: std.mem.Allocator) scripty.ScriptResult {
-    std.debug.print("hasAny was called!\n", .{});
-    const self: *Page = @alignCast(@ptrCast(args[0].external.value));
-    var result = false;
-    for (args[1..]) |x| if (std.mem.eql(u8, x.string, "next")) {
-        if (self._meta.next != null) result = true;
-    } else if (std.mem.eql(u8, x.string, "prev")) {
-        if (self._meta.prev != null) result = true;
-    };
-
-    return .{ .ok = .{ .bool = result } };
-}
-
-pub const Template = struct {
-    page: Page,
-
-    pub fn externalValue(self: *Template) scripty.ExternalValue {
-        return .{
-            .value = self,
-            .dot_fn = &dot,
-            .call_fn = &call,
-            .value_fn = &value,
-        };
+    pub const error_case = .err;
+    pub fn err(msg: []const u8) Value {
+        return .{ .err = msg };
     }
 
-    fn dot(op: *anyopaque, path: []const u8, arena: std.mem.Allocator) scripty.ScriptResult {
-        const self: *Template = @alignCast(@ptrCast(op));
-        _ = arena;
+    pub fn fromStringLiteral(ms: scripty.ManagedString) !Value {
+        return .{ .string = .{ .bytes = ms.bytes, .must_free = ms.must_free } };
+    }
 
-        if (std.mem.eql(u8, path, "page")) {
-            return .{ .ok = .{ .external = self.page.externalValue() } };
+    pub fn fromNumberLiteral(bytes: []const u8) !Value {
+        _ = bytes;
+        return .{ .int = 0 };
+    }
+
+    pub fn fromBooleanLiteral(b: bool) !Value {
+        return .{ .bool = b };
+    }
+
+    pub fn from(gpa: std.mem.Allocator, v: anytype) !Value {
+        switch(@TypeOf(v)) {
+            *Page => .{ .page = v},
+            *LoopIterator => .{ .super_iterator = } 
         }
-
-        std.debug.panic("TODO: explain that '${s}' doesn't exist.", .{path});
-    }
-
-    fn call(op: *anyopaque, args: []const scripty.Value) scripty.ScriptResult {
-        _ = op;
-        _ = args;
-        @panic("TODO call on zine template context");
-    }
-
-    fn value(op: *anyopaque) scripty.ScriptResult {
-        _ = op;
-        @panic("TODO value on zine template context");
     }
 };
-
-// fn simpleStructDot(comptime T: type) scripty.DotFn {
-//     return struct {
-//         pub fn dotFn(
-//             op: *anyopaque,
-//             path: []const u8,
-//             arena: std.mem.Allocator,
-//         ) scripty.ScriptResult {
-//             const self: *T = @alignCast(@ptrCast(op));
-
-//             const info = @typeInfo(T);
-//             if (info != .Struct) {
-//                 @compileError("simpleStructDot can only be used with structs");
-//             }
-
-//             inline for (info.Struct.fields) |field| {
-//                 if (std.mem.eql(u8, field.name, path)) {
-//                     return scripty.Value.from(@field(self, field.name), arena);
-//                 }
-//             }
-//         }
-//     }.dotFn;
-// }

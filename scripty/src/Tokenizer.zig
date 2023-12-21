@@ -13,6 +13,10 @@ pub const Token = struct {
         start: usize,
         end: usize,
 
+        pub fn src(self: Loc, code: []const u8) []const u8 {
+            return code[self.start..self.end];
+        }
+
         pub fn unquote(
             self: Loc,
             gpa: std.mem.Allocator,
@@ -49,10 +53,6 @@ pub const Token = struct {
             return .{ .must_free = true, .bytes = try out.toOwnedSlice() };
         }
     };
-
-    pub fn src(self: Token, code: []const u8) []const u8 {
-        return code[self.loc.start..self.loc.end];
-    }
 
     pub const Tag = enum {
         invalid,

@@ -6,6 +6,7 @@ const Tokenizer = @import("Tokenizer.zig");
 it: Tokenizer = .{},
 state: State = .start,
 call_depth: usize = 0, // 0 = not in a call
+last_path_end: usize = 0, // used for call
 
 const State = enum {
     start,
@@ -27,6 +28,7 @@ pub const Node = struct {
 
     pub const Tag = enum {
         path,
+        call,
         apply,
         true,
         false,
@@ -42,7 +44,6 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
         .loc = undefined,
     };
 
-    var global = false;
     var path_segments: usize = 0;
 
     // log.err("next ({s}) (d={}): `{s}`", .{
@@ -66,7 +67,7 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
         .global => switch (tok.tag) {
             .identifier => {
                 self.state = .extend_path;
-                global = true;
+                path_segments = 1;
                 path.loc.end = tok.loc.end;
             },
             else => {
@@ -82,23 +83,26 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
                     return .{ .tag = .syntax_error, .loc = tok.loc };
                 }
 
-                path_segments += 1;
-                if (path_segments == 1 and !global) {
+                if (path_segments == 0) {
                     path.loc = id_tok.?.loc;
                 } else {
+                    self.last_path_end = path.loc.end;
                     path.loc.end = id_tok.?.loc.end;
                 }
+
+                path_segments += 1;
             },
             .lparen => {
-                self.state = .call_begin;
-                // roll back to get a lparen token next
-                self.it.idx -= 1;
-                if (path_segments == 0) {
+                if (path_segments < 2) {
                     self.state = .syntax;
                     return .{ .tag = .syntax_error, .loc = tok.loc };
                 }
-                // include the '(' into the token
-                path.loc.end = tok.loc.end;
+
+                // roll back to get a a lparen
+                self.it.idx -= 1;
+                self.state = .call_begin;
+                path.loc.end = self.last_path_end;
+
                 return path;
             },
             .rparen => {
@@ -127,7 +131,16 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
         .call_begin => {
             self.call_depth += 1;
             switch (tok.tag) {
-                .lparen => self.state = .call_arg,
+                .lparen => {
+                    self.state = .call_arg;
+                    return .{
+                        .tag = .call,
+                        .loc = .{
+                            .start = self.last_path_end + 1,
+                            .end = tok.loc.start,
+                        },
+                    };
+                },
                 else => {
                     self.state = .syntax;
                     return .{ .tag = .syntax_error, .loc = tok.loc };
@@ -143,7 +156,7 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
             },
             .identifier => {
                 self.state = .extend_call;
-                const src = tok.src(code);
+                const src = tok.loc.src(code);
                 if (std.mem.eql(u8, "true", src)) {
                     return .{ .tag = .true, .loc = tok.loc };
                 } else if (std.mem.eql(u8, "false", src)) {
@@ -219,7 +232,7 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
         };
     }
 
-    if (!global and path_segments == 0) return null;
+    if (path_segments == 0) return null;
     path.loc.end = code.len;
     return path;
 }
@@ -228,14 +241,17 @@ test "basics" {
     const case = "$page.has('a', $page.title.slice(0, 4), 'b').foo.not()";
     const expected: []const Node.Tag = &.{
         .path,
+        .call,
         .string,
         .path,
+        .call,
         .number,
         .number,
         .apply,
         .string,
         .apply,
         .path,
+        .call,
         .apply,
     };
 
@@ -252,6 +268,7 @@ test "basics 2" {
     const case = "$page.call('banana')";
     const expected: []const Node.Tag = &.{
         .path,
+        .call,
         .string,
         .apply,
     };
