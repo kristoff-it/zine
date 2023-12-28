@@ -1,7 +1,6 @@
 const Tokenizer = @This();
 
 const std = @import("std");
-const String = @import("types.zig").String;
 
 idx: usize = 0,
 
@@ -21,14 +20,14 @@ pub const Token = struct {
             self: Loc,
             gpa: std.mem.Allocator,
             code: []const u8,
-        ) !String {
+        ) ![]const u8 {
             const s = code[self.start..self.end];
             const quoteless = s[1 .. s.len - 1];
 
             for (quoteless) |c| {
                 if (c == '\\') break;
             } else {
-                return .{ .must_free = false, .bytes = quoteless };
+                return quoteless;
             }
 
             const quote = s[0];
@@ -50,7 +49,7 @@ pub const Token = struct {
                 skipped = false;
                 last = c;
             }
-            return .{ .must_free = true, .bytes = try out.toOwnedSlice() };
+            return try out.toOwnedSlice();
         }
     };
 

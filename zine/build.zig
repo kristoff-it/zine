@@ -80,7 +80,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    // super_exe.strip = true;
+    super_exe.strip = true;
 
     super_exe.addModule("super", b.dependency("super", .{
         .target = target,
@@ -92,16 +92,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }).builder.dependency("scripty", .{}).module("scripty"));
 
-    super_exe.addModule("datetime", b.dependency("super", .{
+    super_exe.addModule("datetime", b.dependency("datetime", .{
         .target = target,
         .optimize = optimize,
-    }).builder.dependency(
-        "scripty",
-        .{},
-    ).builder.dependency(
-        "datetime",
-        .{},
-    ).module("zig-datetime"));
+    }).module("zig-datetime"));
 
     b.installArtifact(super_exe);
 

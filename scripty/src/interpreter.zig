@@ -41,6 +41,8 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
             code: []const u8,
             opts: RunOptions,
         ) RunError!Result {
+            // TODO: temp hack
+            self.parser = .{};
             var quota = opts.quota;
 
             // On error make the vm usable again.
@@ -56,8 +58,10 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                 if (quota == 1) return error.Quota;
                 if (quota > 1) quota -= 1;
             }) {
+                std.debug.print("note: {s} {s}\n", .{ @tagName(node.tag), code[node.loc.start..node.loc.end] });
                 switch (node.tag) {
                     .syntax_error => {
+                        std.debug.print("parser syntax error", .{});
                         self.stack.shrinkRetainingCapacity(0);
                         return .{
                             .loc = node.loc,
@@ -80,10 +84,14 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                         .value = Value.fromBooleanLiteral(false),
                         .loc = node.loc,
                     }),
-                    .call => try self.stack.append(gpa, .{
-                        .loc = node.loc,
-                        .value = undefined,
-                    }),
+                    .call => {
+                        assert(@src(), code[node.loc.end] == '(');
+                        std.debug.print("storing call: {s}\n", .{code[node.loc.start .. node.loc.end + 1]});
+                        try self.stack.append(gpa, .{
+                            .loc = node.loc,
+                            .value = undefined,
+                        });
+                    },
 
                     .path => {
                         // log.err("(vm) {any} `{s}`", .{
@@ -104,9 +112,10 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                             stack_values[stack_values.len - 1];
 
                         const new_value = try dotPath(gpa, old_value, path);
-                        if (new_value == Value.error_case) {
+                        if (new_value == .err) {
+                            std.debug.print("path error", .{});
                             self.stack.shrinkRetainingCapacity(0);
-                            return .{ .loc = node.loc, .value = old_value };
+                            return .{ .loc = node.loc, .value = new_value };
                         }
                         if (global) {
                             try self.stack.append(gpa, .{
@@ -133,12 +142,13 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
 
                         const fn_name = code[call_loc.start..call_loc.end];
                         const args = stack_values[call_idx + 1 ..];
-                        std.debug.assert(call_idx > 0);
+                        assert(@src(), call_idx > 0);
                         call_idx -= 1;
                         const old_value = stack_values[call_idx];
                         const new_value = try old_value.call(gpa, fn_name, args);
 
-                        if (new_value == Value.error_case) {
+                        if (new_value == .err) {
+                            std.debug.print("call error", .{});
                             self.stack.shrinkRetainingCapacity(0);
                             return .{ .loc = node.loc, .value = new_value };
                         }
@@ -156,9 +166,12 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                 }
             }
 
-            std.debug.assert(self.stack.items(.loc).len == 1);
+            for (self.stack.items(.value), self.stack.items(.loc), 0..) |v, l, i| {
+                std.debug.print("STACK [{}]\n{any}\n{s}\n", .{ i, v, code[l.start..l.end] });
+            }
+            assert(@src(), self.stack.items(.loc).len == 1);
             const result = self.stack.pop();
-            std.debug.assert(result.value != Value.error_case);
+            assert(@src(), result.value != .err);
             return result;
         }
 
@@ -166,8 +179,9 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
             var it = std.mem.tokenizeScalar(u8, path, '.');
             var val = value;
             while (it.next()) |component| {
+                std.debug.print("path: {s} \n", .{component});
                 val = try val.dot(gpa, component);
-                if (val == Value.error_case) break;
+                if (val == .err) break;
             }
 
             return val;
@@ -214,8 +228,7 @@ pub const TestValue = union(Tag) {
         }
     }
 
-    pub const error_case = .err;
-    pub const call = defaultCall(TestValue);
+    pub const call = types.defaultCall(TestValue);
 
     pub fn builtinsFor(comptime tag: Tag) type {
         const StringBuiltins = struct {
@@ -257,55 +270,6 @@ pub const TestValue = union(Tag) {
     }
 };
 
-pub fn defaultDot(
-    comptime Context: type,
-    comptime Value: type,
-) fn (*Context, std.mem.Allocator, []const u8) error{OutOfMemory}!Value {
-    return struct {
-        pub fn dot(self: *Context, gpa: std.mem.Allocator, path: []const u8) !Value {
-            const info = @typeInfo(Context).Struct;
-            inline for (info.fields) |f| {
-                if (std.mem.eql(u8, f.name, path)) {
-                    const by_ref = @typeInfo(f.type) == .Struct and @hasDecl(f.type, "PassByRef") and Context.PassByRef;
-                    if (by_ref) {
-                        return Value.from(gpa, &@field(self, f.name));
-                    } else {
-                        return Value.from(gpa, @field(self, f.name));
-                    }
-                }
-            }
-
-            return .{ .err = "not found" };
-        }
-    }.dot;
-}
-
-pub fn defaultCall(
-    comptime Value: type,
-) fn (Value, std.mem.Allocator, []const u8, []const Value) error{OutOfMemory}!Value {
-    return struct {
-        pub fn call(
-            self: Value,
-            gpa: std.mem.Allocator,
-            fn_name: []const u8,
-            args: []const Value,
-        ) error{OutOfMemory}!Value {
-            switch (self) {
-                inline else => |v, tag| {
-                    const Builtin = Value.builtinsFor(tag);
-                    inline for (@typeInfo(Builtin).Struct.decls) |struct_decl| {
-                        if (std.mem.eql(u8, struct_decl.name, fn_name)) {
-                            return @field(Builtin, struct_decl.name)(v, gpa, args);
-                        }
-                    }
-
-                    return .{ .err = "not found" };
-                },
-            }
-        }
-    }.call;
-}
-
 const TestContext = struct {
     version: []const u8,
     page: Page,
@@ -315,18 +279,18 @@ const TestContext = struct {
         name: []const u8,
 
         pub const PassByRef = true;
-        pub const dot = defaultDot(Site, TestValue);
+        pub const dot = types.defaultDot(Site, TestValue);
     };
     pub const Page = struct {
         title: []const u8,
         content: []const u8,
 
         pub const PassByRef = true;
-        pub const dot = defaultDot(Page, TestValue);
+        pub const dot = types.defaultDot(Page, TestValue);
     };
 
     pub const PassByRef = true;
-    pub const dot = defaultDot(TestContext, TestValue);
+    pub const dot = types.defaultDot(TestContext, TestValue);
 };
 
 const test_ctx: TestContext = .{
@@ -383,4 +347,15 @@ test "builtin" {
     errdefer std.debug.print("result = `{s}`\n", .{result.value.string.bytes});
 
     try std.testing.expectEqualDeep(ex, result);
+}
+fn assert(loc: std.builtin.SourceLocation, condition: bool) void {
+    if (!condition) {
+        std.debug.print("assertion error in {s} at {s}:{}:{}\n", .{
+            loc.fn_name,
+            loc.file,
+            loc.line,
+            loc.column,
+        });
+        std.process.exit(1);
+    }
 }

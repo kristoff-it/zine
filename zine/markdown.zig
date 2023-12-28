@@ -9,7 +9,7 @@ const MdIndexEntry = struct {
     fm: contexts.Page,
 
     pub fn lessThan(_: void, lhs: MdIndexEntry, rhs: MdIndexEntry) bool {
-        return std.mem.lessThan(u8, lhs.fm.date, rhs.fm.date);
+        return lhs.fm.date.lessThan(rhs.fm.date);
     }
 };
 

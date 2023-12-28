@@ -7,6 +7,8 @@ pub fn build(b: *std.Build) void {
         .name = "markdown-renderer",
         .root_source_file = .{ .path = "src/markdown-renderer.zig" },
     });
+
+    exe.addModule("datetime", b.dependency("datetime", .{}).module("zig-datetime"));
     exe.addModule("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
 
     exe.linkLibrary(gfm.artifact("cmark-gfm"));
@@ -30,6 +32,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/main.zig" },
     });
 
+    unit_tests.addModule("datetime", b.dependency("datetime", .{}).module("zig-datetime"));
     unit_tests.addModule("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
 
     unit_tests.linkLibrary(gfm.artifact("cmark-gfm"));
