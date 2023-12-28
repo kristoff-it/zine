@@ -46,11 +46,11 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
 
     var path_segments: usize = 0;
 
-    // log.err("next ({s}) (d={}): `{s}`", .{
-    //     @tagName(self.state),
-    //     self.call_depth,
-    //     code[self.it.idx..],
-    // });
+    std.debug.print("next ({s}) (d={}): `{s}`\n", .{
+        @tagName(self.state),
+        self.call_depth,
+        code[self.it.idx..],
+    });
 
     while (self.it.next(code)) |tok| switch (self.state) {
         .syntax => unreachable,
@@ -93,7 +93,7 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
                 path_segments += 1;
             },
             .lparen => {
-                if (path_segments < 2) {
+                if (path_segments == 0) {
                     self.state = .syntax;
                     return .{ .tag = .syntax_error, .loc = tok.loc };
                 }
@@ -101,9 +101,12 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
                 // roll back to get a a lparen
                 self.it.idx -= 1;
                 self.state = .call_begin;
-                path.loc.end = self.last_path_end;
-
-                return path;
+                if (path_segments > 1) {
+                    path.loc.end = self.last_path_end;
+                    return path;
+                } else {
+                    // self.last_path_end = path.loc.start - 1; // TODO: check tha this is correct
+                }
             },
             .rparen => {
                 self.state = .call_end;
@@ -141,14 +144,15 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
                         },
                     };
                 },
-                else => {
-                    self.state = .syntax;
-                    return .{ .tag = .syntax_error, .loc = tok.loc };
-                },
+                else => unreachable,
             }
         },
         .call_arg => switch (tok.tag) {
-            .dollar => self.state = .global,
+            .dollar => {
+                self.state = .global;
+                path.loc = tok.loc;
+            },
+
             .rparen => {
                 // rollback to get a rparen next
                 self.it.idx -= 1;
@@ -204,6 +208,7 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
             .dot => {
                 // rewind to get a .dot next
                 self.it.idx -= 1;
+                self.last_path_end = tok.loc.start;
                 self.state = .extend_path;
             },
             .comma => {

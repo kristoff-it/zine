@@ -71,7 +71,14 @@ pub fn main() !void {
         fatal("error reading the page meta file '{s}': {s}", .{ page_path, @errorName(err) });
     };
 
-    const page = try std.json.parseFromSliceLeaky(contexts.Page, arena, page_string, .{});
+    var scanner = std.json.Scanner.initCompleteInput(arena, page_string);
+    defer scanner.deinit();
+
+    var diag: std.json.Diagnostics = .{};
+    scanner.enableDiagnostics(&diag);
+    errdefer std.debug.print("json err: line {} col {}\n", .{ diag.getLine(), diag.getColumn() });
+
+    const page = try std.json.parseFromTokenSourceLeaky(contexts.Page, arena, &scanner, .{});
     const prev_next = findPrevNext(index_bytes, install_subpath);
     var ctx: contexts.Template = .{
         .page = page,
@@ -110,7 +117,7 @@ pub fn main() !void {
         );
         ctx.page._meta.next = &next_meta;
     }
-    var super_vm = super.SuperVM.init(
+    var super_vm = super.SuperVM(contexts.Template, contexts.Value).init(
         arena,
         &ctx,
         layout_name,
