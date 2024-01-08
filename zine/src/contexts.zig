@@ -1,183 +1,504 @@
 const std = @import("std");
 const scripty = @import("scripty");
+const super = @import("super");
 const datetime = @import("datetime").datetime;
 const timezones = @import("datetime").timezones;
-const DateTime = datetime.Datetime;
-const Date = datetime.Date;
-const Time = datetime.Time;
+
+pub const DateTime = struct {
+    _dt: datetime.Datetime,
+    _string_repr: []const u8,
+
+    pub fn jsonStringify(value: DateTime, jws: anytype) !void {
+        try jws.write(value._string_repr);
+    }
+
+    pub fn jsonParse(
+        allocator: std.mem.Allocator,
+        source: anytype,
+        options: std.json.ParseOptions,
+    ) std.json.ParseError(@TypeOf(source.*))!DateTime {
+        const raw_date = try source.nextAllocMax(allocator, .alloc_always, options.max_value_len.?);
+        if (raw_date != .allocated_string) return error.SyntaxError;
+
+        const date = datetime.Date.parseIso(raw_date.allocated_string[0..10]) catch return error.SyntaxError;
+        return .{
+            ._string_repr = raw_date.allocated_string,
+            ._dt = .{
+                .date = date,
+                .time = datetime.Time.create(0, 0, 0, 0) catch unreachable,
+                .zone = &timezones.UTC,
+            },
+        };
+    }
+
+    pub fn lessThan(self: DateTime, rhs: DateTime) bool {
+        return self._dt.lt(rhs._dt);
+    }
+};
+
+pub const Template = struct {
+    site: Site,
+    page: Page,
+
+    // Globals specific to Super
+    loop: ?Value = null,
+    @"if": ?Value = null,
+
+    pub const dot = scripty.defaultDot(Template, Value);
+};
+
+pub const Site = struct {
+    base_url: []const u8,
+    title: []const u8,
+    _pages: []const Page,
+
+    pub const dot = scripty.defaultDot(Site, Value);
+    pub const PassByRef = true;
+    pub const Builtins = struct {
+        pub fn pages(self: *Site, gpa: std.mem.Allocator, args: []const Value) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            return .{ .iterator = .{ .page_it = .{ .items = self._pages } } };
+        }
+    };
+};
 
 pub const Page = struct {
     title: []const u8,
     description: []const u8 = "",
     author: []const u8,
-    date: []const u8,
+    date: DateTime,
     layout: []const u8,
     draft: bool = false,
     tags: []const []const u8 = &.{},
+    aliases: []const []const u8 = &.{},
     custom: std.json.Value = .null,
+    content: []const u8 = "",
+
     _meta: struct {
-        word_count: usize = 0,
+        permalink: []const u8 = "",
+        word_count: i64 = 0,
         prev: ?*Page = null,
         next: ?*Page = null,
     } = .{},
-    content: []const u8 = "",
 
-    pub fn externalValue(self: *Page) scripty.ExternalValue {
-        return .{
-            .value = self,
-            .dot_fn = &dot,
-            .call_fn = &call,
-            .value_fn = &value,
+    pub const dot = scripty.defaultDot(Page, Value);
+    pub const PassByRef = true;
+    pub const Builtins = struct {
+        pub fn wordCount(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            return .{ .int = self._meta.word_count };
+        }
+
+        pub fn nextPage(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (self._meta.next) |next| {
+                return .{ .optional = .{ .page = next } };
+            } else {
+                return .{ .optional = null };
+            }
+        }
+        pub fn prevPage(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (self._meta.prev) |prev| {
+                return .{ .optional = .{ .page = prev } };
+            } else {
+                return .{ .optional = null };
+            }
+        }
+        pub fn hasNext(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            const p = try nextPage(self, gpa, args);
+            return switch (p) {
+                .err => p,
+                .optional => |opt| if (opt == null)
+                    .{ .bool = false }
+                else
+                    .{ .bool = true },
+                else => unreachable,
+            };
+        }
+        pub fn hasPrev(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            const p = try prevPage(self, gpa, args);
+            return switch (p) {
+                .err => p,
+                .optional => |opt| if (opt == null)
+                    .{ .bool = false }
+                else
+                    .{ .bool = true },
+
+                else => unreachable,
+            };
+        }
+
+        pub fn permalink(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            return .{ .string = self._meta.permalink };
+        }
+    };
+};
+
+pub const Value = union(enum) {
+    template: *Template,
+    site: *Site,
+    page: *Page,
+    dynamic: std.json.Value,
+    iterator: Iterator,
+    iterator_element: IterElement,
+    optional: ?Optional,
+    string: []const u8,
+    date: DateTime,
+    bool: bool,
+    int: i64,
+    float: f64,
+    err: []const u8,
+
+    pub const call = scripty.defaultCall(Value);
+
+    pub const Optional = union(enum) {
+        iter_elem: IterElement,
+        page: *Page,
+        bool: bool,
+        int: i64,
+        string: []const u8,
+    };
+
+    pub const Iterator = union(enum) {
+        string_it: SliceIterator([]const u8),
+        page_it: SliceIterator(Page),
+
+        pub fn len(self: Iterator) usize {
+            const l: usize = switch (self) {
+                inline else => |v| v.len(),
+            };
+
+            return l;
+        }
+        pub fn next(self: *Iterator, gpa: std.mem.Allocator) ?Optional {
+            switch (self.*) {
+                inline else => |*v| {
+                    const n = v.next(gpa) orelse return null;
+                    const l = self.len();
+
+                    const elem_type = @typeInfo(@TypeOf(n)).Pointer.child;
+                    const by_ref = @typeInfo(elem_type) == .Struct and @hasDecl(elem_type, "PassByRef") and elem_type.PassByRef;
+                    const it = if (by_ref)
+                        IterElement.IterValue.from(n)
+                    else
+                        IterElement.IterValue.from(n.*);
+                    return .{
+                        .iter_elem = .{
+                            .it = it,
+                            .idx = v.idx,
+                            .first = v.idx == 0,
+                            .last = v.idx == l - 1,
+                        },
+                    };
+                },
+            }
+        }
+
+        pub fn dot(self: Iterator, gpa: std.mem.Allocator, path: []const u8) Value {
+            _ = path;
+            _ = gpa;
+            _ = self;
+            return .{ .err = "field access on an iterator value" };
+        }
+    };
+
+    pub const IterElement = struct {
+        it: IterValue,
+        idx: usize,
+        first: bool,
+        last: bool,
+
+        const IterValue = union(enum) {
+            string: []const u8,
+            page: *Page,
+
+            pub fn from(v: anytype) IterValue {
+                return switch (@TypeOf(v)) {
+                    []const u8 => .{ .string = v },
+                    *Page => .{ .page = v },
+                    else => @compileError("TODO: implement IterElement.IterValue.from for " ++ @typeName(@TypeOf(v))),
+                };
+            }
+        };
+
+        pub const dot = scripty.defaultDot(IterElement, Value);
+    };
+
+    pub fn fromStringLiteral(s: []const u8) Value {
+        return .{ .string = s };
+    }
+
+    pub fn fromNumberLiteral(bytes: []const u8) Value {
+        const num = std.fmt.parseInt(i64, bytes, 10) catch {
+            return .{ .err = "error parsing numeric literal" };
+        };
+        return .{ .int = num };
+    }
+
+    pub fn fromBooleanLiteral(b: bool) Value {
+        return .{ .bool = b };
+    }
+
+    pub fn from(gpa: std.mem.Allocator, v: anytype) Value {
+        _ = gpa;
+        return switch (@TypeOf(v)) {
+            *Template => .{ .template = v },
+            *Site => .{ .site = v },
+            *Page => .{ .page = v },
+            // IterElement => .{ .iteration_element = v },
+            DateTime => .{ .date = v },
+            []const u8 => .{ .string = v },
+            bool => .{ .bool = v },
+            i64, usize => .{ .int = @intCast(v) },
+            ?Value => if (v) |o| o else .{ .err = "trying to access nil value" },
+            *Value => v.*,
+            IterElement.IterValue => switch (v) {
+                .string => |s| .{ .string = s },
+                .page => |p| .{ .page = p },
+            },
+            Optional => switch (v) {
+                .iter_elem => |ie| .{ .iterator_element = ie },
+                .page => |p| .{ .page = p },
+                .bool => |b| .{ .bool = b },
+                .string => |s| .{ .string = s },
+                .int => |i| .{ .int = i },
+            },
+
+            ?Optional => .{ .optional = v orelse @panic("TODO: null optional reached Value.from") },
+            std.json.Value => .{ .dynamic = v },
+            []const []const u8 => .{ .iterator = .{ .string_it = .{ .items = v } } },
+            else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),
         };
     }
-
-    fn dot(op: *anyopaque, path: []const u8, arena: std.mem.Allocator) scripty.ScriptResult {
-        const self: *Page = @alignCast(@ptrCast(op));
-
-        if (std.mem.eql(u8, path, "title")) {
-            return .{ .ok = .{ .string = self.title } };
+    pub fn dot(
+        self: *Value,
+        gpa: std.mem.Allocator,
+        path: []const u8,
+    ) error{OutOfMemory}!Value {
+        switch (self.*) {
+            .string,
+            .bool,
+            .int,
+            .float,
+            .err,
+            .date,
+            => return .{ .err = "field access on primitive value" },
+            .dynamic => return .{ .err = "field access on dynamic value" },
+            .optional => return .{ .err = "field access on optional value" },
+            // .iteration_element => return
+            .iterator_element => |*v| return v.dot(gpa, path),
+            inline else => |v| return v.dot(gpa, path),
         }
-        if (std.mem.eql(u8, path, "description")) {
-            return .{ .ok = .{ .string = self.description } };
-        }
-        if (std.mem.eql(u8, path, "author")) {
-            return .{ .ok = .{ .string = self.author } };
-        }
-        if (std.mem.eql(u8, path, "content")) {
-            return .{ .ok = .{ .string = self.content } };
-        }
-        if (std.mem.eql(u8, path, "word_count")) {
-            return .{ .ok = .{ .int = self._meta.word_count } };
-        }
-        if (std.mem.eql(u8, path, "prev")) {
-            const prev = self._meta.prev orelse return .{ .ok = .nil };
-            return .{ .ok = .{ .external = prev.externalValue() } };
-        }
-        if (std.mem.eql(u8, path, "next")) {
-            const next = self._meta.next orelse return .{ .ok = .nil };
-            return .{ .ok = .{ .external = next.externalValue() } };
-        }
-        if (std.mem.eql(u8, path, "has")) {
-            std.debug.print("given out has!\n", .{});
-            return .{ .ok = .{ .function = has } };
-        }
-        if (std.mem.eql(u8, path, "hasAny")) {
-            std.debug.print("given out has!\n", .{});
-            return .{ .ok = .{ .function = hasAny } };
-        }
-        if (std.mem.eql(u8, path, "date")) {
-            const d: DateTime = .{
-                .date = Date.parseIso(self.date[0..10]) catch return .{ .err = "unable to parse date" },
-                .time = Time.create(0, 0, 0, 0) catch unreachable,
-                .zone = &timezones.UTC,
-            };
-            return .{ .ok = .{ .date = d } };
-        }
-        if (std.mem.eql(u8, path, "tags")) {
-            const res = arena.alloc(scripty.Value, self.tags.len) catch {
-                return .{ .err = "oom" };
-            };
-
-            for (res, self.tags) |*r, t| r.* = .{ .string = t };
-
-            return .{ .ok = .{ .array = res } };
-        }
-
-        std.debug.panic("TODO: implement dot `{s}` for Zine.Page", .{path});
     }
 
-    fn call(op: *anyopaque, args: []const scripty.Value) scripty.ScriptResult {
-        _ = op;
-        _ = args;
-        @panic("TODO call on zine page context");
-    }
+    pub fn builtinsFor(comptime tag: @typeInfo(Value).Union.tag_type.?) type {
+        const StringBuiltins = struct {
+            pub fn len(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                if (args.len != 0) return .{ .err = "'len' wants no arguments" };
+                return Value.from(gpa, str.len);
+            }
+        };
+        const DynamicBuiltins = struct {
+            pub fn @"get?"(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                _ = gpa;
+                const bad_arg = .{ .err = "'get?' wants 1 string argument" };
+                if (args.len != 1) return bad_arg;
 
-    fn value(op: *anyopaque) scripty.ScriptResult {
-        _ = op;
-        @panic("TODO value on zine page context");
+                const path = switch (args[0]) {
+                    .string => |s| s,
+                    else => return bad_arg,
+                };
+
+                if (dyn == .null) return .{ .optional = null };
+                if (dyn != .object) return .{ .err = "get? on a non-map dynamic value" };
+
+                if (dyn.object.get(path)) |value| {
+                    switch (value) {
+                        .null => return .{ .optional = null },
+                        .bool => |b| return .{ .optional = .{ .bool = b } },
+                        .integer => |i| return .{ .optional = .{ .int = i } },
+                        .string => |s| return .{ .optional = .{ .string = s } },
+                        inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                    }
+                }
+
+                return .{ .optional = null };
+            }
+
+            pub fn get(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                _ = gpa;
+                const bad_arg = .{ .err = "'get' wants 2 string arguments" };
+                if (args.len != 2) return bad_arg;
+
+                const path = switch (args[0]) {
+                    .string => |s| s,
+                    else => return bad_arg,
+                };
+
+                const fallback = switch (args[1]) {
+                    .string => |s| s,
+                    else => return bad_arg,
+                };
+
+                if (dyn == .null) return .{ .string = fallback };
+                if (dyn != .object) return .{ .err = "get on a non-map dynamic value" };
+
+                if (dyn.object.get(path)) |value| {
+                    switch (value) {
+                        .null => return .{ .string = fallback },
+                        .bool => |b| return .{ .bool = b },
+                        .integer => |i| return .{ .int = i },
+                        .string => |s| return .{ .string = s },
+                        inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                    }
+                }
+
+                return .{ .string = fallback };
+            }
+        };
+
+        const DateBuiltins = struct {
+            pub fn format(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                const argument_error = .{ .err = "'format' wants one (string) argument" };
+                if (args.len != 1) return argument_error;
+                const string = switch (args[0]) {
+                    .string => |s| s,
+                    else => return argument_error,
+                };
+
+                if (!std.mem.eql(u8, string, "January 02, 2006")) {
+                    @panic("TODO: implement more date formatting options");
+                }
+
+                const formatted_date = try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
+                    dt._dt.date.monthName(),
+                    dt._dt.date.day,
+                    dt._dt.date.year,
+                });
+
+                return .{ .string = formatted_date };
+            }
+        };
+        const BoolBuiltins = struct {
+            pub fn not(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                if (args.len != 0) return .{ .err = "'not' wants no arguments" };
+                return .{ .bool = !b };
+            }
+            pub fn @"and"(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                if (args.len == 0) return .{ .err = "'and' wants at least one argument" };
+                for (args) |a| switch (a) {
+                    .bool => {},
+                    else => return .{ .err = "wrong argument type" },
+                };
+                if (!b) return .{ .bool = false };
+                for (args) |a| if (!a.bool) return .{ .bool = false };
+
+                return .{ .bool = true };
+            }
+            pub fn @"or"(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                if (args.len == 0) return .{ .err = "'or' wants at least one argument" };
+                for (args) |a| switch (a) {
+                    .bool => {},
+                    else => return .{ .err = "wrong argument type" },
+                };
+                if (b) return .{ .bool = true };
+                for (args) |a| if (a.bool) return .{ .bool = true };
+
+                return .{ .bool = false };
+            }
+        };
+        const IntBuiltins = struct {
+            pub fn eq(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                const argument_error = .{ .err = "'plus' wants one int argument" };
+                if (args.len != 1) return argument_error;
+
+                switch (args[0]) {
+                    .int => |rhs| {
+                        return .{ .bool = num == rhs };
+                    },
+                    else => return argument_error,
+                }
+            }
+            pub fn plus(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                const argument_error = .{ .err = "'plus' wants one (int|float) argument" };
+                if (args.len != 1) return argument_error;
+
+                switch (args[0]) {
+                    .int => |add| {
+                        return .{ .int = num +| add };
+                    },
+                    .float => @panic("TODO: int with float argument"),
+                    else => return argument_error,
+                }
+            }
+            pub fn div(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                const argument_error = .{ .err = "'div' wants one (int|float) argument" };
+                if (args.len != 1) return argument_error;
+
+                switch (args[0]) {
+                    .int => |den| {
+                        const res = std.math.divTrunc(i64, num, den) catch |err| {
+                            return .{ .err = @errorName(err) };
+                        };
+
+                        return .{ .int = res };
+                    },
+                    .float => @panic("TODO: div with float argument"),
+                    else => return argument_error,
+                }
+            }
+        };
+        return switch (tag) {
+            .site => Site.Builtins,
+            .page => Page.Builtins,
+            .string => StringBuiltins,
+            .date => DateBuiltins,
+            .int => IntBuiltins,
+            .bool => BoolBuiltins,
+            .dynamic => DynamicBuiltins,
+            else => struct {},
+        };
     }
 };
 
-fn has(args: []const scripty.Value, _: std.mem.Allocator) scripty.ScriptResult {
-    std.debug.print("has was called!\n", .{});
-    const self: *Page = @alignCast(@ptrCast(args[0].external.value));
-    var result = true;
-    for (args[1..]) |x| if (std.mem.eql(u8, x.string, "next")) {
-        if (self._meta.next == null) result = false;
-    } else if (std.mem.eql(u8, x.string, "prev")) {
-        if (self._meta.prev == null) result = false;
-    };
+pub fn SliceIterator(comptime Element: type) type {
+    return struct {
+        items: []const Element,
+        idx: usize = 0,
 
-    return .{ .ok = .{ .bool = result } };
-}
-
-fn hasAny(args: []const scripty.Value, _: std.mem.Allocator) scripty.ScriptResult {
-    std.debug.print("hasAny was called!\n", .{});
-    const self: *Page = @alignCast(@ptrCast(args[0].external.value));
-    var result = false;
-    for (args[1..]) |x| if (std.mem.eql(u8, x.string, "next")) {
-        if (self._meta.next != null) result = true;
-    } else if (std.mem.eql(u8, x.string, "prev")) {
-        if (self._meta.prev != null) result = true;
-    };
-
-    return .{ .ok = .{ .bool = result } };
-}
-
-pub const Template = struct {
-    page: Page,
-
-    pub fn externalValue(self: *Template) scripty.ExternalValue {
-        return .{
-            .value = self,
-            .dot_fn = &dot,
-            .call_fn = &call,
-            .value_fn = &value,
-        };
-    }
-
-    fn dot(op: *anyopaque, path: []const u8, arena: std.mem.Allocator) scripty.ScriptResult {
-        const self: *Template = @alignCast(@ptrCast(op));
-        _ = arena;
-
-        if (std.mem.eql(u8, path, "page")) {
-            return .{ .ok = .{ .external = self.page.externalValue() } };
+        pub fn len(self: @This()) usize {
+            return self.items.len;
         }
+        pub fn index(self: @This()) usize {
+            return self.items.idx;
+        }
+        pub fn next(self: *@This(), gpa: std.mem.Allocator) ?*Element {
+            _ = gpa;
+            if (self.idx == self.items.len) return null;
+            const result: ?*Element = @constCast(&self.items[self.idx]);
+            self.idx += 1;
+            return result;
+        }
+    };
+}
 
-        std.debug.panic("TODO: explain that '${s}' doesn't exist.", .{path});
-    }
+// pub const Dynamic = struct {
+//     _value: std.json.Value = .null,
 
-    fn call(op: *anyopaque, args: []const scripty.Value) scripty.ScriptResult {
-        _ = op;
-        _ = args;
-        @panic("TODO call on zine template context");
-    }
+//     pub fn dot(self: *Dynamic, gpa: std.mem.Allocator, path: []const u8) Value {
+//         _ = path;
+//         _ = gpa;
+//         _ = self;
+//         return .{ .err = "field access on a dynamic value" };
+//     }
 
-    fn value(op: *anyopaque) scripty.ScriptResult {
-        _ = op;
-        @panic("TODO value on zine template context");
-    }
-};
-
-// fn simpleStructDot(comptime T: type) scripty.DotFn {
-//     return struct {
-//         pub fn dotFn(
-//             op: *anyopaque,
-//             path: []const u8,
-//             arena: std.mem.Allocator,
-//         ) scripty.ScriptResult {
-//             const self: *T = @alignCast(@ptrCast(op));
-
-//             const info = @typeInfo(T);
-//             if (info != .Struct) {
-//                 @compileError("simpleStructDot can only be used with structs");
-//             }
-
-//             inline for (info.Struct.fields) |field| {
-//                 if (std.mem.eql(u8, field.name, path)) {
-//                     return scripty.Value.from(@field(self, field.name), arena);
-//                 }
-//             }
-//         }
-//     }.dotFn;
-// }
+//     pub const call = scripty.defaultCall(Value);
+// };

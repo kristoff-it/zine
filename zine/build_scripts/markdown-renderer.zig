@@ -6,8 +6,11 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "markdown-renderer",
         .root_source_file = .{ .path = "src/markdown-renderer.zig" },
+        .target = b.resolveTargetQuery(.{}),
     });
-    exe.addModule("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
+
+    exe.root_module.addImport("datetime", b.dependency("datetime", .{}).module("zig-datetime"));
+    exe.root_module.addImport("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
 
     exe.linkLibrary(gfm.artifact("cmark-gfm"));
     exe.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
@@ -30,7 +33,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/main.zig" },
     });
 
-    unit_tests.addModule("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
+    unit_tests.root_module.addImport("datetime", b.dependency("datetime", .{}).module("zig-datetime"));
+    unit_tests.root_module.addImport("frontmatter", b.dependency("frontmatter", .{}).module("frontmatter"));
 
     unit_tests.linkLibrary(gfm.artifact("cmark-gfm"));
     unit_tests.linkLibrary(gfm.artifact("cmark-gfm-extensions"));

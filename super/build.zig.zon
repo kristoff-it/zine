@@ -3,8 +3,7 @@
     .version = "0.0.0",
     .dependencies = .{
         .@"tree-sitter" = .{
-            .url = "https://github.com/neurocyte/tree-sitter/releases/download/nightly-aff6acf/tree-sitter.tar.gz",
-            .hash = "12205be79a2e0adcb64178665fe962aafc402d6a81dfa7979fa0f87efbe06981f10f", 
+            .path = "../tree-sitter",
          },
 
         .scripty = .{

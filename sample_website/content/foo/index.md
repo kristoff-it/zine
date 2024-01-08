@@ -1,10 +1,10 @@
 ---
 {
   "title": "Really?",
+  "date": "2020-07-06T00:00:00",
   "author": "Loris Cro",
-  "draft": false,
   "layout": "page.html",
-  "tags": ["tag1", "tag2"],
+  "draft": false,
   "custom": {
     "foo": 50
   }

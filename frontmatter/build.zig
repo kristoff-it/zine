@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const module = b.addModule("frontmatter", .{
-        .source_file = .{ .path = "frontmatter.zig" },
+        .root_source_file = .{ .path = "frontmatter.zig" },
     });
 
     const unit_tests = b.addTest(.{
@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    unit_tests.addModule("frontmatter", module);
+    unit_tests.root_module.addImport("frontmatter", module);
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
     const test_step = b.step("test", "Run unit tests");

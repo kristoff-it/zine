@@ -1,7 +1,6 @@
 const Tokenizer = @This();
 
 const std = @import("std");
-const String = @import("types.zig").String;
 
 idx: usize = 0,
 
@@ -13,18 +12,22 @@ pub const Token = struct {
         start: usize,
         end: usize,
 
+        pub fn src(self: Loc, code: []const u8) []const u8 {
+            return code[self.start..self.end];
+        }
+
         pub fn unquote(
             self: Loc,
             gpa: std.mem.Allocator,
             code: []const u8,
-        ) !String {
+        ) ![]const u8 {
             const s = code[self.start..self.end];
             const quoteless = s[1 .. s.len - 1];
 
             for (quoteless) |c| {
                 if (c == '\\') break;
             } else {
-                return .{ .must_free = false, .bytes = quoteless };
+                return quoteless;
             }
 
             const quote = s[0];
@@ -46,13 +49,9 @@ pub const Token = struct {
                 skipped = false;
                 last = c;
             }
-            return .{ .must_free = true, .bytes = try out.toOwnedSlice() };
+            return try out.toOwnedSlice();
         }
     };
-
-    pub fn src(self: Token, code: []const u8) []const u8 {
-        return code[self.loc.start..self.loc.end];
-    }
 
     pub const Tag = enum {
         invalid,
@@ -149,7 +148,7 @@ pub fn next(self: *Tokenizer, code: []const u8) ?Token {
                 },
             },
             .identifier => switch (c) {
-                'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
+                'a'...'z', 'A'...'Z', '0'...'9', '_', '?', '!' => {},
                 else => {
                     res.tag = .identifier;
                     res.loc.end = self.idx;
