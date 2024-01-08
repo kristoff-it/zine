@@ -7,8 +7,8 @@
             .hash = "1220ff08867af0d5363fedd5d49ec4c102b3f97653475620fc60fff87ac5aed13f6d",
         },
         .mime = .{
-            .url = "https://github.com/andrewrk/mime/archive/1.0.0.tar.gz",
-            .hash = "1220947d4e2b4a52de7365852f0e7110c71268cc3586329cb0c5c989904d72913983",
+            .url = "git+https://github.com/andrewrk/mime.git#bf80e2e8b1d9413ddf9abe7d94537388b54c83ab",
+            .hash = "122074ce2f776dc9dc4a0d2588a5d76b97212a2c311ef8125d4aadffa4b84e5b8b3e",
         },
         .datetime = .{
             .path = "../datetime",

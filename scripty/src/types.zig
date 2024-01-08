@@ -34,7 +34,6 @@ pub fn defaultCall(
             fn_name: []const u8,
             args: []const Value,
         ) error{OutOfMemory}!Value {
-            std.debug.print("calling: {s}\n", .{fn_name});
             switch (self) {
                 inline else => |v, tag| {
                     const Builtin = Value.builtinsFor(tag);

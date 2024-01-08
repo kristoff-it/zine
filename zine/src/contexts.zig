@@ -37,6 +37,7 @@ pub const DateTime = struct {
 };
 
 pub const Template = struct {
+    site: Site,
     page: Page,
 
     // Globals specific to Super
@@ -44,6 +45,23 @@ pub const Template = struct {
     @"if": ?Value = null,
 
     pub const dot = scripty.defaultDot(Template, Value);
+};
+
+pub const Site = struct {
+    base_url: []const u8,
+    title: []const u8,
+    _pages: []const Page,
+
+    pub const dot = scripty.defaultDot(Site, Value);
+    pub const PassByRef = true;
+    pub const Builtins = struct {
+        pub fn pages(self: *Site, gpa: std.mem.Allocator, args: []const Value) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            return .{ .iterator = .{ .page_it = .{ .items = self._pages } } };
+        }
+    };
 };
 
 pub const Page = struct {
@@ -54,13 +72,16 @@ pub const Page = struct {
     layout: []const u8,
     draft: bool = false,
     tags: []const []const u8 = &.{},
+    aliases: []const []const u8 = &.{},
+    custom: std.json.Value = .null,
+    content: []const u8 = "",
+
     _meta: struct {
-        word_count: usize = 0,
+        permalink: []const u8 = "",
+        word_count: i64 = 0,
         prev: ?*Page = null,
         next: ?*Page = null,
     } = .{},
-    custom: std.json.Value = .null,
-    content: []const u8 = "",
 
     pub const dot = scripty.defaultDot(Page, Value);
     pub const PassByRef = true;
@@ -112,11 +133,18 @@ pub const Page = struct {
                 else => unreachable,
             };
         }
+
+        pub fn permalink(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            return .{ .string = self._meta.permalink };
+        }
     };
 };
 
 pub const Value = union(enum) {
     template: *Template,
+    site: *Site,
     page: *Page,
     dynamic: std.json.Value,
     iterator: Iterator,
@@ -125,20 +153,23 @@ pub const Value = union(enum) {
     string: []const u8,
     date: DateTime,
     bool: bool,
-    int: usize,
+    int: i64,
     float: f64,
     err: []const u8,
 
     pub const call = scripty.defaultCall(Value);
 
     pub const Optional = union(enum) {
-        page: *Page,
         iter_elem: IterElement,
+        page: *Page,
+        bool: bool,
+        int: i64,
+        string: []const u8,
     };
 
     pub const Iterator = union(enum) {
         string_it: SliceIterator([]const u8),
-        // value_it: SliceIterator(Value),
+        page_it: SliceIterator(Page),
 
         pub fn len(self: Iterator) usize {
             const l: usize = switch (self) {
@@ -153,9 +184,15 @@ pub const Value = union(enum) {
                     const n = v.next(gpa) orelse return null;
                     const l = self.len();
 
+                    const elem_type = @typeInfo(@TypeOf(n)).Pointer.child;
+                    const by_ref = @typeInfo(elem_type) == .Struct and @hasDecl(elem_type, "PassByRef") and elem_type.PassByRef;
+                    const it = if (by_ref)
+                        IterElement.IterValue.from(n)
+                    else
+                        IterElement.IterValue.from(n.*);
                     return .{
                         .iter_elem = .{
-                            .it = n,
+                            .it = it,
                             .idx = v.idx,
                             .first = v.idx == 0,
                             .last = v.idx == l - 1,
@@ -174,10 +211,23 @@ pub const Value = union(enum) {
     };
 
     pub const IterElement = struct {
-        it: []const u8,
+        it: IterValue,
         idx: usize,
         first: bool,
         last: bool,
+
+        const IterValue = union(enum) {
+            string: []const u8,
+            page: *Page,
+
+            pub fn from(v: anytype) IterValue {
+                return switch (@TypeOf(v)) {
+                    []const u8 => .{ .string = v },
+                    *Page => .{ .page = v },
+                    else => @compileError("TODO: implement IterElement.IterValue.from for " ++ @typeName(@TypeOf(v))),
+                };
+            }
+        };
 
         pub const dot = scripty.defaultDot(IterElement, Value);
     };
@@ -187,7 +237,7 @@ pub const Value = union(enum) {
     }
 
     pub fn fromNumberLiteral(bytes: []const u8) Value {
-        const num = std.fmt.parseInt(usize, bytes, 10) catch {
+        const num = std.fmt.parseInt(i64, bytes, 10) catch {
             return .{ .err = "error parsing numeric literal" };
         };
         return .{ .int = num };
@@ -201,13 +251,26 @@ pub const Value = union(enum) {
         _ = gpa;
         return switch (@TypeOf(v)) {
             *Template => .{ .template = v },
+            *Site => .{ .site = v },
             *Page => .{ .page = v },
-            IterElement => .{ .iteration_element = v },
+            // IterElement => .{ .iteration_element = v },
             DateTime => .{ .date = v },
             []const u8 => .{ .string = v },
             bool => .{ .bool = v },
-            usize => .{ .int = v },
+            i64, usize => .{ .int = @intCast(v) },
             ?Value => if (v) |o| o else .{ .err = "trying to access nil value" },
+            *Value => v.*,
+            IterElement.IterValue => switch (v) {
+                .string => |s| .{ .string = s },
+                .page => |p| .{ .page = p },
+            },
+            Optional => switch (v) {
+                .iter_elem => |ie| .{ .iterator_element = ie },
+                .page => |p| .{ .page = p },
+                .bool => |b| .{ .bool = b },
+                .string => |s| .{ .string = s },
+                .int => |i| .{ .int = i },
+            },
 
             ?Optional => .{ .optional = v orelse @panic("TODO: null optional reached Value.from") },
             std.json.Value => .{ .dynamic = v },
@@ -243,18 +306,67 @@ pub const Value = union(enum) {
                 return Value.from(gpa, str.len);
             }
         };
-        // const DynamicBuiltins = struct {
-        //     pub fn get(dyn: Dynamic, gpa: std.mem.Allocator, args: []const Value) Value {
-        //         _ = gpa;
-        //         _ = dyn;
-        //         if (args.len != 1) return .{ .err = "'get' wants 1 string argument" };
-        //         @panic("TODO: get() for Dynamic");
-        //     }
-        // };
+        const DynamicBuiltins = struct {
+            pub fn @"get?"(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                _ = gpa;
+                const bad_arg = .{ .err = "'get?' wants 1 string argument" };
+                if (args.len != 1) return bad_arg;
+
+                const path = switch (args[0]) {
+                    .string => |s| s,
+                    else => return bad_arg,
+                };
+
+                if (dyn == .null) return .{ .optional = null };
+                if (dyn != .object) return .{ .err = "get? on a non-map dynamic value" };
+
+                if (dyn.object.get(path)) |value| {
+                    switch (value) {
+                        .null => return .{ .optional = null },
+                        .bool => |b| return .{ .optional = .{ .bool = b } },
+                        .integer => |i| return .{ .optional = .{ .int = i } },
+                        .string => |s| return .{ .optional = .{ .string = s } },
+                        inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                    }
+                }
+
+                return .{ .optional = null };
+            }
+
+            pub fn get(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                _ = gpa;
+                const bad_arg = .{ .err = "'get' wants 2 string arguments" };
+                if (args.len != 2) return bad_arg;
+
+                const path = switch (args[0]) {
+                    .string => |s| s,
+                    else => return bad_arg,
+                };
+
+                const fallback = switch (args[1]) {
+                    .string => |s| s,
+                    else => return bad_arg,
+                };
+
+                if (dyn == .null) return .{ .string = fallback };
+                if (dyn != .object) return .{ .err = "get on a non-map dynamic value" };
+
+                if (dyn.object.get(path)) |value| {
+                    switch (value) {
+                        .null => return .{ .string = fallback },
+                        .bool => |b| return .{ .bool = b },
+                        .integer => |i| return .{ .int = i },
+                        .string => |s| return .{ .string = s },
+                        inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                    }
+                }
+
+                return .{ .string = fallback };
+            }
+        };
 
         const DateBuiltins = struct {
             pub fn format(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
-                std.debug.print("date.format\n", .{});
                 const argument_error = .{ .err = "'format' wants one (string) argument" };
                 if (args.len != 1) return argument_error;
                 const string = switch (args[0]) {
@@ -271,8 +383,6 @@ pub const Value = union(enum) {
                     dt._dt.date.day,
                     dt._dt.date.year,
                 });
-
-                std.debug.print("formatted date: {s}\n", .{formatted_date});
 
                 return .{ .string = formatted_date };
             }
@@ -306,7 +416,18 @@ pub const Value = union(enum) {
             }
         };
         const IntBuiltins = struct {
-            pub fn plus(num: usize, _: std.mem.Allocator, args: []const Value) !Value {
+            pub fn eq(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                const argument_error = .{ .err = "'plus' wants one int argument" };
+                if (args.len != 1) return argument_error;
+
+                switch (args[0]) {
+                    .int => |rhs| {
+                        return .{ .bool = num == rhs };
+                    },
+                    else => return argument_error,
+                }
+            }
+            pub fn plus(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
                 const argument_error = .{ .err = "'plus' wants one (int|float) argument" };
                 if (args.len != 1) return argument_error;
 
@@ -318,13 +439,13 @@ pub const Value = union(enum) {
                     else => return argument_error,
                 }
             }
-            pub fn div(num: usize, _: std.mem.Allocator, args: []const Value) !Value {
+            pub fn div(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
                 const argument_error = .{ .err = "'div' wants one (int|float) argument" };
                 if (args.len != 1) return argument_error;
 
                 switch (args[0]) {
                     .int => |den| {
-                        const res = std.math.divTrunc(usize, num, den) catch |err| {
+                        const res = std.math.divTrunc(i64, num, den) catch |err| {
                             return .{ .err = @errorName(err) };
                         };
 
@@ -336,11 +457,13 @@ pub const Value = union(enum) {
             }
         };
         return switch (tag) {
+            .site => Site.Builtins,
             .page => Page.Builtins,
             .string => StringBuiltins,
             .date => DateBuiltins,
             .int => IntBuiltins,
             .bool => BoolBuiltins,
+            .dynamic => DynamicBuiltins,
             else => struct {},
         };
     }
@@ -357,10 +480,10 @@ pub fn SliceIterator(comptime Element: type) type {
         pub fn index(self: @This()) usize {
             return self.items.idx;
         }
-        pub fn next(self: *@This(), gpa: std.mem.Allocator) ?Element {
+        pub fn next(self: *@This(), gpa: std.mem.Allocator) ?*Element {
             _ = gpa;
             if (self.idx == self.items.len) return null;
-            const result = self.items[self.idx];
+            const result: ?*Element = @constCast(&self.items[self.idx]);
             self.idx += 1;
             return result;
         }

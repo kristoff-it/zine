@@ -5,8 +5,9 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const module = b.addModule("super", .{
-        .source_file = .{ .path = "src/main.zig" },
-        .dependencies = &.{
+        .root_source_file = .{ .path = "src/main.zig" },
+        .link_libc = true,
+        .imports = &.{
             .{
                 .name = "frontmatter",
                 .module = b.dependency("frontmatter", .{}).module("frontmatter"),
@@ -18,19 +19,21 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const ts = b.dependency("tree-sitter", .{});
+    module.linkLibrary(ts.artifact("tree-sitter"));
+
     const unit_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
+        // .strip = true,
         // .filter = "page.html",
     });
 
-    const ts = b.dependency("tree-sitter", .{});
     unit_tests.linkLibrary(ts.artifact("tree-sitter"));
     unit_tests.linkLibC();
-    // unit_tests.strip = true;
 
-    unit_tests.addModule("super", module);
+    unit_tests.root_module.addImport("super", module);
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
     const test_step = b.step("test", "Run unit tests");

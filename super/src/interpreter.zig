@@ -72,7 +72,6 @@ pub fn SuperVM(comptime Context: type, comptime Value: type) type {
             out_writer: OutWriter,
             err_writer: ErrWriter,
         ) @This() {
-            std.debug.print("SuperVM up!\n", .{});
             return .{
                 .arena = arena,
                 .content_name = content_name,
@@ -219,7 +218,6 @@ pub fn SuperVM(comptime Context: type, comptime Value: type) type {
 
         fn loadLayout(self: *@This()) errors.FatalOOM!void {
             const cartridge = self.state.init;
-            std.debug.print("layout load start\n", .{});
             const layout_tree = try SuperTree.init(
                 self.arena,
                 self.err,
@@ -227,7 +225,6 @@ pub fn SuperVM(comptime Context: type, comptime Value: type) type {
                 cartridge.path,
                 cartridge.html,
             );
-            layout_tree.root.debug(cartridge.html);
             const layout = try Template.init(
                 self.arena,
                 layout_tree,
@@ -236,7 +233,6 @@ pub fn SuperVM(comptime Context: type, comptime Value: type) type {
 
             try self.templates.append(self.arena, layout);
             self.state = .discovering_templates;
-            std.debug.print("layout loaded\n", .{});
         }
 
         const DiscoverException = error{ OutOfMemory, WantTemplate } || errors.Fatal;

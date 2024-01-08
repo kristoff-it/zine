@@ -58,10 +58,8 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                 if (quota == 1) return error.Quota;
                 if (quota > 1) quota -= 1;
             }) {
-                std.debug.print("note: {s} {s}\n", .{ @tagName(node.tag), code[node.loc.start..node.loc.end] });
                 switch (node.tag) {
                     .syntax_error => {
-                        std.debug.print("parser syntax error", .{});
                         self.stack.shrinkRetainingCapacity(0);
                         return .{
                             .loc = node.loc,
@@ -86,7 +84,6 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                     }),
                     .call => {
                         assert(@src(), code[node.loc.end] == '(');
-                        std.debug.print("storing call: {s}\n", .{code[node.loc.start .. node.loc.end + 1]});
                         try self.stack.append(gpa, .{
                             .loc = node.loc,
                             .value = undefined,
@@ -113,7 +110,6 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
 
                         const new_value = try dotPath(gpa, old_value, path);
                         if (new_value == .err) {
-                            std.debug.print("path error", .{});
                             self.stack.shrinkRetainingCapacity(0);
                             return .{ .loc = node.loc, .value = new_value };
                         }
@@ -148,7 +144,6 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                         const new_value = try old_value.call(gpa, fn_name, args);
 
                         if (new_value == .err) {
-                            std.debug.print("call error", .{});
                             self.stack.shrinkRetainingCapacity(0);
                             return .{ .loc = node.loc, .value = new_value };
                         }
@@ -166,9 +161,6 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
                 }
             }
 
-            for (self.stack.items(.value), self.stack.items(.loc), 0..) |v, l, i| {
-                std.debug.print("STACK [{}]\n{any}\n{s}\n", .{ i, v, code[l.start..l.end] });
-            }
             assert(@src(), self.stack.items(.loc).len == 1);
             const result = self.stack.pop();
             assert(@src(), result.value != .err);
@@ -179,7 +171,6 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
             var it = std.mem.tokenizeScalar(u8, path, '.');
             var val = value;
             while (it.next()) |component| {
-                std.debug.print("path: {s} \n", .{component});
                 val = try val.dot(gpa, component);
                 if (val == .err) break;
             }

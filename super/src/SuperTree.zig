@@ -465,22 +465,11 @@ pub fn init(
         // than our current html_node.
         if (low_mark > depth) low_mark = depth;
         while (node.parent) |p| {
-            log.debug("mark={} parent={}", .{ low_mark, p.depth });
             if (low_mark > p.depth) break;
-            log.debug(
-                "node {s} {s} is being discarded",
-                .{ @tagName(node.type), node.debugName(html) },
-            );
             node = p;
         }
 
         const new_node = try self.buildNode(arena, elem, depth) orelse continue;
-        log.debug("new {s} node (dp={} dr={s}): ", .{
-            @tagName(new_node.type),
-            new_node.depth,
-            @tagName(item.dir),
-            // node.debugName(html),
-        });
 
         // Iterface and block mode
         switch (new_node.type.role()) {
@@ -532,23 +521,12 @@ pub fn init(
         //     html_node_depth -= 1;
         // }
 
-        log.debug("node={} new={} low={}\n", .{
-            node.depth,
-            new_node.depth,
-            low_mark,
-        });
         if (low_mark <= node.depth) {
-            log.debug("appended as a sibling", .{});
             assert(@src(), node.next == null);
             node.next = new_node;
             new_node.prev = node;
             new_node.parent = node.parent;
         } else {
-            log.debug("appended as a child", .{});
-            assert(@src(), node.type.role() == .block or
-                node.type.role() == .root or
-                node.type.branching() != .none);
-
             if (node.child) |c| {
                 var sibling = c;
                 while (sibling.next) |n| sibling = n;
@@ -561,7 +539,6 @@ pub fn init(
             }
         }
 
-        self.root.debug(html);
         try self.validateNodeInTree(new_node);
 
         node = new_node;
@@ -767,7 +744,7 @@ fn buildNode(
     var attrs_seen = std.StringHashMap(sitter.Node).init(arena);
     defer attrs_seen.deinit();
 
-    var scripted_attrs = std.ArrayList(sitter.Node).init(arena);
+    var scripted_attrs = std.ArrayList(SuperNode.ScriptedAttr).init(arena);
     errdefer scripted_attrs.deinit();
 
     var last_attr_end = tag_name.end();
@@ -1210,6 +1187,17 @@ fn buildNode(
 
             continue;
         }
+
+        // normal attribute
+        if (attr.value()) |value| {
+            const code = try value.unescape(arena, self.html);
+            if (std.mem.startsWith(u8, code.str, "$")) {
+                try scripted_attrs.append(.{
+                    .attr = attr,
+                    .code = code,
+                });
+            }
+        }
     }
 
     switch (tmp_result.type) {
@@ -1234,6 +1222,7 @@ fn buildNode(
 
     const new_node = try arena.create(SuperNode);
     new_node.* = tmp_result;
+    new_node.scripted_attrs = try scripted_attrs.toOwnedSlice();
     return new_node;
 }
 

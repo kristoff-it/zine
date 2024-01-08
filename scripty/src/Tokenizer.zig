@@ -148,7 +148,7 @@ pub fn next(self: *Tokenizer, code: []const u8) ?Token {
                 },
             },
             .identifier => switch (c) {
-                'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
+                'a'...'z', 'A'...'Z', '0'...'9', '_', '?', '!' => {},
                 else => {
                     res.tag = .identifier;
                     res.loc.end = self.idx;
