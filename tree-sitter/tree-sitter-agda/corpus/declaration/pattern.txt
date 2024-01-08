@@ -1,0 +1,14 @@
+==================
+Pattern Synonyms
+==================
+
+pattern z    = zero
+pattern ss x = suc (suc x)
+
+---
+
+(source_file
+    (pattern (id)
+      (expr (atom (qid))))
+    (pattern (id) (untyped_binding (bid))
+      (expr (atom (qid)) (atom (expr (atom (qid)) (atom (qid)))))))

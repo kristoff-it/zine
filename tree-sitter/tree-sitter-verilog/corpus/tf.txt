@@ -1,0 +1,146 @@
+============================================
+tf - assignment
+============================================
+
+module test;
+    initial begin
+        k = $random;
+    end
+endmodule
+
+----
+
+(source_file
+  (module_declaration
+    (module_header
+      (module_keyword)
+      (simple_identifier))
+    (module_or_generate_item
+      (initial_construct
+        (statement_or_null
+          (statement
+            (statement_item
+              (seq_block
+                (statement_or_null
+                  (statement
+                    (statement_item
+                      (blocking_assignment
+                        (operator_assignment
+                          (variable_lvalue
+                            (simple_identifier))
+                          (assignment_operator)
+                          (expression
+                            (primary
+                              (function_subroutine_call
+                                (subroutine_call
+                                  (system_tf_call
+                                    (system_tf_identifier)))))))))))))))))))
+
+============================================
+tf - statment
+============================================
+
+module test;
+    initial begin
+        $finish;
+    end
+endmodule
+
+----
+
+(source_file
+  (module_declaration
+    (module_header
+      (module_keyword)
+      (simple_identifier))
+    (module_or_generate_item
+      (initial_construct
+        (statement_or_null
+          (statement
+            (statement_item
+              (seq_block
+                (statement_or_null
+                  (statement
+                    (statement_item
+                      (system_tf_call
+                        (system_tf_identifier)))))))))))))
+
+============================================
+tf - print
+============================================
+
+module test;
+    initial begin
+        $print("%d, %d, %d", a, b, c);
+    end
+endmodule
+
+----
+
+(source_file
+  (module_declaration
+    (module_header
+      (module_keyword)
+      (simple_identifier))
+    (module_or_generate_item
+      (initial_construct
+        (statement_or_null
+          (statement
+            (statement_item
+              (seq_block
+                (statement_or_null
+                  (statement
+                    (statement_item
+                      (system_tf_call
+                        (system_tf_identifier)
+                        (list_of_arguments_parent
+                          (expression
+                            (primary
+                              (primary_literal
+                                (string_literal))))
+                          (expression
+                            (primary
+                              (simple_identifier)))
+                          (expression
+                            (primary
+                              (simple_identifier)))
+                          (expression
+                            (primary
+                              (simple_identifier))))))))))))))))
+
+============================================
+tf - inline
+============================================
+
+module test;
+    initial $monitor("%d, %d, %d", a, b, c);
+endmodule
+
+----
+
+(source_file
+  (module_declaration
+    (module_header
+      (module_keyword)
+      (simple_identifier))
+    (module_or_generate_item
+      (initial_construct
+        (statement_or_null
+          (statement
+            (statement_item
+              (system_tf_call
+                (system_tf_identifier)
+                (list_of_arguments_parent
+                  (expression
+                    (primary
+                      (primary_literal
+                        (string_literal))))
+                  (expression
+                    (primary
+                      (simple_identifier)))
+                  (expression
+                    (primary
+                      (simple_identifier)))
+                  (expression
+                    (primary
+                      (simple_identifier))))))))))))

@@ -1,0 +1,556 @@
+===========
+Alternation
+===========
+
+[
+  (binary_expression (string_literal))
+  _
+  (binary_expression (string_literal) (number_literal))
+]
+
+---
+
+(query
+  (pattern
+    pattern: (alternation
+      (choice pattern: (named_node
+        (node_name)
+        (child pattern: (named_node (node_name)))))
+      (choice pattern: (wildcard_node))
+      (choice pattern: (named_node
+        (node_name)
+        (child pattern: (named_node (node_name)))
+        (child pattern: (named_node (node_name))))))))
+
+
+====================
+Alternation keywords
+====================
+
+[
+  "break"
+  "catch"
+  "delete"
+  "else"
+  "for"
+  "function"
+  "if"
+  "return"
+  "try"
+  "while"
+] @keyword
+
+---
+
+(query
+  (pattern
+    pattern: (alternation
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf))
+      (choice pattern: (anonymous_leaf)))
+    (capture)))
+
+
+===========================
+Alternation call expression
+===========================
+
+(call_expression
+  function: [
+    (identifier) @function
+    (member_expression
+      property: (property_identifier) @method)
+  ])
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child
+        (field_name)
+        pattern: (alternation
+          (choice pattern: (named_node (node_name)) (capture))
+          (choice pattern: (named_node
+            (node_name)
+            (child
+              (field_name)
+              pattern: (named_node (node_name))
+              (capture)))))))))
+
+
+=============
+Anchor: start
+=============
+
+(array . (identifier) @the-element)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (anchor)
+      (child pattern: (named_node (node_name)) (capture)))))
+
+
+===========
+Anchor: end
+===========
+
+(block (_) @last-expression .)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (wildcard_node) (capture))
+      (anchor))))
+
+
+==============
+Anchor: middle
+==============
+
+(dotted_name
+  (identifier) @prev-id
+  .
+  (identifier) @next-id)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name)) (capture))
+      (anchor)
+      (child pattern: (named_node (node_name)) (capture)))))
+
+
+==============
+Anonymous leaf
+==============
+
+"test"
+
+---
+
+(query
+  (pattern
+    pattern: (anonymous_leaf)))
+
+
+=================================
+Escape sequence in anonymous leaf
+=================================
+
+"hello\nworld\rhow\tare\0you\\"
+
+---
+
+(query
+  (pattern
+    pattern: (anonymous_leaf
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence))))
+
+
+=====
+Group
+=====
+
+(
+  (comment)
+  (function_declaration)
+)
+
+---
+
+(query
+  (pattern
+    pattern: (group
+      (pattern pattern: (named_node (node_name)))
+      (pattern pattern: (named_node (node_name))))))
+
+
+=====================
+Group with quantifier
+=====================
+
+(
+  (number)
+  ("," (number))*
+)
+
+---
+
+(query
+  (pattern
+    pattern: (group
+      (pattern pattern: (named_node (node_name)))
+      (pattern
+        pattern: (group
+          (pattern pattern: (anonymous_leaf))
+          (pattern pattern: (named_node (node_name))))
+        quantifier: (zero_or_more)))))
+
+
+===========================
+Named node with no children
+===========================
+
+(binary_expression)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node (node_name))))
+
+
+====================================
+Captured named node with no children
+====================================
+
+(binary_expression) @result
+
+---
+
+(query
+  (pattern pattern: (named_node (node_name)) (capture)))
+
+
+=========================
+Named node with one child
+=========================
+
+(binary_expression (string_literal))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name))))))
+
+
+============================
+Named node with two children
+============================
+
+(binary_expression (string_literal) (number_literal))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name)))
+      (child pattern: (named_node (node_name))))))
+
+
+=====================================
+Captured named node with two children
+=====================================
+
+(binary_expression (string_literal) @str (number_literal) @num) @bin
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name)) (capture))
+      (child pattern: (named_node (node_name)) (capture)))
+    (capture)))
+
+
+=========================
+Named node with one field
+=========================
+
+(binary_expression field: (string_literal))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child
+        (field_name)
+        pattern: (named_node (node_name))))))
+
+
+==========================
+Named node with two fields
+==========================
+
+(binary_expression field: (string_literal) another: (number_literal))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child
+        (field_name)
+        pattern: (named_node (node_name)))
+      (child
+        (field_name)
+        pattern: (named_node (node_name))))))
+
+
+==================================
+Named node with leading underscore
+==================================
+
+(_binary_expression)
+
+---
+
+(query
+  (pattern pattern: (named_node (node_name))))
+
+
+==============
+Negated fields
+==============
+
+(assignment_expression !left)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (negated_child (field_name)))))
+
+
+==============================
+Negated and non-negated fields
+==============================
+
+(assignment_expression
+  !left
+  right: (identifier)
+  !center
+  "bottom")
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (negated_child (field_name))
+      (child (field_name) pattern: (named_node (node_name)))
+      (negated_child (field_name))
+      (child pattern: (anonymous_leaf)))))
+
+
+=============
+Nested fields
+=============
+
+(assignment_expression
+  left: (member_expression
+    object: (call_expression)))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child
+        (field_name)
+        pattern: (named_node
+          (node_name)
+          (child
+            (field_name)
+            pattern: (named_node (node_name))))))))
+
+
+=============
+Predicate: eq
+=============
+
+(
+  (pair
+    key: (property_identifier) @key-name
+    value: (identifier) @value-name)
+  (#eq? @key-name @value-name)
+)
+
+---
+
+(query
+  (pattern
+    pattern: (group
+      (pattern
+        pattern: (named_node
+          (node_name)
+          (child (field_name) pattern: (named_node (node_name)) (capture))
+          (child (field_name) pattern: (named_node (node_name)) (capture))))
+      (predicate (predicate_name) (capture) (capture)))))
+
+
+================
+Predicate: match
+================
+
+(
+  (identifier) @constant
+  (#match? @constant "^[A-Z][A-Z_]+")
+)
+
+---
+
+(query
+  (pattern pattern:
+    (group
+      (pattern pattern: (named_node (node_name)) (capture))
+      (predicate (predicate_name) (capture) (string)))))
+
+
+=======================
+Quantifier: One or more
+=======================
+
+(comment)+
+
+---
+
+(query
+  (pattern
+    pattern: (named_node (node_name))
+    quantifier: (one_or_more)))
+
+
+=======================
+Quantifier: Zero or one
+=======================
+
+(call_expression
+  function: (identifier) @the-function
+  arguments: (arguments (string)? @the-string-arg))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child (field_name) pattern: (named_node (node_name)) (capture))
+      (child
+        (field_name)
+        pattern: (named_node
+          (node_name)
+          (child
+            pattern: (named_node (node_name))
+            quantifier: (zero_or_one)
+            (capture)))))))
+
+
+========================
+Quantifier: Zero or more
+========================
+
+(class_declaration
+  (decorator)* @the-decorator
+  name: (identifier) @the-name)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child
+        pattern: (named_node (node_name))
+        quantifier: (zero_or_more)
+        (capture))
+      (child
+        (field_name)
+        pattern: (named_node (node_name))
+        (capture)))))
+
+
+=============
+Wildcard node
+=============
+
+(_)
+
+---
+
+(query
+  (pattern pattern:
+    (wildcard_node)))
+
+
+=================
+Multiple patterns
+=================
+
+(binary_expression (string_literal))
+_
+(binary_expression (string_literal) (number_literal))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name)))))
+  (pattern pattern: (wildcard_node))
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name)))
+      (child pattern: (named_node (node_name))))))
+
+
+========
+Comments
+========
+
+; comment
+(binary_expression
+; comment
+  field: (string_literal) ; comment
+  another: (number_literal))
+
+---
+
+(query
+  (comment)
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (comment)
+      (child (field_name) pattern: (named_node (node_name)))
+      (comment)
+      (child (field_name) pattern: (named_node (node_name))))))

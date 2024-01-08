@@ -1,0 +1,11 @@
+============================================
+Multi-line documents with CRLF line endings
+============================================
+
+/**
+ * This is a description
+ */
+
+---
+
+(document (description))

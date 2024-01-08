@@ -327,10 +327,14 @@ pub const Tag = struct {
                 allocator: std.mem.Allocator,
                 html: []const u8,
             ) !Managed {
-                const str = if (std.mem.eql(u8, self.node.nodeType(), "quoted_attribute_value"))
-                    self.node.childAt(0).?.string(html)
-                else
-                    self.node.string(html);
+                const str = blk: {
+                    if (std.mem.eql(u8, self.node.nodeType(), "quoted_attribute_value")) {
+                        const content = self.node.childAt(0) orelse break :blk "";
+                        break :blk content.string(html);
+                    } else {
+                        break :blk self.node.string(html);
+                    }
+                };
 
                 // TODO: html entities
                 _ = allocator;

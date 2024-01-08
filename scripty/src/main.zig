@@ -2,8 +2,8 @@ const interpreter = @import("interpreter.zig");
 const types = @import("types.zig");
 
 pub const ScriptyVM = interpreter.ScriptyVM;
-pub const Result = types.Result;
-pub const Value = types.Value;
+pub const defaultDot = types.defaultDot;
+pub const defaultCall = types.defaultCall;
 
 test {
     _ = interpreter;

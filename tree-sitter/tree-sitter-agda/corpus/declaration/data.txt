@@ -1,0 +1,39 @@
+==================
+Simple
+==================
+
+data Nat : Set where
+    zero : Nat
+    succ : Nat -> Nat
+
+---
+
+(source_file
+    (data
+        (data_name) (expr (atom (SetN)))
+        (function
+            (lhs (function_name (atom (qid))))
+            (rhs
+                (expr (atom (qid)))))
+        (function
+            (lhs (function_name (atom (qid))))
+            (rhs
+                (expr
+                    (atom (qid))
+                    (expr (atom (qid))))))))
+
+==================
+Without body
+==================
+
+data Nat : Set where
+
+data Nat : Set where
+
+---
+
+(source_file
+    (data
+      (data_name) (expr (atom (SetN))))
+    (data
+      (data_name) (expr (atom (SetN)))))

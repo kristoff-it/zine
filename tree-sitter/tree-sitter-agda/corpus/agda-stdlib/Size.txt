@@ -1,0 +1,25 @@
+==================
+open import
+==================
+
+module Size where
+
+open import Agda.Builtin.Size public
+  renaming ( SizeU to SizeUniv ) --  sort SizeUniv
+  using    ( Size                --  Size   : SizeUniv
+           ; Size<_              --  Size<_ : Size → SizeUniv
+           ; ↑_ )                --  ↑_     : Size → Size
+  renaming ( ω to ∞ )           --  ∞      : Size
+
+---
+
+(source_file
+    (module (module_name (qid)))
+    (open (import (module_name (qid)))
+        (import_directive)
+        (import_directive (renaming (id) (id)))
+        (comment)
+        (import_directive (id) (comment) (id) (comment) (id))
+        (comment)
+        (import_directive (renaming (id) (id))))
+        (comment))

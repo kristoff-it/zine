@@ -1,0 +1,538 @@
+==============================
+identifiers
+==============================
+
+abc_123_ABC
+_fn!
+ρ; φ; z
+ℝ
+x′
+θ̄
+logŷ
+ϵ
+ŷ
+🙋
+🦀
+
+---
+
+(source_file
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier)
+  (identifier))
+
+
+==============================
+field expressions
+==============================
+
+foo.x
+bar.x.y.z
+
+(a[1].b().c).d
+
+Base.:+
+
+df."a"
+
+---
+
+(source_file
+  (field_expression
+    (identifier)
+    (identifier))
+  (field_expression
+    (field_expression
+      (field_expression
+        (identifier)
+        (identifier))
+      (identifier))
+      (identifier))
+
+  (field_expression
+    (parenthesized_expression
+      (field_expression
+        (call_expression
+          (field_expression
+            (index_expression (identifier) (vector_expression (integer_literal)))
+            (identifier))
+          (argument_list))
+        (identifier)))
+    (identifier))
+
+  (field_expression
+    (identifier)
+    (quote_expression
+      (operator)))
+
+  (field_expression
+    (identifier)
+    (string_literal)))
+
+
+==============================
+index expressions
+==============================
+
+a[1, 2, 3]
+a[1, :]
+"foo"[1]
+
+---
+(source_file
+  (index_expression
+    (identifier)
+    (vector_expression
+      (integer_literal)
+      (integer_literal)
+      (integer_literal)))
+  (index_expression
+    (identifier)
+    (vector_expression
+      (integer_literal)
+      (operator)))
+  (index_expression
+    (string_literal)
+    (vector_expression (integer_literal))))
+
+
+==============================
+type parametrized expressions
+==============================
+
+Vector{Int}
+Vector{<:Number}
+$(usertype){T}
+
+{:x} ~ normal(0, 1)
+
+---
+
+(source_file
+  (parametrized_type_expression
+    (identifier)
+    (curly_expression (identifier)))
+  (parametrized_type_expression
+    (identifier)
+    (curly_expression (unary_expression (operator) (identifier))))
+  (parametrized_type_expression
+    (interpolation_expression (parenthesized_expression (identifier)))
+    (curly_expression (identifier)))
+
+  ; Gen.jl example
+  (compound_assignment_expression
+    (curly_expression (quote_expression (identifier)))
+    (operator)
+    (call_expression
+      (identifier)
+      (argument_list (integer_literal) (integer_literal)))))
+
+
+==============================
+function call expressions
+==============================
+
+f()
+g("hi", 2)
+h(d...)
+
+f(e; f = g)
+g(arg; kwarg)
+
+new{typeof(xs)}(xs)
+
+---
+
+(source_file
+  (call_expression (identifier) (argument_list))
+  (call_expression (identifier) (argument_list (string_literal) (integer_literal)))
+  (call_expression (identifier) (argument_list (splat_expression (identifier))))
+
+  (call_expression
+    (identifier)
+    (argument_list
+      (identifier)
+      (named_argument (identifier) (identifier))))
+  (call_expression
+    (identifier)
+    (argument_list (identifier) (identifier)))
+
+  (call_expression
+    (parametrized_type_expression
+      (identifier)
+      (curly_expression
+        (call_expression (identifier) (argument_list (identifier)))))
+    (argument_list (identifier))))
+
+
+========================================
+function call expressions with do blocks
+========================================
+
+reduce(xs) do x, y
+  f(x, y)
+end
+
+---
+
+(source_file
+  (call_expression
+    (identifier)
+    (argument_list (identifier))
+    (do_clause
+      (parameter_list
+        (identifier)
+        (identifier))
+      (call_expression
+        (identifier)
+        (argument_list (identifier) (identifier))))))
+
+
+==============================
+macro call expressions
+==============================
+
+@assert x == y "a message"
+
+@testset "a" begin
+  b = c
+end
+
+@. a * x + b
+
+joinpath(@__DIR__, "grammar.js")
+
+@macroexpand @async accept(socket)
+
+@Meta.dump 1, 2
+Meta.@dump x = 1
+
+---
+
+(source_file
+  (macrocall_expression
+    (macro_identifier (identifier))
+    (macro_argument_list
+      (binary_expression (identifier) (operator) (identifier))
+      (string_literal)))
+
+  (macrocall_expression
+    (macro_identifier (identifier))
+    (macro_argument_list
+      (string_literal)
+      (compound_statement (assignment (identifier) (operator) (identifier)))))
+
+  (macrocall_expression
+    (macro_identifier (operator))
+    (macro_argument_list
+      (binary_expression
+        (binary_expression (identifier) (operator) (identifier))
+        (operator)
+        (identifier))))
+
+  ; Macros as arguments
+  (call_expression
+    (identifier)
+    (argument_list
+      (macrocall_expression (macro_identifier (identifier)))
+      (string_literal)))
+
+  ; Nested macros
+  (macrocall_expression
+    (macro_identifier (identifier))
+    (macro_argument_list
+      (macrocall_expression
+        (macro_identifier (identifier))
+        (macro_argument_list
+          (call_expression (identifier) (argument_list (identifier)))))))
+
+  ; Scoped macro identifiers
+  (macrocall_expression
+    (macro_identifier (scoped_identifier (identifier) (identifier)))
+    (macro_argument_list
+      (bare_tuple (integer_literal) (integer_literal))))
+  (macrocall_expression
+    (identifier)
+    (macro_identifier (identifier))
+    (macro_argument_list
+      (assignment (identifier) (operator) (integer_literal)))))
+
+
+==============================
+closed macro call expressions
+==============================
+
+@enum(Light, red, yellow, green)
+f(@nospecialize(x)) = x
+
+@m[1, 2] + 1
+@m [1, 2] + 1
+
+---
+(source_file
+  (macrocall_expression
+    (macro_identifier (identifier))
+    (argument_list (identifier) (identifier) (identifier) (identifier)))
+
+  ; Macros as parameters
+  (short_function_definition
+    (identifier)
+    (parameter_list
+      (macrocall_expression
+        (macro_identifier (identifier))
+        (argument_list (identifier))))
+    (identifier))
+
+  ; Open vs closed macros
+  (binary_expression
+    (macrocall_expression
+      (macro_identifier (identifier))
+      (vector_expression (integer_literal) (integer_literal)))
+    (operator)
+    (integer_literal))
+  (macrocall_expression
+    (macro_identifier (identifier))
+    (macro_argument_list
+      (binary_expression
+        (vector_expression (integer_literal) (integer_literal))
+        (operator)
+        (integer_literal)))))
+
+
+==============================
+quote expressions
+==============================
+
+:foo
+:const
+
+:(x; y)
+:(x, y)
+:[x, y, z]
+
+:+
+:->
+:(::)
+
+---
+(source_file
+  (quote_expression (identifier))
+  (quote_expression (identifier))
+
+  (quote_expression
+    (parenthesized_expression
+      (identifier)
+      (identifier)))
+  (quote_expression
+    (tuple_expression
+      (identifier)
+      (identifier)))
+  (quote_expression
+    (vector_expression
+      (identifier)
+      (identifier)
+      (identifier)))
+  ; Operator
+  (quote_expression (operator))
+  ; Syntactic operators
+  (quote_expression (operator))
+  (quote_expression (operator)))
+
+
+==============================
+interpolation expressions
+==============================
+
+$foo
+$obj.field
+$(obj.field)
+$f(x)
+$f[1, 2]
+$"foo"
+
+using $Package: $(name)
+
+# Similar definitions in Gadfly/src/varset.jl
+mutable struct $(name)
+  $(vars...)
+end
+function $(name)($(parameters_expr))
+    $(name)($(parsed_vars...))
+end
+
+---
+
+(source_file
+  (interpolation_expression
+    (identifier))
+  (field_expression
+    (interpolation_expression
+      (identifier))
+    (identifier))
+  (interpolation_expression
+    (parenthesized_expression
+      (field_expression
+        (identifier)
+        (identifier))))
+  (call_expression
+    (interpolation_expression
+      (identifier))
+    (argument_list
+      (identifier)))
+  (index_expression
+    (interpolation_expression
+      (identifier))
+    (vector_expression
+      (integer_literal)
+      (integer_literal)))
+  (interpolation_expression (string_literal))
+  (import_statement
+    (selected_import
+      (interpolation_expression (identifier))
+      (interpolation_expression (parenthesized_expression (identifier)))))
+
+  (line_comment)
+  (struct_definition
+    (interpolation_expression
+      (parenthesized_expression (identifier)))
+    (interpolation_expression
+      (parenthesized_expression (splat_expression (identifier)))))
+  (function_definition
+    (interpolation_expression
+      (parenthesized_expression (identifier)))
+    (parameter_list
+      (interpolation_expression
+        (parenthesized_expression (identifier))))
+    (call_expression
+      (interpolation_expression
+        (parenthesized_expression (identifier)))
+      (argument_list
+        (interpolation_expression
+          (parenthesized_expression (splat_expression (identifier))))))))
+
+
+==============================
+adjoint expressions
+==============================
+
+[u, v]'
+A'[i]
+(x, y)'
+f'(x)
+:a'
+
+
+---
+(source_file
+  (adjoint_expression
+    (vector_expression (identifier) (identifier)))
+  (index_expression
+    (adjoint_expression (identifier))
+    (vector_expression (identifier)))
+  (adjoint_expression
+    (tuple_expression (identifier) (identifier)))
+  (call_expression
+    (adjoint_expression (identifier))
+    (argument_list (identifier)))
+  (adjoint_expression
+    (quote_expression (identifier))))
+
+==============================
+juxtaposition expressions
+==============================
+
+1x
+2v[i]
+3f(x)
+4df.a
+5u"kg"
+x'x
+2x^2 - .3x
+2(x-1)^2 - 3(x-1)
+
+---
+
+(source_file
+  (juxtaposition_expression
+    (integer_literal)
+    (identifier))
+  (juxtaposition_expression
+    (integer_literal)
+    (index_expression (identifier) (vector_expression (identifier))))
+  (juxtaposition_expression
+    (integer_literal)
+    (call_expression (identifier) (argument_list (identifier))))
+  (juxtaposition_expression
+    (integer_literal)
+    (field_expression (identifier) (identifier)))
+  (juxtaposition_expression
+    (integer_literal)
+    (prefixed_string_literal (identifier)))
+  (juxtaposition_expression
+    (adjoint_expression (identifier))
+    (identifier))
+
+  (binary_expression
+    (binary_expression
+      (juxtaposition_expression (integer_literal) (identifier))
+      (operator)
+      (integer_literal))
+    (operator)
+    (juxtaposition_expression (float_literal) (identifier)))
+  (binary_expression
+    (binary_expression
+      (juxtaposition_expression
+        (integer_literal)
+        (parenthesized_expression (binary_expression (identifier) (operator) (integer_literal))))
+      (operator)
+      (integer_literal))
+    (operator)
+    (juxtaposition_expression
+      (integer_literal)
+      (parenthesized_expression (binary_expression (identifier) (operator) (integer_literal))))))
+
+
+=============================
+arrow function expressions
+=============================
+
+x -> x^2
+(x,y,z)-> 2*x + y - z
+()->3
+() -> (sleep(0.1); i += 1; l)
+
+---
+
+(source_file
+  (function_expression
+    (identifier)
+    (binary_expression (identifier) (operator) (integer_literal)))
+  (function_expression
+    (parameter_list (identifier) (identifier) (identifier))
+    (binary_expression
+      (binary_expression
+        (binary_expression (integer_literal) (operator) (identifier))
+        (operator)
+        (identifier))
+      (operator)
+      (identifier)))
+  (function_expression
+    (parameter_list)
+    (integer_literal))
+  (function_expression
+    (parameter_list)
+    (parenthesized_expression
+      (call_expression (identifier) (argument_list (float_literal)))
+      (compound_assignment_expression (identifier) (operator) (integer_literal))
+      (identifier))))
+

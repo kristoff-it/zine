@@ -1,0 +1,28 @@
+================
+Unnamed wildcard
+================
+
+(return_statement (_) @the-return-value)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (wildcard_node) (capture)))))
+
+
+==============
+Named wildcard
+==============
+
+(binary_expression operator: _ @the-operator)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child (field_name) pattern: (wildcard_node) (capture)))))

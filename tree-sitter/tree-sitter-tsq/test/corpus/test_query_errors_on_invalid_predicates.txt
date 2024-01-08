@@ -1,0 +1,17 @@
+====================
+Capture with no node
+====================
+
+((identifier) @id (@id))
+
+---
+
+(query 
+  (pattern
+    pattern: (group
+      (pattern pattern: (named_node (node_name)) (capture))
+      (pattern
+        pattern: (group
+          (pattern pattern:
+            (wildcard_node (MISSING "_"))
+            (capture)))))))

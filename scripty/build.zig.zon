@@ -1,11 +1,6 @@
 .{
     .name = "scripty",
     .version = "0.0.0",
-    .dependencies = .{
-        .datetime = .{
-            .url = "git+https://github.com/frmdstryr/zig-datetime.git#d61796365c802f58bcec268924e6074628b43bf7",
-            .hash = "12206379a2526c6a70a6501b33a06ad2d63794f55b4a1beaf2dec3f4d0a24b815341",
-        },
-    },
+    .dependencies = .{},
     .paths = .{"."},
 }

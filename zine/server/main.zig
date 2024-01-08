@@ -213,7 +213,8 @@ fn normalizePath(bytes: []u8) void {
 
 /// like fs.path.dirname but ensures a final `/`
 fn dirNameWithSlash(path: []const u8) []const u8 {
-    if (fs.path.dirname(path)) |d| {
+    const d = fs.path.dirname(path).?;
+    if (d.len > 1) {
         return path[0 .. d.len + 1];
     } else {
         return "/";

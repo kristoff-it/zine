@@ -1,0 +1,31 @@
+{
+  "name": "tree-sitter-regex",
+  "version": "0.20.0",
+  "description": "regex grammar for tree-sitter",
+  "main": "bindings/node",
+  "keywords": [
+    "parser",
+    "regex"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tree-sitter/tree-sitter-regex.git"
+  },
+  "author": "Ashi Krishnan <queerviolet@github.com>",
+  "license": "MIT",
+  "dependencies": {
+    "nan": "^2.14.1"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.20.8"
+  },
+  "scripts": {
+    "test": "tree-sitter test"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.regex",
+      "injection-regex": "^regex$"
+    }
+  ]
+}

@@ -1,0 +1,494 @@
+================================================================================
+Class method with single parameter
+================================================================================
+
+class A {
+  private int GetBack(int b) {
+    return b;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        (modifier)
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier)))))))
+
+================================================================================
+Class method with multiple parameters
+================================================================================
+
+class A {
+  void DoSomething(A a, B b) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block)))))
+
+================================================================================
+Class generic method
+================================================================================
+
+class A {
+  void Accept<T>(T accept) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        type_parameters: (type_parameter_list
+          (type_parameter
+            name: (identifier)))
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block)))))
+
+================================================================================
+Class generic method with new type constraint
+================================================================================
+
+class A {
+  void Accept<T>(T accept) where T: new() {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        type_parameters: (type_parameter_list
+          (type_parameter
+            name: (identifier)))
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        (type_parameter_constraints_clause
+          target: (identifier)
+          constraints: (type_parameter_constraint
+            (constructor_constraint)))
+        body: (block)))))
+
+================================================================================
+Class generic method with multiple type constraints
+================================================================================
+
+class A {
+  void Accept<T1, T2>(T1 accept, T2 from)
+    where T1: new()
+    where T2: T1, new() {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        type_parameters: (type_parameter_list
+          (type_parameter
+            name: (identifier))
+          (type_parameter
+            name: (identifier)))
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        (type_parameter_constraints_clause
+          target: (identifier)
+          constraints: (type_parameter_constraint
+            (constructor_constraint)))
+        (type_parameter_constraints_clause
+          target: (identifier)
+          constraints: (type_parameter_constraint
+            (type_constraint
+              type: (identifier)))
+          constraints: (type_parameter_constraint
+            (constructor_constraint)))
+        body: (block)))))
+
+================================================================================
+Class method with out parameter
+================================================================================
+
+class A {
+  void HasAnOut(out int a) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (parameter_modifier)
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block)))))
+
+================================================================================
+Class method with in parameter
+================================================================================
+
+class A {
+  void HasAnOut(in int a) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (parameter_modifier)
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block)))))
+
+================================================================================
+Class method with ref parameter
+================================================================================
+
+class A {
+  void HasAnOut(ref int a) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (parameter_modifier)
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block)))))
+
+================================================================================
+Class method with extension ref parameter
+================================================================================
+
+class A {
+  void M(this ref int a) { }
+  void M(this scoped ref int a) { }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (parameter_modifier)
+            (parameter_modifier)
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block))
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (parameter_modifier)
+            (parameter_modifier)
+            (parameter_modifier)
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block)))))
+
+================================================================================
+Class method with contextually-reserved keyword named parameters
+================================================================================
+
+class A {
+  void HasAnOut(int from, string partial) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier))
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block)))))
+
+================================================================================
+Class method with default parameter
+================================================================================
+
+class A {
+  void HasAnOut(int a = 5) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier)
+            (equals_value_clause
+              (integer_literal))))
+        body: (block)))))
+
+================================================================================
+Class static method with single parameter
+================================================================================
+
+class A {
+  static int GetBack(int b) {
+    return b;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        (modifier)
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier)))))))
+
+================================================================================
+Class method with explicit interface specifier
+================================================================================
+
+class A : ISomething {
+  int ISomething.GetBack(int b) {
+    return b;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    bases: (base_list
+      (identifier))
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        (explicit_interface_specifier
+          name: (identifier))
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (predefined_type)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier)))))))
+
+================================================================================
+Class method with readonly method
+================================================================================
+
+class A {
+  public readonly double Add => x + y;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (property_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        name: (identifier)
+        value: (arrow_expression_clause
+          (binary_expression
+            left: (identifier)
+            right: (identifier)))))))
+
+================================================================================
+Class method with nullable parameter list
+================================================================================
+
+class A {
+  public int Zero(params int[]? ints) => 0;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        (modifier)
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          type: (nullable_type
+            type: (array_type
+              type: (predefined_type)
+              rank: (array_rank_specifier)))
+          name: (identifier))
+        body: (arrow_expression_clause
+          (integer_literal))))))
+
+================================================================================
+Method with scoped parameter and scoped local variable
+================================================================================
+
+ref struct S {
+    void M(scoped ref System.Span<int> p) {
+        scoped ref System.Span<int> i = ref p;
+        scoped System.Span<int> j = p;
+    }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (struct_declaration
+    (modifier)
+    name: (identifier)
+    body: (declaration_list
+      (method_declaration
+        type: (predefined_type)
+        name: (identifier)
+        parameters: (parameter_list
+          (parameter
+            (parameter_modifier)
+            (parameter_modifier)
+            type: (qualified_name
+              qualifier: (identifier)
+              name: (generic_name
+                name: (identifier)
+                type_arguments: (type_argument_list
+                  (predefined_type))))
+            name: (identifier)))
+        body: (block
+          (local_declaration_statement
+            (variable_declaration
+              type: (scoped_type
+                type: (ref_type
+                  type: (qualified_name
+                    qualifier: (identifier)
+                    name: (generic_name
+                      name: (identifier)
+                      type_arguments: (type_argument_list
+                        (predefined_type))))))
+              (variable_declarator
+                name: (identifier)
+                (equals_value_clause
+                  (ref_expression
+                    (identifier))))))
+          (local_declaration_statement
+            (variable_declaration
+              type: (scoped_type
+                type: (qualified_name
+                  qualifier: (identifier)
+                  name: (generic_name
+                    name: (identifier)
+                    type_arguments: (type_argument_list
+                      (predefined_type)))))
+              (variable_declarator
+                name: (identifier)
+                (equals_value_clause
+                  (identifier))))))))))

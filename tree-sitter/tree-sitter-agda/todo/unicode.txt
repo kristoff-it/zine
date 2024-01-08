@@ -1,0 +1,105 @@
+
+==================
+raw monoid
+==================
+
+-- A raw monoid is a monoid without any laws.
+
+record RawMonoid c ℓ : Set (suc (c ⊔ ℓ)) where
+  infixl 7 _∙_
+  infix  4 _≈_
+  field
+    Carrier : Set c
+    _≈_     : Rel Carrier ℓ
+    _∙_     : Op₂ Carrier
+    ε       : Carrier
+
+---
+
+(source_file
+    (comment)
+    (record
+        (record_name (qualified_name))
+            (untyped_binding (binding_name))
+            (untyped_binding (binding_name))
+            (expr (atom) (atom (expr
+                (atom (qualified_name))
+                (atom (expr (atom (qualified_name))
+                (atom (qualified_name))
+                (atom (qualified_name)))))))
+        (record_declarations_block
+            (infix (integer) (binding_name))
+            (infix (integer) (binding_name))
+            (field
+                (type_sig (field_name) (expr (atom) (atom (qualified_name))))
+                (type_sig (field_name) (expr        (atom (qualified_name)) (atom (qualified_name)) (atom (qualified_name))))
+                (type_sig (field_name) (expr        (atom (qualified_name)) (atom (qualified_name))))
+                (type_sig (field_name) (expr        (atom (qualified_name))))))))
+
+==================
+monoid
+==================
+
+record Monoid c ℓ : Set (suc (c ⊔ ℓ)) where
+  infixl 7 _∙_
+  infix  4 _≈_
+  field
+    Carrier  : Set c
+    _≈_      : Rel Carrier ℓ
+    _∙_      : Op₂ Carrier
+    ε        : Carrier
+    isMonoid : IsMonoid _≈_ _∙_ ε
+
+  open IsMonoid isMonoid public
+
+  semigroup : Semigroup _ _
+  semigroup = record { isSemigroup = isSemigroup }
+
+  rawMonoid : RawMonoid _ _
+  rawMonoid = record
+    { _≈_ = _≈_
+    ; _∙_ = _∙_
+    ; ε   = ε
+    }
+
+
+---
+
+(source_file
+    (record
+        (record_name (qualified_name))
+            (untyped_binding (binding_name))
+            (untyped_binding (binding_name))
+            (expr (atom) (atom (expr
+                (atom (qualified_name))
+                (atom (expr (atom (qualified_name))
+                (atom (qualified_name))
+                (atom (qualified_name)))))))
+        (record_declarations_block
+            (infix (integer) (binding_name))
+            (infix (integer) (binding_name))
+            (field
+                (type_sig (field_name) (expr (atom) (atom (qualified_name))))
+                (type_sig (field_name) (expr        (atom (qualified_name)) (atom (qualified_name)) (atom (qualified_name))))
+                (type_sig (field_name) (expr        (atom (qualified_name)) (atom (qualified_name))))
+                (type_sig (field_name) (expr        (atom (qualified_name))))
+                (type_sig (field_name) (expr        (atom (qualified_name)) (atom (qualified_name)) (atom (qualified_name)) (atom (qualified_name)))))
+            (open (module_name) (atom (qualified_name)) (import_directive))
+            (function_clause
+                (lhs (function_name (qualified_name)))
+                (rhs (expr (atom (qualified_name)) (atom) (atom))))
+            (function_clause
+                (lhs (atom (qualified_name)))
+                (rhs (expr (atom
+                    (record_assignments
+                        (field_assignment (field_name) (expr (atom (qualified_name)))))))))
+            (function_clause
+                (lhs (function_name (qualified_name)))
+                (rhs (expr (atom (qualified_name)) (atom) (atom))))
+            (function_clause
+                (lhs (atom (qualified_name)))
+                (rhs (expr (atom
+                    (record_assignments
+                        (field_assignment (field_name) (expr (atom (qualified_name))))
+                        (field_assignment (field_name) (expr (atom (qualified_name))))
+                        (field_assignment (field_name) (expr (atom (qualified_name))))))))))))

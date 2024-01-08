@@ -1,0 +1,340 @@
+============================================
+always -- seq_block
+============================================
+
+module a_l ();
+
+always begin end
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct (always_keyword) (statement (statement_item (seq_block))))
+  )
+))
+
+============================================
+always -- @*
+============================================
+
+module a ();
+
+always @* begin end
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct
+      (always_keyword)
+      (statement (statement_item (procedural_timing_control_statement
+        (event_control)
+        (statement_or_null (statement (statement_item (seq_block))))
+      )))
+    )
+  )
+))
+
+============================================
+always -- @(*)
+============================================
+
+module a ();
+
+always @(*) begin end
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct
+      (always_keyword)
+      (statement (statement_item (procedural_timing_control_statement
+        (event_control)
+        (statement_or_null (statement (statement_item (seq_block))))
+      )))
+    )
+  )
+))
+
+============================================
+always -- @(posedge clk)
+============================================
+
+module a ();
+
+always @(posedge clk) begin end
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct
+      (always_keyword)
+      (statement (statement_item (procedural_timing_control_statement
+        (event_control (event_expression
+          (edge_identifier)
+          (expression (primary (simple_identifier)))
+        ))
+        (statement_or_null (statement (statement_item (seq_block))))
+      )))
+    )
+  )
+))
+
+============================================
+always -- all
+============================================
+
+module abc ();
+
+always begin end
+always_ff begin end
+always_comb begin end
+always_latch begin end
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (always_construct (always_keyword) (statement (statement_item (seq_block)))))
+  (module_or_generate_item (always_construct (always_keyword) (statement (statement_item (seq_block)))))
+  (module_or_generate_item (always_construct (always_keyword) (statement (statement_item (seq_block)))))
+  (module_or_generate_item (always_construct (always_keyword) (statement (statement_item (seq_block)))))
+))
+
+============================================
+always -- if begin end
+============================================
+
+module abc ();
+
+always_comb
+if (a) begin
+  a = b;
+end
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct (always_keyword)
+      (statement (statement_item (conditional_statement
+        (cond_predicate
+          (expression (primary (simple_identifier))))
+        (statement_or_null (statement (statement_item
+            (seq_block
+              (statement_or_null (statement (statement_item
+                (blocking_assignment (operator_assignment
+                  (variable_lvalue (simple_identifier))
+                  (assignment_operator)
+                  (expression (primary (simple_identifier)))))))))))))))))))
+
+============================================
+always -- if
+============================================
+
+module abc ();
+
+always_comb
+if (foo)
+  bar = baz;
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct (always_keyword)
+      (statement (statement_item (conditional_statement
+        (cond_predicate (expression (primary (simple_identifier))))
+        (statement_or_null (statement
+          (statement_item (blocking_assignment (operator_assignment
+            (variable_lvalue (simple_identifier))
+            (assignment_operator)
+            (expression (primary (simple_identifier)))))))))))))))
+
+============================================
+always -- case
+============================================
+
+module abc ();
+
+always_comb
+case ( foo )
+  8'h00, 8'h05: bar <= 1'b0;
+  default       bar <= 1;
+endcase
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct (always_keyword)
+      (statement (statement_item (case_statement (case_keyword)
+        (case_expression (expression (primary (simple_identifier))))
+        (case_item
+          (case_item_expression (expression (primary (primary_literal (integral_number (hex_number))))))
+          (case_item_expression (expression (primary (primary_literal (integral_number (hex_number))))))
+          (statement_or_null (statement
+            (statement_item
+              (nonblocking_assignment
+                (variable_lvalue (simple_identifier))
+                (expression (primary (primary_literal (integral_number (binary_number))))))))))
+        (case_item
+          (statement_or_null (statement
+            (statement_item
+              (nonblocking_assignment
+                (variable_lvalue (simple_identifier))
+                (expression (primary (primary_literal (integral_number (decimal_number (unsigned_number))))))))))))))))))
+
+============================================
+always -- seq_block
+============================================
+
+module a_l ();
+
+always @(a or b or c or d) begin end
+
+endmodule
+
+----
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (always_construct (always_keyword)
+      (statement (statement_item (procedural_timing_control_statement (event_control
+        (event_expression
+          (event_expression
+            (event_expression
+              (event_expression (expression (primary (simple_identifier))))
+              (event_expression (expression (primary (simple_identifier))))
+            )
+            (event_expression (expression (primary (simple_identifier))))
+          )
+          (event_expression (expression (primary (simple_identifier))))
+        )
+      )
+      (statement_or_null (statement (statement_item (seq_block))))
+    )))
+  )
+)))
+
+============================================
+always -- never block
+============================================
+
+module foo ();
+
+always @(posedge 1'd0) begin end
+
+endmodule
+
+----
+
+(source_file
+  (module_declaration
+    (module_header (module_keyword) (simple_identifier))
+    (module_nonansi_header (list_of_ports))
+    (module_or_generate_item
+      (always_construct (always_keyword)
+        (statement (statement_item (procedural_timing_control_statement
+          (event_control
+            (event_expression
+              (edge_identifier)
+              (expression (primary (primary_literal (integral_number (decimal_number)))))
+            )
+          )
+          (statement_or_null (statement (statement_item (seq_block))))
+        )))
+      )
+    )
+  )
+)
+
+============================================
+always -- member
+============================================
+
+module mod ();
+  always_comb foo = bar.baz;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (always_construct (always_keyword)
+    (statement (statement_item (blocking_assignment (operator_assignment
+      (variable_lvalue (simple_identifier))
+      (assignment_operator)
+      (expression (primary (simple_identifier) (select1 (member_identifier (simple_identifier)))))
+    ))))
+  ))
+))
+
+============================================
+always -- member slice
+============================================
+
+module mod ();
+  always_comb foo = bar.baz[7:0];
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (always_construct (always_keyword) (statement
+    (statement_item (blocking_assignment
+      (operator_assignment
+        (variable_lvalue (simple_identifier))
+        (assignment_operator)
+        (expression (primary
+          (simple_identifier)
+          (select1
+            (member_identifier (simple_identifier))
+            (constant_range
+              (constant_expression (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+              (constant_expression (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+            )
+          )
+        ))
+      )
+    ))
+  )))
+))

@@ -1,0 +1,28 @@
+============================================
+pkg - nettype
+============================================
+
+package NetsPkg;
+  nettype real realNet;
+endpackage : NetsPkg
+
+----
+
+(source_file (package_declaration
+  (package_identifier (simple_identifier))
+  (package_or_generate_item_declaration (data_declaration (net_type_declaration
+    (data_type (non_integer_type))
+    (simple_identifier)
+  )))
+  (package_identifier (simple_identifier))
+))
+
+============================================
+pkg - import
+============================================
+
+// import "DPI-C" context function int foo(string bar);
+
+----
+
+(source_file (comment))

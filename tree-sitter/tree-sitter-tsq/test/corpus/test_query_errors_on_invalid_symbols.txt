@@ -1,0 +1,48 @@
+Note: In the tree-sitter library, these examples all produce parse errors, since
+we validate a query against a particular language's grammar.  These queries
+refer to rules that don't exist in the JavaScript grammar.  Here, we're only
+checking that they're syntactically valid queries (which they are), so these are
+all _successful_ test cases.
+
+
+====
+clas
+====
+
+(clas)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node (node_name))))
+
+
+=========
+arrayyyyy
+=========
+
+(if_statement (arrayyyyy))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name))))))
+
+
+=====================
+identifier identifier
+=====================
+
+(identifier (identifier))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern: (named_node (node_name))))))

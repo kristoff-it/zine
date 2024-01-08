@@ -1,0 +1,447 @@
+============================================
+assign - constant decimal
+============================================
+
+module mod ();
+  assign a = 5;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+    (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+    ))))
+))
+
+============================================
+assign - constant '0
+============================================
+
+module mod ();
+  assign a = '0;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+    (module_or_generate_item
+      (continuous_assign (list_of_net_assignments (net_assignment
+        (net_lvalue (simple_identifier))
+        (expression (primary (primary_literal (unbased_unsized_literal))))
+      )))
+    )
+))
+
+============================================
+assign - constants: bin oct dec hex
+============================================
+
+module mod ();
+
+  assign quz = 16'habc;
+  assign bar = 6'o42;
+  assign foo = 7'b010_1000;
+  assign baz = 12'd987654;
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+    (net_lvalue (simple_identifier))
+    (expression (primary (primary_literal (integral_number (hex_number)))))))))
+  (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+    (net_lvalue (simple_identifier))
+    (expression (primary (primary_literal (integral_number (octal_number)))))))))
+  (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+    (net_lvalue (simple_identifier))
+    (expression (primary (primary_literal (integral_number (binary_number)))))))))
+  (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+    (net_lvalue (simple_identifier))
+    (expression (primary (primary_literal (integral_number (decimal_number)))))))))))
+
+============================================
+assign - net
+============================================
+
+module mod ();
+  assign a = b;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+    (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary (simple_identifier)))
+    ))))
+  )
+)
+
+============================================
+assign - binary_operator
+============================================
+
+module mod ();
+  assign a = b & c;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+    (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression
+        (expression (primary (simple_identifier)))
+        (expression (primary (simple_identifier)))
+      )
+    ))))
+  )
+)
+
+
+============================================
+assign - unary_operator
+============================================
+
+module mod ();
+  assign a = ~|c;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+    (net_lvalue (simple_identifier))
+    (expression
+      (unary_operator)
+      (primary (simple_identifier))
+    )
+  )))))
+)
+
+============================================
+assign - parenthesized expression
+============================================
+
+module mod ();
+  assign a = (
+    b + c)
+      | &(b
+        & 5 );
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+    (net_lvalue (simple_identifier))
+    (expression
+      (expression (primary (mintypmax_expression
+        (expression
+          (expression (primary (simple_identifier)))
+          (expression (primary (simple_identifier)))
+        )
+      )))
+      (expression
+        (unary_operator)
+        (primary (mintypmax_expression
+          (expression
+            (expression (primary (simple_identifier)))
+            (expression (primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+          )
+        ))
+      )
+    )
+  ))))
+))
+
+============================================
+assign - concatenation LHS
+============================================
+
+module mod ();
+  assign {a, b} = foo;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments (net_assignment
+      (net_lvalue
+        (net_lvalue (simple_identifier))
+        (net_lvalue (simple_identifier))
+      )
+      (expression (primary (simple_identifier)))
+    ))
+  ))
+))
+
+============================================
+assign - concatenation RHS
+============================================
+
+module mod ();
+  assign a = {b,c , d };
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary (concatenation
+        (expression (primary (simple_identifier)))
+        (expression (primary (simple_identifier)))
+        (expression (primary (simple_identifier)))
+      )))
+    ))
+  ))
+))
+
+============================================
+assign - bit_select
+============================================
+
+module mod ();
+  assign a = b[1];
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary
+        (simple_identifier)
+        (select1 (bit_select1 (expression (primary (primary_literal (integral_number (decimal_number (unsigned_number))))))))
+      ))
+    ))
+  ))
+))
+
+============================================
+assign - constant_range
+============================================
+
+module mod ();
+  assign a = b[3:1];
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary
+        (simple_identifier)
+        (select1 (constant_range
+          (constant_expression (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+          (constant_expression (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+        ))
+      ))
+    ))
+  ))
+))
+
+============================================
+assign - constant_range expression
+============================================
+
+module mod ();
+  assign a = b[1+Param:0];
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary
+        (simple_identifier)
+        (select1
+          (constant_range
+            (constant_expression
+              (constant_expression
+                (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number)))))
+              )
+              (constant_expression (constant_primary (parameter_identifier (simple_identifier))))
+            )
+            (constant_expression (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+          )
+        )
+      ))
+    ))
+  ))
+))
+
+
+============================================
+assign - constant_range expression (parameter first)
+============================================
+
+module mod ();
+  assign a = b[Param+1:0];
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary
+        (simple_identifier)
+        (select1
+          (constant_range
+            (constant_expression
+              (constant_expression (constant_primary (parameter_identifier (simple_identifier))))
+              (constant_expression
+                (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number)))))
+              )
+            )
+            (constant_expression (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+          )
+        )
+      ))
+    ))
+  ))
+))
+
+
+============================================
+assign - constant_range expression (parameter first, LSB)
+============================================
+
+module mod ();
+  assign a = b[0:Param+1];
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments (net_assignment
+      (net_lvalue (simple_identifier))
+      (expression (primary
+        (simple_identifier)
+        (select1
+          (constant_range
+            (constant_expression (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number))))))
+            (constant_expression
+              (constant_expression (constant_primary (parameter_identifier (simple_identifier))))
+              (constant_expression
+                (constant_primary (primary_literal (integral_number (decimal_number (unsigned_number)))))
+              )
+            )
+          )
+        )
+      ))
+    ))
+  ))
+))
+
+
+============================================
+assign - precedence or, xor, and, eq
+============================================
+
+module mod ();
+  assign z = a | b ^ c & |d == e;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign (list_of_net_assignments (net_assignment
+    (net_lvalue (simple_identifier))
+    (expression
+      (expression (primary (simple_identifier)))
+      (expression
+        (expression (primary (simple_identifier)))
+        (expression
+          (expression (primary (simple_identifier)))
+          (expression
+            (expression
+              (unary_operator)
+              (primary (simple_identifier))
+            )
+            (expression (primary (simple_identifier)))
+          )
+        )
+      )
+    )
+  ))))
+))
+
+============================================
+assign - conditional_expression
+============================================
+
+module mod ();
+  assign a = b == c ? d : e;
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (continuous_assign
+    (list_of_net_assignments
+      (net_assignment
+        (net_lvalue (simple_identifier))
+        (expression
+          (conditional_expression
+            (cond_predicate
+              (expression
+                (expression (primary (simple_identifier)))
+                (expression (primary (simple_identifier)))
+              )
+            )
+            (expression (primary (simple_identifier)))
+            (expression (primary (simple_identifier)))
+          )
+        )
+      )
+    )
+  ))
+))

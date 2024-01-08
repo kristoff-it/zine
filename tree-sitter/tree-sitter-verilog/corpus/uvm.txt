@@ -1,0 +1,42 @@
+============================================
+uvm - virtual function
+============================================
+
+class uvm_callbacks_base extends uvm_object;
+
+  virtual function bit m_am_i_a(uvm_object obj);
+    return 0;
+  endfunction
+
+endclass
+
+----
+
+(source_file (package_or_generate_item_declaration (class_declaration (class_identifier (simple_identifier))
+  (class_type (class_identifier (simple_identifier)))
+  (class_item (class_method (method_qualifier)
+    (function_declaration
+      (function_body_declaration
+        (function_data_type_or_implicit1
+          (data_type_or_void (data_type (integer_vector_type)))
+        )
+        (function_identifier (function_identifier (simple_identifier)))
+        (tf_port_list
+          (tf_port_item1
+            (data_type_or_implicit1
+              (data_type (simple_identifier))
+            )
+            (port_identifier (simple_identifier))
+          )
+        )
+        (function_statement_or_null
+          (function_statement
+            (statement (statement_item (jump_statement (expression
+              (primary (primary_literal (integral_number (decimal_number (unsigned_number)))))
+            ))))
+          )
+        )
+      )
+    )
+  ))
+)))

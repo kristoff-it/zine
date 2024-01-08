@@ -1,0 +1,27 @@
+============================================
+5.6 - escaped-identifiers
+============================================
+
+module identifiers();
+
+  reg \busa+index ;
+  reg \-clock ;
+  reg \***error-condition*** ;
+  reg \net1/\net2 ;
+  reg \{a,b} ;
+  reg \a*(b+c) ;
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header (module_keyword) (simple_identifier))
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (package_or_generate_item_declaration (data_declaration (data_type_or_implicit1 (data_type (integer_vector_type))) (list_of_variable_decl_assignments (variable_decl_assignment (escaped_identifier))))))
+  (module_or_generate_item (package_or_generate_item_declaration (data_declaration (data_type_or_implicit1 (data_type (integer_vector_type))) (list_of_variable_decl_assignments (variable_decl_assignment (escaped_identifier))))))
+  (module_or_generate_item (package_or_generate_item_declaration (data_declaration (data_type_or_implicit1 (data_type (integer_vector_type))) (list_of_variable_decl_assignments (variable_decl_assignment (escaped_identifier))))))
+  (module_or_generate_item (package_or_generate_item_declaration (data_declaration (data_type_or_implicit1 (data_type (integer_vector_type))) (list_of_variable_decl_assignments (variable_decl_assignment (escaped_identifier))))))
+  (module_or_generate_item (package_or_generate_item_declaration (data_declaration (data_type_or_implicit1 (data_type (integer_vector_type))) (list_of_variable_decl_assignments (variable_decl_assignment (escaped_identifier))))))
+  (module_or_generate_item (package_or_generate_item_declaration (data_declaration (data_type_or_implicit1 (data_type (integer_vector_type))) (list_of_variable_decl_assignments (variable_decl_assignment (escaped_identifier))))))
+))

@@ -1,0 +1,181 @@
+============================================
+module_instantiation
+============================================
+
+module mod ();
+
+  modA instA ();
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header
+    (module_keyword) (simple_identifier)
+  )
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (concurrent_assertion_item
+      (checker_instantiation
+        (checker_identifier (simple_identifier))
+        (name_of_instance (instance_identifier (simple_identifier)))
+      )
+    )
+  )
+))
+
+============================================
+module_instantiation - named_port_connection
+============================================
+
+module mod ();
+
+  modA instA (
+    .clk (clk),
+    .inp(inp )
+  );
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header
+    (module_keyword) (simple_identifier)
+  )
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (module_instantiation
+    (simple_identifier)
+    (hierarchical_instance
+      (name_of_instance (instance_identifier (simple_identifier)))
+      (list_of_port_connections
+        (named_port_connection
+          (port_identifier (simple_identifier))
+          (expression (primary (simple_identifier)))
+        )
+        (named_port_connection
+          (port_identifier (simple_identifier))
+          (expression (primary (simple_identifier)))
+        )
+      )
+    )
+  ))
+))
+
+============================================
+module_instantiation - ordered_port_connection
+============================================
+
+module mod ();
+
+  modA instA (clk, inp);
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header
+    (module_keyword)
+    (simple_identifier)
+  )
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item
+    (udp_instantiation (simple_identifier)
+      (udp_instance
+        (name_of_instance (instance_identifier (simple_identifier)))
+        (output_terminal (net_lvalue (simple_identifier)))
+        (input_terminal (expression (primary (simple_identifier))))
+      )
+    )
+  )
+))
+
+============================================
+module_instantiation - ordered_parameter_assignment
+============================================
+
+module mod ();
+
+  modA #(42) instA (
+    .clk (clk),
+    .inp(inp )
+  );
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header
+    (module_keyword) (simple_identifier)
+  )
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (module_instantiation (simple_identifier)
+    (parameter_value_assignment (list_of_parameter_assignments
+      (ordered_parameter_assignment (_ordered_parameter_assignment
+        (mintypmax_expression (expression (primary (primary_literal (integral_number (decimal_number (unsigned_number)))))))
+      ))
+    ))
+    (hierarchical_instance
+      (name_of_instance (instance_identifier (simple_identifier)))
+      (list_of_port_connections
+        (named_port_connection
+          (port_identifier (simple_identifier))
+          (expression (primary (simple_identifier)))
+        )
+        (named_port_connection
+          (port_identifier (simple_identifier))
+          (expression (primary (simple_identifier)))
+        )
+      )
+    )
+  ))
+))
+
+============================================
+module_instantiation - named_parameter_assignment
+============================================
+
+module mod ();
+
+  modA #(.WIDTH(8), .DEPTH(4)) instA (
+    .clk (clk)
+  );
+
+endmodule
+
+----
+
+(source_file (module_declaration
+  (module_header
+    (module_keyword) (simple_identifier)
+  )
+  (module_nonansi_header (list_of_ports))
+  (module_or_generate_item (module_instantiation (simple_identifier)
+    (parameter_value_assignment (list_of_parameter_assignments
+      (named_parameter_assignment
+        (parameter_identifier (simple_identifier))
+        (param_expression
+          (mintypmax_expression (expression (primary (primary_literal (integral_number (decimal_number (unsigned_number)))))))
+        )
+      )
+      (named_parameter_assignment
+        (parameter_identifier (simple_identifier))
+        (param_expression
+          (mintypmax_expression (expression (primary (primary_literal (integral_number (decimal_number (unsigned_number)))))))
+        )
+      )
+    ))
+    (hierarchical_instance
+      (name_of_instance (instance_identifier (simple_identifier)))
+      (list_of_port_connections
+        (named_port_connection
+          (port_identifier (simple_identifier))
+          (expression (primary (simple_identifier)))
+        )
+      )
+    )
+  ))
+))

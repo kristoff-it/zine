@@ -1,0 +1,123 @@
+===================
+One-line documents
+===================
+
+/** This is a description of the foo function. */
+
+---
+
+(document (description))
+
+====================
+Multi-line documents
+====================
+
+/**
+ * This is a description
+ */
+
+---
+
+(document (description))
+
+============================
+Tags with names
+============================
+
+/**
+ * @alias Apple.Core
+ * @event module:foo/bar.event:MyEvent
+ * @fires Hurl#snowball
+ * @exports hello/world
+ */
+
+---
+
+(document
+  (tag
+    (tag_name)
+    (member_expression (identifier) (identifier)))
+  (tag
+    (tag_name)
+    (member_expression
+      (qualified_expression
+        (identifier)
+        (path_expression (identifier) (identifier)))
+      (qualified_expression (identifier) (identifier))))
+  (tag
+    (tag_name)
+    (member_expression (identifier) (identifier)))
+  (tag
+    (tag_name)
+    (path_expression (identifier) (identifier))))
+
+======================
+Tags with types and names
+======================
+
+/**
+ * This is a method
+ * @param name - the name
+ * @param {string} name - the name
+ * @param {integer} - the age
+ */
+
+---
+
+(document
+  (description)
+  (tag (tag_name) (identifier) (description))
+  (tag (tag_name) (type) (identifier) (description))
+  (tag (tag_name) (type) (description)))
+
+============================
+Inline tags
+============================
+
+/**
+ * Set the shoe's color. Use {@link Shoe#setSize} to set the shoe size.
+ */
+
+---
+
+(document
+  (description (inline_tag (tag_name) (description))))
+
+====================================
+Multi-line block tag descriptions
+====================================
+
+/**
+ * Set the shoe's color.
+ *
+ * @param {SHOE_COLORS} color - The shoe color. Must be an enumerated
+ * value of {@link SHOE_COLORS}.
+ */
+
+---
+
+(document
+  (description)
+  (tag
+    (tag_name)
+    (type)
+    (identifier)
+    (description
+      (inline_tag (tag_name) (description)))))
+
+===============================
+Block tags with no description
+================================
+
+/**
+ * This is a description of the MyClass constructor function.
+ * @class
+ * @classdesc This is a description of the MyClass class.
+ */
+
+---
+
+(document
+  (description)
+  (tag (tag_name))
+  (tag (tag_name) (description)))

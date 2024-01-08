@@ -10,7 +10,7 @@
   <link rel="stylesheet" type="text/css" href="foo.css">
 </head>
 
-<nav if="$page.title.startsWith('arst').not()" id="menu">
+<nav if="$page.title.len().eq(10).not()" id="menu">
    <a href="bar/">Bar</a>
    <a href="baz/">Baz</a>
 </nav>

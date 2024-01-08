@@ -1,0 +1,17 @@
+==================
+Postulate
+==================
+
+postulate
+  f : A g
+
+---
+
+(source_file
+  (postulate
+    (function
+      (lhs (function_name (atom (qid))))
+      (rhs
+        (expr (atom (qid)) (atom (qid)))))
+  )
+)
