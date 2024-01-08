@@ -1,0 +1,14 @@
+==================
+Infix
+==================
+
+infix 3 _+_
+infixl 4 _*_
+infixr 5 _-_ _-_
+
+---
+
+(source_file
+    (infix (integer) (bid))
+    (infix (integer) (bid))
+    (infix (integer) (bid) (bid)))

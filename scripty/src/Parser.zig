@@ -46,12 +46,6 @@ pub fn next(self: *Parser, code: []const u8) ?Node {
 
     var path_segments: usize = 0;
 
-    std.debug.print("next ({s}) (d={}): `{s}`\n", .{
-        @tagName(self.state),
-        self.call_depth,
-        code[self.it.idx..],
-    });
-
     while (self.it.next(code)) |tok| switch (self.state) {
         .syntax => unreachable,
         .start => switch (tok.tag) {

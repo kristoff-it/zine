@@ -1,6 +1,7 @@
 const std = @import("std");
 const frontmatter = @import("frontmatter");
 const contexts = @import("contexts.zig");
+const syntax = @import("syntax.zig");
 
 const PageContext = contexts.Page;
 
@@ -70,12 +71,14 @@ pub fn main() !void {
     defer iter.deinit();
 
     // TODO: unicode this
-    page._meta.word_count = in_string.len / 6;
+    page._meta.word_count = @intCast(in_string.len / 6);
 
     // Copy local images
     try assets_dep_file.writeAll("assets: ");
     var seen_assets = std.StringHashMap(void).init(arena);
-    while (iter.next()) |node| {
+    while (iter.next()) |ev| {
+        if (ev.dir == .exit) continue;
+        const node = ev.node;
         if (node.isImage()) {
             std.debug.print("md-renderer: found image\n", .{});
             const link = node.link() orelse {
@@ -101,10 +104,99 @@ pub fn main() !void {
         }
     }
 
-    const html_raw: [*:0]const u8 = c.cmark_render_html(ast, c.CMARK_OPT_DEFAULT, null);
-
-    try out_file.writeAll(std.mem.span(html_raw));
     try std.json.stringify(page, .{}, meta_out_file.writer());
+
+    // const options = c.CMARK_OPT_DEFAULT | c.CMARK_OPT_UNSAFE;
+    var it = Iter.init(ast);
+    const w = out_file.writer();
+    while (it.next()) |ev| {
+        const node = ev.node;
+
+        if (ev.dir == .exit) {
+            switch (node.nodeType()) {
+                c.CMARK_NODE_DOCUMENT => {},
+                c.CMARK_NODE_BLOCK_QUOTE => try w.print("</blockquote>", .{}),
+                c.CMARK_NODE_LIST => try w.print("</{s}>", .{@tagName(node.listType())}),
+                c.CMARK_NODE_ITEM => try w.print("</li>", .{}),
+                c.CMARK_NODE_CUSTOM_BLOCK => {},
+                c.CMARK_NODE_PARAGRAPH => try w.print("</p>", .{}),
+                c.CMARK_NODE_HEADING => try w.print("</h{}>", .{node.headingLevel()}),
+                c.CMARK_NODE_FOOTNOTE_DEFINITION => @panic("TODO: FOOTNOTE_DEFINITION"),
+                c.CMARK_NODE_CUSTOM_INLINE => @panic("custom inline"),
+                c.CMARK_NODE_EMPH => try w.print("</i>", .{}),
+                c.CMARK_NODE_STRONG => try w.print("</strong>", .{}),
+                c.CMARK_NODE_LINK => try w.print("</a>", .{}),
+                c.CMARK_NODE_IMAGE => {
+                    if (node.title()) |t| {
+                        try w.print("\" title=\"{s}\"></figure>", .{t});
+                    } else {
+                        try w.print("\">", .{});
+                    }
+                },
+                else => std.debug.panic("TODO: implement exit for {x}", .{node.nodeType()}),
+            }
+            continue;
+        }
+        switch (node.nodeType()) {
+            c.CMARK_NODE_DOCUMENT => {},
+            c.CMARK_NODE_BLOCK_QUOTE => try w.print("<blockquote>", .{}),
+            c.CMARK_NODE_LIST => try w.print("<{s}>", .{@tagName(node.listType())}),
+            c.CMARK_NODE_ITEM => try w.print("<li>", .{}),
+            c.CMARK_NODE_HTML_BLOCK => {},
+            c.CMARK_NODE_CUSTOM_BLOCK => {},
+            c.CMARK_NODE_PARAGRAPH => try w.print("<p>", .{}),
+            c.CMARK_NODE_HEADING => try w.print("<h{}>", .{node.headingLevel()}),
+            c.CMARK_NODE_THEMATIC_BREAK => try w.print("<hr>", .{}),
+            c.CMARK_NODE_FOOTNOTE_DEFINITION => @panic("TODO: FOOTNOTE_DEFINITION"),
+            c.CMARK_NODE_HTML_INLINE => try w.print("{s}", .{node.literal() orelse ""}),
+            c.CMARK_NODE_CUSTOM_INLINE => @panic("custom inline"),
+            c.CMARK_NODE_TEXT => try w.print("{s}", .{node.literal() orelse ""}),
+            c.CMARK_NODE_SOFTBREAK => try w.print(" ", .{}),
+            c.CMARK_NODE_LINEBREAK => try w.print("<br><br>", .{}),
+            c.CMARK_NODE_CODE => try w.print("<code>{s}</code>", .{
+                node.literal() orelse "",
+            }),
+            c.CMARK_NODE_EMPH => try w.print("<i>", .{}),
+            c.CMARK_NODE_STRONG => try w.print("<strong>", .{}),
+            c.CMARK_NODE_LINK => try w.print("<a href=\"{s}\">", .{
+                node.link() orelse "",
+            }),
+            c.CMARK_NODE_IMAGE => {
+                const url = node.link() orelse "";
+                const title = node.title();
+                if (title) |t| {
+                    try w.print(
+                        "<figure data-title=\"{s}\"><img src=\"{s}\" alt=\"",
+                        .{ t, url },
+                    );
+                } else {
+                    try w.print("<img src=\"{s}\" alt=\"", .{url});
+                }
+            },
+            c.CMARK_NODE_CODE_BLOCK => {
+                if (node.literal()) |code| {
+                    const fence_info = node.fenceInfo() orelse "";
+                    if (std.mem.startsWith(u8, fence_info, "zig")) {
+                        try syntax.highlightZigCode(
+                            code,
+                            arena,
+                            out_file.writer(),
+                        );
+                    } else {
+                        try out_file.writer().print("<pre><code>{s}</code></pre>", .{
+                            code,
+                        });
+                    }
+                }
+            },
+
+            else => {
+                std.debug.panic("TODO: implement support for {x}", .{node.nodeType()});
+                // const html = c.cmark_render_html(it, options, null);
+                // try out_file.writeAll(std.mem.span(html));
+            },
+        }
+    }
 }
 
 const Iter = struct {
@@ -118,28 +210,67 @@ const Iter = struct {
         c.cmark_iter_free(self.it);
     }
 
-    pub fn next(self: Iter) ?Node {
+    const Event = struct { dir: enum { enter, exit }, node: Node };
+    pub fn next(self: Iter) ?Event {
+        var exited = false;
         while (true) switch (c.cmark_iter_next(self.it)) {
             c.CMARK_EVENT_DONE => return null,
-            c.CMARK_EVENT_EXIT => continue,
+            c.CMARK_EVENT_EXIT => {
+                exited = true;
+                break;
+            },
             c.CMARK_EVENT_ENTER => break,
             else => unreachable,
         };
 
-        return .{ .n = c.cmark_iter_get_node(self.it).? };
+        return .{
+            .dir = if (exited) .exit else .enter,
+            .node = .{ .n = c.cmark_iter_get_node(self.it).? },
+        };
     }
 };
 
 const Node = struct {
     n: *c.cmark_node,
 
+    pub fn nodeType(self: Node) u32 {
+        return c.cmark_node_get_type(self.n);
+    }
+
     pub fn isImage(self: Node) bool {
         const t = c.cmark_node_get_type(self.n);
         return t == (0x8000 | 0x4000 | 0x000a);
     }
+    pub fn isCodeBlock(self: Node) bool {
+        const t = c.cmark_node_get_type(self.n);
+        return t == c.CMARK_NODE_CODE_BLOCK;
+    }
 
-    pub fn link(self: Node) ?[]const u8 {
+    pub fn link(self: Node) ?[:0]const u8 {
         const ptr = c.cmark_node_get_url(self.n) orelse return null;
         return std.mem.span(ptr);
+    }
+    pub fn title(self: Node) ?[:0]const u8 {
+        const ptr = c.cmark_node_get_title(self.n) orelse return null;
+        return std.mem.span(ptr);
+    }
+    pub fn literal(self: Node) ?[:0]const u8 {
+        const ptr = c.cmark_node_get_literal(self.n) orelse return null;
+        return std.mem.span(ptr);
+    }
+    pub fn fenceInfo(self: Node) ?[:0]const u8 {
+        const ptr = c.cmark_node_get_fence_info(self.n) orelse return null;
+        return std.mem.span(ptr);
+    }
+    pub fn headingLevel(self: Node) i32 {
+        return c.cmark_node_get_heading_level(self.n);
+    }
+    pub const ListType = enum { ul, ol };
+    pub fn listType(self: Node) ListType {
+        return switch (c.cmark_node_get_list_type(self.n)) {
+            1 => .ul,
+            2 => .ol,
+            else => unreachable,
+        };
     }
 };

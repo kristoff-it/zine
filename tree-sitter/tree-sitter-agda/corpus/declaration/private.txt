@@ -1,0 +1,23 @@
+==================
+Private
+==================
+
+private
+  f : A g
+  f = f g
+
+---
+
+(source_file
+  (private
+    (function
+      (lhs (function_name (atom (qid))))
+      (rhs
+        (expr (atom (qid)) (atom (qid)))))
+    (function
+      (lhs
+        (atom (qid)))
+      (rhs
+        (expr (atom (qid)) (atom (qid)))))
+  )
+)

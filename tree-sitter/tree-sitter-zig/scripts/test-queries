@@ -1,0 +1,24 @@
+#!/bin/env bash
+
+set -Eeu -o pipefail
+shopt -s inherit_errexit
+
+this_file="${BASH_SOURCE[0]}"
+if [ "${this_file::1}" != '/' ]; then
+  this_file="$PWD/$this_file"
+fi
+
+this_dir="${this_file%/*}"
+project_root="${this_dir%/*}"
+queries_dir="$project_root/queries"
+
+while IFS= read -r query; do
+  # this tests if the queries can be compiled, not if they are producing the
+  # expected output
+  if ! >/dev/null tree-sitter query --test "$query" <(echo ""); then
+    echo "Query $query failed!"
+    exit_code=1
+  fi
+done < <(find "$queries_dir" -name "*.scm")
+
+exit "${exit_code:-0}"

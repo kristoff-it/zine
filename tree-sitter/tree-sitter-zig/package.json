@@ -1,0 +1,32 @@
+{
+  "name": "tree-sitter-zig",
+  "version": "0.0.1",
+  "description": "zig grammar for tree-sitter",
+  "main": "bindings/node",
+  "keywords": [
+    "parsing",
+    "incremental"
+  ],
+  "dependencies": {
+    "nan": "^2.12.1"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "0.20.7"
+  },
+  "scripts": {
+    "test": "tree-sitter test",
+    "generate": "tree-sitter generate",
+    "test-parsing": "scripts/test-parsing",
+    "test-queries": "scripts/test-queries",
+    "parse": "tree-sitter parse"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.zig",
+      "injection-regex": "zig",
+      "file-types": [
+        "zig"
+      ]
+    }
+  ]
+}

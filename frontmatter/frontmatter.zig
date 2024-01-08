@@ -38,5 +38,17 @@ pub fn parse(comptime Header: type, reader: anytype, arena: std.mem.Allocator) !
         }
     }
 
-    return json.parseFromSliceLeaky(Header, arena, json_string.items, .{});
+    var scanner = json.Scanner.initCompleteInput(arena, json_string.items);
+    defer scanner.deinit();
+
+    var diagnostics: json.Diagnostics = .{};
+    scanner.enableDiagnostics(&diagnostics);
+
+    return json.parseFromTokenSourceLeaky(Header, arena, &scanner, .{}) catch |err| {
+        std.debug.print("Error while reading frontmatter: {s}\n line {}, col: {}\n", .{
+            @errorName(err), diagnostics.getLine(), diagnostics.getColumn(),
+        });
+
+        return err;
+    };
 }

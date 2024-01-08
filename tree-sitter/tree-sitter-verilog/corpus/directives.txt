@@ -1,0 +1,147 @@
+============================================
+include ""
+============================================
+
+`include "foo.txt"
+
+----
+
+(source_file (include_compiler_directive (double_quoted_string)))
+
+============================================
+include <>
+============================================
+
+`include <bar>
+
+----
+
+(source_file (include_compiler_directive (include_compiler_directive_standard)))
+
+============================================
+define
+============================================
+
+`define D(x, y) initial $display("start", x, y)
+
+----
+
+(source_file
+  (text_macro_definition
+    (text_macro_name
+      (text_macro_identifier (simple_identifier))
+    )
+    (macro_text)
+  )
+)
+
+============================================
+usage
+============================================
+
+`Dff
+
+----
+
+(source_file
+  (text_macro_usage
+    (text_macro_identifier (simple_identifier))
+  )
+)
+
+============================================
+usage args
+============================================
+
+`Dff(5, 7)
+
+----
+
+(source_file
+  (text_macro_usage
+    (text_macro_identifier (simple_identifier))
+    (list_of_actual_arguments
+      (expression
+        (primary (primary_literal (integral_number (decimal_number (unsigned_number)))))
+      )
+      (expression
+        (primary (primary_literal (integral_number (decimal_number (unsigned_number)))))
+      )
+    )
+  )
+)
+
+============================================
+undef
+============================================
+
+`undef Dff
+
+----
+
+(source_file
+  (id_directive
+    (text_macro_identifier (simple_identifier))
+  )
+)
+
+============================================
+resetall
+============================================
+
+`resetall
+
+----
+
+(source_file
+  (zero_directive)
+)
+
+============================================
+undefineall
+============================================
+
+`undefineall
+
+----
+
+(source_file
+  (zero_directive)
+)
+
+============================================
+timescale
+============================================
+
+`timescale 1ns/ 100ps
+
+----
+
+(source_file
+  (timescale_compiler_directive
+    (time_literal (unsigned_number) (time_unit))
+    (time_literal (unsigned_number) (time_unit))))
+
+============================================
+default_nettype
+============================================
+
+`default_nettype wire
+
+----
+
+(source_file (default_nettype_compiler_directive (default_nettype_value)))
+
+============================================
+line
+============================================
+
+`line 10 "bar" 42
+
+----
+
+(source_file
+  (line_compiler_directive
+    (unsigned_number)
+    (double_quoted_string)
+    (unsigned_number)))

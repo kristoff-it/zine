@@ -66,7 +66,7 @@ pub fn main() !void {
     var out_buf_writer = std.io.bufferedWriter(out_file.writer());
     const out_writer = out_buf_writer.writer();
 
-    const page_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, install_subpath });
+    const page_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, install_subpath, "_zine_page.json" });
     const page_string = readFile(page_path, arena) catch |err| {
         fatal("error reading the page meta file '{s}': {s}", .{ page_path, @errorName(err) });
     };
@@ -78,14 +78,53 @@ pub fn main() !void {
     scanner.enableDiagnostics(&diag);
     errdefer std.debug.print("json err: line {} col {}\n", .{ diag.getLine(), diag.getColumn() });
 
+    var pages = std.ArrayList(contexts.Page).init(arena);
+    var it = std.mem.tokenizeScalar(u8, index_bytes, '\n');
+    while (it.next()) |line| {
+        const path = try std.fs.path.join(arena, &.{
+            sections_meta_dir_path,
+            line,
+            "_zine_page.json",
+        });
+        const page_bytes = readFile(path, arena) catch |err| {
+            fatal("error reading a page meta file '{s}': {s}", .{
+                path,
+                @errorName(err),
+            });
+        };
+        var page = try std.json.parseFromSliceLeaky(
+            contexts.Page,
+            arena,
+            page_bytes,
+            .{},
+        );
+
+        page._meta.permalink = try std.fmt.allocPrint(arena, "/{s}/", .{line});
+        try pages.append(page);
+    }
+    std.mem.reverse(contexts.Page, pages.items);
+
+    const site: contexts.Site = .{
+        .base_url = "https://kristoff.it/",
+        .title = "Loris Cro's Personal Blog",
+        ._pages = try pages.toOwnedSlice(),
+    };
+
     const page = try std.json.parseFromTokenSourceLeaky(contexts.Page, arena, &scanner, .{});
     const prev_next = findPrevNext(index_bytes, install_subpath);
     var ctx: contexts.Template = .{
+        .site = site,
         .page = page,
     };
     ctx.page.content = rendered_md_string;
+    ctx.page._meta.permalink = try std.fmt.allocPrint(arena, "/{s}/", .{install_subpath});
+
     if (prev_next.prev) |p| {
-        const prev_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, p });
+        const prev_path = try std.fs.path.join(arena, &.{
+            sections_meta_dir_path,
+            p,
+            "_zine_page.json",
+        });
         const prev_page = readFile(prev_path, arena) catch |err| {
             fatal("error reading the prev page meta file '{s}': {s}", .{
                 prev_path,
@@ -99,10 +138,15 @@ pub fn main() !void {
             .{},
         );
 
+        prev_meta._meta.permalink = try std.fmt.allocPrint(arena, "/{s}/", .{p});
         ctx.page._meta.prev = &prev_meta;
     }
     if (prev_next.next) |n| {
-        const next_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, n });
+        const next_path = try std.fs.path.join(arena, &.{
+            sections_meta_dir_path,
+            n,
+            "_zine_page.json",
+        });
         const next_page = readFile(next_path, arena) catch |err| {
             fatal("error reading the next page meta file '{s}': {s}", .{
                 next_path,
@@ -115,6 +159,8 @@ pub fn main() !void {
             next_page,
             .{},
         );
+
+        next_meta._meta.permalink = try std.fmt.allocPrint(arena, "/{s}/", .{n});
         ctx.page._meta.next = &next_meta;
     }
     var super_vm = super.SuperVM(contexts.Template, contexts.Value).init(
@@ -183,16 +229,28 @@ pub fn oom() noreturn {
 }
 
 const PrevNext = struct {
-    prev: ?[]const u8,
-    next: ?[]const u8,
+    prev: ?[]const u8 = null,
+    next: ?[]const u8 = null,
 };
 
 fn findPrevNext(index: []const u8, needle: []const u8) PrevNext {
-    var it = std.mem.tokenizeScalar(u8, index, '\n');
-    var last: ?[]const u8 = null;
-    while (it.next()) |line| : (last = line) {
+    var result: PrevNext = .{};
+    const prefix = std.fs.path.dirname(needle) orelse return result;
+
+    var it = std.mem.splitScalar(u8, index, '\n');
+
+    while (it.next()) |line| {
         if (std.mem.eql(u8, line, needle)) {
-            return .{ .prev = last, .next = it.next() };
+            if (it.next()) |n| {
+                if (std.mem.startsWith(u8, n, prefix)) {
+                    result.next = n;
+                }
+            }
+            return result;
+        }
+
+        if (std.mem.startsWith(u8, line, prefix)) {
+            result.prev = line;
         }
     } else {
         @panic("TODO: we're not in the index list?");

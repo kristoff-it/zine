@@ -1,0 +1,18 @@
+==================
+Pragmas
+==================
+
+{-# NON_TERMINATING #-}
+{-# OPTIONS --type-in-type #-}
+{-# IMPORT "something" #-}
+{-# CATCHALL #-}
+{-# NO_POSITIVITY_CHECK #-}
+
+---
+
+(source_file
+    (pragma)
+    (pragma)
+    (pragma)
+    (pragma)
+    (pragma))

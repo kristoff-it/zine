@@ -1,0 +1,62 @@
+==================
+module imports
+==================
+
+module Algebra where
+
+open import Relation.Binary
+open import Algebra.FunctionProperties
+open import Algebra.Structures
+open import Function
+open import Level
+
+---
+
+(source_file
+    (module (module_name (qid)))
+    (open (import (module_name (qid))))
+    (open (import (module_name (qid))))
+    (open (import (module_name (qid))))
+    (open (import (module_name (qid))))
+    (open (import (module_name (qid)))))
+
+==================
+semigroups
+==================
+
+-- Semigroups, (commutative) monoids and (abelian) groups
+record Semigroup c ℓ : Set (suc (c ⊔ ℓ)) where
+  infixl 7 _∙_
+  infix  4 _≈_
+  field
+    Carrier     : Set c
+    _≈_         : Rel Carrier ℓ
+    _∙_         : Op₂ Carrier
+    isSemigroup : IsSemigroup _≈_ _∙_
+
+  open IsSemigroup isSemigroup public
+
+---
+
+(source_file
+    (comment)
+    (record
+        (record_name (qid))
+            (untyped_binding (bid))
+            (untyped_binding (bid))
+            (expr (atom (SetN
+                (atom (expr (atom (qid))
+                (atom
+                  (expr
+                    (atom (qid))
+                    (atom (qid))
+                    (atom (qid)))))))))
+        (record_declarations_block
+            (infix (integer) (bid))
+            (infix (integer) (bid))
+            (fields
+                (signature (field_name) (expr (atom (SetN (atom (qid))))))
+                (signature (field_name) (expr        (atom (qid)) (atom (qid)) (atom (qid))))
+                (signature (field_name) (expr        (atom (qid)) (atom (qid))))
+                (signature (field_name) (expr        (atom (qid)) (atom (qid)) (atom (qid)))))
+            (open (module_name (qid)) (atom (qid)) (import_directive)))))

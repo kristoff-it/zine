@@ -1,0 +1,214 @@
+==============
+Simple pattern
+==============
+
+(if_statement)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node (node_name))))
+
+
+==============
+Nested pattern
+==============
+
+(if_statement condition:(parenthesized_expression (identifier)))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child
+        (field_name)
+        pattern: (named_node
+          (node_name)
+          (child
+            pattern: (named_node (node_name))))))))
+
+
+=====================
+Mismatched open paren
+=====================
+
+
+(if_statement
+
+---
+
+(query
+  (pattern
+    pattern: (named_node (node_name) (MISSING ")"))))
+
+
+===================================
+Mismatched close paren with comment
+===================================
+
+
+; comment 1
+; comment 2
+(if_statement))
+
+---
+
+(query
+  (comment)
+  (comment)
+  (pattern pattern: (named_node (node_name)))
+  (ERROR))
+
+
+=============================
+Bare identifier missing colon
+=============================
+
+(if_statement identifier)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node (node_name) (ERROR (field_name)))))
+
+
+================================
+Field name missing child pattern
+================================
+
+(if_statement condition:)
+
+---
+
+(query
+  (pattern pattern:
+    (named_node (node_name)
+      (child
+        (field_name)
+        pattern: (wildcard_node (MISSING "_"))))))
+
+
+===================
+Missing close paren
+===================
+
+((identifier) ()
+
+---
+
+(query
+  (pattern
+    pattern: (group
+      (pattern pattern: (named_node (node_name)))
+      (ERROR))))
+
+
+=================
+Empty alternation
+=================
+
+((identifier) [])
+
+---
+
+(query
+  (pattern
+    pattern: (group
+      (pattern pattern: (named_node (node_name)))
+      (pattern
+        pattern: (alternation
+          (choice pattern: (wildcard_node (MISSING "_"))))))))
+
+
+==============================
+Unclosed paren after predicate
+==============================
+
+((identifier) (#a)
+
+---
+
+(query
+  (pattern pattern:
+    (group
+      (pattern pattern: (named_node (node_name)))
+      (predicate (predicate_name))
+      (MISSING ")"))))
+
+
+===========================
+Unclosed paren in predicate
+===========================
+
+((identifier) @x (#eq? @x a
+
+---
+
+(query
+  (ERROR
+    (pattern pattern: (named_node (node_name)) (capture))
+    (predicate_name) (capture)))
+
+
+=======================
+Unclosed anonymous leaf
+=======================
+
+(identifier "h
+
+---
+
+(ERROR (node_name))
+
+
+===============================================
+Need at least one child node for a child anchor
+===============================================
+
+(statement_block .)
+
+---
+
+(query
+  (pattern pattern:
+    (named_node
+      (node_name)
+      (ERROR (anchor)))))
+
+
+==========================
+Missing negated field name
+==========================
+
+(statement_block ! (if_statement))
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (ERROR)
+      (child pattern: (named_node (node_name))))))
+
+
+===============
+tree-sitter#968
+===============
+
+(parameter_list [ ")" @foo)
+
+---
+
+(query
+  (pattern
+    pattern: (named_node
+      (node_name)
+      (child pattern:
+        (alternation
+          (choice pattern: (anonymous_leaf) (capture))
+          (MISSING "]"))))))

@@ -1,0 +1,40 @@
+==================
+Line comment
+==================
+
+-- this is a line comment
+--this is a line comment
+--- this is a line comment
+----this is a line comment
+----------------------------------------------------------this is a line comment
+
+---
+
+(source_file
+    (comment)
+    (comment)
+    (comment)
+    (comment)
+    (comment))
+
+==================
+Block comment
+==================
+
+{- this is a block comment -}
+{-# TERMINATING #-}
+{- this is a
+    block comment
+-}
+{- this is a
+    block comment -}
+{--}
+
+---
+
+(source_file
+    (comment)
+    (pragma)
+    (comment)
+    (comment)
+    (comment))

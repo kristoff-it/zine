@@ -1,0 +1,595 @@
+================================================================================
+sequence match
+================================================================================
+hello
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)))
+
+================================================================================
+sequence match w/ '.' atom
+================================================================================
+he..o
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (pattern_character)
+    (any_character)
+    (any_character)
+    (pattern_character)))
+
+================================================================================
+quantifiers
+================================================================================
+h*?e*l+.?
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (zero_or_more
+      (lazy))
+    (pattern_character)
+    (zero_or_more)
+    (pattern_character)
+    (one_or_more)
+    (any_character)
+    (optional)))
+
+================================================================================
+quantifiers - count
+================================================================================
+h{1,2}?el{1,2}.{3}
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (count_quantifier
+      (decimal_digits)
+      (decimal_digits)
+      (lazy))
+    (pattern_character)
+    (pattern_character)
+    (count_quantifier
+      (decimal_digits)
+      (decimal_digits))
+    (any_character)
+    (count_quantifier
+      (decimal_digits))))
+
+================================================================================
+open brace reads as a pattern character when not closed
+================================================================================
+{a
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (pattern_character)))
+
+================================================================================
+alternations
+================================================================================
+he..o|wo.ld
+--------------------------------------------------------------------------------
+
+(pattern
+  (alternation
+    (term
+      (pattern_character)
+      (pattern_character)
+      (any_character)
+      (any_character)
+      (pattern_character))
+    (term
+      (pattern_character)
+      (pattern_character)
+      (any_character)
+      (pattern_character)
+      (pattern_character))))
+
+================================================================================
+alternations with empty terms
+================================================================================
+||he..o||wo.ld|||
+--------------------------------------------------------------------------------
+
+(pattern
+  (alternation
+    (term
+      (pattern_character)
+      (pattern_character)
+      (any_character)
+      (any_character)
+      (pattern_character))
+    (term
+      (pattern_character)
+      (pattern_character)
+      (any_character)
+      (pattern_character)
+      (pattern_character))))
+
+================================================================================
+assertions - line start / end
+================================================================================
+^he..o$
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (start_assertion)
+    (pattern_character)
+    (pattern_character)
+    (any_character)
+    (any_character)
+    (pattern_character)
+    (end_assertion)))
+
+================================================================================
+assertions - word boundary
+================================================================================
+\Bhe..o\b
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (non_boundary_assertion)
+    (pattern_character)
+    (pattern_character)
+    (any_character)
+    (any_character)
+    (pattern_character)
+    (boundary_assertion)))
+
+================================================================================
+alternation w empty terms & assertions
+================================================================================
+^he..o$||w..ld$
+--------------------------------------------------------------------------------
+
+(pattern
+  (alternation
+    (term
+      (start_assertion)
+      (pattern_character)
+      (pattern_character)
+      (any_character)
+      (any_character)
+      (pattern_character)
+      (end_assertion))
+    (term
+      (pattern_character)
+      (any_character)
+      (any_character)
+      (pattern_character)
+      (pattern_character)
+      (end_assertion))))
+
+================================================================================
+lookahead
+================================================================================
+Jack(?=Sprat)
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (lookaround_assertion
+      (pattern
+        (term
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character))))))
+
+================================================================================
+negative lookahead
+================================================================================
+Jack(?!Sprat)
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (lookaround_assertion
+      (pattern
+        (term
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character))))))
+
+================================================================================
+lookbehind
+================================================================================
+(?<=Jack)Sprat
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (lookaround_assertion
+      (pattern
+        (term
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character))))
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)))
+
+================================================================================
+negative lookbehind
+================================================================================
+(?<!Jack)Sprat
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (lookaround_assertion
+      (pattern
+        (term
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character))))
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)))
+
+================================================================================
+character classes
+================================================================================
+[A-Za-z][^Xx]
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class
+      (class_range
+        (class_character)
+        (class_character))
+      (class_range
+        (class_character)
+        (class_character)))
+    (character_class
+      (class_character)
+      (class_character))))
+
+================================================================================
+character classes - '-' is an atom
+================================================================================
+[-]
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class
+      (class_character))))
+
+================================================================================
+character classes - 'a-' is atoms
+================================================================================
+[a-]
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class
+      (class_character)
+      (class_character))))
+
+================================================================================
+character classes - /[---]/ is odd but valid
+================================================================================
+[---]
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class
+      (class_range
+        (class_character)
+        (class_character)))))
+
+================================================================================
+character classes - identity escapes
+================================================================================
+[\-\.]
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class
+      (identity_escape)
+      (identity_escape))))
+
+================================================================================
+identity escapes
+================================================================================
+\a\b\c\d\\\{\(\[\]\)\}
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (identity_escape)
+    (boundary_assertion)
+    (identity_escape)
+    (character_class_escape)
+    (identity_escape)
+    (identity_escape)
+    (identity_escape)
+    (identity_escape)
+    (identity_escape)
+    (identity_escape)
+    (identity_escape)))
+
+================================================================================
+non-capturing groups
+================================================================================
+Jack(?:Sprat)
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (non_capturing_group
+      (pattern
+        (term
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character)
+          (pattern_character))))))
+
+================================================================================
+atom escapes - character class escapes
+================================================================================
+\S\w\cZ
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class_escape)
+    (character_class_escape)
+    (control_letter_escape)))
+
+================================================================================
+atom escapes - control escapes
+================================================================================
+\f\n\r\t\v\0
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (control_escape)
+    (control_escape)
+    (control_escape)
+    (control_escape)
+    (control_escape)
+    (control_escape)))
+
+================================================================================
+atom escapes - decimal escapes
+================================================================================
+\8230
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (decimal_escape)))
+
+================================================================================
+atom escapes - unicode property value expressions
+================================================================================
+\p{General_Category=Decimal_Number}
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class_escape
+      (unicode_property_value_expression
+        (unicode_property_name)
+        (unicode_property_value)))))
+
+================================================================================
+atom escapes - lone unicode property names
+================================================================================
+\p{Decimal_Number}
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class_escape
+      (unicode_property_value_expression
+        (unicode_property_value)))))
+
+================================================================================
+capturing groups
+================================================================================
+hello (.*)
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (pattern_character)
+    (anonymous_capturing_group
+      (pattern
+        (term
+          (any_character)
+          (zero_or_more))))))
+
+================================================================================
+named capturing groups
+================================================================================
+(?<world>.*)
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (named_capturing_group
+      (group_name)
+      (pattern
+        (term
+          (any_character)
+          (zero_or_more))))))
+
+================================================================================
+named capturing groups - backreferences
+================================================================================
+(?<world>.*)\kworld
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (named_capturing_group
+      (group_name)
+      (pattern
+        (term
+          (any_character)
+          (zero_or_more))))
+    (backreference_escape
+      (group_name))))
+
+================================================================================
+a date regex
+================================================================================
+(?<year>[0-9]{4})-(?<month>[0-9]{2})-(?<day>[0-9]{2})
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (named_capturing_group
+      (group_name)
+      (pattern
+        (term
+          (character_class
+            (class_range
+              (class_character)
+              (class_character)))
+          (count_quantifier
+            (decimal_digits)))))
+    (pattern_character)
+    (named_capturing_group
+      (group_name)
+      (pattern
+        (term
+          (character_class
+            (class_range
+              (class_character)
+              (class_character)))
+          (count_quantifier
+            (decimal_digits)))))
+    (pattern_character)
+    (named_capturing_group
+      (group_name)
+      (pattern
+        (term
+          (character_class
+            (class_range
+              (class_character)
+              (class_character)))
+          (count_quantifier
+            (decimal_digits)))))))
+
+================================================================================
+a multiline url regex
+================================================================================
+[-a-zA-Z0-9@:%._\+~#=]{2,256}
+\.[a-z]{2,6}\b(
+[-a-zA-Z0-9@:%_\+.~#?&//=]*
+)
+--------------------------------------------------------------------------------
+
+(pattern
+  (term
+    (character_class
+      (class_character)
+      (class_range
+        (class_character)
+        (class_character))
+      (class_range
+        (class_character)
+        (class_character))
+      (class_range
+        (class_character)
+        (class_character))
+      (class_character)
+      (class_character)
+      (class_character)
+      (class_character)
+      (class_character)
+      (identity_escape)
+      (class_character)
+      (class_character)
+      (class_character))
+    (count_quantifier
+      (decimal_digits)
+      (decimal_digits))
+    (identity_escape)
+    (character_class
+      (class_range
+        (class_character)
+        (class_character)))
+    (count_quantifier
+      (decimal_digits)
+      (decimal_digits))
+    (boundary_assertion)
+    (anonymous_capturing_group
+      (pattern
+        (term
+          (character_class
+            (class_character)
+            (class_range
+              (class_character)
+              (class_character))
+            (class_range
+              (class_character)
+              (class_character))
+            (class_range
+              (class_character)
+              (class_character))
+            (class_character)
+            (class_character)
+            (class_character)
+            (class_character)
+            (identity_escape)
+            (class_character)
+            (class_character)
+            (class_character)
+            (class_character)
+            (class_character)
+            (class_character)
+            (class_character)
+            (class_character))
+          (zero_or_more))))))

@@ -132,6 +132,7 @@ pub fn scan(
         layout_dir_path,
         md.fm.layout,
         content_dir_path,
+        md.fm.aliases,
         md.content_sub_path,
         md.md_name,
         index,
@@ -145,6 +146,7 @@ fn addMarkdownRender(
     layouts_dir_path: []const u8,
     layout_name: []const u8,
     content_dir_path: []const u8,
+    aliases: []const []const u8,
     /// Must be relative to `content_dir_path`
     path: []const u8,
     md_basename: []const u8,
@@ -153,10 +155,11 @@ fn addMarkdownRender(
     const in_path = project.pathJoin(&.{ content_dir_path, path, md_basename });
     const layout_path = project.pathJoin(&.{ layouts_dir_path, layout_name });
     const out_basename = md_basename[0 .. md_basename.len - 3];
-    const out_path = if (std.mem.eql(u8, out_basename, "index"))
-        project.pathJoin(&.{ path, "index.html" })
+    const out_name = if (std.mem.endsWith(u8, layout_name, ".xml")) "index.xml" else "index.html";
+    const out_path = if (std.mem.eql(u8, out_basename, "index") or std.mem.eql(u8, out_basename, "_index"))
+        project.pathJoin(&.{ path, out_name })
     else
-        project.pathJoin(&.{ path, out_basename, "index.html" });
+        project.pathJoin(&.{ path, out_basename, out_name });
 
     const renderer = zine_dep.artifact("markdown-renderer");
     const render_step = project.addRunArtifact(renderer);
@@ -173,13 +176,15 @@ fn addMarkdownRender(
     // frontmatter + computed metadata
     const page_metadata = render_step.addOutputFileArg("_zine_page.json");
 
-    const install_subpath = if (std.mem.eql(u8, out_basename, "index"))
+    const install_subpath = if (std.mem.eql(u8, out_basename, "index") or std.mem.eql(u8, out_basename, "_index"))
         path
     else
         project.pathJoin(&.{ path, out_basename });
 
     // collectd metadata
-    _ = sections.addCopyFile(page_metadata, install_subpath);
+    _ = sections.addCopyFile(page_metadata, project.pathJoin(
+        &.{ install_subpath, "_zine_page.json" },
+    ));
 
     // install all referenced files as assets (only images are detected for now)
     const install_assets = project.addInstallDirectory(.{
@@ -226,13 +231,18 @@ fn addMarkdownRender(
 
     const target_output = project.addInstallFile(final_html, out_path);
     project.getInstallStep().dependOn(&target_output.step);
+
+    for (aliases) |a| {
+        const alias = project.addInstallFile(final_html, a);
+        project.getInstallStep().dependOn(&alias.step);
+    }
 }
 
 fn formatIndex(project: *std.Build, md_index: []const MdIndexEntry) []const u8 {
     var out = std.ArrayList(u8).init(project.allocator);
     const w = out.writer();
     for (md_index) |md| {
-        if (std.mem.eql(u8, md.md_name, "index.md")) {
+        if (std.mem.eql(u8, md.md_name, "index.md") or std.mem.eql(u8, md.md_name, "_index.md")) {
             w.print("{s}\n", .{md.content_sub_path}) catch unreachable;
         } else {
             w.print("{s}{s}\n", .{

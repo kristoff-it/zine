@@ -1,0 +1,95 @@
+==================
+Simple
+==================
+
+module Test.Simple where
+    module _ where
+
+---
+
+(source_file
+    (module (module_name (qid))
+        (module (module_name))))
+
+==================
+Parameterized
+==================
+
+module Test.Simple (A : Set) {B : _} where
+
+---
+
+(source_file
+    (module (module_name (qid))
+        (typed_binding (atom (qid)) (expr (atom (SetN))))
+        (typed_binding (atom (qid)) (expr (atom)))))
+
+==================
+Open as
+==================
+
+open A as B
+
+---
+
+(source_file
+    (open (module_name (qid)) (atom (qid)) (atom (qid))))
+
+==================
+Open with directives
+==================
+
+open import A b c public using (a; module C) hiding (xs) renaming (module ys to zs; vs to ws)
+    using () hiding () renaming ()
+
+---
+
+(source_file
+    (open
+        (import (module_name (qid)))
+        (atom (qid)) (atom (qid))
+        (import_directive)
+        (import_directive (id) (id))
+        (import_directive (id))
+        (import_directive
+            (renaming (id) (id))
+            (renaming (id) (id)))
+        (import_directive)
+        (import_directive)
+        (import_directive)))
+
+==================
+Module macros
+==================
+
+module Sort.Nat (A : Set) = Sort Nat
+
+open module Nat (A : Set) = Sort {{ ... }}
+
+---
+
+(source_file
+    (module_macro
+        (module_name (qid)) (typed_binding (atom (qid)) (expr (atom (SetN))))
+        (module_application (module_name (qid)) (atom (qid))))
+    (module_macro
+        (module_name (qid)) (typed_binding (atom (qid)) (expr (atom (SetN))))
+        (module_application (module_name (qid)))))
+
+==================
+Module macros (Unicode)
+==================
+
+module Sort.Nat (A : Set) = Sort ℕ
+
+open module Nat (A : Set) = Sort ⦃ … ⦄
+
+---
+
+(source_file
+    (module_macro
+        (module_name (qid)) (typed_binding (atom (qid)) (expr (atom (SetN))))
+        (module_application (module_name (qid)) (atom (qid))))
+    (module_macro
+        (module_name (qid)) (typed_binding (atom (qid)) (expr (atom (SetN))))
+        (module_application (module_name (qid)))))

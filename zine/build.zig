@@ -28,16 +28,6 @@ pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
         .install_subdir = "",
     });
     project.getInstallStep().dependOn(&install_static.step);
-
-    // Install images from the content directory
-    // TODO: re-enable the more fine-grained asset collection approach
-    // const install_assets = project.addInstallDirectory(.{
-    //     .source_dir = .{ .path = opts.content_dir_path },
-    //     .install_dir = .prefix,
-    //     .install_subdir = "",
-    //     .include_extensions = &.{ "png", "jpg", "jpeg", "webp", "webm", "gif" },
-    // });
-    // project.getInstallStep().dependOn(&install_assets.step);
 }
 
 fn setupDevelopmentServer(project: *std.Build, zine_dep: *std.Build.Dependency) void {
@@ -67,7 +57,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.addModule("mime", b.dependency("mime", .{
+    exe.root_module.addImport("mime", b.dependency("mime", .{
         .target = target,
         .optimize = optimize,
     }).module("mime"));
@@ -79,20 +69,20 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/super.zig" },
         .target = target,
         .optimize = optimize,
+        // .strip = true,
     });
-    super_exe.strip = true;
 
-    super_exe.addModule("super", b.dependency("super", .{
+    super_exe.root_module.addImport("super", b.dependency("super", .{
         .target = target,
         .optimize = optimize,
     }).module("super"));
 
-    super_exe.addModule("scripty", b.dependency("super", .{
+    super_exe.root_module.addImport("scripty", b.dependency("super", .{
         .target = target,
         .optimize = optimize,
     }).builder.dependency("scripty", .{}).module("scripty"));
 
-    super_exe.addModule("datetime", b.dependency("datetime", .{
+    super_exe.root_module.addImport("datetime", b.dependency("datetime", .{
         .target = target,
         .optimize = optimize,
     }).module("zig-datetime"));

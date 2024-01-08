@@ -1,0 +1,901 @@
+================================================================================
+Operator declarations
+================================================================================
+
+class A
+{
+  [SomeAttribute]
+  public static int operator +(A a) { return 0; }
+
+  public static int operator +(A a, A b) { return 0; }
+
+  int operator -(A a) { return 0; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (attribute_list
+          (attribute
+            name: (identifier)))
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (integer_literal))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (integer_literal))))
+      (operator_declaration
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (integer_literal)))))))
+
+================================================================================
+boolean operator declarations
+================================================================================
+
+class A
+{
+  public static bool operator true(A a) { return true; }
+  bool operator false(A a) { return false; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (boolean_literal))))
+      (operator_declaration
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (boolean_literal)))))))
+
+================================================================================
+conversion operator declaration
+================================================================================
+
+class A
+{
+  public static implicit operator int (A a) { return 0; }
+  explicit operator int (A a) { return 0; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (integer_literal))))
+      (conversion_operator_declaration
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (integer_literal)))))))
+
+================================================================================
+conversion operator with expression body
+================================================================================
+
+class A
+{
+  public static implicit operator int (A a) => 0;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (integer_literal))))))
+
+================================================================================
+extern operators
+================================================================================
+
+class A
+{
+  public static extern int operator + (A a);
+  public static extern bool operator <(A a, A b);
+  public static explicit operator int (A a);
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier))))
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))))))
+
+================================================================================
+Class conversion operators with expression body
+================================================================================
+
+class A
+{
+  public static extern int operator + (A a) => 0;
+  public static extern bool operator <(A a, A b) => true;
+  public static explicit operator int (A a) => 0;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (integer_literal)))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (boolean_literal)))
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (integer_literal))))))
+
+================================================================================
+Unary operator overloads
+================================================================================
+
+class A
+{
+  public static A operator +(A a) { return a; }
+  public static A operator -(A a) { return a; }
+  public static A operator !(A a) { return a; }
+  public static A operator ~(A a) { return a; }
+  public static A operator ++(A a) { return a; }
+  public static A operator --(A a) { return a; }
+  public static bool operator true (A a) { return true; }
+  public static bool operator false(A a) { return true; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (identifier))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (boolean_literal))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (boolean_literal)))))))
+
+================================================================================
+Binary unpaired operator overloads
+================================================================================
+
+class A
+{
+  public static A operator +(A a, A b) { return a == b; }
+  public static A operator -(A a, A b) { return a != b; }
+  public static A operator *(A a, A b) { return a < b; }
+  public static A operator /(A a, A b) { return a <= b; }
+  public static A operator %(A a, A b) { return a > b; }
+  public static A operator &(A a, A b) { return a >= b; }
+  public static A operator |(A a, A b) { return a >= b; }
+  public static A operator ^(A a, A b) { return a >= b; }
+  public static A operator <<(A a, A b) { return a >= b; }
+  public static A operator >>(A a, A b) { return a >= b; }
+  public static A operator >>>(A a, A b) { return a >= b; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier))))))))
+
+================================================================================
+Binary paired operator overloads
+================================================================================
+
+class A
+{
+  public static A operator ==(A a, A b) { return a == b; }
+  public static A operator !=(A a, A b) { return a != b; }
+  public static A operator <(A a, A b) { return a < b; }
+  public static A operator <=(A a, A b) { return a <= b; }
+  public static A operator >(A a, A b) { return a > b; }
+  public static A operator >=(A a, A b) { return a >= b; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier)))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (binary_expression
+              left: (identifier)
+              right: (identifier))))))))
+
+================================================================================
+Explicit operator overloads
+================================================================================
+
+interface I
+{
+  static abstract int operator +(I i, I j);
+}
+
+public class C : I
+{
+  static int I.operator +(I i, I j) { return 1; }
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (interface_declaration
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier))))))
+  (class_declaration
+    (modifier)
+    name: (identifier)
+    bases: (base_list
+      (identifier))
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        type: (predefined_type)
+        (explicit_interface_specifier
+          name: (identifier))
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (block
+          (return_statement
+            (integer_literal)))))))
+
+================================================================================
+Checked operators
+================================================================================
+
+public class C
+{
+  public static int operator checked +(C i, C j) => throw null;
+  public static int operator +(C i, C j) => throw null;
+
+  public static explicit operator checked int(C c) => throw null;
+  public static explicit operator int(C c) => throw null;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    (modifier)
+    name: (identifier)
+    body: (declaration_list
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (throw_expression
+            (null_literal))))
+      (operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (throw_expression
+            (null_literal))))
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (throw_expression
+            (null_literal))))
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (predefined_type)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (throw_expression
+            (null_literal)))))))
+
+================================================================================
+Explicit conversion operator overloads
+================================================================================
+
+public interface I<T> where T : I<T>
+{
+  static abstract explicit operator T(C c);
+  static abstract explicit operator checked T(C c);
+}
+
+public class C : I<C>
+{
+  static explicit I<C>.operator C(C c) => throw null;
+  static explicit I<C>.operator checked C(C c) => throw null;
+}
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (interface_declaration
+    (modifier)
+    name: (identifier)
+    type_parameters: (type_parameter_list
+      (type_parameter
+        name: (identifier)))
+    (type_parameter_constraints_clause
+      target: (identifier)
+      constraints: (type_parameter_constraint
+        (type_constraint
+          type: (generic_name
+            name: (identifier)
+            type_arguments: (type_argument_list
+              (identifier))))))
+    body: (declaration_list
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))))
+      (conversion_operator_declaration
+        (modifier)
+        (modifier)
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier))))))
+  (class_declaration
+    (modifier)
+    name: (identifier)
+    bases: (base_list
+      (generic_name
+        name: (identifier)
+        type_arguments: (type_argument_list
+          (identifier))))
+    body: (declaration_list
+      (conversion_operator_declaration
+        (modifier)
+        (explicit_interface_specifier
+          name: (generic_name
+            name: (identifier)
+            type_arguments: (type_argument_list
+              (identifier))))
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (throw_expression
+            (null_literal))))
+      (conversion_operator_declaration
+        (modifier)
+        (explicit_interface_specifier
+          name: (generic_name
+            name: (identifier)
+            type_arguments: (type_argument_list
+              (identifier))))
+        type: (identifier)
+        parameters: (parameter_list
+          (parameter
+            type: (identifier)
+            name: (identifier)))
+        body: (arrow_expression_clause
+          (throw_expression
+            (null_literal)))))))

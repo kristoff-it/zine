@@ -163,12 +163,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
 
             self.print_cursor = block.elem.startTag().node.end();
             self.print_end = block.elem.endTag().?.start();
-            std.debug.print("({s}) activating block {s} pc={} end={}\n", .{
-                self.name,
-                super_id,
-                self.print_cursor,
-                self.print_end,
-            });
 
             switch (block.type.branching()) {
                 else => assert(@src(), false),
@@ -243,14 +237,12 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
             writer: OutWriter,
             err_writer: errors.ErrWriter,
         ) errors.FatalShowOOM!Continuation {
-            std.debug.print("({s}) eval \n", .{self.name});
             assert(@src(), self.eval_frame.items.len > 0);
             outer: while (self.eval_frame.items.len > 0) {
                 const current_context = &self.eval_frame.items[self.eval_frame.items.len - 1];
                 switch (current_context.*) {
                     .default, .loop_iter, .if_condition => {},
                     .loop_condition => |*l| {
-                        std.debug.print("({s}) eval - creating loop_iter \n", .{self.name});
                         if (l.iter.next(self.arena)) |n| {
                             var cursor_copy = l.cursor_ptr.*;
                             cursor_copy.depth = 0;
@@ -263,10 +255,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                             self.print_cursor = l.print_loop_body;
                             self.print_end = l.print_loop_body_end;
                             l.index += 1;
-                            std.debug.print("({s}) eval - creating loop_iter end pc={} \n", .{
-                                self.name,
-                                self.print_cursor,
-                            });
                             continue;
                         } else {
                             self.print_cursor = l.print_loop_body_end;
@@ -287,13 +275,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                     },
                 };
                 while (cursor_ptr.next()) |node| {
-                    std.debug.print("({s}) eval - node ({}) d={} {s} pc={}\n", .{
-                        self.name,
-                        @intFromPtr(node),
-                        cursor_ptr.depth,
-                        @tagName(node.type),
-                        self.print_cursor,
-                    });
                     switch (node.type.role()) {
                         .root, .extend, .block, .super_block => {
                             assert(@src(), false);
@@ -312,7 +293,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                         else => @panic("TODO: more branching support in eval"),
                         .none => {},
                         .loop => {
-                            std.debug.print("({s}) eval - loop 1\n", .{self.name});
                             const start_tag = node.elem.startTag();
                             const scripted_attr = node.loopAttr();
                             const attr = scripted_attr.attr;
@@ -324,7 +304,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                             writer.writeAll(rest_of_start_tag) catch return error.OutIO;
                             self.print_cursor = start_tag.node.end();
 
-                            std.debug.print("({s}) eval - loop 2\n", .{self.name});
                             const code = try value.unescape(self.arena, self.html);
                             errdefer code.deinit(self.arena);
 
@@ -335,7 +314,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                                 attr.name(),
                                 code.str,
                             );
-                            std.debug.print("({s}) eval - loop 3\n", .{self.name});
 
                             try self.eval_frame.append(self.arena, .{
                                 .loop_condition = .{
@@ -348,7 +326,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                                 },
                             });
 
-                            std.debug.print("({s}) eval - loop pc= {}\n", .{ self.name, self.print_cursor });
                             continue :outer;
                         },
                         .@"if" => {
@@ -356,13 +333,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                             const scripted_attr = node.ifAttr();
                             const attr = scripted_attr.attr;
                             const value = node.ifValue();
-
-                            std.debug.print("({s}) eval - if start pc= {}\n", .{
-                                self.name,
-                                self.print_cursor,
-                            });
-
-                            self.diagnostic(err_writer, "", node.elem.startTag().node) catch unreachable;
 
                             const up_to_attr = self.html[self.print_cursor..attr.node.start()];
                             writer.writeAll(up_to_attr) catch return error.OutIO;
@@ -391,7 +361,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                                 },
                                 .bool => |b| {
                                     if (!b) {
-                                        std.debug.print("eval if got boolean: {}\n", .{b});
                                         self.print_cursor = node.elem.endTag().?.start();
                                         // TODO: void tags :^)
                                         cursor_ptr.skipChildrenOfCurrentNode();
@@ -403,7 +372,7 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                                         var new_frame: EvalFrame = .{
                                             .if_condition = .{
                                                 .cursor = cursor_ptr.*,
-                                                .if_result = Value.from(self.arena, o.page),
+                                                .if_result = Value.from(self.arena, o),
                                             },
                                         };
 
@@ -414,11 +383,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                                         );
 
                                         cursor_ptr.skipChildrenOfCurrentNode();
-                                        std.debug.print("({s}) eval - if pc= {} val={any}\n", .{
-                                            self.name,
-                                            self.print_cursor,
-                                            o,
-                                        });
                                         continue :outer;
                                     } else {
                                         self.print_cursor = node.elem.endTag().?.start();
@@ -428,6 +392,32 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                                 },
                             }
                         },
+                    }
+
+                    for (node.scripted_attrs) |scripted_attr| {
+                        const attr = scripted_attr.attr;
+                        const value = attr.value().?;
+                        const code = try value.unescape(self.arena, self.html);
+                        defer code.deinit(self.arena);
+
+                        const attr_value = try self.evalAttr(
+                            err_writer,
+                            script_vm,
+                            script_ctx,
+                            attr.name(),
+                            code.str,
+                        );
+
+                        const attr_string = switch (attr_value) {
+                            .err => |err| std.debug.panic("err: {s}\n", .{err}),
+                            .string => |s| s,
+                            else => @panic("TODO: explain an attr script returned a non-string value."),
+                        };
+
+                        const up_to_value = self.html[self.print_cursor .. value.node.start() + 1];
+                        writer.writeAll(up_to_value) catch return error.OutIO;
+                        writer.writeAll(attr_string) catch return error.OutIO;
+                        self.print_cursor = value.node.end() - 1;
                     }
 
                     switch (node.type.output()) {
@@ -443,8 +433,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                             //       output string doesn't need to survive past this scope.
                             const code = try value.unescape(self.arena, self.html);
                             defer code.deinit(self.arena);
-
-                            std.debug.print("({s}) eval - var pc={} end={}\n", .{ self.name, self.print_cursor, self.print_end });
 
                             const var_value = try self.evalVar(
                                 err_writer,
@@ -469,14 +457,12 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                                     @panic("TODO: explain that a var attr evaluated to a non-string");
                                 },
                             }
-                            std.debug.print("({s}) eval - var 1 \n", .{self.name});
                         },
                         .ctx => @panic("TODO: implement ctx"),
                     }
                 }
 
                 if (self.eval_frame.popOrNull()) |ctx| {
-                    std.debug.print("popping eval_frame {s}\n", .{@tagName(ctx)});
                     if (ctx == .if_condition) continue;
                     // finalization
                     assert(@src(), ctx != .loop_condition);
@@ -521,12 +507,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
             script_ctx.@"if" = if_value;
             defer script_ctx.@"if" = old_if;
 
-            std.debug.print("({s}) evalVar loop: {any} if: {any}\n`{s}`\n\n`", .{
-                self.name,
-                loop,
-                if_value,
-                code,
-            });
             // const diag: script.Interpreter.Diagnostics = .{};
             const result = script_vm.run(
                 self.arena,
@@ -548,7 +528,60 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                 std.debug.print("TODO: show precise location of the error\n\n", .{});
                 return error.Fatal;
             };
-            std.debug.print("({s}) evalVar end eval\n", .{self.name});
+
+            return result.value;
+        }
+        fn evalAttr(
+            self: *@This(),
+            err_writer: errors.ErrWriter,
+            script_vm: *ScriptyVM,
+            script_ctx: *Context,
+            script_attr_name: sitter.Node,
+            code: []const u8,
+        ) errors.Fatal!Value {
+            const current_eval_frame = &self.eval_frame.items[self.eval_frame.items.len - 1];
+            const loop = switch (current_eval_frame.*) {
+                .loop_iter => |li| li.loop,
+                else => null,
+            };
+
+            const old_loop = script_ctx.loop;
+            script_ctx.loop = if (loop) |l| .{ .iterator_element = l } else null;
+            defer script_ctx.loop = old_loop;
+            // if (loop) |l| switch (l.it) {
+            //     .string => std.debug.print("loop it.string = `{s}`\n", .{l.it.string}),
+            // };
+
+            // if
+            const if_value = switch (current_eval_frame.*) {
+                .if_condition => |ic| ic.if_result,
+                else => null,
+            };
+            const old_if = script_ctx.@"if";
+            script_ctx.@"if" = if_value;
+            defer script_ctx.@"if" = old_if;
+
+            // const diag: script.Interpreter.Diagnostics = .{};
+            const result = script_vm.run(
+                self.arena,
+                script_ctx,
+                code,
+                .{},
+            ) catch |err| {
+                // set the last arg to &diag when implementing this
+                self.reportError(
+                    err_writer,
+                    script_attr_name,
+                    "script_eval",
+                    "SCRIPT EVAL ERROR",
+                    \\An error was encountered while evaluating a script.
+                    ,
+                ) catch {};
+
+                std.debug.print("Error: {}\n", .{err});
+                std.debug.print("TODO: show precise location of the error\n\n", .{});
+                return error.Fatal;
+            };
 
             return result.value;
         }
@@ -571,7 +604,6 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
             const old_loop = script_ctx.loop;
             script_ctx.loop = if (loop) |l| .{ .iterator_element = l } else null;
             defer script_ctx.loop = old_loop;
-            std.debug.print("({s}) evalIf loop: {any}\n", .{ self.name, loop });
             // if
             const if_value = switch (current_eval_frame.*) {
                 .if_condition => |ic| ic.if_result,
@@ -581,7 +613,7 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
             const old_if = script_ctx.@"if";
             script_ctx.@"if" = if_value;
             defer script_ctx.@"if" = old_if;
-            std.debug.print("({s}) evalIf if: {any}\n", .{ self.name, script_ctx });
+            // std.debug.print("({s}) evalIf if: {any}\n", .{ self.name, script_ctx });
             // const diag: script.Interpreter.Diagnostics = .{};
             const result = script_vm.run(
                 self.arena,

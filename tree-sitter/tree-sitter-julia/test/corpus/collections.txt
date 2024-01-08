@@ -1,0 +1,195 @@
+==============================
+tuple collections
+==============================
+
+()
+# There's no (,)
+
+(1) # NOT a tuple
+(1,)
+(2,3,4,)
+
+---
+
+(source_file
+  (tuple_expression)
+  (line_comment)
+  (parenthesized_expression (integer_literal))
+  (line_comment)
+  (tuple_expression (integer_literal))
+  (tuple_expression (integer_literal) (integer_literal) (integer_literal)))
+
+
+==============================
+named tuple collections
+==============================
+
+(a = 1) # NOT a tuple
+(a = 1,)
+(a = 1, b = 2)
+(;)
+(; a)
+(; a = 1)
+(; a = 1, b = 2)
+(; a, foo.b)
+
+---
+
+(source_file
+  (parenthesized_expression
+    (assignment (identifier) (operator) (integer_literal)))
+  (line_comment)
+  (tuple_expression
+    (named_field (identifier) (integer_literal)))
+  (tuple_expression
+    (named_field (identifier) (integer_literal))
+    (named_field (identifier) (integer_literal)))
+  (tuple_expression)
+  (tuple_expression
+    (identifier))
+  (tuple_expression
+    (named_field (identifier) (integer_literal)))
+  (tuple_expression
+    (named_field (identifier) (integer_literal))
+    (named_field (identifier) (integer_literal)))
+  (tuple_expression
+    (identifier)
+    (field_expression (identifier) (identifier))))
+
+
+==============================
+vector array collections
+==============================
+
+[]
+# There's no [,]
+[x]
+[x,]
+[1, 2]
+
+# Check unary-and-binary-operators
+[x.-y, 2]
+
+---
+
+(source_file
+  (vector_expression)
+  (line_comment)
+  (vector_expression (identifier))
+  (vector_expression (identifier))
+  (vector_expression (integer_literal) (integer_literal))
+  (line_comment)
+  (vector_expression
+    (binary_expression
+      (identifier)
+      (operator)
+      (identifier))
+    (integer_literal)))
+
+
+==============================
+matrix array collections
+==============================
+
+[x;]
+[1 2]
+[1 2; 3 4]
+[1 2
+ 3 4]
+[1
+ 2
+ 3
+]
+[
+ a;
+ b;
+ c;
+]
+[1;; 2;; 3;;; 4;; 5;; 6;;]
+Int[1 2 3 4]
+
+---
+
+(source_file
+  (matrix_expression
+    (matrix_row (identifier)))
+  (matrix_expression
+    (matrix_row (integer_literal) (integer_literal)))
+  (matrix_expression
+    (matrix_row (integer_literal) (integer_literal))
+    (matrix_row (integer_literal) (integer_literal)))
+  (matrix_expression
+    (matrix_row (integer_literal) (integer_literal))
+    (matrix_row (integer_literal) (integer_literal)))
+  (matrix_expression
+    (matrix_row (integer_literal))
+    (matrix_row (integer_literal))
+    (matrix_row (integer_literal)))
+  (matrix_expression
+    (matrix_row (identifier))
+    (matrix_row (identifier))
+    (matrix_row (identifier)))
+  ; Yes. This is tecnically incorrect. `;;` concatenates along the 2nd dimension.
+  (matrix_expression
+    (matrix_row (integer_literal))
+    (matrix_row (integer_literal))
+    (matrix_row (integer_literal))
+    (matrix_row (integer_literal))
+    (matrix_row (integer_literal))
+    (matrix_row (integer_literal)))
+  (index_expression
+    (identifier)
+    (matrix_expression
+      (matrix_row
+        (integer_literal)
+        (integer_literal)
+        (integer_literal)
+        (integer_literal)))))
+
+
+========================================
+comprehension array collections
+========================================
+
+[x for x in xs]
+[x
+  for x in xs
+  if x > 0
+]
+UInt[b(c, e) for c in d for e in f]
+
+f(1, 2, i for i in iter)
+(b(c, e) for c in d, e = 5 if e)
+
+---
+
+(source_file
+  (comprehension_expression
+    (identifier)
+    (for_clause (for_binding (identifier) (identifier))))
+
+  (comprehension_expression
+    (identifier)
+    (for_clause (for_binding (identifier) (identifier)))
+    (if_clause (binary_expression (identifier) (operator) (integer_literal))))
+  (index_expression
+    (identifier)
+    (comprehension_expression
+      (call_expression (identifier) (argument_list (identifier) (identifier)))
+      (for_clause (for_binding (identifier) (identifier)))
+      (for_clause (for_binding (identifier) (identifier)))))
+
+  (call_expression
+    (identifier)
+    (argument_list
+      (integer_literal)
+      (integer_literal)
+      (identifier)
+      (for_clause (for_binding (identifier) (identifier)))))
+  (parenthesized_expression
+    (call_expression (identifier) (argument_list (identifier) (identifier)))
+    (for_clause
+      (for_binding (identifier) (identifier))
+      (for_binding (identifier) (integer_literal)))
+    (if_clause (identifier))))
+

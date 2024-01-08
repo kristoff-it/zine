@@ -1,0 +1,127 @@
+
+continuous_assign
+  list_of_net_assignments
+    net_assignment
+      net_lvalue
+        ps_or_hierarchical_net_identifier
+          hierarchical_net_identifier
+            hierarchical_identifier
+              identifier
+                simple_identifier
+        constant_select
+          constant_bit_select
+            constant_expression
+      expression
+        primary
+          primary_literal
+            number
+              integral_number
+
+
+continuous_assign
+  list_of_net_assignments
+    net_assignment
+      net_lvalue
+        assignment_pattern_net_lvalue
+      expression
+
+
+
+parameter_identifier
+
+
+expression
+  primary
+    range_expression
+      part_select_range
+        constant_range
+
+
+value_range
+expression
+
+
+
+expression
+  primary
+    select
+      bit_select
+        expression
+      part_select_range -> [ ]
+        constant_range -> :
+          constant_expression
+        indexed_range
+
+
+parameter_port_list -> # ( )
+  list_of_param_assignments
+    param_assignment
+      parameter_identifier
+      constant_param_expression
+  parameter_port_declaration
+    any_parameter_declaration -> parameter
+      _data_type_or_implicit
+      list_of_param_assignments
+        param_assignment
+          parameter_identifier
+          constant_param_expression
+
+
+
+net_decl_assignment -> =
+  net_identifier
+  expression
+
+
+variable_decl_assignment
+
+
+_data_type_or_implicit
+
+
+module_declaration
+  module_header
+    module_nonansi_header -> ;
+      list_of_ports -> ( )
+        port
+          _port_expression
+            port_reference
+              constant_select1
+
+
+    _module_item*
+      _non_port_module_item
+        module_or_generate_item
+          _module_common_item
+            _module_or_generate_item_declaration
+              _package_or_generate_item_declaration
+                net_declaration
+                  net_type
+                  net_type_identifier
+        module_declaration
+
+
+
+(LOOP)
+
+    constant_primary
+      constant_select1
+        constant_bit_select
+          constant_expression
+            constant_primary
+
+
+
+expression
+  primary -> hierarchical_identifier
+    select1 => [ ]
+      part_select_range
+        constant_range                 <-- BREAK LOOP
+          constant_expression
+            constant_primary
+              primary_literal
+                number
+
+
+
+------

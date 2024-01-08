@@ -1,0 +1,111 @@
+==================
+Simple
+==================
+
+f = λ (a : Set) b () -> a
+
+---
+
+(source_file
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (typed_binding (atom (qid)) (expr (atom (SetN))))
+                (untyped_binding (bid))
+                (expr (atom (qid))))))))
+
+==================
+Simple (empty)
+==================
+
+f = λ () -> a
+f = λ {} -> a
+f = λ {{}} -> a
+f = λ ⦃ ⦄ -> a
+
+---
+
+(source_file
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (expr (atom (qid)))))))
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (expr (atom (qid)))))))
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (expr (atom (qid)))))))
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (expr (atom (qid))))))))
+
+==================
+Clauses in braces
+==================
+f = \ { a -> b
+      ; b -> c
+      ; ()
+      }
+---
+
+(source_file
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (lambda_clause (atom (qid)) (expr (atom (qid))))
+                (lambda_clause (atom (qid)) (expr (atom (qid))))
+                (lambda_clause_absurd (atom)))))))
+
+==================
+Clauses in where
+==================
+f = \ where
+      b -> c
+    ; ()
+    ; b -> c
+    ; b -> c
+
+---
+
+(source_file
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (lambda_clause (atom (qid)) (expr (atom (qid))))
+                (lambda_clause_absurd (atom))
+                (lambda_clause (atom (qid)) (expr (atom (qid))))
+                (lambda_clause (atom (qid)) (expr (atom (qid)))))))))
+
+==================
+Absurd Lambda Bindings
+==================
+f = \ (A : Set) b ()
+
+---
+
+(source_file
+    (function
+        (lhs
+            (atom (qid)))
+        (rhs
+            (expr (lambda
+                (typed_binding (atom (qid)) (expr (atom (SetN))))
+                (untyped_binding (bid)))))))

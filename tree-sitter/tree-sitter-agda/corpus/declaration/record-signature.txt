@@ -1,0 +1,16 @@
+==================
+Simple
+==================
+
+record Pair (A B : Set) : Set
+
+---
+
+(source_file
+    (record_signature
+        (record_name (qid))
+        (typed_binding
+            (atom (qid))
+            (atom (qid))
+            (expr (atom (SetN))))
+        (expr (atom (SetN)))))
