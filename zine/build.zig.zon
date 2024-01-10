@@ -4,7 +4,7 @@
     .dependencies = .{
         .gfm = .{
             .url = "git+https://github.com/kristoff-it/cmark-gfm.git#9b659dada64964c993be6d6ec16b64f1ca1e8f5a",
-            .hash = "1220ff08867af0d5363fedd5d49ec4c102b3f97653475620fc60fff87ac5aed13f6d",
+            .hash = "1220a2d62d1de13c424c79d281c273156083b5232199ff68780c146b9441015ab51c",
         },
         .mime = .{
             .url = "git+https://github.com/andrewrk/mime.git#bf80e2e8b1d9413ddf9abe7d94537388b54c83ab",
