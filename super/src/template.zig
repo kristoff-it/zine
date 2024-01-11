@@ -37,6 +37,9 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
             };
 
             const LoopCondition = struct {
+                /// if set, it's an inline-loop
+                /// (ie container element must be duplicated)
+                inloop: ?*const SuperTree.SuperNode = null,
                 /// pointer to the parent print cursor
                 cursor_ptr: *SuperTree.SuperCursor,
                 /// start of the loop body
@@ -255,6 +258,18 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                             self.print_cursor = l.print_loop_body;
                             self.print_end = l.print_loop_body_end;
                             l.index += 1;
+                            if (l.inloop) |node| {
+                                // print container element start tag
+                                const start_tag = node.elem.startTag();
+                                const scripted_attr = node.loopAttr();
+                                const attr = scripted_attr.attr;
+
+                                const up_to_attr = self.html[self.print_cursor..attr.node.start()];
+                                writer.writeAll(up_to_attr) catch return error.OutIO;
+                                const rest_of_start_tag = self.html[attr.node.end()..start_tag.node.end()];
+                                writer.writeAll(rest_of_start_tag) catch return error.OutIO;
+                                self.print_cursor = start_tag.node.end();
+                            }
                             continue;
                         } else {
                             self.print_cursor = l.print_loop_body_end;
@@ -292,6 +307,42 @@ pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutW
                     switch (node.type.branching()) {
                         else => @panic("TODO: more branching support in eval"),
                         .none => {},
+                        .inloop => {
+                            const start_tag = node.elem.startTag();
+                            const scripted_attr = node.loopAttr();
+                            const attr = scripted_attr.attr;
+                            const value = node.loopValue();
+
+                            const elem_start = start_tag.node.start();
+                            const up_to_elem = self.html[self.print_cursor..elem_start];
+                            self.print_cursor = elem_start;
+                            writer.writeAll(up_to_elem) catch return error.OutIO;
+
+                            const code = try value.unescape(self.arena, self.html);
+                            errdefer code.deinit(self.arena);
+
+                            const iter = try self.evalLoop(
+                                err_writer,
+                                script_vm,
+                                script_ctx,
+                                attr.name(),
+                                code.str,
+                            );
+
+                            try self.eval_frame.append(self.arena, .{
+                                .loop_condition = .{
+                                    .inloop = node,
+                                    .print_loop_body = self.print_cursor,
+                                    .print_loop_body_end = node.elem.endTag().?.end(),
+                                    .print_end = self.print_end,
+                                    .cursor_ptr = cursor_ptr,
+                                    .iter = iter,
+                                    .index = 0,
+                                },
+                            });
+
+                            continue :outer;
+                        },
                         .loop => {
                             const start_tag = node.elem.startTag();
                             const scripted_attr = node.loopAttr();

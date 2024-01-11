@@ -305,6 +305,23 @@ pub const Value = union(enum) {
                 if (args.len != 0) return .{ .err = "'len' wants no arguments" };
                 return Value.from(gpa, str.len);
             }
+            pub fn suffix(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
+                var out = std.ArrayList(u8).init(gpa);
+                errdefer out.deinit();
+
+                try out.appendSlice(str);
+                for (args) |a| {
+                    const fx = switch (a) {
+                        .string => |s| s,
+                        else => return .{ .err = "'suffix' arguments must be strings" },
+                    };
+
+                    try out.appendSlice(fx);
+                }
+
+                return .{ .string = try out.toOwnedSlice() };
+            }
         };
         const DynamicBuiltins = struct {
             pub fn @"get?"(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
@@ -383,6 +400,24 @@ pub const Value = union(enum) {
                     dt._dt.date.day,
                     dt._dt.date.year,
                 });
+
+                return .{ .string = formatted_date };
+            }
+            pub fn formatHTTP(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                const argument_error = .{ .err = "'formatHTTP' wants no argument" };
+                if (args.len != 0) return argument_error;
+
+                // Fri, 16 Jun 2023 00:00:00 +0000
+                const formatted_date = try std.fmt.allocPrint(
+                    gpa,
+                    "{s}, {:0>2} {s} {} 00:00:00 +0000",
+                    .{
+                        dt._dt.date.weekdayName()[0..3],
+                        dt._dt.date.day,
+                        dt._dt.date.monthName()[0..3],
+                        dt._dt.date.year,
+                    },
+                );
 
                 return .{ .string = formatted_date };
             }

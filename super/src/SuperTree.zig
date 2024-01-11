@@ -59,7 +59,7 @@ pub const SuperNode = struct {
         return self.if_else_loop;
     }
     pub fn loopAttr(self: SuperNode) ScriptedAttr {
-        assert(@src(), self.type.branching() == .loop);
+        assert(@src(), self.type.branching() == .loop or self.type.branching() == .inloop);
         return self.if_else_loop;
     }
     pub fn loopValue(self: SuperNode) sitter.Tag.Attr.Value {
@@ -123,6 +123,9 @@ pub const SuperNode = struct {
         element_loop,
         element_loop_var,
         element_loop_ctx,
+        element_inloop,
+        element_inloop_var,
+        element_inloop_ctx,
         element_id,
         element_id_var,
         element_id_ctx,
@@ -135,8 +138,11 @@ pub const SuperNode = struct {
         element_id_loop,
         element_id_loop_var,
         element_id_loop_ctx,
+        element_id_inloop,
+        element_id_inloop_var,
+        element_id_inloop_ctx,
 
-        pub const Branching = enum { none, loop, @"if", @"else" };
+        pub const Branching = enum { none, loop, inloop, @"if", @"else" };
         pub fn branching(self: Type) Branching {
             return switch (self) {
                 .block_loop,
@@ -149,6 +155,13 @@ pub const SuperNode = struct {
                 .element_id_loop_var,
                 .element_id_loop_ctx,
                 => .loop,
+                .element_inloop,
+                .element_inloop_var,
+                .element_inloop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_var,
+                .element_id_inloop_ctx,
+                => .inloop,
                 .block_if,
                 .block_if_var,
                 .block_if_ctx,
@@ -194,10 +207,12 @@ pub const SuperNode = struct {
                 .element_if_var,
                 .element_else_var,
                 .element_loop_var,
+                .element_inloop_var,
                 .element_id_var,
                 .element_id_if_var,
                 .element_id_else_var,
                 .element_id_loop_var,
+                .element_id_inloop_var,
                 => .@"var",
                 .block_ctx,
                 .block_if_ctx,
@@ -207,10 +222,12 @@ pub const SuperNode = struct {
                 .element_if_ctx,
                 .element_else_ctx,
                 .element_loop_ctx,
+                .element_inloop_ctx,
                 .element_id_ctx,
                 .element_id_if_ctx,
                 .element_id_else_ctx,
                 .element_id_loop_ctx,
+                .element_id_inloop_ctx,
                 => .ctx,
                 .root,
                 .extend,
@@ -223,10 +240,12 @@ pub const SuperNode = struct {
                 .element_if,
                 .element_else,
                 .element_loop,
+                .element_inloop,
                 .element_id,
                 .element_id_if,
                 .element_id_else,
                 .element_id_loop,
+                .element_id_inloop,
                 => .none,
             };
         }
@@ -262,6 +281,9 @@ pub const SuperNode = struct {
                 .element_loop,
                 .element_loop_var,
                 .element_loop_ctx,
+                .element_inloop,
+                .element_inloop_var,
+                .element_inloop_ctx,
                 .element_id,
                 .element_id_var,
                 .element_id_ctx,
@@ -274,6 +296,9 @@ pub const SuperNode = struct {
                 .element_id_loop,
                 .element_id_loop_var,
                 .element_id_loop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_var,
+                .element_id_inloop_ctx,
                 => .element,
             };
         }
@@ -302,6 +327,8 @@ pub const SuperNode = struct {
                 .element_id_else_ctx,
                 .element_id_loop,
                 .element_id_loop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_ctx,
                 => true,
             };
         }
@@ -786,6 +813,9 @@ fn buildNode(
                 .element_loop => .element_id_loop,
                 .element_loop_var => .element_id_loop_var,
                 .element_loop_ctx => .element_id_loop_ctx,
+                .element_inloop => .element_id_inloop,
+                .element_inloop_var => .element_id_inloop_var,
+                .element_inloop_ctx => .element_id_inloop_ctx,
 
                 // no state transition
                 .block,
@@ -818,6 +848,9 @@ fn buildNode(
                 .element_id_loop,
                 .element_id_loop_var,
                 .element_id_loop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_var,
+                .element_id_inloop_ctx,
                 => unreachable,
             };
 
@@ -890,10 +923,12 @@ fn buildNode(
                 .element_if => .element_if_var,
                 .element_else => .element_else_var,
                 .element_loop => .element_loop_var,
+                .element_inloop => .element_inloop_var,
                 .element_id => .element_id_var,
                 .element_id_if => .element_id_if_var,
                 .element_id_else => .element_id_else_var,
                 .element_id_loop => .element_id_loop_var,
+                .element_id_inloop => .element_id_inloop_var,
 
                 .block_ctx,
                 .block_if_ctx,
@@ -903,10 +938,12 @@ fn buildNode(
                 .element_if_ctx,
                 .element_else_ctx,
                 .element_loop_ctx,
+                .element_inloop_ctx,
                 .element_id_ctx,
                 .element_id_if_ctx,
                 .element_id_else_ctx,
                 .element_id_loop_ctx,
+                .element_id_inloop_ctx,
                 => {
                     @panic("TODO: explain that a tag combination is wrong");
                 },
@@ -924,10 +961,12 @@ fn buildNode(
                 .element_if_var,
                 .element_else_var,
                 .element_loop_var,
+                .element_inloop_var,
                 .element_id_var,
                 .element_id_if_var,
                 .element_id_else_var,
                 .element_id_loop_var,
+                .element_id_inloop_var,
                 => unreachable,
             };
 
@@ -989,12 +1028,18 @@ fn buildNode(
                 .element_loop,
                 .element_loop_var,
                 .element_loop_ctx,
+                .element_inloop,
+                .element_inloop_var,
+                .element_inloop_ctx,
                 .element_id_else,
                 .element_id_else_var,
                 .element_id_else_ctx,
                 .element_id_loop,
                 .element_id_loop_var,
                 .element_id_loop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_var,
+                .element_id_inloop_ctx,
                 => {
                     self.reportError(
                         name,
@@ -1084,6 +1129,9 @@ fn buildNode(
                 .element_loop,
                 .element_loop_var,
                 .element_loop_ctx,
+                .element_inloop,
+                .element_inloop_var,
+                .element_inloop_ctx,
                 .element_id_if,
                 .element_id_if_var,
                 .element_id_if_ctx,
@@ -1093,6 +1141,9 @@ fn buildNode(
                 .element_id_loop,
                 .element_id_loop_var,
                 .element_id_loop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_var,
+                .element_id_inloop_ctx,
                 => {
                     @panic("TODO: explain why these blocks can't have an else attr");
                 },
@@ -1155,6 +1206,9 @@ fn buildNode(
                 .element_loop,
                 .element_loop_var,
                 .element_loop_ctx,
+                .element_inloop,
+                .element_inloop_var,
+                .element_inloop_ctx,
                 .element_id_if,
                 .element_id_if_var,
                 .element_id_if_ctx,
@@ -1164,13 +1218,88 @@ fn buildNode(
                 .element_id_loop,
                 .element_id_loop_var,
                 .element_id_loop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_var,
+                .element_id_inloop_ctx,
                 => {
-                    @panic("TODO: explain why these blocks can't have an else attr");
+                    // TODO: some of these cases should be unreachable
+                    @panic("TODO: explain why these blocks can't have an loop attr");
                 },
 
                 .root,
                 .extend,
                 .super,
+                // never discovered yet
+                .super_block,
+                .super_block_ctx,
+                => unreachable,
+            };
+
+            const value = attr.value() orelse {
+                @panic("TODO: explain that loop must have a value");
+            };
+
+            const code = try value.unescape(arena, self.html);
+            // TODO: typecheck the expression
+            tmp_result.if_else_loop = .{ .attr = attr, .code = code };
+
+            continue;
+        }
+
+        // inline-loop
+        if (is(name_string, "inline-loop")) {
+            if (last_attr_end != tag_name.end()) {
+                @panic("TODO: explain that loop must be the first attr");
+            }
+
+            tmp_result.type = switch (tmp_result.type) {
+                .element => .element_inloop,
+                .element_var => .element_inloop_var,
+                .element_ctx => .element_inloop_ctx,
+                .element_id => .element_id_inloop,
+                .element_id_var => .element_id_inloop_var,
+                .element_id_ctx => .element_id_inloop_ctx,
+
+                .block_if,
+                .block_if_var,
+                .block_if_ctx,
+                .block_loop,
+                .block_loop_var,
+                .block_loop_ctx,
+                .element_if,
+                .element_if_var,
+                .element_if_ctx,
+                .element_else,
+                .element_else_var,
+                .element_else_ctx,
+                .element_loop,
+                .element_loop_var,
+                .element_loop_ctx,
+                .element_inloop,
+                .element_inloop_var,
+                .element_inloop_ctx,
+                .element_id_if,
+                .element_id_if_var,
+                .element_id_if_ctx,
+                .element_id_else,
+                .element_id_else_var,
+                .element_id_else_ctx,
+                .element_id_loop,
+                .element_id_loop_var,
+                .element_id_loop_ctx,
+                .element_id_inloop,
+                .element_id_inloop_var,
+                .element_id_inloop_ctx,
+                => {
+                    @panic("TODO: explain why these blocks can't have an inline-loop attr");
+                },
+
+                .root,
+                .extend,
+                .super,
+                .block,
+                .block_var,
+                .block_ctx,
                 // never discovered yet
                 .super_block,
                 .super_block_ctx,
@@ -1325,7 +1454,7 @@ fn validateNodeInTree(self: SuperTree, node: *const SuperNode) !void {
         var parent = node.parent;
         while (parent) |p| : (parent = p.parent) switch (p.type.branching()) {
             else => continue,
-            .loop => {
+            .loop, .inloop => {
                 self.reportError(
                     node.idAttr().name(),
                     "id_under_loop",

@@ -6,6 +6,12 @@ pub const AddWebsiteOptions = struct {
     layouts_dir_path: []const u8,
     content_dir_path: []const u8,
     static_dir_path: []const u8,
+    site: Site,
+};
+
+pub const Site = struct {
+    base_url: []const u8,
+    title: []const u8,
 };
 
 /// Adds a 'serve' step to the project's build and sets up the zine build pipeline.
@@ -14,12 +20,7 @@ pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
     setupDevelopmentServer(project, zine_dep);
     // const layouts = try templating.scan(project, zine_dep, opts.layouts_dir_path);
 
-    try markdown.scan(
-        project,
-        zine_dep,
-        opts.layouts_dir_path,
-        opts.content_dir_path,
-    );
+    try markdown.scan(project, zine_dep, opts);
 
     // Install static files
     const install_static = project.addInstallDirectory(.{
