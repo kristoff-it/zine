@@ -11,20 +11,14 @@
             .hash = "122074ce2f776dc9dc4a0d2588a5d76b97212a2c311ef8125d4aadffa4b84e5b8b3e",
         },
         .datetime = .{
-            .path = "../datetime",
+            .path = "datetime",
         },
         .frontmatter = .{
-            .path = "../frontmatter",
+            .path = "frontmatter",
         },
         .super = .{
-            .path = "../super",
+            .path = "super",
         },
     },
-    .paths = .{
-        "LICENSE",
-        "README.md",
-        "build.zig",
-        "build.zig.zon",
-        "src",
-    },
+    .paths = .{"."},
 }
