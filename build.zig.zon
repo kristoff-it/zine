@@ -1,0 +1,30 @@
+.{
+    .name = "zine",
+    .version = "0.0.0",
+    .dependencies = .{
+        .gfm = .{
+            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#9b659dada64964c993be6d6ec16b64f1ca1e8f5a",
+            .hash = "1220a2d62d1de13c424c79d281c273156083b5232199ff68780c146b9441015ab51c",
+        },
+        .mime = .{
+            .url = "git+https://github.com/andrewrk/mime.git#bf80e2e8b1d9413ddf9abe7d94537388b54c83ab",
+            .hash = "122074ce2f776dc9dc4a0d2588a5d76b97212a2c311ef8125d4aadffa4b84e5b8b3e",
+        },
+        .datetime = .{
+            .path = "../datetime",
+        },
+        .frontmatter = .{
+            .path = "../frontmatter",
+        },
+        .super = .{
+            .path = "../super",
+        },
+    },
+    .paths = .{
+        "LICENSE",
+        "README.md",
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
