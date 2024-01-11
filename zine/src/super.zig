@@ -19,6 +19,8 @@ pub fn main() !void {
     const templates_dir_path = args[8];
     const dep_file_path = args[9];
     const index_path = args[10];
+    const site_base_url = args[11];
+    const site_title = args[12];
 
     const rendered_md_string = readFile(rendered_md_path, arena) catch |err| {
         fatal("error while opening the rendered markdown file:\n{s}\n{s}\n", .{
@@ -81,6 +83,7 @@ pub fn main() !void {
     var pages = std.ArrayList(contexts.Page).init(arena);
     var it = std.mem.tokenizeScalar(u8, index_bytes, '\n');
     while (it.next()) |line| {
+        if (std.mem.eql(u8, line, "rss")) continue;
         const path = try std.fs.path.join(arena, &.{
             sections_meta_dir_path,
             line,
@@ -105,8 +108,8 @@ pub fn main() !void {
     std.mem.reverse(contexts.Page, pages.items);
 
     const site: contexts.Site = .{
-        .base_url = "https://kristoff.it/",
-        .title = "Loris Cro's Personal Blog",
+        .base_url = site_base_url,
+        .title = site_title,
         ._pages = try pages.toOwnedSlice(),
     };
 

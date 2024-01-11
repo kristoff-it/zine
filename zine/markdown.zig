@@ -2,6 +2,7 @@ const std = @import("std");
 const frontmatter = @import("frontmatter");
 const templating = @import("templating.zig");
 const contexts = @import("src/contexts.zig");
+const zine = @import("build.zig");
 
 const MdIndexEntry = struct {
     content_sub_path: []const u8,
@@ -16,11 +17,10 @@ const MdIndexEntry = struct {
 pub fn scan(
     project: *std.Build,
     zine_dep: *std.Build.Dependency,
-    layout_dir_path: []const u8,
-    content_dir_path: []const u8,
+    opts: zine.AddWebsiteOptions,
 ) !void {
     const content_dir = std.fs.cwd().openDir(
-        content_dir_path,
+        opts.content_dir_path,
         .{ .iterate = true },
     ) catch |err| {
         std.debug.print("Unable to open the content directory, please create it before running `zig build`.\nError: {s}\n", .{@errorName(err)});
@@ -53,7 +53,7 @@ pub fn scan(
             const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
                 std.debug.print(
                     "Error while parsing the frontmatter header of '{s}/{s}/index.md'\n",
-                    .{ content_dir_path, dir_entry.path },
+                    .{ opts.content_dir_path, dir_entry.path },
                 );
                 return err;
             };
@@ -69,7 +69,7 @@ pub fn scan(
             if (index_md_err != error.FileNotFound) {
                 std.debug.print(
                     "Unable to access `index.md` in {s}\n",
-                    .{content_dir_path},
+                    .{opts.content_dir_path},
                 );
                 return index_md_err;
             }
@@ -129,9 +129,11 @@ pub fn scan(
         project,
         zine_dep,
         sections,
-        layout_dir_path,
+        opts.site.base_url,
+        opts.site.title,
+        opts.layouts_dir_path,
         md.fm.layout,
-        content_dir_path,
+        opts.content_dir_path,
         md.fm.aliases,
         md.content_sub_path,
         md.md_name,
@@ -143,6 +145,8 @@ fn addMarkdownRender(
     project: *std.Build,
     zine_dep: *std.Build.Dependency,
     sections: *std.Build.Step.WriteFile,
+    site_base_url: []const u8,
+    site_title: []const u8,
     layouts_dir_path: []const u8,
     layout_name: []const u8,
     content_dir_path: []const u8,
@@ -228,6 +232,10 @@ fn addMarkdownRender(
     _ = layout_step.addDepFileOutputArg("templates.d");
     // post index
     layout_step.addFileArg(index);
+    // site base url
+    layout_step.addArg(site_base_url);
+    // site title
+    layout_step.addArg(site_title);
 
     const target_output = project.addInstallFile(final_html, out_path);
     project.getInstallStep().dependOn(&target_output.step);
