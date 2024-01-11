@@ -2,7 +2,7 @@ const std = @import("std");
 const frontmatter = @import("frontmatter");
 const templating = @import("templating.zig");
 const contexts = @import("src/contexts.zig");
-const zine = @import("build.zig");
+const zine = @import("../build.zig");
 
 const MdIndexEntry = struct {
     content_sub_path: []const u8,
