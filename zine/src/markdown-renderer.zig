@@ -80,7 +80,6 @@ pub fn main() !void {
         if (ev.dir == .exit) continue;
         const node = ev.node;
         if (node.isImage()) {
-            std.debug.print("md-renderer: found image\n", .{});
             const link = node.link() orelse {
                 @panic("TODO: explain that an image without url was found in the markdown file");
             };
@@ -94,8 +93,6 @@ pub fn main() !void {
             assets_in_dir.access(link, .{}) catch {
                 @panic("TODO: explain that a missing image has been found in a markdown file");
             };
-
-            std.debug.print("copying  {s}\n", .{link});
 
             const path = try std.fs.path.join(arena, &.{ assets_in_path, link });
             try assets_dep_file.writer().print("{s} ", .{path});
