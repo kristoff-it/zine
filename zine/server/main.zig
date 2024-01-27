@@ -33,11 +33,10 @@ const Server = struct {
     }
 
     fn handleRequest(s: *Server, res: *std.http.Server.Response) !void {
-        //var request_buffer: [8 * 1024]u8 = undefined;
-        //const n = try res.readAll(&request_buffer);
-        //const request_body = request_buffer[0..n];
-        //_ = request_body;
-        //std.debug.print("request_body:\n{s}\n", .{request_body});
+        var request_buffer: [8 * 1024]u8 = undefined;
+        const n = try res.readAll(&request_buffer);
+        const request_body = request_buffer[0..n];
+        std.debug.print("path:{s}\nrequest_body:\n{s}\n", .{ res.request.target, request_body });
 
         const path = res.request.target;
         const file = s.files.get(path) orelse {
@@ -49,6 +48,7 @@ const Server = struct {
                 try res.send();
                 _ = try res.writer().writeAll(not_found_html);
                 try res.finish();
+                std.debug.print("not found", .{});
                 return;
             } else {
                 // redirects from `/path` to `/path/`
@@ -58,7 +58,9 @@ const Server = struct {
                 res.status = .see_other;
                 try res.headers.append("location", location);
                 try res.send();
+                _ = try res.writer().writeAll(not_found_html);
                 try res.finish();
+                std.debug.print("append final slash redirect", .{});
                 return;
             }
         };
@@ -70,6 +72,7 @@ const Server = struct {
 
         _ = try res.writer().writeAll(file.contents);
         try res.finish();
+        std.debug.print("send file", .{});
     }
 };
 
@@ -127,7 +130,7 @@ fn cmdServe(gpa: Allocator, arena: Allocator, args: []const []const u8) !void {
 
     var server: Server = .{
         .files = std.StringHashMap(File).init(gpa),
-        .http_server = std.http.Server.init(gpa, .{
+        .http_server = std.http.Server.init(.{
             .reuse_address = true,
         }),
     };
