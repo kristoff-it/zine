@@ -165,12 +165,23 @@ fn cmdServe(gpa: Allocator, arena: Allocator, args: []const []const u8) !void {
         }
     }
 
+    const watch_thread = try std.Thread.spawn(.{}, notifyHandler, .{});
+    watch_thread.detach(root_dir_path);
+
     const address = try std.net.Address.parseIp("127.0.0.1", listen_port);
     try server.http_server.listen(address);
     const server_port = server.http_server.socket.listen_address.in.getPort();
     std.debug.print("Listening at http://127.0.0.1:{d}/\n", .{server_port});
 
     try serve(gpa, &server);
+}
+
+fn notifyHandler(
+    root_dir_path: []const u8,
+) !void {
+    const buffer: []std.os.linux.inotify_event = undefined;
+
+    while (true) {}
 }
 
 fn serve(gpa: Allocator, s: *Server) !void {
