@@ -17,7 +17,7 @@ pub const Site = struct {
 /// Adds a 'serve' step to the project's build and sets up the zine build pipeline.
 pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
     const zine_dep = project.dependency("zine", .{});
-    setupDevelopmentServer(project, zine_dep);
+    setupDevelopmentServer(project, zine_dep, opts);
     // const layouts = try templating.scan(project, zine_dep, opts.layouts_dir_path);
 
     try markdown.scan(project, zine_dep, opts);
@@ -31,10 +31,21 @@ pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
     project.getInstallStep().dependOn(&install_static.step);
 }
 
-fn setupDevelopmentServer(project: *std.Build, zine_dep: *std.Build.Dependency) void {
-    const zine_exe = zine_dep.artifact("zine");
-    const run_server = project.addRunArtifact(zine_exe);
-    run_server.addArgs(&.{ "serve", "--root", project.install_path });
+fn setupDevelopmentServer(
+    project: *std.Build,
+    zine_dep: *std.Build.Dependency,
+    opts: AddWebsiteOptions,
+) void {
+    const server_exe = zine_dep.artifact("server");
+    const run_server = project.addRunArtifact(server_exe);
+    run_server.addArg("serve");
+    run_server.addArgs(&.{
+        "--root",      project.install_path,
+        "--input-dir", opts.content_dir_path,
+        "--input-dir", opts.layouts_dir_path,
+        "--input-dir", opts.static_dir_path,
+    });
+
     if (project.option(u16, "port", "port to listen on for the development server")) |port| {
         run_server.addArgs(&.{ "-p", project.fmt("{d}", .{port}) });
     }
@@ -52,16 +63,25 @@ pub fn build(b: *std.Build) void {
     @import("zine/build_scripts/markdown-renderer.zig").build(b);
 
     const exe = b.addExecutable(.{
-        .name = "zine",
+        .name = "server",
         .root_source_file = .{ .path = "zine/server/main.zig" },
         .target = target,
         .optimize = optimize,
     });
 
+    if (target.result.os.tag == .macos) {
+        exe.linkFramework("CoreServices");
+    }
+
     exe.root_module.addImport("mime", b.dependency("mime", .{
         .target = target,
         .optimize = optimize,
     }).module("mime"));
+
+    exe.root_module.addImport("ws", b.dependency("ws", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("websocket"));
 
     b.installArtifact(exe);
 
