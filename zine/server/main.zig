@@ -2,9 +2,9 @@ const std = @import("std");
 const fs = std.fs;
 const mime = @import("mime");
 const Allocator = std.mem.Allocator;
-const FileWatcher = @import("FileWatcher.zig");
+const Reloader = @import("Reloader.zig");
 const not_found_html = @embedFile("404.html");
-const livereload_js = @embedFile("livereload.js");
+const livereload_js = @embedFile("watcher/livereload.js");
 const assert = std.debug.assert;
 
 const usage =
@@ -19,7 +19,7 @@ const usage =
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 const Server = struct {
-    watcher: *FileWatcher,
+    watcher: *Reloader,
     public_dir: std.fs.Dir,
     http_server: std.http.Server,
 
@@ -61,7 +61,7 @@ const Server = struct {
         }
 
         if (std.mem.eql(u8, path, "/__zine-livereload__")) {
-            const ws = try std.Thread.spawn(.{}, FileWatcher.handleWs, .{ s.watcher, res });
+            const ws = try std.Thread.spawn(.{}, Reloader.handleWs, .{ s.watcher, res });
             ws.detach();
             return true;
         }
@@ -184,10 +184,7 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
         fatal("unable to open directory '{s}': {s}", .{ root_dir_path, @errorName(e) });
     defer root_dir.close();
 
-    var watcher = try FileWatcher.init(gpa, root_dir_path);
-    for (input_dirs.items) |d| {
-        try watcher.addInputTree(d);
-    }
+    var watcher = try Reloader.init(gpa, root_dir_path, input_dirs.items);
 
     var server: Server = .{
         .watcher = &watcher,
@@ -198,7 +195,7 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
     };
     defer server.deinit();
 
-    const watch_thread = try std.Thread.spawn(.{}, FileWatcher.listen, .{&watcher});
+    const watch_thread = try std.Thread.spawn(.{}, Reloader.listen, .{&watcher});
     watch_thread.detach();
 
     const address = try std.net.Address.parseIp("127.0.0.1", listen_port);

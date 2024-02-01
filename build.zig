@@ -69,6 +69,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    if (target.result.os.tag == .macos) {
+        exe.linkFramework("CoreServices");
+    }
+
     exe.root_module.addImport("mime", b.dependency("mime", .{
         .target = target,
         .optimize = optimize,
