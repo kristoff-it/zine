@@ -10,6 +10,10 @@
             .url = "git+https://github.com/andrewrk/mime.git#bf80e2e8b1d9413ddf9abe7d94537388b54c83ab",
             .hash = "122074ce2f776dc9dc4a0d2588a5d76b97212a2c311ef8125d4aadffa4b84e5b8b3e",
         },
+        .ws = .{
+            .url = "git+https://github.com/karlseguin/websocket.zig.git#1f2c4a56c642dab52fe12cdda1bd3f56865d1f86",            
+            .hash = "1220ce168e550f8904364acd0a72f5cafd40caa08a50ba83aac50b97ba700d7bcf20",
+        },
         .datetime = .{
             .path = "datetime",
         },
