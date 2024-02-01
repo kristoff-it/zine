@@ -20,13 +20,6 @@ watcher: Watcher,
 clients_lock: std.Thread.Mutex = .{},
 clients: std.AutoArrayHashMapUnmanaged(*ws.Conn, void) = .{},
 
-pub const WatchEntry = struct {
-    dir_path: []const u8,
-    kind: TreeKind,
-
-    const TreeKind = enum { input, output };
-};
-
 pub fn init(
     gpa: std.mem.Allocator,
     out_dir_path: []const u8,
@@ -38,12 +31,12 @@ pub fn init(
         .gpa = gpa,
         .out_dir_path = out_dir_path,
         .ws_server = ws_server,
-        .watcher = try Watcher.init(out_dir_path, in_dir_paths),
+        .watcher = try Watcher.init(gpa, out_dir_path, in_dir_paths),
     };
 }
 
 pub fn listen(self: *Reloader) !void {
-    try self.watcher.listen(self, self.gpa);
+    try self.watcher.listen(self.gpa, self);
 }
 
 pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {

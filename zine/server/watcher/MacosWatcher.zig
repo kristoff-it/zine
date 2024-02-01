@@ -12,9 +12,11 @@ out_dir_path: []const u8,
 in_dir_paths: []const []const u8,
 
 pub fn init(
+    gpa: std.mem.Allocator,
     out_dir_path: []const u8,
     in_dir_paths: []const []const u8,
 ) !MacosWatcher {
+    _ = gpa;
     return .{
         .out_dir_path = out_dir_path,
         .in_dir_paths = in_dir_paths,
@@ -59,8 +61,8 @@ const Context = struct {
 };
 pub fn listen(
     self: *MacosWatcher,
-    reloader: *Reloader,
     gpa: std.mem.Allocator,
+    reloader: *Reloader,
 ) !void {
     var macos_paths = try gpa.alloc(c.CFStringRef, self.in_dir_paths.len + 1);
     defer gpa.free(macos_paths);

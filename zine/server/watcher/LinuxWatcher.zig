@@ -1,42 +1,54 @@
 const LinuxWatcher = @This();
+
 const std = @import("std");
 const Reloader = @import("../Reloader.zig");
 
 const log = std.log.scoped(.watcher);
 
 notify_fd: std.os.fd_t,
-watch_fds: std.AutoHashMapUnmanaged(std.os.fd_t, Reloader.WatchEntry) = .{},
+watch_fds: std.AutoHashMapUnmanaged(std.os.fd_t, WatchEntry) = .{},
 
-pub fn init() LinuxWatcher {
+const TreeKind = enum { input, output };
+const WatchEntry = struct {
+    dir_path: []const u8,
+    kind: TreeKind,
+};
+
+pub fn init(
+    gpa: std.mem.Allocator,
+    out_dir_path: []const u8,
+    in_dir_paths: []const []const u8,
+) !LinuxWatcher {
     const notify_fd = try std.os.inotify_init1(0);
-    return .{ .notify_fd = notify_fd };
-}
-
-pub fn addInputTree(self: *LinuxWatcher, root_dir_path: []const u8) !void {
-    return self.addTree(.input, root_dir_path);
+    var self: LinuxWatcher = .{ .notify_fd = notify_fd };
+    try self.addTree(gpa, .output, out_dir_path);
+    for (in_dir_paths) |p| try self.addTree(gpa, .input, p);
+    return self;
 }
 
 fn addTree(
     self: *LinuxWatcher,
-    tree_kind: Reloader.WatchEntry.TreeKind,
+    gpa: std.mem.Allocator,
+    tree_kind: TreeKind,
     root_dir_path: []const u8,
 ) !void {
     const root_dir = try std.fs.cwd().openDir(root_dir_path, .{ .iterate = true });
-    try self.addDir(tree_kind, root_dir_path);
+    try self.addDir(gpa, tree_kind, root_dir_path);
 
-    var it = try root_dir.walk(self.gpa);
+    var it = try root_dir.walk(gpa);
     while (try it.next()) |entry| switch (entry.kind) {
         else => continue,
         .directory => {
-            const dir_path = try std.fs.path.join(self.gpa, &.{ root_dir_path, entry.path });
-            try self.addDir(tree_kind, dir_path);
+            const dir_path = try std.fs.path.join(gpa, &.{ root_dir_path, entry.path });
+            try self.addDir(gpa, tree_kind, dir_path);
         },
     };
 }
 
 fn addDir(
     self: *LinuxWatcher,
-    tree_kind: Reloader.WatchEntry.TreeKind,
+    gpa: std.mem.Allocator,
+    tree_kind: TreeKind,
     dir_path: []const u8,
 ) !void {
     const mask = Mask.all(&.{
@@ -49,7 +61,7 @@ fn addDir(
         dir_path,
         mask,
     );
-    try self.watch_fds.put(self.gpa, watch_fd, .{
+    try self.watch_fds.put(gpa, watch_fd, .{
         .dir_path = dir_path,
         .kind = tree_kind,
     });
@@ -58,9 +70,8 @@ fn addDir(
 
 pub fn listen(
     self: *LinuxWatcher,
+    gpa: std.mem.Allocator,
     reloader: *Reloader,
-    onInputChange: Reloader.ListenerFn,
-    onOutputChange: Reloader.ListenerFn,
 ) !void {
     const Event = std.os.linux.inotify_event;
     const event_size = @sizeOf(Event);
@@ -82,14 +93,14 @@ pub fn listen(
             if (Mask.is(event.mask, .IN_ISDIR)) {
                 if (Mask.is(event.mask, .IN_CREATE)) {
                     const dir_name = event.getName().?;
-                    const dir_path = try std.fs.path.join(self.gpa, &.{
+                    const dir_path = try std.fs.path.join(gpa, &.{
                         parent.dir_path,
                         dir_name,
                     });
 
                     log.debug("ISDIR CREATE {s}", .{dir_path});
 
-                    try self.addTree(parent.kind, dir_path);
+                    try self.addTree(gpa, parent.kind, dir_path);
                     continue;
                 }
 
@@ -103,11 +114,11 @@ pub fn listen(
                     switch (parent.kind) {
                         .input => {
                             const name = event.getName() orelse continue;
-                            onInputChange(reloader, parent.dir_path, name);
+                            reloader.onInputChange(parent.dir_path, name);
                         },
                         .output => {
                             const name = event.getName() orelse continue;
-                            onOutputChange(reloader, parent.dir_path, name);
+                            reloader.onOutputChange(parent.dir_path, name);
                         },
                     }
                 }
