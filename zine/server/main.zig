@@ -119,14 +119,36 @@ const Server = struct {
 
         const contents = try file.readToEndAlloc(arena, std.math.maxInt(usize));
 
-        res.transfer_encoding = .{ .content_length = contents.len };
-        try res.headers.append("content-type", @tagName(mime_type));
-        try res.headers.append("connection", "close");
-        try res.send();
-        _ = try res.writer().writeAll(contents);
-        try res.finish();
-        std.debug.print("sent file\n", .{});
-        return false;
+        if (mime_type == .@"text/html") {
+            const injection =
+                \\<script src="/livereload.js?path=__zine-livereload__"></script>
+            ;
+            res.transfer_encoding = .{ .content_length = contents.len + injection.len };
+            try res.headers.append("content-type", @tagName(mime_type));
+            try res.headers.append("connection", "close");
+            try res.send();
+
+            const head = "</head>";
+            const head_pos = std.mem.indexOf(u8, contents, head) orelse contents.len;
+            const w = res.writer();
+
+            _ = try w.writeAll(contents[0..head_pos]);
+            _ = try w.writeAll(injection);
+            _ = try w.writeAll(contents[head_pos..]);
+
+            try res.finish();
+            std.debug.print("sent file\n", .{});
+            return false;
+        } else {
+            res.transfer_encoding = .{ .content_length = contents.len };
+            try res.headers.append("content-type", @tagName(mime_type));
+            try res.headers.append("connection", "close");
+            try res.send();
+            _ = try res.writer().writeAll(contents);
+            try res.finish();
+            std.debug.print("sent file\n", .{});
+            return false;
+        }
     }
 };
 
