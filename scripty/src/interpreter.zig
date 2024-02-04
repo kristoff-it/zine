@@ -3,7 +3,7 @@ const types = @import("types.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Parser = @import("Parser.zig");
 
-const log = std.log.scoped(.scripty_vm);
+const log = std.log.scoped(.scripty);
 
 pub const Diagnostics = struct {
     loc: Tokenizer.Token.Loc,
@@ -44,6 +44,8 @@ pub fn ScriptyVM(comptime Context: type, comptime Value: type) type {
             // TODO: temp hack
             self.parser = .{};
             var quota = opts.quota;
+
+            log.debug("scripty is running!", .{});
 
             // On error make the vm usable again.
             errdefer |err| switch (@as(RunError, err)) {
@@ -316,7 +318,7 @@ test "basic" {
         },
     };
 
-    errdefer std.debug.print("result = `{s}`\n", .{result.value.string.bytes});
+    errdefer log.debug("result = `{s}`\n", .{result.value.string.bytes});
 
     try std.testing.expectEqualDeep(ex, result);
 }
@@ -335,7 +337,7 @@ test "builtin" {
         .value = .{ .int = 4 },
     };
 
-    errdefer std.debug.print("result = `{s}`\n", .{result.value.string.bytes});
+    errdefer log.debug("result = `{s}`\n", .{result.value.string.bytes});
 
     try std.testing.expectEqualDeep(ex, result);
 }

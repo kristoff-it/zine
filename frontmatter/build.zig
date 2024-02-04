@@ -1,11 +1,11 @@
 const std = @import("std");
 pub usingnamespace @import("frontmatter.zig");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const module = b.addModule("frontmatter", .{
+    const frontmatter = b.addModule("frontmatter", .{
         .root_source_file = .{ .path = "frontmatter.zig" },
     });
 
@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    unit_tests.root_module.addImport("frontmatter", module);
+    unit_tests.root_module.addImport("frontmatter", frontmatter);
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
     const test_step = b.step("test", "Run unit tests");

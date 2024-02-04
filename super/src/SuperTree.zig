@@ -498,6 +498,8 @@ pub fn init(
 
         const new_node = try self.buildNode(arena, elem, depth) orelse continue;
 
+        new_node.elem.node.debug();
+
         // Iterface and block mode
         switch (new_node.type.role()) {
             .root, .super_block => unreachable,

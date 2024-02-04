@@ -16,7 +16,21 @@ pub const Site = struct {
 
 /// Adds a 'serve' step to the project's build and sets up the zine build pipeline.
 pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
-    const zine_dep = project.dependency("zine", .{});
+    const debug_opt = project.option(
+        bool,
+        "debug",
+        "build Zine tools in debug mode",
+    ) orelse false;
+
+    const log: []const []const u8 = project.option(
+        []const []const u8,
+        "log",
+        "logging scopes to enable (defaults to all scopes)",
+    ) orelse &.{};
+
+    const optimize: std.builtin.OptimizeMode = if (debug_opt) .Debug else .ReleaseFast;
+    const zine_dep = project.dependency("zine", .{ .optimize = optimize, .log = log });
+
     setupDevelopmentServer(project, zine_dep, opts);
     // const layouts = try templating.scan(project, zine_dep, opts.layouts_dir_path);
 
@@ -55,14 +69,37 @@ fn setupDevelopmentServer(
     run_server.step.dependOn(project.getInstallStep());
 }
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const log: []const []const u8 = b.option(
+        []const []const u8,
+        "log",
+        "logging scopes to enable (defaults to all scopes)",
+    ) orelse &.{};
+
+    const mode = .{ .target = target, .optimize = optimize };
+
+    const options = blk: {
+        const options = b.addOptions();
+        const out = options.contents.writer();
+        try out.writeAll(
+            \\// module = zine
+            \\const std = @import("std");
+            \\pub const log_scope_levels: []const std.log.ScopeLevel = &.{
+            \\
+        );
+        for (log) |l| try out.print(
+            \\.{{.scope = .{s}, .level = .debug}},
+        , std.zig.fmtId(l));
+        try out.writeAll("};");
+        break :blk options.createModule();
+    };
     // Define markdown-renderer executable
     @import("zine/build_scripts/markdown-renderer.zig").build(b);
 
-    const exe = b.addExecutable(.{
+    const server = b.addExecutable(.{
         .name = "server",
         .root_source_file = .{ .path = "zine/server/main.zig" },
         .target = target,
@@ -70,20 +107,17 @@ pub fn build(b: *std.Build) void {
     });
 
     if (target.result.os.tag == .macos) {
-        exe.linkFramework("CoreServices");
+        server.linkFramework("CoreServices");
     }
 
-    exe.root_module.addImport("mime", b.dependency("mime", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("mime"));
+    const mime = b.dependency("mime", mode);
+    const ws = b.dependency("ws", mode);
 
-    exe.root_module.addImport("ws", b.dependency("ws", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("websocket"));
+    server.root_module.addImport("options", options);
+    server.root_module.addImport("mime", mime.module("mime"));
+    server.root_module.addImport("ws", ws.module("websocket"));
 
-    b.installArtifact(exe);
+    b.installArtifact(server);
 
     const super_exe = b.addExecutable(.{
         .name = "super_exe",
@@ -93,24 +127,17 @@ pub fn build(b: *std.Build) void {
         // .strip = true,
     });
 
-    super_exe.root_module.addImport("super", b.dependency("super", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("super"));
+    const super = b.dependency("super", mode);
+    const scripty = super.builder.dependency("scripty", mode);
+    const ts = super.builder.dependency("tree-sitter", mode);
+    const datetime = b.dependency("datetime", mode);
 
-    super_exe.root_module.addImport("scripty", b.dependency("super", .{
-        .target = target,
-        .optimize = optimize,
-    }).builder.dependency("scripty", .{}).module("scripty"));
-
-    super_exe.root_module.addImport("datetime", b.dependency("datetime", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("zig-datetime"));
-
-    b.installArtifact(super_exe);
-
-    const ts = b.dependency("super", .{}).builder.dependency("tree-sitter", .{});
+    super_exe.root_module.addImport("options", options);
+    super_exe.root_module.addImport("super", super.module("super"));
+    super_exe.root_module.addImport("scripty", scripty.module("scripty"));
+    super_exe.root_module.addImport("datetime", datetime.module("zig-datetime"));
     super_exe.linkLibrary(ts.artifact("tree-sitter"));
     super_exe.linkLibC();
+
+    b.installArtifact(super_exe);
 }

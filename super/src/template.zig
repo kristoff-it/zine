@@ -5,6 +5,8 @@ const errors = @import("errors.zig");
 const SuperTree = @import("SuperTree.zig");
 const SuperNode = SuperTree.SuperNode;
 
+const log = std.log.scoped(.supertemplate);
+
 pub fn SuperTemplate(comptime Context: type, comptime Value: type, comptime OutWriter: type) type {
     return struct {
         name: []const u8,

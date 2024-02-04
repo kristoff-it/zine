@@ -1,4 +1,5 @@
 const std = @import("std");
+const options = @import("options");
 const fs = std.fs;
 const mime = @import("mime");
 const Allocator = std.mem.Allocator;
@@ -6,6 +7,12 @@ const Reloader = @import("Reloader.zig");
 const not_found_html = @embedFile("404.html");
 const livereload_js = @embedFile("watcher/livereload.js");
 const assert = std.debug.assert;
+
+const log = std.log.scoped(.server);
+pub const std_options = struct {
+    pub const log_level = .err;
+    pub const log_scope_levels = options.log_scope_levels;
+};
 
 const usage =
     \\usage: zine serve [options]
@@ -56,7 +63,7 @@ const Server = struct {
             try res.send();
             _ = try res.writer().writeAll(livereload_js);
             try res.finish();
-            std.debug.print("sent livereload script \n", .{});
+            log.debug("sent livereload script \n", .{});
             return false;
         }
 
@@ -82,7 +89,7 @@ const Server = struct {
                     try res.send();
                     _ = try res.writer().writeAll(not_found_html);
                     try res.finish();
-                    std.debug.print("not found\n", .{});
+                    log.debug("not found\n", .{});
                     return false;
                 } else {
                     // redirects from `/path` to `/path/`
@@ -92,7 +99,7 @@ const Server = struct {
                     try res.send();
                     _ = try res.writer().writeAll(not_found_html);
                     try res.finish();
-                    std.debug.print("append final slash redirect\n", .{});
+                    log.debug("append final slash redirect\n", .{});
                     return false;
                 }
             },
@@ -111,7 +118,7 @@ const Server = struct {
                 try res.send();
                 _ = try res.writer().writeAll(message);
                 try res.finish();
-                std.debug.print("error: {s}\n", .{@errorName(err)});
+                log.debug("error: {s}\n", .{@errorName(err)});
                 return false;
             },
         };
@@ -137,7 +144,7 @@ const Server = struct {
             _ = try w.writeAll(contents[head_pos..]);
 
             try res.finish();
-            std.debug.print("sent file\n", .{});
+            log.debug("sent file\n", .{});
             return false;
         } else {
             res.transfer_encoding = .{ .content_length = contents.len };
@@ -146,7 +153,7 @@ const Server = struct {
             try res.send();
             _ = try res.writer().writeAll(contents);
             try res.finish();
-            std.debug.print("sent file\n", .{});
+            log.debug("sent file\n", .{});
             return false;
         }
     }
@@ -156,6 +163,8 @@ pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
 
     const args = try std.process.argsAlloc(gpa);
+
+    log.debug("log from server!", .{});
 
     if (args.len < 2) fatal("missing subcommand argument", .{});
 
@@ -252,9 +261,9 @@ fn serve(gpa: Allocator, s: *Server) !void {
                 error.EndOfStream => continue,
                 else => return err,
             };
-            std.log.debug("request: {s}", .{res.request.target});
+            log.debug("request: {s}", .{res.request.target});
             became_websocket = s.handleRequest(&res) catch |err| {
-                std.log.err("failed request: {s}", .{@errorName(err)});
+                log.debug("failed request: {s}", .{@errorName(err)});
                 continue :accept;
             };
             if (became_websocket) continue :accept;
