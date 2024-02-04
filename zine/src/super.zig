@@ -1,6 +1,13 @@
 const std = @import("std");
+const options = @import("options");
 const super = @import("super");
 const contexts = @import("contexts.zig");
+
+const log = std.log.scoped(.super_exe);
+pub const std_options = struct {
+    pub const log_level = .err;
+    pub const log_scope_levels = options.log_scope_levels;
+};
 
 pub fn main() !void {
     var arena_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
@@ -202,7 +209,8 @@ pub fn main() !void {
             };
 
             super_vm.insertTemplate(template_path, template_html);
-            try dep_file.writeAll(template_path);
+            try dep_writer.print("{s} ", .{template_path});
+            log.debug("loaded template: '{s}'", .{template_path});
         },
     };
 

@@ -4,6 +4,8 @@ const c = @cImport({
     @cInclude("tree_sitter/api.h");
 });
 
+const log = std.log.scoped(.sitter);
+
 extern fn tree_sitter_html() callconv(.C) *c.TSLanguage;
 
 pub const Tree = struct {
@@ -37,7 +39,7 @@ pub const Node = struct {
     pub fn debug(self: Node) void {
         const c_str = c.ts_node_string(self.n);
         const str = std.mem.span(c_str);
-        std.debug.print("\n{s}\n", .{str});
+        log.debug("{s}", .{str});
     }
 
     pub fn missing(self: Node) bool {

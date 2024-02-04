@@ -1,10 +1,10 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const module = b.addModule("scripty", .{
+    const scripty = b.addModule("scripty", .{
         .root_source_file = .{ .path = "src/main.zig" },
     });
 
@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) void {
 
     // unit_tests.strip = true;
 
-    unit_tests.root_module.addImport("scripty", module);
+    unit_tests.root_module.addImport("scripty", scripty);
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
     const test_step = b.step("test", "Run unit tests");
