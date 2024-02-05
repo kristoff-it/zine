@@ -3,6 +3,7 @@ const scripty = @import("scripty");
 const super = @import("super");
 const datetime = @import("datetime").datetime;
 const timezones = @import("datetime").timezones;
+const Signature = @import("docgen.zig").Signature;
 
 pub const DateTime = struct {
     _dt: datetime.Datetime,
@@ -52,15 +53,29 @@ pub const Site = struct {
     title: []const u8,
     _pages: []const Page,
 
+    pub const description =
+        \\Represents the global site configuration.
+    ;
     pub const dot = scripty.defaultDot(Site, Value);
     pub const PassByRef = true;
     pub const Builtins = struct {
-        pub fn pages(self: *Site, gpa: std.mem.Allocator, args: []const Value) !Value {
-            _ = gpa;
-            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+        pub const pages = struct {
+            pub const signature: Signature = .{ .ret = .{ .many = .Page } };
+            pub const description =
+                \\Returns a list of all the pages of the website. 
+                \\To be used in conjuction with a `loop` attribute. 
+                \\
+            ;
+            pub const examples =
+                \\<div loop="$site.pages()"></div>
+            ;
+            pub fn call(self: *Site, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            return .{ .iterator = .{ .page_it = .{ .items = self._pages } } };
-        }
+                return .{ .iterator = .{ .page_it = .{ .items = self._pages } } };
+            }
+        };
     };
 };
 
@@ -83,62 +98,126 @@ pub const Page = struct {
         next: ?*Page = null,
     } = .{},
 
+    pub const description =
+        \\Represents the current page.
+    ;
     pub const dot = scripty.defaultDot(Page, Value);
     pub const PassByRef = true;
     pub const Builtins = struct {
-        pub fn wordCount(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-            _ = gpa;
-            if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{ .int = self._meta.word_count };
-        }
-
-        pub fn nextPage(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-            _ = gpa;
-            if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            if (self._meta.next) |next| {
-                return .{ .optional = .{ .page = next } };
-            } else {
-                return .{ .optional = null };
+        pub const wordCount = struct {
+            pub const signature: Signature = .{ .ret = .int };
+            pub const description =
+                \\Returns the word count of the page.
+                \\
+                \\The count is performed assuming 5-letter words, so it actually
+                \\counts all characters and divides the result by 5.
+            ;
+            pub const examples =
+                \\<div loop="$site.pages()"></div>
+            ;
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+                return .{ .int = self._meta.word_count };
             }
-        }
-        pub fn prevPage(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-            _ = gpa;
-            if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            if (self._meta.prev) |prev| {
-                return .{ .optional = .{ .page = prev } };
-            } else {
-                return .{ .optional = null };
+        };
+
+        pub const nextPage = struct {
+            pub const signature: Signature = .{ .ret = .{ .opt = .Page } };
+            pub const description =
+                \\Tries to return the page after the target one (sorted by date), to be used with an `if` attribute.
+            ;
+            pub const examples =
+                \\<div if="$page.nextPage()"></div>
+            ;
+
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+                if (self._meta.next) |next| {
+                    return .{ .optional = .{ .page = next } };
+                } else {
+                    return .{ .optional = null };
+                }
             }
-        }
-        pub fn hasNext(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-            const p = try nextPage(self, gpa, args);
-            return switch (p) {
-                .err => p,
-                .optional => |opt| if (opt == null)
-                    .{ .bool = false }
-                else
-                    .{ .bool = true },
-                else => unreachable,
-            };
-        }
-        pub fn hasPrev(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-            const p = try prevPage(self, gpa, args);
-            return switch (p) {
-                .err => p,
-                .optional => |opt| if (opt == null)
-                    .{ .bool = false }
-                else
-                    .{ .bool = true },
+        };
+        pub const prevPage = struct {
+            pub const signature: Signature = .{ .ret = .{ .opt = .Page } };
+            pub const description =
+                \\Tries to return the page before the target one (sorted by date), to be used with an `if` attribute.
+            ;
+            pub const examples =
+                \\<div if="$page.prevPage()"></div>
+            ;
 
-                else => unreachable,
-            };
-        }
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+                if (self._meta.prev) |prev| {
+                    return .{ .optional = .{ .page = prev } };
+                } else {
+                    return .{ .optional = null };
+                }
+            }
+        };
 
-        pub fn permalink(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-            _ = gpa;
-            if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{ .string = self._meta.permalink };
-        }
+        pub const hasNext = struct {
+            pub const signature: Signature = .{ .ret = .bool };
+            pub const description =
+                \\Returns true of the target page has another page after (sorted by date) 
+            ;
+            pub const examples =
+                \\$page.hasNext()
+            ;
+
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                const p = try nextPage.call(self, gpa, args);
+                return switch (p) {
+                    .err => p,
+                    .optional => |opt| if (opt == null)
+                        .{ .bool = false }
+                    else
+                        .{ .bool = true },
+                    else => unreachable,
+                };
+            }
+        };
+        pub const hasPrev = struct {
+            pub const signature: Signature = .{ .ret = .bool };
+            pub const description =
+                \\Returns true of the target page has another page before (sorted by date) 
+            ;
+            pub const examples =
+                \\$page.hasPrev()
+            ;
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                const p = try prevPage.call(self, gpa, args);
+                return switch (p) {
+                    .err => p,
+                    .optional => |opt| if (opt == null)
+                        .{ .bool = false }
+                    else
+                        .{ .bool = true },
+
+                    else => unreachable,
+                };
+            }
+        };
+
+        pub const permalink = struct {
+            pub const signature: Signature = .{ .ret = .str };
+            pub const description =
+                \\Returns the URL of the target page.
+            ;
+            pub const examples =
+                \\$page.permalink()
+            ;
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+                return .{ .string = self._meta.permalink };
+            }
+        };
     };
 };
 
@@ -301,195 +380,338 @@ pub const Value = union(enum) {
 
     pub fn builtinsFor(comptime tag: @typeInfo(Value).Union.tag_type.?) type {
         const StringBuiltins = struct {
-            pub fn len(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
-                if (args.len != 0) return .{ .err = "'len' wants no arguments" };
-                return Value.from(gpa, str.len);
-            }
-            pub fn suffix(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
-                if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
-                var out = std.ArrayList(u8).init(gpa);
-                errdefer out.deinit();
-
-                try out.appendSlice(str);
-                for (args) |a| {
-                    const fx = switch (a) {
-                        .string => |s| s,
-                        else => return .{ .err = "'suffix' arguments must be strings" },
-                    };
-
-                    try out.appendSlice(fx);
+            pub const len = struct {
+                pub const signature: Signature = .{ .ret = .int };
+                pub const description =
+                    \\Returns the length of a string.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.title.len()
+                ;
+                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len != 0) return .{ .err = "'len' wants no arguments" };
+                    return Value.from(gpa, str.len);
                 }
+            };
 
-                return .{ .string = try out.toOwnedSlice() };
-            }
+            pub const suffix = struct {
+                pub const signature: Signature = .{
+                    .params = &.{ .str, .{ .many = .str } },
+                    .ret = .str,
+                };
+                pub const description =
+                    \\Concatenates strings together (left-to-right).
+                    \\
+                ;
+                pub const examples =
+                    \\$page.title.suffix("Foo","Bar", "Baz")
+                ;
+                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
+                    var out = std.ArrayList(u8).init(gpa);
+                    errdefer out.deinit();
+
+                    try out.appendSlice(str);
+                    for (args) |a| {
+                        const fx = switch (a) {
+                            .string => |s| s,
+                            else => return .{ .err = "'suffix' arguments must be strings" },
+                        };
+
+                        try out.appendSlice(fx);
+                    }
+
+                    return .{ .string = try out.toOwnedSlice() };
+                }
+            };
         };
         const DynamicBuiltins = struct {
-            pub fn @"get?"(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
-                _ = gpa;
-                const bad_arg = .{ .err = "'get?' wants 1 string argument" };
-                if (args.len != 1) return bad_arg;
+            pub const @"get?" = struct {
+                pub const signature: Signature = .{ .params = &.{.str}, .ret = .{ .opt = .dyn } };
+                pub const description =
+                    \\Tries to get a dynamic value, to be used in conjuction with an `if` attribute.
+                    \\
+                ;
+                pub const examples =
+                    \\<div if="$page.custom.get?('myValue')"></div>
+                ;
+                pub fn call(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                    _ = gpa;
+                    const bad_arg = .{ .err = "'get?' wants 1 string argument" };
+                    if (args.len != 1) return bad_arg;
 
-                const path = switch (args[0]) {
-                    .string => |s| s,
-                    else => return bad_arg,
-                };
+                    const path = switch (args[0]) {
+                        .string => |s| s,
+                        else => return bad_arg,
+                    };
 
-                if (dyn == .null) return .{ .optional = null };
-                if (dyn != .object) return .{ .err = "get? on a non-map dynamic value" };
+                    if (dyn == .null) return .{ .optional = null };
+                    if (dyn != .object) return .{ .err = "get? on a non-map dynamic value" };
 
-                if (dyn.object.get(path)) |value| {
-                    switch (value) {
-                        .null => return .{ .optional = null },
-                        .bool => |b| return .{ .optional = .{ .bool = b } },
-                        .integer => |i| return .{ .optional = .{ .int = i } },
-                        .string => |s| return .{ .optional = .{ .string = s } },
-                        inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                    if (dyn.object.get(path)) |value| {
+                        switch (value) {
+                            .null => return .{ .optional = null },
+                            .bool => |b| return .{ .optional = .{ .bool = b } },
+                            .integer => |i| return .{ .optional = .{ .int = i } },
+                            .string => |s| return .{ .optional = .{ .string = s } },
+                            inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                        }
                     }
+
+                    return .{ .optional = null };
                 }
+            };
 
-                return .{ .optional = null };
-            }
+            pub const get = struct {
+                pub const signature: Signature = .{ .params = &.{ .str, .str }, .ret = .str };
+                pub const description =
+                    \\Tries to get a dynamic value, uses the provided default value otherwise.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.custom.get('coauthor', 'nobody')
+                ;
+                pub fn call(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                    _ = gpa;
+                    const bad_arg = .{ .err = "'get' wants 2 string arguments" };
+                    if (args.len != 2) return bad_arg;
 
-            pub fn get(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
-                _ = gpa;
-                const bad_arg = .{ .err = "'get' wants 2 string arguments" };
-                if (args.len != 2) return bad_arg;
+                    const path = switch (args[0]) {
+                        .string => |s| s,
+                        else => return bad_arg,
+                    };
 
-                const path = switch (args[0]) {
-                    .string => |s| s,
-                    else => return bad_arg,
-                };
+                    const fallback = switch (args[1]) {
+                        .string => |s| s,
+                        else => return bad_arg,
+                    };
 
-                const fallback = switch (args[1]) {
-                    .string => |s| s,
-                    else => return bad_arg,
-                };
+                    if (dyn == .null) return .{ .string = fallback };
+                    if (dyn != .object) return .{ .err = "get on a non-map dynamic value" };
 
-                if (dyn == .null) return .{ .string = fallback };
-                if (dyn != .object) return .{ .err = "get on a non-map dynamic value" };
-
-                if (dyn.object.get(path)) |value| {
-                    switch (value) {
-                        .null => return .{ .string = fallback },
-                        .bool => |b| return .{ .bool = b },
-                        .integer => |i| return .{ .int = i },
-                        .string => |s| return .{ .string = s },
-                        inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                    if (dyn.object.get(path)) |value| {
+                        switch (value) {
+                            .null => return .{ .string = fallback },
+                            .bool => |b| return .{ .bool = b },
+                            .integer => |i| return .{ .int = i },
+                            .string => |s| return .{ .string = s },
+                            inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                        }
                     }
-                }
 
-                return .{ .string = fallback };
-            }
+                    return .{ .string = fallback };
+                }
+            };
         };
 
         const DateBuiltins = struct {
-            pub fn format(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
-                const argument_error = .{ .err = "'format' wants one (string) argument" };
-                if (args.len != 1) return argument_error;
-                const string = switch (args[0]) {
-                    .string => |s| s,
-                    else => return argument_error,
-                };
+            pub const format = struct {
+                pub const signature: Signature = .{ .params = &.{.str}, .ret = .str };
+                pub const description =
+                    \\Formats a datetime according to the specified format string.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.date.format("January 02, 2006")
+                    \\$page.date.format("06-Jan-02")
+                ;
+                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    const argument_error = .{ .err = "'format' wants one (string) argument" };
+                    if (args.len != 1) return argument_error;
+                    const string = switch (args[0]) {
+                        .string => |s| s,
+                        else => return argument_error,
+                    };
 
-                if (!std.mem.eql(u8, string, "January 02, 2006")) {
-                    @panic("TODO: implement more date formatting options");
-                }
+                    if (!std.mem.eql(u8, string, "January 02, 2006")) {
+                        @panic("TODO: implement more date formatting options");
+                    }
 
-                const formatted_date = try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
-                    dt._dt.date.monthName(),
-                    dt._dt.date.day,
-                    dt._dt.date.year,
-                });
-
-                return .{ .string = formatted_date };
-            }
-            pub fn formatHTTP(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
-                const argument_error = .{ .err = "'formatHTTP' wants no argument" };
-                if (args.len != 0) return argument_error;
-
-                // Fri, 16 Jun 2023 00:00:00 +0000
-                const formatted_date = try std.fmt.allocPrint(
-                    gpa,
-                    "{s}, {:0>2} {s} {} 00:00:00 +0000",
-                    .{
-                        dt._dt.date.weekdayName()[0..3],
+                    const formatted_date = try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
+                        dt._dt.date.monthName(),
                         dt._dt.date.day,
-                        dt._dt.date.monthName()[0..3],
                         dt._dt.date.year,
-                    },
-                );
+                    });
 
-                return .{ .string = formatted_date };
-            }
+                    return .{ .string = formatted_date };
+                }
+            };
+
+            pub const formatHTTP = struct {
+                pub const signature: Signature = .{ .ret = .str };
+                pub const description =
+                    \\Formats a datetime according to the HTTP spec.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.date.formatHTTP()
+                ;
+                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    const argument_error = .{ .err = "'formatHTTP' wants no argument" };
+                    if (args.len != 0) return argument_error;
+
+                    // Fri, 16 Jun 2023 00:00:00 +0000
+                    const formatted_date = try std.fmt.allocPrint(
+                        gpa,
+                        "{s}, {:0>2} {s} {} 00:00:00 +0000",
+                        .{
+                            dt._dt.date.weekdayName()[0..3],
+                            dt._dt.date.day,
+                            dt._dt.date.monthName()[0..3],
+                            dt._dt.date.year,
+                        },
+                    );
+
+                    return .{ .string = formatted_date };
+                }
+            };
         };
         const BoolBuiltins = struct {
-            pub fn not(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
-                if (args.len != 0) return .{ .err = "'not' wants no arguments" };
-                return .{ .bool = !b };
-            }
-            pub fn @"and"(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
-                if (args.len == 0) return .{ .err = "'and' wants at least one argument" };
-                for (args) |a| switch (a) {
-                    .bool => {},
-                    else => return .{ .err = "wrong argument type" },
+            pub const not = struct {
+                pub const signature: Signature = .{ .ret = .bool };
+                pub const description =
+                    \\Negates a boolean value.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.draft.not()
+                ;
+                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len != 0) return .{ .err = "'not' wants no arguments" };
+                    return .{ .bool = !b };
+                }
+            };
+            pub const @"and" = struct {
+                pub const signature: Signature = .{
+                    .params = &.{ .bool, .{ .many = .bool } },
+                    .ret = .bool,
                 };
-                if (!b) return .{ .bool = false };
-                for (args) |a| if (!a.bool) return .{ .bool = false };
 
-                return .{ .bool = true };
-            }
-            pub fn @"or"(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
-                if (args.len == 0) return .{ .err = "'or' wants at least one argument" };
-                for (args) |a| switch (a) {
-                    .bool => {},
-                    else => return .{ .err = "wrong argument type" },
+                pub const description =
+                    \\Computes logical `and` between the receiver value and any other value passed as argument.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.draft.and($site.base_url.startsWith("https"))
+                ;
+                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len == 0) return .{ .err = "'and' wants at least one argument" };
+                    for (args) |a| switch (a) {
+                        .bool => {},
+                        else => return .{ .err = "wrong argument type" },
+                    };
+                    if (!b) return .{ .bool = false };
+                    for (args) |a| if (!a.bool) return .{ .bool = false };
+
+                    return .{ .bool = true };
+                }
+            };
+            pub const @"or" = struct {
+                pub const signature: Signature = .{
+                    .params = &.{ .bool, .{ .many = .bool } },
+                    .ret = .bool,
                 };
-                if (b) return .{ .bool = true };
-                for (args) |a| if (a.bool) return .{ .bool = true };
+                pub const description =
+                    \\Computes logical `or` between the receiver value and any other value passed as argument.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.draft.or($site.base_url.startsWith("https"))
+                ;
+                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len == 0) return .{ .err = "'or' wants at least one argument" };
+                    for (args) |a| switch (a) {
+                        .bool => {},
+                        else => return .{ .err = "wrong argument type" },
+                    };
+                    if (b) return .{ .bool = true };
+                    for (args) |a| if (a.bool) return .{ .bool = true };
 
-                return .{ .bool = false };
-            }
+                    return .{ .bool = false };
+                }
+            };
         };
         const IntBuiltins = struct {
-            pub fn eq(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
-                const argument_error = .{ .err = "'plus' wants one int argument" };
-                if (args.len != 1) return argument_error;
+            pub const eq = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.int},
+                    .ret = .bool,
+                };
+                pub const description =
+                    \\Tests if two integers have the same value.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.wordCount().eq(200)
+                ;
+                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                    const argument_error = .{ .err = "'plus' wants one int argument" };
+                    if (args.len != 1) return argument_error;
 
-                switch (args[0]) {
-                    .int => |rhs| {
-                        return .{ .bool = num == rhs };
-                    },
-                    else => return argument_error,
+                    switch (args[0]) {
+                        .int => |rhs| {
+                            return .{ .bool = num == rhs };
+                        },
+                        else => return argument_error,
+                    }
                 }
-            }
-            pub fn plus(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
-                const argument_error = .{ .err = "'plus' wants one (int|float) argument" };
-                if (args.len != 1) return argument_error;
+            };
 
-                switch (args[0]) {
-                    .int => |add| {
-                        return .{ .int = num +| add };
-                    },
-                    .float => @panic("TODO: int with float argument"),
-                    else => return argument_error,
+            pub const plus = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.int},
+                    .ret = .int,
+                };
+                pub const description =
+                    \\Sums two integers.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.wordCount().plus(10)
+                ;
+                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                    const argument_error = .{ .err = "'plus' wants one (int|float) argument" };
+                    if (args.len != 1) return argument_error;
+
+                    switch (args[0]) {
+                        .int => |add| {
+                            return .{ .int = num +| add };
+                        },
+                        .float => @panic("TODO: int with float argument"),
+                        else => return argument_error,
+                    }
                 }
-            }
-            pub fn div(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
-                const argument_error = .{ .err = "'div' wants one (int|float) argument" };
-                if (args.len != 1) return argument_error;
+            };
+            pub const div = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.int},
+                    .ret = .int,
+                };
+                pub const description =
+                    \\Divides the receiver by the argument.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.wordCount().div(10)
+                ;
+                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                    const argument_error = .{ .err = "'div' wants one (int|float) argument" };
+                    if (args.len != 1) return argument_error;
 
-                switch (args[0]) {
-                    .int => |den| {
-                        const res = std.math.divTrunc(i64, num, den) catch |err| {
-                            return .{ .err = @errorName(err) };
-                        };
+                    switch (args[0]) {
+                        .int => |den| {
+                            const res = std.math.divTrunc(i64, num, den) catch |err| {
+                                return .{ .err = @errorName(err) };
+                            };
 
-                        return .{ .int = res };
-                    },
-                    .float => @panic("TODO: div with float argument"),
-                    else => return argument_error,
+                            return .{ .int = res };
+                        },
+                        .float => @panic("TODO: div with float argument"),
+                        else => return argument_error,
+                    }
                 }
-            }
+            };
         };
         return switch (tag) {
             .site => Site.Builtins,

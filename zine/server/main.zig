@@ -251,7 +251,7 @@ fn serve(gpa: Allocator, s: *Server) !void {
             if (!became_websocket) {
                 res.deinit();
             } else {
-                std.debug.print("request became websocket\n", .{});
+                log.debug("request became websocket\n", .{});
             }
         }
 

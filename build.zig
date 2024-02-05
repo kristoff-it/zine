@@ -69,6 +69,20 @@ fn setupDevelopmentServer(
     run_server.step.dependOn(project.getInstallStep());
 }
 
+pub fn scriptyReferenceDocs(project: *std.Build, output_file_path: []const u8) void {
+    const zine_dep = project.dependency("zine", .{ .optimize = .Debug });
+
+    const run_docgen = project.addRunArtifact(zine_dep.artifact("docgen"));
+    const reference_md = run_docgen.addOutputFileArg("scripty_reference.md");
+
+    const wf = project.addWriteFiles();
+    wf.addCopyFileToSource(reference_md, output_file_path);
+
+    const desc = project.fmt("Regenerates Scripty reference docs in '{s}'", .{output_file_path});
+    const run_step = project.step("docgen", desc);
+    run_step.dependOn(&wf.step);
+}
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -140,4 +154,13 @@ pub fn build(b: *std.Build) !void {
     super_exe.linkLibC();
 
     b.installArtifact(super_exe);
+
+    const docgen = b.addExecutable(.{
+        .name = "docgen",
+        .root_source_file = .{ .path = "zine/src/docgen.zig" },
+        .target = target,
+        .optimize = .Debug,
+    });
+    docgen.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    b.installArtifact(docgen);
 }
