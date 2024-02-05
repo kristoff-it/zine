@@ -40,7 +40,7 @@ pub fn defaultCall(
                     inline for (@typeInfo(Builtin).Struct.decls) |decl| {
                         if (decl.name[0] == '_') continue;
                         if (std.mem.eql(u8, decl.name, fn_name)) {
-                            return @field(Builtin, decl.name)(v, gpa, args);
+                            return @field(Builtin, decl.name).call(v, gpa, args);
                         }
                     }
 

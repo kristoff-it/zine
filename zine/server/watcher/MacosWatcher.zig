@@ -39,7 +39,7 @@ pub fn callback(
     const paths: [*][*:0]u8 = @alignCast(@ptrCast(eventPaths));
     for (paths[0..numEvents]) |p| {
         const path = std.mem.span(p);
-        std.debug.print("Changed: {s}\n", .{path});
+        log.debug("Changed: {s}\n", .{path});
 
         const basename = std.fs.path.basename(path);
         var base_path = path[0 .. path.len - basename.len];
