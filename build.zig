@@ -161,6 +161,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = .Debug,
     });
+    docgen.linkLibC();
     docgen.root_module.addImport("datetime", datetime.module("zig-datetime"));
     b.installArtifact(docgen);
 }
