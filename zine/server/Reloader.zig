@@ -112,7 +112,7 @@ pub fn handleWs(self: *Reloader, res: *std.http.Server.Response) !void {
     var h: [20]u8 = undefined;
 
     const key = res.request.headers.getFirstValue("sec-websocket-key") orelse {
-        std.debug.print("couldn't find key header!\n", .{});
+        log.debug("couldn't find key header!\n", .{});
         return;
     };
 
