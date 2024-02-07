@@ -56,7 +56,8 @@ pub const ScriptyParam = union(enum) {
 };
 
 pub fn main() !void {
-    var arena_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    var gpa_impl: std.heap.GeneralPurposeAllocator(.{}) = .{};
+    var arena_impl = std.heap.ArenaAllocator.init(gpa_impl.allocator());
     defer arena_impl.deinit();
 
     const arena = arena_impl.allocator();
