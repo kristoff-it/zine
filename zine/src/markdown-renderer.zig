@@ -139,19 +139,25 @@ pub fn main() !void {
             c.CMARK_NODE_BLOCK_QUOTE => try w.print("<blockquote>", .{}),
             c.CMARK_NODE_LIST => try w.print("<{s}>", .{@tagName(node.listType())}),
             c.CMARK_NODE_ITEM => try w.print("<li>", .{}),
-            c.CMARK_NODE_HTML_BLOCK => {},
+            c.CMARK_NODE_HTML_BLOCK => try w.print(
+                "{s}",
+                .{node.literal() orelse ""},
+            ),
             c.CMARK_NODE_CUSTOM_BLOCK => {},
             c.CMARK_NODE_PARAGRAPH => try w.print("<p>", .{}),
             c.CMARK_NODE_HEADING => try w.print("<h{}>", .{node.headingLevel()}),
             c.CMARK_NODE_THEMATIC_BREAK => try w.print("<hr>", .{}),
             c.CMARK_NODE_FOOTNOTE_DEFINITION => @panic("TODO: FOOTNOTE_DEFINITION"),
-            c.CMARK_NODE_HTML_INLINE => try w.print("{s}", .{node.literal() orelse ""}),
+            c.CMARK_NODE_HTML_INLINE => try w.print(
+                "{s}",
+                .{node.literal() orelse ""},
+            ),
             c.CMARK_NODE_CUSTOM_INLINE => @panic("custom inline"),
             c.CMARK_NODE_TEXT => try w.print("{s}", .{node.literal() orelse ""}),
             c.CMARK_NODE_SOFTBREAK => try w.print(" ", .{}),
             c.CMARK_NODE_LINEBREAK => try w.print("<br><br>", .{}),
             c.CMARK_NODE_CODE => try w.print("<code>{s}</code>", .{
-                node.literal() orelse "",
+                HtmlSafe{ .bytes = node.literal() orelse "" },
             }),
             c.CMARK_NODE_EMPH => try w.print("<i>", .{}),
             c.CMARK_NODE_STRONG => try w.print("<strong>", .{}),
@@ -181,7 +187,7 @@ pub fn main() !void {
                         );
                     } else {
                         try out_file.writer().print("<pre><code>{s}</code></pre>", .{
-                            code,
+                            HtmlSafe{ .bytes = code },
                         });
                     }
                 }
@@ -269,5 +275,26 @@ const Node = struct {
             2 => .ol,
             else => unreachable,
         };
+    }
+};
+
+const HtmlSafe = struct {
+    bytes: []const u8,
+
+    pub fn format(
+        self: HtmlSafe,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: anytype,
+    ) !void {
+        _ = options;
+        _ = fmt;
+        for (self.bytes) |b| {
+            switch (b) {
+                '>' => try out_stream.writeAll("&gt;"),
+                '<' => try out_stream.writeAll("&lt;"),
+                else => try out_stream.writeByte(b),
+            }
+        }
     }
 };

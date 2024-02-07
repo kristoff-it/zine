@@ -593,7 +593,7 @@ pub const Value = union(enum) {
                     \\
                 ;
                 pub const examples =
-                    \\$page.draft.and($site.base_url.startsWith("https"))
+                    \\$page.draft.and($site.tags.len().eq(10))
                 ;
                 pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
                     if (args.len == 0) return .{ .err = "'and' wants at least one argument" };
@@ -617,7 +617,7 @@ pub const Value = union(enum) {
                     \\
                 ;
                 pub const examples =
-                    \\$page.draft.or($site.base_url.startsWith("https"))
+                    \\$page.draft.or($site.tags.len().eq(0))
                 ;
                 pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
                     if (args.len == 0) return .{ .err = "'or' wants at least one argument" };
