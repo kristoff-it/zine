@@ -110,8 +110,6 @@ pub fn build(b: *std.Build) !void {
         try out.writeAll("};");
         break :blk options.createModule();
     };
-    // Define markdown-renderer executable
-    @import("zine/build_scripts/markdown-renderer.zig").build(b);
 
     const server = b.addExecutable(.{
         .name = "server",
@@ -163,4 +161,22 @@ pub fn build(b: *std.Build) !void {
     });
     docgen.root_module.addImport("datetime", datetime.module("zig-datetime"));
     b.installArtifact(docgen);
+
+    const md_renderer = b.addExecutable(.{
+        .name = "markdown-renderer",
+        .root_source_file = .{ .path = "zine/src/markdown-renderer.zig" },
+        .target = b.resolveTargetQuery(.{}),
+        .optimize = optimize,
+    });
+
+    const gfm = b.dependency("gfm", mode);
+    const frontmatter = b.dependency("frontmatter", mode);
+    md_renderer.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    md_renderer.root_module.addImport("frontmatter", frontmatter.module("frontmatter"));
+
+    md_renderer.linkLibrary(gfm.artifact("cmark-gfm"));
+    md_renderer.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
+    md_renderer.linkLibC();
+
+    b.installArtifact(md_renderer);
 }
