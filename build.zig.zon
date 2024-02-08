@@ -14,6 +14,10 @@
             .url = "git+https://github.com/karlseguin/websocket.zig.git#1f2c4a56c642dab52fe12cdda1bd3f56865d1f86",            
             .hash = "1220ce168e550f8904364acd0a72f5cafd40caa08a50ba83aac50b97ba700d7bcf20",
         },
+        .@"tree-sitter" = .{
+            .url = "https://github.com/neurocyte/tree-sitter/releases/download/master-1ab391b43aa06e8648108f4d194e769a55a187be/source.tar.gz",
+            .hash = "12209d0d502f6ee33386c3369d87936b919d56f0302bc030e6deee5d806451a4ca34",
+        },
         .datetime = .{
             .path = "datetime",
         },
