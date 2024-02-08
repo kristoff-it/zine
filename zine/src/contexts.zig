@@ -88,6 +88,7 @@ pub const Page = struct {
     draft: bool = false,
     tags: []const []const u8 = &.{},
     aliases: []const []const u8 = &.{},
+    skip_subdirs: bool = false,
     custom: std.json.Value = .null,
     content: []const u8 = "",
 

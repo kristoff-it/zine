@@ -64,6 +64,8 @@ pub fn scan(
                     .md_name = "index.md",
                     .fm = fm,
                 });
+
+                if (fm.skip_subdirs) continue;
             }
         } else |index_md_err| {
             if (index_md_err != error.FileNotFound) {
@@ -73,48 +75,49 @@ pub fn scan(
                 );
                 return index_md_err;
             }
+        }
 
-            var it = dir_entry.dir.iterate();
-            while (try it.next()) |entry| {
-                switch (entry.kind) {
-                    else => continue,
-                    .file => if (std.mem.endsWith(u8, entry.name, ".md")) {
-                        const file = dir_entry.dir.openFile(entry.name, .{}) catch |err| {
-                            std.debug.print(
-                                "Error while reading {s} in /{s}\n",
-                                .{ entry.name, dir_entry.path },
-                            );
-                            return err;
-                        };
-                        defer file.close();
+        var it = dir_entry.dir.iterate();
+        while (try it.next()) |entry| {
+            switch (entry.kind) {
+                else => continue,
+                .file => if (std.mem.endsWith(u8, entry.name, ".md")) {
+                    if (std.mem.eql(u8, entry.name, "index.md")) continue;
+                    const file = dir_entry.dir.openFile(entry.name, .{}) catch |err| {
+                        std.debug.print(
+                            "Error while reading {s} in /{s}\n",
+                            .{ entry.name, dir_entry.path },
+                        );
+                        return err;
+                    };
+                    defer file.close();
 
-                        var buf_reader = std.io.bufferedReader(file.reader());
-                        const r = buf_reader.reader();
-                        const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
-                            std.debug.print(
-                                "Error while parsing the frontmatter header of `{s}` in /{s}\n",
-                                .{ entry.name, dir_entry.path },
-                            );
-                            return err;
-                        };
-                        if (!fm.draft) {
-                            try md_index.append(.{
-                                .content_sub_path = project.dupe(dir_entry.path),
-                                .md_name = try project.allocator.dupe(u8, entry.name),
-                                .fm = fm,
-                            });
-                        }
-                    },
-                    .directory => {
-                        try dir_stack.append(.{
-                            .dir = try dir_entry.dir.openDir(
-                                entry.name,
-                                .{ .iterate = true },
-                            ),
-                            .path = project.pathJoin(&.{ dir_entry.path, entry.name }),
+                    var buf_reader = std.io.bufferedReader(file.reader());
+                    const r = buf_reader.reader();
+                    const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
+                        std.debug.print(
+                            "Error while parsing the frontmatter header of `{s}` in /{s}\n",
+                            .{ entry.name, dir_entry.path },
+                        );
+                        return err;
+                    };
+                    if (!fm.draft) {
+                        try md_index.append(.{
+                            .content_sub_path = project.dupe(dir_entry.path),
+                            .md_name = try project.allocator.dupe(u8, entry.name),
+                            .fm = fm,
                         });
-                    },
-                }
+                    }
+                },
+                .directory => {
+                    try dir_stack.append(.{
+                        .dir = try dir_entry.dir.openDir(
+                            entry.name,
+                            .{ .iterate = true },
+                        ),
+                        .path = project.pathJoin(&.{ dir_entry.path, entry.name }),
+                    });
+                },
             }
         }
     }
@@ -160,7 +163,7 @@ fn addMarkdownRender(
     const layout_path = project.pathJoin(&.{ layouts_dir_path, layout_name });
     const out_basename = md_basename[0 .. md_basename.len - 3];
     const out_name = if (std.mem.endsWith(u8, layout_name, ".xml")) "index.xml" else "index.html";
-    const out_path = if (std.mem.eql(u8, out_basename, "index") or std.mem.eql(u8, out_basename, "_index"))
+    const out_path = if (std.mem.eql(u8, out_basename, "index"))
         project.pathJoin(&.{ path, out_name })
     else
         project.pathJoin(&.{ path, out_basename, out_name });
@@ -180,7 +183,7 @@ fn addMarkdownRender(
     // frontmatter + computed metadata
     const page_metadata = render_step.addOutputFileArg("_zine_page.json");
 
-    const install_subpath = if (std.mem.eql(u8, out_basename, "index") or std.mem.eql(u8, out_basename, "_index"))
+    const install_subpath = if (std.mem.eql(u8, out_basename, "index"))
         path
     else
         project.pathJoin(&.{ path, out_basename });
@@ -195,7 +198,7 @@ fn addMarkdownRender(
         .source_dir = assets_dir,
         .install_dir = .prefix,
         .install_subdir = install_subpath,
-        .exclude_extensions = &.{ "_zine_assets.d", "_zine_index.html", "_zine_page.json" },
+        .exclude_extensions = &.{ "_zine_assets.d", "_zine_index.html", "_zine_page.json", "index" },
     });
     project.getInstallStep().dependOn(&install_assets.step);
 
@@ -250,7 +253,7 @@ fn formatIndex(project: *std.Build, md_index: []const MdIndexEntry) []const u8 {
     var out = std.ArrayList(u8).init(project.allocator);
     const w = out.writer();
     for (md_index) |md| {
-        if (std.mem.eql(u8, md.md_name, "index.md") or std.mem.eql(u8, md.md_name, "_index.md")) {
+        if (std.mem.eql(u8, md.md_name, "index.md")) {
             w.print("{s}\n", .{md.content_sub_path}) catch unreachable;
         } else {
             w.print("{s}{s}\n", .{
