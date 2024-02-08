@@ -92,14 +92,7 @@ const Server = struct {
                     log.debug("not found\n", .{});
                     return false;
                 } else {
-                    // redirects from `/path` to `/path/`
-                    const location = try std.fmt.allocPrint(arena, "{s}/", .{path});
-                    res.status = .see_other;
-                    try res.headers.append("location", location);
-                    try res.send();
-                    _ = try res.writer().writeAll(not_found_html);
-                    try res.finish();
-                    log.debug("append final slash redirect\n", .{});
+                    try appendSlashRedirect(arena, res);
                     return false;
                 }
             },
@@ -124,7 +117,13 @@ const Server = struct {
         };
         defer file.close();
 
-        const contents = try file.readToEndAlloc(arena, std.math.maxInt(usize));
+        const contents = file.readToEndAlloc(arena, std.math.maxInt(usize)) catch |err| switch (err) {
+            error.IsDir => {
+                try appendSlashRedirect(arena, res);
+                return false;
+            },
+            else => return err,
+        };
 
         if (mime_type == .@"text/html") {
             const injection =
@@ -158,6 +157,23 @@ const Server = struct {
         }
     }
 };
+
+fn appendSlashRedirect(
+    arena: std.mem.Allocator,
+    res: *std.http.Server.Response,
+) !void {
+    const location = try std.fmt.allocPrint(
+        arena,
+        "{s}/",
+        .{res.request.target},
+    );
+    res.status = .see_other;
+    try res.headers.append("location", location);
+    try res.send();
+    _ = try res.writer().writeAll(not_found_html);
+    try res.finish();
+    log.debug("append final slash redirect\n", .{});
+}
 
 pub fn main() !void {
     const gpa = general_purpose_allocator.allocator();
