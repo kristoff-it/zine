@@ -145,6 +145,7 @@ pub fn scan(
         project,
         md_index.items,
     ));
+    _ = index;
     for (md_index.items) |md| try addMarkdownRender(
         project,
         zine_dep,
@@ -157,7 +158,6 @@ pub fn scan(
         md.fm.aliases,
         md.content_sub_path,
         md.md_name,
-        index,
     );
 }
 
@@ -174,7 +174,6 @@ fn addMarkdownRender(
     /// Must be relative to `content_dir_path`
     path: []const u8,
     md_basename: []const u8,
-    index: std.Build.LazyPath,
 ) !void {
     const in_path = project.pathJoin(&.{ content_dir_path, path, md_basename });
     const layout_path = project.pathJoin(&.{ layouts_dir_path, layout_name });
@@ -232,6 +231,7 @@ fn addMarkdownRender(
 
     const super_exe = zine_dep.artifact("super_exe");
     const layout_step = project.addRunArtifact(super_exe);
+
     // output file
     const final_html = layout_step.addOutputFileArg(out_basename);
     // install subpath (used also to navigate sections_meta)
@@ -239,9 +239,11 @@ fn addMarkdownRender(
     // rendered_md_path
     layout_step.addFileArg(rendered_md);
     // md_name
-    layout_step.addArg(project.pathJoin(&.{ path, md_basename }));
+    const md_name = project.pathJoin(&.{ path, md_basename });
+    layout_step.addArg(md_name);
+    layout_step.setName(project.fmt("layout {s}", .{md_name}));
     // location where the sections metadata lives
-    layout_step.addDirectoryArg(sections.getDirectory());
+    layout_step.addOptionalDirectoryArg(sections.getDirectory());
     // layout_path
     layout_step.addFileArg(.{ .path = layout_path });
     // layout_name
@@ -250,8 +252,6 @@ fn addMarkdownRender(
     layout_step.addArg(project.pathJoin(&.{ layouts_dir_path, "templates" }));
     // dep file
     _ = layout_step.addDepFileOutputArg("templates.d");
-    // post index
-    layout_step.addFileArg(index);
     // site base url
     layout_step.addArg(site_base_url);
     // site title

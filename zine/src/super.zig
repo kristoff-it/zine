@@ -25,9 +25,8 @@ pub fn main() !void {
     const layout_name = args[7];
     const templates_dir_path = args[8];
     const dep_file_path = args[9];
-    const index_path = args[10];
-    const site_base_url = args[11];
-    const site_title = args[12];
+    const site_base_url = args[10];
+    const site_title = args[11];
 
     const rendered_md_string = readFile(rendered_md_path, arena) catch |err| {
         fatal("error while opening the rendered markdown file:\n{s}\n{s}\n", .{
@@ -43,6 +42,7 @@ pub fn main() !void {
         });
     };
 
+    const index_path = try std.fs.path.join(arena, &.{ sections_meta_dir_path, "__zine-index__.json" });
     const index_bytes = readFile(index_path, arena) catch |err| {
         fatal("error while opening the index file:\n{s}\n{s}\n", .{
             layout_path,
@@ -114,19 +114,26 @@ pub fn main() !void {
     }
     std.mem.reverse(contexts.Page, pages.items);
 
+    var depender: contexts.Depender = .{
+        .meta_dir_path = sections_meta_dir_path,
+        .dep_writer = dep_writer,
+    };
     const site: contexts.Site = .{
         .base_url = site_base_url,
         .title = site_title,
         ._pages = try pages.toOwnedSlice(),
+        ._depender = &depender,
     };
 
     const page = try std.json.parseFromTokenSourceLeaky(contexts.Page, arena, &scanner, .{});
+
     const prev_next = findPrevNext(index_bytes, install_subpath);
     var ctx: contexts.Template = .{
         .site = site,
         .page = page,
     };
     ctx.page.content = rendered_md_string;
+    ctx.page._meta.depender = &depender;
     ctx.page._meta.permalink = try std.fmt.allocPrint(arena, "/{s}/", .{install_subpath});
 
     if (prev_next.prev) |p| {
