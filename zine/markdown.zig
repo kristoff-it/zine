@@ -45,28 +45,36 @@ pub fn scan(
             d.close();
         }
 
-        if (dir_entry.dir.openFile("index.md", .{})) |file| {
+        if (dir_entry.dir.openFile("index.md", .{})) |file| blk: {
             defer file.close();
 
             var buf_reader = std.io.bufferedReader(file.reader());
             const r = buf_reader.reader();
-            const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
-                std.debug.print(
-                    "Error while parsing the frontmatter header of '{s}/{s}/index.md'\n",
-                    .{ opts.content_dir_path, dir_entry.path },
-                );
-                return err;
+            var diag: frontmatter.Diagnostics = .{};
+            const fm = frontmatter.parse(
+                contexts.Page,
+                project.allocator,
+                r,
+                &diag,
+            ) catch |err| switch (err) {
+                error.Empty => {
+                    std.debug.print("WARNING: ignoring empty file '{s}/{s}{s}'\n", .{
+                        opts.content_dir_path, dir_entry.path, "index.md",
+                    });
+                    break :blk;
+                },
+                else => diag.fatal(err, opts.content_dir_path, dir_entry.path, "index.md"),
             };
 
-            if (!fm.draft) {
-                try md_index.append(.{
-                    .content_sub_path = project.dupe(dir_entry.path),
-                    .md_name = "index.md",
-                    .fm = fm,
-                });
+            if (fm.draft) break :blk;
 
-                if (fm.skip_subdirs) continue;
-            }
+            try md_index.append(.{
+                .content_sub_path = project.dupe(dir_entry.path),
+                .md_name = "index.md",
+                .fm = fm,
+            });
+
+            if (fm.skip_subdirs) continue;
         } else |index_md_err| {
             if (index_md_err != error.FileNotFound) {
                 std.debug.print(
@@ -92,22 +100,31 @@ pub fn scan(
                     };
                     defer file.close();
 
+                    var diag: frontmatter.Diagnostics = .{};
                     var buf_reader = std.io.bufferedReader(file.reader());
                     const r = buf_reader.reader();
-                    const fm = frontmatter.parse(contexts.Page, r, project.allocator) catch |err| {
-                        std.debug.print(
-                            "Error while parsing the frontmatter header of `{s}` in /{s}\n",
-                            .{ entry.name, dir_entry.path },
-                        );
-                        return err;
+                    const fm = frontmatter.parse(
+                        contexts.Page,
+                        project.allocator,
+                        r,
+                        &diag,
+                    ) catch |err| switch (err) {
+                        error.Empty => {
+                            std.debug.print("WARNING: ignoring empty file '{s}/{s}{s}'\n", .{
+                                opts.content_dir_path, dir_entry.path, entry.name,
+                            });
+                            continue;
+                        },
+                        else => diag.fatal(err, opts.content_dir_path, dir_entry.path, entry.name),
                     };
-                    if (!fm.draft) {
-                        try md_index.append(.{
-                            .content_sub_path = project.dupe(dir_entry.path),
-                            .md_name = try project.allocator.dupe(u8, entry.name),
-                            .fm = fm,
-                        });
-                    }
+
+                    if (fm.draft) continue;
+
+                    try md_index.append(.{
+                        .content_sub_path = project.dupe(dir_entry.path),
+                        .md_name = try project.allocator.dupe(u8, entry.name),
+                        .fm = fm,
+                    });
                 },
                 .directory => {
                     try dir_stack.append(.{
@@ -258,9 +275,10 @@ fn formatIndex(project: *std.Build, md_index: []const MdIndexEntry) []const u8 {
         } else {
             w.print("{s}{s}\n", .{
                 md.content_sub_path,
-                md.md_name[md.md_name.len - 4 ..],
+                md.md_name[0 .. md.md_name.len - 3],
             }) catch unreachable;
         }
     }
-    return out.toOwnedSlice() catch unreachable;
+    const result = out.toOwnedSlice() catch unreachable;
+    return result;
 }

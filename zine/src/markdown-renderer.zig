@@ -49,7 +49,7 @@ pub fn main() !void {
 
     var buf_reader = std.io.bufferedReader(in_file.reader());
     const r = buf_reader.reader();
-    var page = try frontmatter.parse(PageContext, r, arena);
+    var page = try frontmatter.parse(PageContext, arena, r, null);
 
     const in_string = try r.readAllAlloc(arena, 1024 * 1024 * 10);
 
