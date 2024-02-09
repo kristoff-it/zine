@@ -5,7 +5,7 @@ const mime = @import("mime");
 const Allocator = std.mem.Allocator;
 const Reloader = @import("Reloader.zig");
 const not_found_html = @embedFile("404.html");
-const livereload_js = @embedFile("watcher/livereload.js");
+const zinereload_js = @embedFile("watcher/zinereload.js");
 const assert = std.debug.assert;
 
 const log = std.log.scoped(.server);
@@ -53,22 +53,28 @@ const Server = struct {
         }
 
         if (std.mem.endsWith(u8, path, "/")) {
-            path = try std.fmt.allocPrint(arena, "{s}{s}", .{ path, "index.html" });
+            path = try std.fmt.allocPrint(arena, "{s}{s}", .{
+                path,
+                "index.html",
+            });
         }
 
-        if (std.mem.eql(u8, path, "/livereload.js?path=__zine-livereload__")) {
-            res.transfer_encoding = .{ .content_length = livereload_js.len };
+        if (std.mem.eql(u8, path, "/__zine/zinereload.js")) {
+            res.transfer_encoding = .{ .content_length = zinereload_js.len };
             try res.headers.append("content-type", "text/javascript");
             try res.headers.append("connection", "close");
             try res.send();
-            _ = try res.writer().writeAll(livereload_js);
+            _ = try res.writer().writeAll(zinereload_js);
             try res.finish();
             log.debug("sent livereload script \n", .{});
             return false;
         }
 
-        if (std.mem.eql(u8, path, "/__zine-livereload__")) {
-            const ws = try std.Thread.spawn(.{}, Reloader.handleWs, .{ s.watcher, res });
+        if (std.mem.eql(u8, path, "/__zine/ws")) {
+            const ws = try std.Thread.spawn(.{}, Reloader.handleWs, .{
+                s.watcher,
+                res,
+            });
             ws.detach();
             return true;
         }
@@ -127,7 +133,7 @@ const Server = struct {
 
         if (mime_type == .@"text/html") {
             const injection =
-                \\<script src="/livereload.js?path=__zine-livereload__"></script>
+                \\<script src="/__zine/zinereload.js"></script>
             ;
             res.transfer_encoding = .{ .content_length = contents.len + injection.len };
             try res.headers.append("content-type", @tagName(mime_type));
