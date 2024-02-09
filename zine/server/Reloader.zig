@@ -58,8 +58,42 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     if (result.stdout.len > 0) {
         log.info("zig build stdout: {s}", .{result.stdout});
     }
+
     if (result.stderr.len > 0) {
         log.info("zig build stderr: {s}", .{result.stderr});
+    }
+
+    self.clients_lock.lock();
+    defer self.clients_lock.unlock();
+
+    var idx: usize = 0;
+    while (idx < self.clients.entries.len) {
+        const conn = self.clients.entries.get(idx).key;
+
+        const BuildCommand = struct {
+            command: []const u8 = "build",
+            err: []const u8,
+        };
+
+        const cmd: BuildCommand = .{ .err = result.stderr };
+
+        var buf = std.ArrayList(u8).init(self.gpa);
+        defer buf.deinit();
+
+        std.json.stringify(cmd, .{}, buf.writer()) catch {
+            log.err("unable to generate ws message", .{});
+            return;
+        };
+
+        conn.write(buf.items) catch |err| {
+            log.debug("error writing to websocket: {s}", .{
+                @errorName(err),
+            });
+            self.clients.swapRemoveAt(idx);
+            continue;
+        };
+
+        idx += 1;
     }
 }
 pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void {
@@ -78,10 +112,7 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
         const msg_fmt =
             \\{{
             \\  "command":"reload",
-            \\  "path":"{s}/{s}",
-            \\  "originalPath":"",
-            \\  "liveCSS":true,
-            \\  "liveImg":true
+            \\  "path":"{s}/{s}"
             \\}}
         ;
 
@@ -149,7 +180,12 @@ const Handler = struct {
     };
 
     pub fn init(h: ws.Handshake, conn: *ws.Conn, context: *Context) !Handler {
-        _ = h; // we're not using this in our simple case
+        _ = h;
+
+        const watcher = context.watcher;
+        watcher.clients_lock.lock();
+        defer watcher.clients_lock.unlock();
+        try watcher.clients.put(context.watcher.gpa, conn, {});
 
         return Handler{
             .conn = conn,
@@ -158,25 +194,8 @@ const Handler = struct {
     }
 
     pub fn handle(self: *Handler, message: ws.Message) !void {
-        const data = message.data;
-        const gpa = self.context.watcher.gpa;
-
-        log.debug("ws message: {s}\n", .{data});
-
-        if (std.mem.indexOf(u8, data, "\"command\":\"hello\"")) |_| {
-            try self.conn.write(
-                \\{
-                \\  "command": "hello",
-                \\  "protocols": [ "http://livereload.com/protocols/official-7" ],
-                \\  "serverName": "Zine"
-                \\}
-            );
-
-            const watcher = self.context.watcher;
-            watcher.clients_lock.lock();
-            defer watcher.clients_lock.unlock();
-            try watcher.clients.put(gpa, self.conn, {});
-        }
+        _ = self;
+        log.debug("ws message: {s}\n", .{message.data});
     }
 
     pub fn close(self: *Handler) void {

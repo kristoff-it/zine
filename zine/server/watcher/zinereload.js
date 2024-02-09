@@ -21,7 +21,7 @@ function zineConnect() {
         if (path.endsWith('/')) path = path + 'index.html';
 
         if (path == msg.path) {
-          // location.reload();
+          location.reload();
         }
       } else if (msg.path.endsWith(".css")) {
         const links = document.querySelectorAll("link");
@@ -65,6 +65,21 @@ function zineConnect() {
           const style = inlines[i];
           log("TODO: implement image reload in inline stylesheets");
         }
+      }
+    } else if (msg.command == "build"){
+      const id = "__zine_build_box";
+      if(msg.err != "") {
+        let box = document.getElementById(id);
+        if (box == null) {
+          box = document.createElement("pre");
+          box.style = "position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;color: white; background-color: darkred;z-index:100; overflow-y: scroll; margin: 0; padding: 5px; font-family: monospace;";
+          box.id = id;
+          document.body.appendChild(box); 
+        }
+        box.textContent = "ZINE BUILD ERROR (note: this error message in the future will look better :^)\n\n\n\n" + msg.err;
+      } else {
+        let box = document.getElementById(id);
+        if (box != null) box.remove();
       }
     } else {
       log("unknown command:", msg.command, msg);
