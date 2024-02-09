@@ -35,7 +35,9 @@ Two flags that are going to help you develop Zine:
 Builds Zine in debug mode, which means faster rebuilds and enabling debug logging. 
 
 ### `-Dlog=foo`
-Enables logging only for the specified scopes. See at the top of each component what is the scope name in a declaration that looks like this:
+Enables logging only for the specified scopes. Can be passed multiple times to enable more than one scope.
+
+See at the top of each component what is the scope name in a declaration that looks like this:
 
 `zine/server/main.zig`
 ```zig
