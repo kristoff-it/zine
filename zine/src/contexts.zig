@@ -116,7 +116,7 @@ pub const Page = struct {
                 \\counts all characters and divides the result by 5.
             ;
             pub const examples =
-                \\<div loop="$site.pages()"></div>
+                \\<div loop="$page.wordCount()"></div>
             ;
             pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
                 _ = gpa;
