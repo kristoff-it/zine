@@ -273,8 +273,10 @@ fn formatIndex(project: *std.Build, md_index: []const MdIndexEntry) []const u8 {
         if (std.mem.eql(u8, md.md_name, "index.md")) {
             w.print("{s}\n", .{md.content_sub_path}) catch unreachable;
         } else {
-            w.print("{s}{s}\n", .{
+            const sep = if (std.mem.endsWith(u8, md.content_sub_path, "/")) "" else "/";
+            w.print("{s}{s}{s}\n", .{
                 md.content_sub_path,
+                sep,
                 md.md_name[0 .. md.md_name.len - 3],
             }) catch unreachable;
         }
