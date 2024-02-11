@@ -28,6 +28,22 @@ pub fn main() !void {
     const site_base_url = args[10];
     const site_title = args[11];
 
+    log.debug(
+        \\
+        \\
+        \\layout: {s}
+        \\md: {s}
+        \\(optional) meta: {s}
+        \\dep_file: {s}
+        \\
+        \\
+    , .{
+        layout_path,
+        md_name,
+        sections_meta_dir_path,
+        dep_file_path,
+    });
+
     const rendered_md_string = readFile(rendered_md_path, arena) catch |err| {
         fatal("error while opening the rendered markdown file:\n{s}\n{s}\n", .{
             rendered_md_path,
@@ -155,6 +171,7 @@ pub fn main() !void {
             .{},
         );
 
+        prev_meta._meta.meta_file_path = prev_path;
         prev_meta._meta.permalink = try std.fmt.allocPrint(arena, "/{s}/", .{p});
         ctx.page._meta.prev = &prev_meta;
     }
@@ -177,6 +194,7 @@ pub fn main() !void {
             .{},
         );
 
+        next_meta._meta.meta_file_path = next_path;
         next_meta._meta.permalink = try std.fmt.allocPrint(arena, "/{s}/", .{n});
         ctx.page._meta.next = &next_meta;
     }
@@ -253,14 +271,16 @@ const PrevNext = struct {
 
 fn findPrevNext(index: []const u8, needle: []const u8) PrevNext {
     var result: PrevNext = .{};
-    const prefix = std.fs.path.dirname(needle) orelse return result;
+    defer log.debug("finding '{s}' in the index: {any}", .{ needle, result });
+
+    const prefix = std.fs.path.dirname(needle) orelse "";
 
     var it = std.mem.splitScalar(u8, index, '\n');
 
     while (it.next()) |line| {
         if (std.mem.eql(u8, line, needle)) {
             if (it.next()) |n| {
-                if (std.mem.startsWith(u8, n, prefix)) {
+                if (n.len > 0 and std.mem.startsWith(u8, n, prefix)) {
                     result.next = n;
                 }
             }

@@ -37,18 +37,50 @@ pub const DateTime = struct {
     }
 };
 
+// TODO: this is a global only because JSON was complaining about serialization
+//       of Depender. Maybe all of depender should be a global though.
+var seen: std.StringHashMapUnmanaged(void) = .{};
 pub const Depender = struct {
     dep_writer: std.io.BufferedWriter(4096, std.fs.File.Writer).Writer,
     meta_dir_path: []const u8,
-    accessed: bool = false,
 
     const log = std.log.scoped(.depender);
 
-    pub fn activate(self: *Depender) void {
-        if (self.accessed) return;
-        self.accessed = true;
-        log.debug("depender activated!", .{});
-        self.dep_writer.print("{s}/", .{self.meta_dir_path}) catch {
+    pub fn activateAll(
+        self: *Depender,
+        gpa: std.mem.Allocator,
+        pages: []const Page,
+    ) void {
+        self.activateIndex(gpa);
+        for (pages) |p| self.activatePage(gpa, p);
+    }
+
+    pub fn activateIndex(self: *Depender, gpa: std.mem.Allocator) void {
+        const gop = seen.getOrPut(gpa, self.meta_dir_path) catch @panic("oom");
+        if (gop.found_existing) return;
+
+        log.debug(
+            "adding dependency on: '{s}/__zine-index__.json'",
+            .{self.meta_dir_path},
+        );
+
+        self.dep_writer.print("{s}/__zine-index__.json ", .{self.meta_dir_path}) catch {
+            @panic("error while trying to write to the dep file");
+        };
+    }
+
+    pub fn activatePage(
+        self: *Depender,
+        gpa: std.mem.Allocator,
+        page: Page,
+    ) void {
+        const file_path = page._meta.meta_file_path;
+        const gop = seen.getOrPut(gpa, file_path) catch @panic("oom");
+        if (gop.found_existing) return;
+
+        log.debug("adding dependency on: '{s}'", .{file_path});
+
+        self.dep_writer.print("{s} ", .{file_path}) catch {
             @panic("error while trying to write to the dep file");
         };
     }
@@ -88,9 +120,8 @@ pub const Site = struct {
                 \\<div loop="$site.pages()"></div>
             ;
             pub fn call(self: *Site, gpa: std.mem.Allocator, args: []const Value) !Value {
-                _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
-                self._depender.?.activate();
+                self._depender.?.activateAll(gpa, self._pages);
                 return .{ .iterator = .{ .page_it = .{ .items = self._pages } } };
             }
         };
@@ -111,6 +142,7 @@ pub const Page = struct {
     content: []const u8 = "",
 
     _meta: struct {
+        meta_file_path: []const u8 = "",
         permalink: []const u8 = "",
         word_count: i64 = 0,
         prev: ?*Page = null,
@@ -152,10 +184,10 @@ pub const Page = struct {
             ;
 
             pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-                _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
-                self._meta.depender.?.activate();
+                self._meta.depender.?.activateIndex(gpa);
                 if (self._meta.next) |next| {
+                    self._meta.depender.?.activatePage(gpa, next.*);
                     return .{ .optional = .{ .page = next } };
                 } else {
                     return .{ .optional = null };
@@ -172,10 +204,10 @@ pub const Page = struct {
             ;
 
             pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-                _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
-                self._meta.depender.?.activate();
+                self._meta.depender.?.activateIndex(gpa);
                 if (self._meta.prev) |prev| {
+                    self._meta.depender.?.activatePage(gpa, prev.*);
                     return .{ .optional = .{ .page = prev } };
                 } else {
                     return .{ .optional = null };
@@ -194,7 +226,7 @@ pub const Page = struct {
 
             pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
                 const p = try nextPage.call(self, gpa, args);
-                self._meta.depender.?.activate();
+                self._meta.depender.?.activateIndex(gpa);
                 return switch (p) {
                     .err => p,
                     .optional => |opt| if (opt == null)
@@ -215,7 +247,7 @@ pub const Page = struct {
             ;
             pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
                 const p = try prevPage.call(self, gpa, args);
-                self._meta.depender.?.activate();
+                self._meta.depender.?.activateIndex(gpa);
                 return switch (p) {
                     .err => p,
                     .optional => |opt| if (opt == null)
