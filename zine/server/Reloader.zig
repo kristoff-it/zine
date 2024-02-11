@@ -60,7 +60,9 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     }
 
     if (result.stderr.len > 0) {
-        log.info("zig build stderr: {s}", .{result.stderr});
+        std.debug.print("{s}\n\n", .{result.stderr});
+    } else {
+        std.debug.print("File change triggered a successful build.\n", .{});
     }
 
     self.clients_lock.lock();

@@ -233,6 +233,11 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
     }
 
     const root_dir_path = opt_root_dir_path orelse ".";
+
+    // ensure the path exists. without this, an empty website that
+    // doesn't generate a zig-out/ will cause the server to error out
+    try fs.cwd().makePath(root_dir_path);
+
     var root_dir: fs.Dir = fs.cwd().openDir(root_dir_path, .{ .iterate = true }) catch |e|
         fatal("unable to open directory '{s}': {s}", .{ root_dir_path, @errorName(e) });
     defer root_dir.close();
