@@ -96,6 +96,9 @@ pub fn main() !void {
             line,
             "_zine_page.json",
         });
+        log.debug("line: '{s}', path: '{s}', result: '{s}'", .{
+            line, sections_meta_dir_path, path,
+        });
         const page_bytes = readFile(path, arena) catch |err| {
             fatal("error reading a page meta file '{s}': {s}", .{
                 path,
