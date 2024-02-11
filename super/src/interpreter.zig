@@ -341,10 +341,37 @@ pub fn SuperVM(comptime Context: type, comptime Value: type) type {
                         );
                     };
 
-                    const super_block_tag = kv.value_ptr.*.superBlock().elem.startTag().name().string(extended.html);
-                    const block_tag = block.value.elem.startTag().name().string(super.html);
-                    if (!is(super_block_tag, block_tag)) {
-                        @panic("TODO: explain that two blocks don't have matching tags");
+                    const block_tag = kv.value_ptr.*.superBlock().elem.startTag().name();
+                    const block_tag_string = block_tag.string(extended.html);
+
+                    const super_block_tag = block.value.elem.startTag().name();
+                    const super_block_tag_string = super_block_tag.string(super.html);
+
+                    if (!is(super_block_tag_string, block_tag_string)) {
+                        try errors.header(self.err, "MISMATCHED BLOCK TAG",
+                            \\The super template defines a block that has the wrong tag.
+                            \\Both tags and ids must match in order to avoid confusion
+                            \\about where the block contents are going to be placed in 
+                            \\the extended template.
+                        );
+
+                        try super.diagnostic(
+                            self.err,
+                            "note: super template block tag:",
+                            super_block_tag,
+                        );
+
+                        try extended.diagnostic(
+                            self.err,
+                            "note: extended template block defined here:",
+                            block_tag,
+                        );
+
+                        return fatalTrace(
+                            self.content_name,
+                            templates[0..idx],
+                            self.err,
+                        );
                     }
                 }
 
