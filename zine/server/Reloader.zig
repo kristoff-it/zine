@@ -14,6 +14,7 @@ const Watcher = switch (builtin.target.os.tag) {
 
 gpa: std.mem.Allocator,
 ws_server: ws.Server,
+zig_exe: []const u8,
 out_dir_path: []const u8,
 watcher: Watcher,
 
@@ -22,6 +23,7 @@ clients: std.AutoArrayHashMapUnmanaged(*ws.Conn, void) = .{},
 
 pub fn init(
     gpa: std.mem.Allocator,
+    zig_exe: []const u8,
     out_dir_path: []const u8,
     in_dir_paths: []const []const u8,
 ) !Reloader {
@@ -29,6 +31,7 @@ pub fn init(
 
     return .{
         .gpa = gpa,
+        .zig_exe = zig_exe,
         .out_dir_path = out_dir_path,
         .ws_server = ws_server,
         .watcher = try Watcher.init(gpa, out_dir_path, in_dir_paths),
@@ -45,7 +48,7 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     log.debug("re-building!", .{});
     const result = std.ChildProcess.run(.{
         .allocator = self.gpa,
-        .argv = &.{ "zig", "build" },
+        .argv = &.{ self.zig_exe, "build" },
     }) catch |err| {
         log.err("unable to run zig build: {s}", .{@errorName(err)});
         return;

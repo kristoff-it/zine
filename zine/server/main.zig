@@ -207,9 +207,10 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
     var listen_port: u16 = 0;
     var opt_root_dir_path: ?[]const u8 = null;
     var input_dirs: std.ArrayListUnmanaged([]const u8) = .{};
+    const zig_exe = args[0];
 
     {
-        var i: usize = 0;
+        var i: usize = 1;
         while (i < args.len) : (i += 1) {
             const arg = args[i];
             if (std.mem.eql(u8, arg, "-p")) {
@@ -242,7 +243,7 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
         fatal("unable to open directory '{s}': {s}", .{ root_dir_path, @errorName(e) });
     defer root_dir.close();
 
-    var watcher = try Reloader.init(gpa, root_dir_path, input_dirs.items);
+    var watcher = try Reloader.init(gpa, zig_exe, root_dir_path, input_dirs.items);
 
     var server: Server = .{
         .watcher = &watcher,
@@ -259,7 +260,7 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
     const address = try std.net.Address.parseIp("127.0.0.1", listen_port);
     try server.http_server.listen(address);
     const server_port = server.http_server.socket.listen_address.in.getPort();
-    std.debug.print("Listening at http://127.0.0.1:{d}/\n", .{server_port});
+    std.debug.print("\x1b[2K\rListening at http://127.0.0.1:{d}/\n", .{server_port});
 
     try serve(gpa, &server);
 }
