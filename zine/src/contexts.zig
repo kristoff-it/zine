@@ -54,7 +54,9 @@ pub const Site = struct {
     _pages: []const Page,
 
     pub const description =
-        \\Represents the global site configuration.
+        \\The global site configuration. The fields come from the call to 
+        \\`addWebsite` in your `build.zig`. Gives you access to the full list
+        \\of pages.
     ;
     pub const dot = scripty.defaultDot(Site, Value);
     pub const PassByRef = true;
@@ -100,7 +102,7 @@ pub const Page = struct {
     } = .{},
 
     pub const description =
-        \\Represents the current page.
+        \\The current page.
     ;
     pub const dot = scripty.defaultDot(Page, Value);
     pub const PassByRef = true;

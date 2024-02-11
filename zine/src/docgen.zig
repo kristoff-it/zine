@@ -42,10 +42,13 @@ pub const ScriptyParam = union(enum) {
         };
     }
 
-    pub fn name(p: ScriptyParam) []const u8 {
+    pub fn name(p: ScriptyParam, comptime is_fn_param: bool) []const u8 {
         switch (p) {
             .many => |m| switch (m) {
-                inline else => |mm| return "[" ++ @tagName(mm) ++ "...]",
+                inline else => |mm| {
+                    const dots = if (is_fn_param) "..." else "";
+                    return "[" ++ dots ++ @tagName(mm) ++ "]";
+                },
             },
             .opt => |o| switch (o) {
                 inline else => |oo| return "?" ++ @tagName(oo),
@@ -150,12 +153,17 @@ pub fn main() !void {
             if (@hasField(@TypeOf(t), "t")) {
                 inline for (@typeInfo(t.t).Struct.fields) |f| {
                     if (f.name[0] != '_') {
-                        try w.print("### {s} : {s}", .{ f.name, ScriptyParam.fromType(f.type).name() });
+                        try w.print("### {s} : {s}", .{ f.name, ScriptyParam.fromType(f.type).name(false) });
 
-                        // if (f.default_value) |d| {
-                        //     const v: *const f.type = @alignCast(@ptrCast(d));
-                        //     try w.print(" = {any}", .{v.*});
-                        // }
+                        if (f.default_value) |d| {
+                            const v: *const f.type = @alignCast(@ptrCast(d));
+                            switch (f.type) {
+                                []const u8 => try w.print(" = \"{s}\"", .{v.*}),
+                                []const []const u8 => try w.print(" = []", .{}),
+                                std.json.Value => try w.print(" = null", .{}),
+                                else => try w.print(" = {any}", .{v.*}),
+                            }
+                        }
                         try w.writeAll(",\n  ");
                     }
                 }
@@ -184,13 +192,13 @@ pub fn main() !void {
 fn printSignature(w: anytype, s: Signature) !void {
     try w.writeAll("(");
     for (s.params, 0..) |p, idx| {
-        try w.writeAll(p.name());
+        try w.writeAll(p.name(true));
         if (idx < s.params.len - 1) {
             try w.writeAll(", ");
         }
     }
     try w.writeAll(") -> ");
-    try w.writeAll(s.ret.name());
+    try w.writeAll(s.ret.name(false));
 }
 
 fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
