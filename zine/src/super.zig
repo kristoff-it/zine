@@ -4,9 +4,9 @@ const super = @import("super");
 const contexts = @import("contexts.zig");
 
 const log = std.log.scoped(.super_exe);
-pub const std_options = struct {
-    pub const log_level = .err;
-    pub const log_scope_levels = options.log_scope_levels;
+pub const std_options: std.Options = .{
+    .log_level = .err,
+    .log_scope_levels = options.log_scope_levels,
 };
 
 pub fn main() !void {

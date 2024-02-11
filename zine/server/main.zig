@@ -9,9 +9,9 @@ const zinereload_js = @embedFile("watcher/zinereload.js");
 const assert = std.debug.assert;
 
 const log = std.log.scoped(.server);
-pub const std_options = struct {
-    pub const log_level = .err;
-    pub const log_scope_levels = options.log_scope_levels;
+pub const std_options: std.Options = .{
+    .log_level = .err,
+    .log_scope_levels = options.log_scope_levels,
 };
 
 const usage =
