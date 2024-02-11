@@ -53,6 +53,7 @@ fn setupDevelopmentServer(
     const server_exe = zine_dep.artifact("server");
     const run_server = project.addRunArtifact(server_exe);
     run_server.addArg("serve");
+    run_server.addArg(project.graph.zig_exe);
     run_server.addArgs(&.{
         "--root",      project.install_path,
         "--input-dir", opts.content_dir_path,
