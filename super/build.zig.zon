@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .@"tree-sitter" = .{
-            .url = "https://github.com/neurocyte/tree-sitter/releases/download/master-1ab391b43aa06e8648108f4d194e769a55a187be/source.tar.gz",
-            .hash = "12209d0d502f6ee33386c3369d87936b919d56f0302bc030e6deee5d806451a4ca34",
+            .url = "https://github.com/neurocyte/tree-sitter/releases/download/master-fb56a3e014f77e8189ae8b60408c555f8fe8be88/source.tar.gz",
+            .hash = "12200ead593d0f6aa6352dba239cc83a1d1457b060738560dbb890fd5cc5957d710f",
         },
 
         .scripty = .{
