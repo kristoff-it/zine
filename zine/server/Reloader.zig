@@ -142,15 +142,18 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
     }
 }
 
-pub fn handleWs(self: *Reloader, res: *std.http.Server.Response) !void {
-    errdefer res.deinit();
-
-    var h: [20]u8 = undefined;
-
-    const key = res.request.headers.getFirstValue("sec-websocket-key") orelse {
+pub fn handleWs(self: *Reloader, req: *std.http.Server.Request) !void {
+    var it = req.iterateHeaders();
+    const key = while (it.next()) |header| {
+        if (std.ascii.eqlIgnoreCase(header.name, "sec-websocket-key")) {
+            break header.value;
+        }
+    } else {
         log.debug("couldn't find key header!\n", .{});
         return;
     };
+
+    log.debug("key = '{s}'", .{key});
 
     var buf =
         ("HTTP/1.1 101 Switching Protocols\r\n" ++
@@ -163,11 +166,13 @@ pub fn handleWs(self: *Reloader, res: *std.http.Server.Response) !void {
     var hasher = std.crypto.hash.Sha1.init(.{});
     hasher.update(key);
     hasher.update("258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+
+    var h: [20]u8 = undefined;
     hasher.final(&h);
 
     _ = std.base64.standard.Encoder.encode(buf[key_pos .. key_pos + 28], h[0..]);
 
-    const stream = res.connection.stream;
+    const stream = req.server.connection.stream;
     try stream.writeAll(&buf);
 
     var conn = self.ws_server.newConn(stream);

@@ -28,15 +28,13 @@ var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const Server = struct {
     watcher: *Reloader,
     public_dir: std.fs.Dir,
-    http_server: std.http.Server,
 
     fn deinit(s: *Server) void {
         s.public_dir.close();
-        s.http_server.deinit();
         s.* = undefined;
     }
 
-    fn handleRequest(s: *Server, res: *std.http.Server.Response) !bool {
+    fn handleRequest(s: *Server, req: *std.http.Server.Request) !bool {
         var arena_impl = std.heap.ArenaAllocator.init(general_purpose_allocator.allocator());
         defer arena_impl.deinit();
         const arena = arena_impl.allocator();
@@ -45,7 +43,7 @@ const Server = struct {
         // const n = try res.readAll(&request_buffer);
         // const request_body = request_buffer[0..n];
 
-        var path = res.request.target;
+        var path = req.head.target;
 
         if (std.mem.indexOf(u8, path, "..")) |_| {
             std.debug.print("'..' not allowed in URLs\n", .{});
@@ -60,12 +58,13 @@ const Server = struct {
         }
 
         if (std.mem.eql(u8, path, "/__zine/zinereload.js")) {
-            res.transfer_encoding = .{ .content_length = zinereload_js.len };
-            try res.headers.append("content-type", "text/javascript");
-            try res.headers.append("connection", "close");
-            try res.send();
-            _ = try res.writer().writeAll(zinereload_js);
-            try res.finish();
+            try req.respond(zinereload_js, .{
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "text/javascript" },
+                    .{ .name = "connection", .value = "close" },
+                },
+            });
+
             log.debug("sent livereload script \n", .{});
             return false;
         }
@@ -73,7 +72,7 @@ const Server = struct {
         if (std.mem.eql(u8, path, "/__zine/ws")) {
             const ws = try std.Thread.spawn(.{}, Reloader.handleWs, .{
                 s.watcher,
-                res,
+                req,
             });
             ws.detach();
             return true;
@@ -87,18 +86,18 @@ const Server = struct {
 
         const file = s.public_dir.openFile(path[1..], .{}) catch |err| switch (err) {
             error.FileNotFound => {
-                if (std.mem.endsWith(u8, res.request.target, "/")) {
-                    res.status = .not_found;
-                    res.transfer_encoding = .{ .content_length = not_found_html.len };
-                    try res.headers.append("content-type", "text/html");
-                    try res.headers.append("connection", "close");
-                    try res.send();
-                    _ = try res.writer().writeAll(not_found_html);
-                    try res.finish();
+                if (std.mem.endsWith(u8, req.head.target, "/")) {
+                    try req.respond(not_found_html, .{
+                        .status = .not_found,
+                        .extra_headers = &.{
+                            .{ .name = "content-type", .value = "text/html" },
+                            .{ .name = "connection", .value = "close" },
+                        },
+                    });
                     log.debug("not found\n", .{});
                     return false;
                 } else {
-                    try appendSlashRedirect(arena, res);
+                    try appendSlashRedirect(arena, req);
                     return false;
                 }
             },
@@ -110,13 +109,13 @@ const Server = struct {
                         @errorName(err),
                     },
                 );
-                res.status = .internal_server_error;
-                res.transfer_encoding = .{ .content_length = message.len };
-                try res.headers.append("content-type", "text/html");
-                try res.headers.append("connection", "close");
-                try res.send();
-                _ = try res.writer().writeAll(message);
-                try res.finish();
+                try req.respond(message, .{
+                    .status = .internal_server_error,
+                    .extra_headers = &.{
+                        .{ .name = "content-type", .value = "text/html" },
+                        .{ .name = "connection", .value = "close" },
+                    },
+                });
                 log.debug("error: {s}\n", .{@errorName(err)});
                 return false;
             },
@@ -125,7 +124,7 @@ const Server = struct {
 
         const contents = file.readToEndAlloc(arena, std.math.maxInt(usize)) catch |err| switch (err) {
             error.IsDir => {
-                try appendSlashRedirect(arena, res);
+                try appendSlashRedirect(arena, req);
                 return false;
             },
             else => return err,
@@ -135,29 +134,33 @@ const Server = struct {
             const injection =
                 \\<script src="/__zine/zinereload.js"></script>
             ;
-            res.transfer_encoding = .{ .content_length = contents.len + injection.len };
-            try res.headers.append("content-type", @tagName(mime_type));
-            try res.headers.append("connection", "close");
-            try res.send();
-
             const head = "</head>";
             const head_pos = std.mem.indexOf(u8, contents, head) orelse contents.len;
-            const w = res.writer();
 
-            _ = try w.writeAll(contents[0..head_pos]);
-            _ = try w.writeAll(injection);
-            _ = try w.writeAll(contents[head_pos..]);
+            const injected = try std.fmt.allocPrint(arena, "{s}{s}{s}", .{
+                contents[0..head_pos],
+                injection,
+                contents[head_pos..],
+            });
 
-            try res.finish();
+            try req.respond(injected, .{
+                .status = .ok,
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "text/html" },
+                    .{ .name = "connection", .value = "close" },
+                },
+            });
+
             log.debug("sent file\n", .{});
             return false;
         } else {
-            res.transfer_encoding = .{ .content_length = contents.len };
-            try res.headers.append("content-type", @tagName(mime_type));
-            try res.headers.append("connection", "close");
-            try res.send();
-            _ = try res.writer().writeAll(contents);
-            try res.finish();
+            try req.respond(contents, .{
+                .status = .ok,
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = @tagName(mime_type) },
+                    .{ .name = "connection", .value = "close" },
+                },
+            });
             log.debug("sent file\n", .{});
             return false;
         }
@@ -166,18 +169,21 @@ const Server = struct {
 
 fn appendSlashRedirect(
     arena: std.mem.Allocator,
-    res: *std.http.Server.Response,
+    req: *std.http.Server.Request,
 ) !void {
     const location = try std.fmt.allocPrint(
         arena,
         "{s}/",
-        .{res.request.target},
+        .{req.head.target},
     );
-    res.status = .see_other;
-    try res.headers.append("location", location);
-    try res.send();
-    _ = try res.writer().writeAll(not_found_html);
-    try res.finish();
+    try req.respond(not_found_html, .{
+        .status = .see_other,
+        .extra_headers = &.{
+            .{ .name = "location", .value = location },
+            .{ .name = "content-type", .value = "text/html" },
+            .{ .name = "connection", .value = "close" },
+        },
+    });
     log.debug("append final slash redirect\n", .{});
 }
 
@@ -248,49 +254,49 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
     var server: Server = .{
         .watcher = &watcher,
         .public_dir = root_dir,
-        .http_server = std.http.Server.init(.{
-            .reuse_address = true,
-        }),
     };
     defer server.deinit();
 
     const watch_thread = try std.Thread.spawn(.{}, Reloader.listen, .{&watcher});
     watch_thread.detach();
 
-    const address = try std.net.Address.parseIp("127.0.0.1", listen_port);
-    try server.http_server.listen(address);
-    const server_port = server.http_server.socket.listen_address.in.getPort();
-    std.debug.print("\x1b[2K\rListening at http://127.0.0.1:{d}/\n", .{server_port});
-
-    try serve(gpa, &server);
+    try serve(&server, listen_port);
 }
 
-fn serve(gpa: Allocator, s: *Server) !void {
-    var header_buffer: [1024]u8 = undefined;
+fn serve(s: *Server, listen_port: u16) !void {
+    const address = try std.net.Address.parseIp("127.0.0.1", listen_port);
+    var tcp_server = try address.listen(.{
+        .reuse_port = true,
+        .reuse_address = true,
+    });
+    defer tcp_server.deinit();
+
+    const server_port = tcp_server.listen_address.in.getPort();
+    std.debug.print("\x1b[2K\rListening at http://127.0.0.1:{d}/\n", .{server_port});
+
+    var buffer: [1024]u8 = undefined;
     accept: while (true) {
+        const conn = try tcp_server.accept();
+
+        var http_server = std.http.Server.init(conn, &buffer);
         var became_websocket = false;
-        // handleRequest owns res
-        var res = try s.http_server.accept(.{
-            .allocator = gpa,
-            .header_strategy = .{ .static = &header_buffer },
-        });
 
         defer {
             if (!became_websocket) {
-                res.deinit();
+                conn.stream.close();
             } else {
                 log.debug("request became websocket\n", .{});
             }
         }
 
-        while (res.reset() != .closing) {
-            res.wait() catch |err| switch (err) {
-                error.HttpHeadersInvalid => continue :accept,
-                error.EndOfStream => continue,
-                else => return err,
+        while (http_server.state == .ready) {
+            var request = http_server.receiveHead() catch |err| {
+                std.debug.print("error: {s}\n", .{@errorName(err)});
+                continue :accept;
             };
-            log.debug("request: {s}", .{res.request.target});
-            became_websocket = s.handleRequest(&res) catch |err| {
+
+            log.debug("request: {s}", .{request.head.target});
+            became_websocket = s.handleRequest(&request) catch |err| {
                 log.debug("failed request: {s}", .{@errorName(err)});
                 continue :accept;
             };
