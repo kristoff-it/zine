@@ -2,7 +2,8 @@ const std = @import("std");
 const json = std.json;
 
 pub const Diagnostics = struct {
-    json: json.Diagnostics = undefined,
+    line: usize = 0,
+    col: usize = 0,
 
     const header =
         \\------------------- BAD FRONTMATTER -------------------
@@ -60,8 +61,8 @@ pub const Diagnostics = struct {
                     \\
                 ;
                 std.debug.print(header ++ reason ++ footer, .{
-                    self.json.getLine(),
-                    self.json.getColumn(),
+                    self.line,
+                    self.col,
                     base_path,
                     sub_path,
                     name,
@@ -73,8 +74,8 @@ pub const Diagnostics = struct {
                     \\
                 ;
                 std.debug.print(header ++ reason ++ footer, .{
-                    self.json.getLine(),
-                    self.json.getColumn(),
+                    self.line,
+                    self.col,
                     base_path,
                     sub_path,
                     name,
@@ -87,8 +88,8 @@ pub const Diagnostics = struct {
                     \\
                 ;
                 std.debug.print(header ++ reason ++ footer, .{
-                    self.json.getLine(),
-                    self.json.getColumn(),
+                    self.line,
+                    self.col,
                     base_path,
                     sub_path,
                     name,
@@ -101,8 +102,8 @@ pub const Diagnostics = struct {
                     \\
                 ;
                 std.debug.print(header ++ reason ++ footer, .{
-                    self.json.getLine(),
-                    self.json.getColumn(),
+                    self.line,
+                    self.col,
                     base_path,
                     sub_path,
                     name,
@@ -169,6 +170,7 @@ pub fn parse(
                     break;
                 } else {
                     try json_string.appendSlice(maybe_trimmed_dashes);
+                    try json_string.append('\n');
                 }
             },
             .end => unreachable,
@@ -180,7 +182,15 @@ pub fn parse(
     var scanner = json.Scanner.initCompleteInput(arena, json_string.items);
     defer scanner.deinit();
 
-    if (diag) |d| scanner.enableDiagnostics(&d.json);
+    var json_diag: json.Diagnostics = .{};
+
+    errdefer if (diag) |d| {
+        d.line = json_diag.getLine();
+        d.col = json_diag.getColumn();
+    };
+
+    if (diag) |_| scanner.enableDiagnostics(&json_diag);
+
     return json.parseFromTokenSourceLeaky(Header, arena, &scanner, .{}) catch |err| switch (err) {
         inline error.DuplicateField, error.UnknownField, error.MissingField => |e| e,
         else => error.Syntax,
