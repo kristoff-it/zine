@@ -172,8 +172,12 @@ pub fn build(b: *std.Build) !void {
 
     const gfm = b.dependency("gfm", mode);
     const frontmatter = b.dependency("frontmatter", mode);
+    const syntax = b.dependency("syntax", mode);
+
     md_renderer.root_module.addImport("datetime", datetime.module("zig-datetime"));
     md_renderer.root_module.addImport("frontmatter", frontmatter.module("frontmatter"));
+    md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
+    md_renderer.root_module.addImport("treez", ts.module("treez"));
 
     md_renderer.linkLibrary(gfm.artifact("cmark-gfm"));
     md_renderer.linkLibrary(gfm.artifact("cmark-gfm-extensions"));

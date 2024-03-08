@@ -2,6 +2,9 @@ const std = @import("std");
 const frontmatter = @import("frontmatter");
 const contexts = @import("contexts.zig");
 const syntax = @import("syntax.zig");
+const hl = @import("highlight.zig");
+const highlightCode = hl.highlightCode;
+const HtmlSafe = hl.HtmlSafe;
 
 const PageContext = contexts.Page;
 
@@ -105,7 +108,10 @@ pub fn main() !void {
 
     // const options = c.CMARK_OPT_DEFAULT | c.CMARK_OPT_UNSAFE;
     var it = Iter.init(ast);
-    const w = out_file.writer();
+
+    var buffered_writer = std.io.bufferedWriter(out_file.writer());
+    const w = buffered_writer.writer();
+
     while (it.next()) |ev| {
         const node = ev.node;
 
@@ -179,17 +185,36 @@ pub fn main() !void {
             c.CMARK_NODE_CODE_BLOCK => {
                 if (node.literal()) |code| {
                     const fence_info = node.fenceInfo() orelse "";
-                    if (std.mem.startsWith(u8, fence_info, "zig")) {
-                        try syntax.highlightZigCode(
-                            code,
-                            arena,
-                            out_file.writer(),
-                        );
-                    } else {
-                        try out_file.writer().print("<pre><code>{s}</code></pre>", .{
+                    // if (std.mem.startsWith(u8, fence_info, "zig")) {
+                    //     try syntax.highlightZigCode(
+                    //         code,
+                    //         arena,
+                    //         w,
+                    //     );
+                    // } else {
+                    if (std.mem.trim(u8, fence_info, " \n").len == 0) {
+                        try w.print("<pre><code>{s}</code></pre>", .{
                             HtmlSafe{ .bytes = code },
                         });
+                    } else {
+                        var fence_it = std.mem.tokenizeScalar(u8, fence_info, ' ');
+                        const lang_name = fence_it.next().?;
+                        try w.print("<pre><code class=\"{s}\">", .{lang_name});
+
+                        const line = node.startLine();
+                        const col = node.startColumn();
+                        try highlightCode(
+                            arena,
+                            lang_name,
+                            code,
+                            md_in_path,
+                            line,
+                            col,
+                            w,
+                        );
+                        try w.writeAll("</code></pre>\n");
                     }
+                    // }
                 }
             },
 
@@ -200,6 +225,8 @@ pub fn main() !void {
             },
         }
     }
+
+    try buffered_writer.flush();
 }
 
 const Iter = struct {
@@ -240,6 +267,13 @@ const Node = struct {
         return c.cmark_node_get_type(self.n);
     }
 
+    pub fn startLine(self: Node) u32 {
+        return @intCast(c.cmark_node_get_start_line(self.n));
+    }
+    pub fn startColumn(self: Node) u32 {
+        return @intCast(c.cmark_node_get_start_column(self.n));
+    }
+
     pub fn isImage(self: Node) bool {
         const t = c.cmark_node_get_type(self.n);
         return t == (0x8000 | 0x4000 | 0x000a);
@@ -275,26 +309,5 @@ const Node = struct {
             2 => .ol,
             else => unreachable,
         };
-    }
-};
-
-const HtmlSafe = struct {
-    bytes: []const u8,
-
-    pub fn format(
-        self: HtmlSafe,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        out_stream: anytype,
-    ) !void {
-        _ = options;
-        _ = fmt;
-        for (self.bytes) |b| {
-            switch (b) {
-                '>' => try out_stream.writeAll("&gt;"),
-                '<' => try out_stream.writeAll("&lt;"),
-                else => try out_stream.writeByte(b),
-            }
-        }
     }
 };

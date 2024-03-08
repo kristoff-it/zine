@@ -11,12 +11,8 @@
             .hash = "122074ce2f776dc9dc4a0d2588a5d76b97212a2c311ef8125d4aadffa4b84e5b8b3e",
         },
         .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig.git#1f2c4a56c642dab52fe12cdda1bd3f56865d1f86",            
+            .url = "git+https://github.com/karlseguin/websocket.zig.git#1f2c4a56c642dab52fe12cdda1bd3f56865d1f86",
             .hash = "1220ce168e550f8904364acd0a72f5cafd40caa08a50ba83aac50b97ba700d7bcf20",
-        },
-        .@"tree-sitter" = .{
-            .url = "https://github.com/neurocyte/tree-sitter/releases/download/master-fb56a3e014f77e8189ae8b60408c555f8fe8be88/source.tar.gz",
-            .hash = "12200ead593d0f6aa6352dba239cc83a1d1457b060738560dbb890fd5cc5957d710f",
         },
         .datetime = .{
             .path = "datetime",
@@ -26,6 +22,10 @@
         },
         .super = .{
             .path = "super",
+        },
+        .syntax = .{
+            .url = "git+https://github.com/neurocyte/flow-syntax.git#e58df221cc9ea8086fdb26df348f04429361d1f0",
+            .hash = "1220f1772359f6c1fc04df79b3f9aa5899efc87b3b8d0e65f44b40df66260cf79183",
         },
     },
     .paths = .{"."},

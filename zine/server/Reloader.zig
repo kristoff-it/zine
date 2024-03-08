@@ -142,7 +142,7 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
     }
 }
 
-pub fn handleWs(self: *Reloader, req: *std.http.Server.Request) !void {
+pub fn handleWs(self: *Reloader, req: *std.http.Server.Request) void {
     var it = req.iterateHeaders();
     const key = while (it.next()) |header| {
         if (std.ascii.eqlIgnoreCase(header.name, "sec-websocket-key")) {
@@ -173,11 +173,11 @@ pub fn handleWs(self: *Reloader, req: *std.http.Server.Request) !void {
     _ = std.base64.standard.Encoder.encode(buf[key_pos .. key_pos + 28], h[0..]);
 
     const stream = req.server.connection.stream;
-    try stream.writeAll(&buf);
+    stream.writeAll(&buf) catch return;
 
     var conn = self.ws_server.newConn(stream);
     var context: Handler.Context = .{ .watcher = self };
-    var handler = try Handler.init(undefined, &conn, &context);
+    var handler = Handler.init(undefined, &conn, &context) catch return;
     self.ws_server.handle(Handler, &handler, &conn);
 }
 
