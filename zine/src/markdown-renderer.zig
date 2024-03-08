@@ -1,7 +1,6 @@
 const std = @import("std");
 const frontmatter = @import("frontmatter");
 const contexts = @import("contexts.zig");
-const syntax = @import("syntax.zig");
 const hl = @import("highlight.zig");
 const highlightCode = hl.highlightCode;
 const HtmlSafe = hl.HtmlSafe;
@@ -203,15 +202,33 @@ pub fn main() !void {
 
                         const line = node.startLine();
                         const col = node.startColumn();
-                        try highlightCode(
+                        highlightCode(
                             arena,
                             lang_name,
                             code,
-                            md_in_path,
-                            line,
-                            col,
                             w,
-                        );
+                        ) catch |err| switch (err) {
+                            error.NoLanguage => {
+                                std.debug.print(
+                                    \\{s}:{}:{}
+                                    \\Unable to find highlighting queries for language '{s}'
+                                    \\
+                                ,
+                                    .{ md_in_path, line, col, lang_name },
+                                );
+                                std.process.exit(1);
+                            },
+                            else => {
+                                std.debug.print(
+                                    \\{s}:{}:{}
+                                    \\Error while syntax highlighting: {s}
+                                    \\
+                                ,
+                                    .{ md_in_path, line, col, @errorName(err) },
+                                );
+                                std.process.exit(1);
+                            },
+                        };
                         try w.writeAll("</code></pre>\n");
                     }
                     // }

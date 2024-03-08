@@ -4,6 +4,7 @@ const super = @import("super");
 const datetime = @import("datetime").datetime;
 const timezones = @import("datetime").timezones;
 const Signature = @import("docgen.zig").Signature;
+const hl = @import("highlight.zig");
 
 pub const DateTime = struct {
     _dt: datetime.Datetime,
@@ -424,6 +425,40 @@ pub const Value = union(enum) {
 
                         try out.appendSlice(fx);
                     }
+
+                    return .{ .string = try out.toOwnedSlice() };
+                }
+            };
+            pub const syntaxHighlight = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.str},
+                    .ret = .str,
+                };
+                pub const description =
+                    \\Applies syntax highlighting to a string.
+                    \\The argument specifies the language name.
+                    \\
+                ;
+                pub const examples =
+                    \\<pre><code class="ziggy" var="$page.custom.get('sample', '').syntaxHighLight('ziggy')></code></pre>
+                ;
+                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len != 1) return .{ .err = "'syntaxHighlight' wants one argument" };
+                    var out = std.ArrayList(u8).init(gpa);
+                    errdefer out.deinit();
+
+                    const lang = switch (args[0]) {
+                        .string => |s| s,
+                        else => return .{ .err = "the argument to 'syntaxHighlight' must be of type string" },
+                    };
+
+                    // _ = lang;
+                    // _ = str;
+                    hl.highlightCode(gpa, lang, str, out.writer()) catch |err| switch (err) {
+                        error.NoLanguage => return .{ .err = "unable to find a parser for the provided language" },
+                        error.OutOfMemory => return error.OutOfMemory,
+                        else => return .{ .err = "error while syntax highlighting" },
+                    };
 
                     return .{ .string = try out.toOwnedSlice() };
                 }

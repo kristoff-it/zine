@@ -142,13 +142,16 @@ pub fn build(b: *std.Build) !void {
 
     const super = b.dependency("super", mode);
     const scripty = super.builder.dependency("scripty", mode);
-    const ts = super.builder.dependency("tree-sitter", mode);
     const datetime = b.dependency("datetime", mode);
+    const syntax = b.dependency("syntax", mode);
+    const ts = syntax.builder.dependency("tree-sitter", mode);
 
     super_exe.root_module.addImport("options", options);
     super_exe.root_module.addImport("super", super.module("super"));
     super_exe.root_module.addImport("scripty", scripty.module("scripty"));
     super_exe.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    super_exe.root_module.addImport("syntax", syntax.module("syntax"));
+    super_exe.root_module.addImport("treez", ts.module("treez"));
     super_exe.linkLibrary(ts.artifact("tree-sitter"));
     super_exe.linkLibC();
 
@@ -172,7 +175,6 @@ pub fn build(b: *std.Build) !void {
 
     const gfm = b.dependency("gfm", mode);
     const frontmatter = b.dependency("frontmatter", mode);
-    const syntax = b.dependency("syntax", mode);
 
     md_renderer.root_module.addImport("datetime", datetime.module("zig-datetime"));
     md_renderer.root_module.addImport("frontmatter", frontmatter.module("frontmatter"));
