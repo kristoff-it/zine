@@ -1,0 +1,41 @@
+root = Frontmatter
+
+///A RFC 3339 date string, eg "2024-10-24T00:00:00".
+@date = bytes,
+
+struct Frontmatter {
+    /// The title of this page.
+    title: ?bytes,
+    /// A short description that the section page has access to.
+    description: ?bytes,
+    /// The main author of this page.
+    author: ?bytes,
+    date: ?@date,
+    tags: ?[bytes],
+    /// Alternative paths where this content will also be made available.
+    aliases: ?[bytes],
+    /// When set to true this file will be ignored when bulding the website.
+    draft: ?bool,
+    /// Path to a layout file inside of the configured layouts directory. 
+    layout: bytes,
+    /// Alternative versions of this page, created by rendering the content
+    /// using a different layout. Useful for creating RSS feeds, for example.
+    alternatives: ?[Alternative],
+    /// Ignore other markdown files in this directory and any sub-directory.
+    /// Can only be meaningfully set to true for 'index.md' pages.
+    skip_subdirs: ?bool,
+    /// User-defined properties that you can then reference in templates. 
+    custom: ?map[any],
+}
+
+struct Alternative {
+    /// Path to a layout file inside of the configured layouts directory.
+    layout: bytes,
+    /// Output path, relative to the current directory. 
+    /// Use an absolute path to refer to the website's root directory.
+    output: bytes,
+    /// Useful when generating `<link rel="alternate">` elements.
+    title: ?bytes,
+    /// Useful when generating `<link rel="alternate">` elements.
+    type: ?bytes,
+}

@@ -48,33 +48,15 @@ pub fn highlightCode(
     arena: std.mem.Allocator,
     lang_name: []const u8,
     code: []const u8,
-    path: []const u8,
-    line: u32,
-    col: u32,
     writer: anytype,
 ) !void {
-    const lang = syntax.create_file_type(arena, code, lang_name) catch {
-        std.debug.print(
-            \\{s}:{}:{}
-            \\Unable to find highlighting queries for language '{s}'
-            \\
-        ,
-            .{ path, line, col, lang_name },
-        );
-        std.process.exit(1);
+    const lang = syntax.create_file_type(arena, code, lang_name) catch blk: {
+        const fake_filename = try std.fmt.allocPrint(arena, "file.{s}", .{lang_name});
+        break :blk try syntax.create_guess_file_type(arena, "", fake_filename);
     };
+    defer lang.destroy();
 
-    const tree = lang.tree orelse {
-        std.debug.print(
-            \\{s}:{}:{}
-            \\Unable to parse the code block
-            \\
-        ,
-            .{ path, line, col },
-        );
-        std.process.exit(1);
-    };
-
+    const tree = lang.tree orelse return;
     const cursor = try treez.Query.Cursor.create();
     defer cursor.destroy();
     cursor.execute(lang.query, tree.getRootNode());

@@ -1,4 +1,5 @@
 const std = @import("std");
+const ziggy = @import("ziggy");
 const contexts = @import("contexts.zig");
 const Value = contexts.Value;
 
@@ -36,7 +37,7 @@ pub const ScriptyParam = union(enum) {
             contexts.DateTime => .date,
             usize => .int,
             bool => .bool,
-            std.json.Value => .dyn,
+            ziggy.dynamic.Value => .dyn,
 
             else => @compileError("TODO: add support for " ++ @typeName(t)),
         };
