@@ -845,6 +845,7 @@ pub const Value = union(enum) {
         return switch (tag) {
             .site => Site.Builtins,
             .page => Page.Builtins,
+            .alternative => Page.Alternative.Builtins,
             .string => StringBuiltins,
             .date => DateBuiltins,
             .int => IntBuiltins,
