@@ -50,11 +50,13 @@ pub fn highlightCode(
     code: []const u8,
     writer: anytype,
 ) !void {
-    const lang = try syntax.create_file_type(arena, code, lang_name);
+    const lang = syntax.create_file_type(arena, code, lang_name) catch blk: {
+        const fake_filename = try std.fmt.allocPrint(arena, "file.{s}", .{lang_name});
+        break :blk try syntax.create_guess_file_type(arena, "", fake_filename);
+    };
     defer lang.destroy();
 
     const tree = lang.tree orelse return;
-
     const cursor = try treez.Query.Cursor.create();
     defer cursor.destroy();
     cursor.execute(lang.query, tree.getRootNode());

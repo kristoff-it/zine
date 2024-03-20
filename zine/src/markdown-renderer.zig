@@ -1,11 +1,9 @@
 const std = @import("std");
-const frontmatter = @import("frontmatter");
+const ziggy = @import("ziggy");
 const contexts = @import("contexts.zig");
 const hl = @import("highlight.zig");
 const highlightCode = hl.highlightCode;
 const HtmlSafe = hl.HtmlSafe;
-
-const PageContext = contexts.Page;
 
 const c = @cImport({
     @cInclude("cmark-gfm.h");
@@ -51,7 +49,11 @@ pub fn main() !void {
 
     var buf_reader = std.io.bufferedReader(in_file.reader());
     const r = buf_reader.reader();
-    var page = try frontmatter.parse(PageContext, arena, r, null);
+    const result = try ziggy.frontmatter.Parser(contexts.Page).parse(arena, r, null);
+    var page = switch (result) {
+        .success => |s| s.header,
+        else => unreachable,
+    };
 
     const in_string = try r.readAllAlloc(arena, 1024 * 1024 * 10);
 
@@ -103,7 +105,7 @@ pub fn main() !void {
         }
     }
 
-    try std.json.stringify(page, .{}, meta_out_file.writer());
+    try ziggy.stringify(page, .{}, meta_out_file.writer());
 
     // const options = c.CMARK_OPT_DEFAULT | c.CMARK_OPT_UNSAFE;
     var it = Iter.init(ast);

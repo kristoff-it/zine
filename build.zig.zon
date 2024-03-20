@@ -24,8 +24,13 @@
             .path = "super",
         },
         .syntax = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax.git#e58df221cc9ea8086fdb26df348f04429361d1f0",
-            .hash = "1220f1772359f6c1fc04df79b3f9aa5899efc87b3b8d0e65f44b40df66260cf79183",
+            .url = "git+https://github.com/neurocyte/flow-syntax.git#e315c10d635522f0d1f06a70c98f959a0ac4f4ad",
+            .hash = "1220e684d60675371b944f7b733533a6991d233b47043b96cb7f829f18361766ef4c",
+        },
+        .ziggy = .{
+            // .url = "git+https://github.com/kristoff-it/ziggy.git#dcea3ea393ebf07646af6ae61cbeb249a4699b4c",
+            // .hash = "1220524b50659b67fe89f4f7f26fc28aa55c8cd415dd79dcbcbeacb012cf74a2dc0a",
+            .path = "../ziggy",
         },
     },
     .paths = .{"."},
