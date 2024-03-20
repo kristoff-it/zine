@@ -28,9 +28,8 @@
             .hash = "1220e684d60675371b944f7b733533a6991d233b47043b96cb7f829f18361766ef4c",
         },
         .ziggy = .{
-            // .url = "git+https://github.com/kristoff-it/ziggy.git#dcea3ea393ebf07646af6ae61cbeb249a4699b4c",
-            // .hash = "1220524b50659b67fe89f4f7f26fc28aa55c8cd415dd79dcbcbeacb012cf74a2dc0a",
-            .path = "../ziggy",
+            .url = "git+https://github.com/kristoff-it/ziggy.git#d58d92f07e2bc06395715a5f6b55c1752891416d",
+            .hash = "1220b466e4b3a6409c11ed6a2617a7f1d5cea5ca610f8d473c287e6ea021a6181386",
         },
     },
     .paths = .{"."},
