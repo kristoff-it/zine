@@ -11,6 +11,7 @@ pub const Signature = struct {
 pub const ScriptyParam = union(enum) {
     Site,
     Page,
+    Alternative,
     str,
     int,
     bool,
@@ -22,6 +23,7 @@ pub const ScriptyParam = union(enum) {
     pub const Base = enum {
         Site,
         Page,
+        Alternative,
         str,
         int,
         bool,
@@ -38,6 +40,8 @@ pub const ScriptyParam = union(enum) {
             usize => .int,
             bool => .bool,
             ziggy.dynamic.Value => .dyn,
+            contexts.Page.Alternative => .Alternative,
+            []const contexts.Page.Alternative => .{ .many = .Alternative },
 
             else => @compileError("TODO: add support for " ++ @typeName(t)),
         };
@@ -83,12 +87,12 @@ pub fn main() !void {
     try w.writeAll(
         \\---
         \\{
-        \\  "title": "Scripty Reference",
-        \\  "description": "", 
-        \\  "author": "Loris Cro",
-        \\  "layout": "scripty-reference.html",
-        \\  "date": "2023-06-16T00:00:00",
-        \\  "draft": false
+        \\    .title = "Scripty Reference",
+        \\    .description = "",
+        \\    .author = "Loris Cro",
+        \\    .layout = "scripty-reference.html",
+        \\    .date = @date("2023-06-16T00:00:00"),
+        \\    .draft = false,
         \\}
         \\---
         \\
@@ -139,6 +143,7 @@ pub fn main() !void {
         const types = .{
             .{ .name = "Site", .t = contexts.Site, .builtins = Value.builtinsFor(.site) },
             .{ .name = "Page", .t = contexts.Page, .builtins = Value.builtinsFor(.page) },
+            .{ .name = "Alternative", .t = contexts.Page.Alternative, .builtins = Value.builtinsFor(.alternative) },
             .{ .name = "str", .builtins = Value.builtinsFor(.string) },
             .{ .name = "date", .builtins = Value.builtinsFor(.date) },
             .{ .name = "int", .builtins = Value.builtinsFor(.int) },
