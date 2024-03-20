@@ -291,7 +291,9 @@ fn serve(s: *Server, listen_port: u16) !void {
 
         while (http_server.state == .ready) {
             var request = http_server.receiveHead() catch |err| {
-                std.debug.print("error: {s}\n", .{@errorName(err)});
+                if (err != error.HttpConnectionClosing) {
+                    log.debug("connection error: {s}\n", .{@errorName(err)});
+                }
                 continue :accept;
             };
 

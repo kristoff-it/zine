@@ -1,6 +1,6 @@
 const std = @import("std");
 const templating = @import("zine/templating.zig");
-const markdown = @import("zine/markdown.zig");
+const content = @import("zine/content.zig");
 
 pub const AddWebsiteOptions = struct {
     layouts_dir_path: []const u8,
@@ -34,7 +34,7 @@ pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
     setupDevelopmentServer(project, zine_dep, opts);
     // const layouts = try templating.scan(project, zine_dep, opts.layouts_dir_path);
 
-    try markdown.scan(project, zine_dep, opts);
+    try content.scan(project, zine_dep, opts);
 
     // Install static files
     const install_static = project.addInstallDirectory(.{
@@ -132,27 +132,33 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(server);
 
-    const super_exe = b.addExecutable(.{
-        .name = "super_exe",
-        .root_source_file = .{ .path = "zine/src/super.zig" },
+    const layout = b.addExecutable(.{
+        .name = "layout",
+        .root_source_file = .{ .path = "zine/src/layout.zig" },
         .target = target,
         .optimize = optimize,
         // .strip = true,
+
     });
 
     const super = b.dependency("super", mode);
     const scripty = super.builder.dependency("scripty", mode);
-    const ts = super.builder.dependency("tree-sitter", mode);
+    const ziggy = b.dependency("ziggy", mode);
     const datetime = b.dependency("datetime", mode);
+    const syntax = b.dependency("syntax", mode);
+    const ts = syntax.builder.dependency("tree-sitter", mode);
 
-    super_exe.root_module.addImport("options", options);
-    super_exe.root_module.addImport("super", super.module("super"));
-    super_exe.root_module.addImport("scripty", scripty.module("scripty"));
-    super_exe.root_module.addImport("datetime", datetime.module("zig-datetime"));
-    super_exe.linkLibrary(ts.artifact("tree-sitter"));
-    super_exe.linkLibC();
+    layout.root_module.addImport("options", options);
+    layout.root_module.addImport("super", super.module("super"));
+    layout.root_module.addImport("scripty", scripty.module("scripty"));
+    layout.root_module.addImport("ziggy", ziggy.module("ziggy"));
+    layout.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    layout.root_module.addImport("syntax", syntax.module("syntax"));
+    layout.root_module.addImport("treez", ts.module("treez"));
+    layout.linkLibrary(ts.artifact("tree-sitter"));
+    layout.linkLibC();
 
-    b.installArtifact(super_exe);
+    b.installArtifact(layout);
 
     const docgen = b.addExecutable(.{
         .name = "docgen",
@@ -161,6 +167,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = .Debug,
     });
     docgen.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    docgen.root_module.addImport("ziggy", ziggy.module("ziggy"));
     b.installArtifact(docgen);
 
     const md_renderer = b.addExecutable(.{
@@ -171,11 +178,9 @@ pub fn build(b: *std.Build) !void {
     });
 
     const gfm = b.dependency("gfm", mode);
-    const frontmatter = b.dependency("frontmatter", mode);
-    const syntax = b.dependency("syntax", mode);
 
+    md_renderer.root_module.addImport("ziggy", ziggy.module("ziggy"));
     md_renderer.root_module.addImport("datetime", datetime.module("zig-datetime"));
-    md_renderer.root_module.addImport("frontmatter", frontmatter.module("frontmatter"));
     md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
     md_renderer.root_module.addImport("treez", ts.module("treez"));
 

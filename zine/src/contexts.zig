@@ -1,36 +1,85 @@
 const std = @import("std");
 const scripty = @import("scripty");
 const super = @import("super");
+const ziggy = @import("ziggy");
 const datetime = @import("datetime").datetime;
 const timezones = @import("datetime").timezones;
 const Signature = @import("docgen.zig").Signature;
+const hl = @import("highlight.zig");
 
 pub const DateTime = struct {
     _dt: datetime.Datetime,
     _string_repr: []const u8,
 
-    pub fn jsonStringify(value: DateTime, jws: anytype) !void {
-        try jws.write(value._string_repr);
-    }
+    pub const ziggy_options = struct {
+        pub fn stringify(
+            value: DateTime,
+            opts: ziggy.serializer.StringifyOptions,
+            indent_level: usize,
+            depth: usize,
+            writer: anytype,
+        ) !void {
+            _ = opts;
+            _ = indent_level;
+            _ = depth;
 
-    pub fn jsonParse(
-        allocator: std.mem.Allocator,
-        source: anytype,
-        options: std.json.ParseOptions,
-    ) std.json.ParseError(@TypeOf(source.*))!DateTime {
-        const raw_date = try source.nextAllocMax(allocator, .alloc_always, options.max_value_len.?);
-        if (raw_date != .allocated_string) return error.SyntaxError;
+            try writer.print("\"{}\"", .{std.zig.fmtEscapes(value._string_repr)});
+        }
 
-        const date = datetime.Date.parseIso(raw_date.allocated_string[0..10]) catch return error.SyntaxError;
-        return .{
-            ._string_repr = raw_date.allocated_string,
-            ._dt = .{
-                .date = date,
-                .time = datetime.Time.create(0, 0, 0, 0) catch unreachable,
-                .zone = &timezones.UTC,
-            },
-        };
-    }
+        pub fn parse(p: *ziggy.Parser, first_tok: ziggy.Tokenizer.Token) !DateTime {
+            try p.mustAny(first_tok, &.{ .string, .at });
+            const src = switch (first_tok.tag) {
+                .string => first_tok.loc.unquote(p.code) orelse {
+                    return p.addError(.{
+                        .syntax = .{
+                            .name = first_tok.tag.lexeme(),
+                            .sel = first_tok.loc.getSelection(p.code),
+                        },
+                    });
+                },
+                .at => blk: {
+                    const ident = try p.nextMust(.identifier);
+                    if (!std.mem.eql(u8, ident.loc.src(p.code), "date")) {
+                        return p.addError(.{
+                            .syntax = .{
+                                .name = "@date",
+                                .sel = ident.loc.getSelection(p.code),
+                            },
+                        });
+                    }
+                    _ = try p.nextMust(.lp);
+                    const str = try p.nextMust(.string);
+                    _ = try p.nextMust(.rp);
+                    break :blk str.loc.unquote(p.code) orelse {
+                        return p.addError(.{
+                            .syntax = .{
+                                .name = first_tok.tag.lexeme(),
+                                .sel = first_tok.loc.getSelection(p.code),
+                            },
+                        });
+                    };
+                },
+                else => unreachable,
+            };
+
+            const date = datetime.Date.parseIso(src[0..10]) catch {
+                return p.addError(.{
+                    .syntax = .{
+                        .name = first_tok.tag.lexeme(),
+                        .sel = first_tok.loc.getSelection(p.code),
+                    },
+                });
+            };
+            return .{
+                ._string_repr = src,
+                ._dt = .{
+                    .date = date,
+                    .time = datetime.Time.create(0, 0, 0, 0) catch unreachable,
+                    .zone = &timezones.UTC,
+                },
+            };
+        }
+    };
 
     pub fn lessThan(self: DateTime, rhs: DateTime) bool {
         return self._dt.lt(rhs._dt);
@@ -51,34 +100,14 @@ pub const Template = struct {
 pub const Site = struct {
     base_url: []const u8,
     title: []const u8,
-    _pages: []const Page,
 
     pub const description =
         \\The global site configuration. The fields come from the call to 
-        \\`addWebsite` in your `build.zig`. Gives you access to the full list
-        \\of pages.
+        \\`addWebsite` in your `build.zig`.
     ;
     pub const dot = scripty.defaultDot(Site, Value);
     pub const PassByRef = true;
-    pub const Builtins = struct {
-        pub const pages = struct {
-            pub const signature: Signature = .{ .ret = .{ .many = .Page } };
-            pub const description =
-                \\Returns a list of all the pages of the website. 
-                \\To be used in conjuction with a `loop` attribute. 
-                \\
-            ;
-            pub const examples =
-                \\<div loop="$site.pages()"></div>
-            ;
-            pub fn call(self: *Site, gpa: std.mem.Allocator, args: []const Value) !Value {
-                _ = gpa;
-                if (args.len != 0) return .{ .err = "expected 0 arguments" };
-
-                return .{ .iterator = .{ .page_it = .{ .items = self._pages } } };
-            }
-        };
-    };
+    pub const Builtins = struct {};
 };
 
 pub const Page = struct {
@@ -90,8 +119,9 @@ pub const Page = struct {
     draft: bool = false,
     tags: []const []const u8 = &.{},
     aliases: []const []const u8 = &.{},
+    alternatives: []const Alternative = &.{},
     skip_subdirs: bool = false,
-    custom: std.json.Value = .null,
+    custom: ziggy.dynamic.Value = .null,
     content: []const u8 = "",
 
     _meta: struct {
@@ -99,8 +129,26 @@ pub const Page = struct {
         word_count: i64 = 0,
         prev: ?*Page = null,
         next: ?*Page = null,
+        subpages: []const Page = &.{},
+        is_section: bool = false,
+
+        const Self = @This();
     } = .{},
 
+    pub const Alternative = struct {
+        layout: []const u8,
+        output: []const u8,
+        title: []const u8 = "",
+        type: []const u8 = "",
+
+        pub const dot = scripty.defaultDot(Alternative, Value);
+        pub const PassByRef = true;
+        pub const Builtins = struct {};
+        pub const description =
+            \\An alternative version of the current page. Title and type
+            \\can be used when generating `<link rel="alternate">` elements.
+        ;
+    };
     pub const description =
         \\The current page.
     ;
@@ -122,6 +170,43 @@ pub const Page = struct {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
                 return .{ .int = self._meta.word_count };
+            }
+        };
+
+        pub const isSection = struct {
+            pub const signature: Signature = .{ .ret = .bool };
+            pub const description =
+                \\Returns true if the current page defines a section (i.e. if 
+                \\the current page is an 'index.md' page).
+                \\
+            ;
+            pub const examples =
+                \\<div ></div>
+            ;
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+                return .{ .bool = self._meta.is_section };
+            }
+        };
+
+        pub const subpages = struct {
+            pub const signature: Signature = .{ .ret = .{ .many = .Page } };
+            pub const description =
+                \\Only available on 'index.md' pages, as those are the pages
+                \\that define a section.
+                \\
+                \\Returns a list of all the pages in this section.
+                \\
+            ;
+            pub const examples =
+                \\<div loop="$page.subpages()"><span var="$loop.it.title"></span></div>
+            ;
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+                return .{ .iterator = .{ .page_it = .{ .items = self._meta.subpages } } };
             }
         };
 
@@ -228,7 +313,8 @@ pub const Value = union(enum) {
     template: *Template,
     site: *Site,
     page: *Page,
-    dynamic: std.json.Value,
+    alternative: *Page.Alternative,
+    dynamic: ziggy.dynamic.Value,
     iterator: Iterator,
     iterator_element: IterElement,
     optional: ?Optional,
@@ -252,6 +338,7 @@ pub const Value = union(enum) {
     pub const Iterator = union(enum) {
         string_it: SliceIterator([]const u8),
         page_it: SliceIterator(Page),
+        alt_it: SliceIterator(Page.Alternative),
 
         pub fn len(self: Iterator) usize {
             const l: usize = switch (self) {
@@ -301,11 +388,13 @@ pub const Value = union(enum) {
         const IterValue = union(enum) {
             string: []const u8,
             page: *Page,
+            alternative: *Page.Alternative,
 
             pub fn from(v: anytype) IterValue {
                 return switch (@TypeOf(v)) {
                     []const u8 => .{ .string = v },
                     *Page => .{ .page = v },
+                    *Page.Alternative => .{ .alternative = v },
                     else => @compileError("TODO: implement IterElement.IterValue.from for " ++ @typeName(@TypeOf(v))),
                 };
             }
@@ -335,6 +424,8 @@ pub const Value = union(enum) {
             *Template => .{ .template = v },
             *Site => .{ .site = v },
             *Page => .{ .page = v },
+            *Page.Alternative => .{ .alternative = v },
+            []const Page.Alternative => .{ .iterator = .{ .alt_it = .{ .items = v } } },
             // IterElement => .{ .iteration_element = v },
             DateTime => .{ .date = v },
             []const u8 => .{ .string = v },
@@ -345,6 +436,7 @@ pub const Value = union(enum) {
             IterElement.IterValue => switch (v) {
                 .string => |s| .{ .string = s },
                 .page => |p| .{ .page = p },
+                .alternative => |p| .{ .alternative = p },
             },
             Optional => switch (v) {
                 .iter_elem => |ie| .{ .iterator_element = ie },
@@ -355,7 +447,7 @@ pub const Value = union(enum) {
             },
 
             ?Optional => .{ .optional = v orelse @panic("TODO: null optional reached Value.from") },
-            std.json.Value => .{ .dynamic = v },
+            ziggy.dynamic.Value => .{ .dynamic = v },
             []const []const u8 => .{ .iterator = .{ .string_it = .{ .items = v } } },
             else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),
         };
@@ -428,6 +520,40 @@ pub const Value = union(enum) {
                     return .{ .string = try out.toOwnedSlice() };
                 }
             };
+            pub const syntaxHighlight = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.str},
+                    .ret = .str,
+                };
+                pub const description =
+                    \\Applies syntax highlighting to a string.
+                    \\The argument specifies the language name.
+                    \\
+                ;
+                pub const examples =
+                    \\<pre><code class="ziggy" var="$page.custom.get('sample', '').syntaxHighLight('ziggy')"></code></pre>
+                ;
+                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len != 1) return .{ .err = "'syntaxHighlight' wants one argument" };
+                    var out = std.ArrayList(u8).init(gpa);
+                    errdefer out.deinit();
+
+                    const lang = switch (args[0]) {
+                        .string => |s| s,
+                        else => return .{ .err = "the argument to 'syntaxHighlight' must be of type string" },
+                    };
+
+                    // _ = lang;
+                    // _ = str;
+                    hl.highlightCode(gpa, lang, str, out.writer()) catch |err| switch (err) {
+                        error.NoLanguage => return .{ .err = "unable to find a parser for the provided language" },
+                        error.OutOfMemory => return error.OutOfMemory,
+                        else => return .{ .err = "error while syntax highlighting" },
+                    };
+
+                    return .{ .string = try out.toOwnedSlice() };
+                }
+            };
         };
         const DynamicBuiltins = struct {
             pub const @"get?" = struct {
@@ -439,7 +565,7 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\<div if="$page.custom.get?('myValue')"></div>
                 ;
-                pub fn call(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                pub fn call(dyn: ziggy.dynamic.Value, gpa: std.mem.Allocator, args: []const Value) Value {
                     _ = gpa;
                     const bad_arg = .{ .err = "'get?' wants 1 string argument" };
                     if (args.len != 1) return bad_arg;
@@ -450,14 +576,14 @@ pub const Value = union(enum) {
                     };
 
                     if (dyn == .null) return .{ .optional = null };
-                    if (dyn != .object) return .{ .err = "get? on a non-map dynamic value" };
+                    if (dyn != .kv) return .{ .err = "get? on a non-map dynamic value" };
 
-                    if (dyn.object.get(path)) |value| {
+                    if (dyn.kv.fields.get(path)) |value| {
                         switch (value) {
                             .null => return .{ .optional = null },
                             .bool => |b| return .{ .optional = .{ .bool = b } },
                             .integer => |i| return .{ .optional = .{ .int = i } },
-                            .string => |s| return .{ .optional = .{ .string = s } },
+                            .bytes => |s| return .{ .optional = .{ .string = s } },
                             inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
                         }
                     }
@@ -475,7 +601,7 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.custom.get('coauthor', 'nobody')
                 ;
-                pub fn call(dyn: std.json.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                pub fn call(dyn: ziggy.dynamic.Value, gpa: std.mem.Allocator, args: []const Value) Value {
                     _ = gpa;
                     const bad_arg = .{ .err = "'get' wants 2 string arguments" };
                     if (args.len != 2) return bad_arg;
@@ -491,14 +617,14 @@ pub const Value = union(enum) {
                     };
 
                     if (dyn == .null) return .{ .string = fallback };
-                    if (dyn != .object) return .{ .err = "get on a non-map dynamic value" };
+                    if (dyn != .kv) return .{ .err = "get on a non-map dynamic value" };
 
-                    if (dyn.object.get(path)) |value| {
+                    if (dyn.kv.fields.get(path)) |value| {
                         switch (value) {
                             .null => return .{ .string = fallback },
                             .bool => |b| return .{ .bool = b },
                             .integer => |i| return .{ .int = i },
-                            .string => |s| return .{ .string = s },
+                            .bytes => |s| return .{ .string = s },
                             inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
                         }
                     }
