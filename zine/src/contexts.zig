@@ -846,6 +846,7 @@ pub const Value = union(enum) {
             .site => Site.Builtins,
             .page => Page.Builtins,
             .string => StringBuiltins,
+            .alternative => Page.Alternative.Builtins,
             .date => DateBuiltins,
             .int => IntBuiltins,
             .bool => BoolBuiltins,
