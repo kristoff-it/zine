@@ -1,15 +1,27 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const scripty = @import("scripty");
 const super = @import("super");
 const ziggy = @import("ziggy");
-const datetime = @import("datetime").datetime;
+const zeit = @import("zeit");
 const timezones = @import("datetime").timezones;
 const Signature = @import("docgen.zig").Signature;
 const hl = @import("highlight.zig");
 
 pub const DateTime = struct {
-    _dt: datetime.Datetime,
+    _dt: zeit.Time,
+    // Use inst() to access this field
+    _inst: zeit.Instant,
     _string_repr: []const u8,
+
+    pub fn init(iso8601: []const u8) !DateTime {
+        const date = try zeit.Time.fromISO8601(iso8601);
+        return .{
+            ._string_repr = iso8601,
+            ._dt = date,
+            ._inst = date.instant(),
+        };
+    }
 
     pub const ziggy_options = struct {
         pub fn stringify(
@@ -23,7 +35,7 @@ pub const DateTime = struct {
             _ = indent_level;
             _ = depth;
 
-            try writer.print("\"{}\"", .{std.zig.fmtEscapes(value._string_repr)});
+            try writer.print("@date(\"{}\")", .{std.zig.fmtEscapes(value._string_repr)});
         }
 
         pub fn parse(p: *ziggy.Parser, first_tok: ziggy.Tokenizer.Token) !DateTime {
@@ -62,7 +74,7 @@ pub const DateTime = struct {
                 else => unreachable,
             };
 
-            const date = datetime.Date.parseIso(src[0..10]) catch {
+            return DateTime.init(src) catch {
                 return p.addError(.{
                     .syntax = .{
                         .name = first_tok.tag.lexeme(),
@@ -70,19 +82,11 @@ pub const DateTime = struct {
                     },
                 });
             };
-            return .{
-                ._string_repr = src,
-                ._dt = .{
-                    .date = date,
-                    .time = datetime.Time.create(0, 0, 0, 0) catch unreachable,
-                    .zone = &timezones.UTC,
-                },
-            };
         }
     };
 
     pub fn lessThan(self: DateTime, rhs: DateTime) bool {
-        return self._dt.lt(rhs._dt);
+        return self._inst.timestamp < rhs._inst.timestamp;
     }
 };
 
@@ -592,18 +596,60 @@ pub const Value = union(enum) {
                 }
             };
 
-            pub const get = struct {
-                pub const signature: Signature = .{ .params = &.{ .str, .str }, .ret = .str };
+            pub const @"get!" = struct {
+                pub const signature: Signature = .{ .params = &.{.str}, .ret = .dyn };
                 pub const description =
-                    \\Tries to get a dynamic value, uses the provided default value otherwise.
+                    \\Tries to get a dynamic value, errors out if the value is not present.
                     \\
                 ;
                 pub const examples =
-                    \\$page.custom.get('coauthor', 'nobody')
+                    \\$page.custom.get!('coauthor')
                 ;
                 pub fn call(dyn: ziggy.dynamic.Value, gpa: std.mem.Allocator, args: []const Value) Value {
                     _ = gpa;
-                    const bad_arg = .{ .err = "'get' wants 2 string arguments" };
+                    const bad_arg = .{ .err = "'get' wants one (string) argument" };
+                    if (args.len != 1) return bad_arg;
+
+                    const path = switch (args[0]) {
+                        .string => |s| s,
+                        else => return bad_arg,
+                    };
+
+                    if (dyn != .kv) return .{ .err = "get on a non-map dynamic value" };
+
+                    if (dyn.kv.fields.get(path)) |value| {
+                        switch (value) {
+                            .null => return .{ .err = "missing value" },
+                            .bool,
+                            => |b| return .{ .bool = b },
+                            .integer => |i| return .{ .int = i },
+                            .bytes => |s| return .{ .string = s },
+                            .tag => |t| {
+                                assert(std.mem.eql(u8, t.name, "date"));
+                                const date = DateTime.init(t.bytes) catch {
+                                    return .{ .err = "error parsing date" };
+                                };
+                                return .{ .date = date };
+                            },
+                            inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+                        }
+                    }
+
+                    return .{ .err = "missing value" };
+                }
+            };
+            pub const get = struct {
+                pub const signature: Signature = .{ .params = &.{ .str, .dyn }, .ret = .dyn };
+                pub const description =
+                    \\Tries to get a dynamic value, returns the second value on failure.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.custom.get('coauthor', 'Loris Cro')
+                ;
+                pub fn call(dyn: ziggy.dynamic.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                    _ = gpa;
+                    const bad_arg = .{ .err = "'get' wants two (string) arguments" };
                     if (args.len != 2) return bad_arg;
 
                     const path = switch (args[0]) {
@@ -611,30 +657,100 @@ pub const Value = union(enum) {
                         else => return bad_arg,
                     };
 
-                    const fallback = switch (args[1]) {
-                        .string => |s| s,
-                        else => return bad_arg,
-                    };
+                    const default = args[1];
 
-                    if (dyn == .null) return .{ .string = fallback };
+                    if (dyn == .null) return default;
                     if (dyn != .kv) return .{ .err = "get on a non-map dynamic value" };
 
                     if (dyn.kv.fields.get(path)) |value| {
                         switch (value) {
-                            .null => return .{ .string = fallback },
+                            .null => return default,
                             .bool => |b| return .{ .bool = b },
                             .integer => |i| return .{ .int = i },
                             .bytes => |s| return .{ .string = s },
+                            .tag => |t| {
+                                assert(std.mem.eql(u8, t.name, "date"));
+                                const date = DateTime.init(t.bytes) catch {
+                                    return .{ .err = "error parsing date" };
+                                };
+                                return .{ .date = date };
+                            },
                             inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
                         }
                     }
 
-                    return .{ .string = fallback };
+                    return default;
                 }
             };
         };
 
         const DateBuiltins = struct {
+            pub const gt = struct {
+                pub const signature: Signature = .{ .params = &.{.date}, .ret = .bool };
+                pub const description =
+                    \\Return true if lhs is later than rhs (the argument).
+                    \\
+                ;
+                pub const examples =
+                    \\$page.date.gt($page.custom.expiry_date)
+                ;
+                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    _ = gpa;
+                    const argument_error = .{ .err = "'gt' wants one (date) argument" };
+                    if (args.len != 1) return argument_error;
+
+                    const rhs = switch (args[0]) {
+                        .date => |d| d,
+                        else => return argument_error,
+                    };
+
+                    return .{ .bool = dt._inst.timestamp > rhs._inst.timestamp };
+                }
+            };
+            pub const lt = struct {
+                pub const signature: Signature = .{ .params = &.{.date}, .ret = .bool };
+                pub const description =
+                    \\Return true if lhs is earlier than rhs (the argument).
+                    \\
+                ;
+                pub const examples =
+                    \\$page.date.lt($page.custom.expiry_date)
+                ;
+                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    _ = gpa;
+                    const argument_error = .{ .err = "'lt' wants one (date) argument" };
+                    if (args.len != 1) return argument_error;
+
+                    const rhs = switch (args[0]) {
+                        .date => |d| d,
+                        else => return argument_error,
+                    };
+
+                    return .{ .bool = dt._inst.timestamp < rhs._inst.timestamp };
+                }
+            };
+            pub const eq = struct {
+                pub const signature: Signature = .{ .params = &.{.date}, .ret = .bool };
+                pub const description =
+                    \\Return true if lhs is the same instant as the rhs (the argument).
+                    \\
+                ;
+                pub const examples =
+                    \\$page.date.eq($page.custom.expiry_date)
+                ;
+                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    _ = gpa;
+                    const argument_error = .{ .err = "'eq' wants one (date) argument" };
+                    if (args.len != 1) return argument_error;
+
+                    const rhs = switch (args[0]) {
+                        .date => |d| d,
+                        else => return argument_error,
+                    };
+
+                    return .{ .bool = dt._inst.timestamp == rhs._inst.timestamp };
+                }
+            };
             pub const format = struct {
                 pub const signature: Signature = .{ .params = &.{.str}, .ret = .str };
                 pub const description =
@@ -658,9 +774,9 @@ pub const Value = union(enum) {
                     }
 
                     const formatted_date = try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
-                        dt._dt.date.monthName(),
-                        dt._dt.date.day,
-                        dt._dt.date.year,
+                        dt._dt.month.name(),
+                        dt._dt.day,
+                        dt._dt.year,
                     });
 
                     return .{ .string = formatted_date };
@@ -681,14 +797,17 @@ pub const Value = union(enum) {
                     if (args.len != 0) return argument_error;
 
                     // Fri, 16 Jun 2023 00:00:00 +0000
+                    const dse = zeit.daysSinceEpoch(dt._inst.unixTimestamp());
+                    const weekday = zeit.weekdayFromDays(dse);
+
                     const formatted_date = try std.fmt.allocPrint(
                         gpa,
                         "{s}, {:0>2} {s} {} 00:00:00 +0000",
                         .{
-                            dt._dt.date.weekdayName()[0..3],
-                            dt._dt.date.day,
-                            dt._dt.date.monthName()[0..3],
-                            dt._dt.date.year,
+                            weekday.shortName(),
+                            dt._dt.day,
+                            dt._dt.month.shortName(),
+                            dt._dt.year,
                         },
                     );
 
@@ -697,6 +816,26 @@ pub const Value = union(enum) {
             };
         };
         const BoolBuiltins = struct {
+            pub const then = struct {
+                pub const signature: Signature = .{ .params = &.{ .dyn, .dyn }, .ret = .dyn };
+                pub const description =
+                    \\If the boolean is `true`, returns the first argument.
+                    \\Otherwise, returns the second argument.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.draft.then("<alert>DRAFT!</alert>", "")
+                ;
+                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len != 2) return .{ .err = "'then' wants two arguments" };
+
+                    if (b) {
+                        return args[0];
+                    } else {
+                        return args[1];
+                    }
+                }
+            };
             pub const not = struct {
                 pub const signature: Signature = .{ .ret = .bool };
                 pub const description =
@@ -781,6 +920,30 @@ pub const Value = union(enum) {
                     switch (args[0]) {
                         .int => |rhs| {
                             return .{ .bool = num == rhs };
+                        },
+                        else => return argument_error,
+                    }
+                }
+            };
+            pub const gt = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.int},
+                    .ret = .bool,
+                };
+                pub const description =
+                    \\Returns true if lhs is greater than rhs (the argument).
+                    \\
+                ;
+                pub const examples =
+                    \\$page.wordCount().gt(200)
+                ;
+                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                    const argument_error = .{ .err = "'gt' wants one int argument" };
+                    if (args.len != 1) return argument_error;
+
+                    switch (args[0]) {
+                        .int => |rhs| {
+                            return .{ .bool = num > rhs };
                         },
                         else => return argument_error,
                     }

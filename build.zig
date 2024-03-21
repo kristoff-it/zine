@@ -144,7 +144,7 @@ pub fn build(b: *std.Build) !void {
     const super = b.dependency("super", mode);
     const scripty = super.builder.dependency("scripty", mode);
     const ziggy = b.dependency("ziggy", mode);
-    const datetime = b.dependency("datetime", mode);
+    const zeit = b.dependency("zeit", mode);
     const syntax = b.dependency("syntax", mode);
     const ts = syntax.builder.dependency("tree-sitter", mode);
 
@@ -152,7 +152,7 @@ pub fn build(b: *std.Build) !void {
     layout.root_module.addImport("super", super.module("super"));
     layout.root_module.addImport("scripty", scripty.module("scripty"));
     layout.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    layout.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    layout.root_module.addImport("zeit", zeit.module("zeit"));
     layout.root_module.addImport("syntax", syntax.module("syntax"));
     layout.root_module.addImport("treez", ts.module("treez"));
     layout.linkLibrary(ts.artifact("tree-sitter"));
@@ -166,7 +166,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = .Debug,
     });
-    docgen.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    docgen.root_module.addImport("zeit", zeit.module("zeit"));
     docgen.root_module.addImport("ziggy", ziggy.module("ziggy"));
     b.installArtifact(docgen);
 
@@ -180,7 +180,7 @@ pub fn build(b: *std.Build) !void {
     const gfm = b.dependency("gfm", mode);
 
     md_renderer.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    md_renderer.root_module.addImport("datetime", datetime.module("zig-datetime"));
+    md_renderer.root_module.addImport("zeit", zeit.module("zeit"));
     md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
     md_renderer.root_module.addImport("treez", ts.module("treez"));
 
