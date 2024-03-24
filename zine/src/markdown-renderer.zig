@@ -94,9 +94,10 @@ pub fn main() !void {
             // Skip non-local images
             if (std.mem.startsWith(u8, link, "http")) continue;
 
-            assets_in_dir.access(link, .{}) catch {
-                @panic("TODO: explain that a missing image has been found in a markdown file");
-            };
+            // Ensure any subdir exists
+            if (std.fs.path.dirname(link)) |dirname| {
+                try assets_out_dir.makePath(dirname);
+            }
 
             const path = try std.fs.path.join(arena, &.{ assets_in_path, link });
             try assets_dep_file.writer().print("{s} ", .{path});
