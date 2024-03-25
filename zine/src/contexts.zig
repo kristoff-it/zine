@@ -760,6 +760,7 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.date.format("January 02, 2006")
                     \\$page.date.format("06-Jan-02")
+                    \\$page.date.format("2006/01/02")
                 ;
                 pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
                     const argument_error = .{ .err = "'format' wants one (string) argument" };
@@ -768,18 +769,13 @@ pub const Value = union(enum) {
                         .string => |s| s,
                         else => return argument_error,
                     };
-
-                    if (!std.mem.eql(u8, string, "January 02, 2006")) {
-                        @panic("TODO: implement more date formatting options");
+                    inline for (@typeInfo(DateFormats).Struct.decls) |decl| {
+                        if (std.mem.eql(u8, decl.name, string)) {
+                            return .{ .string = try @call(.auto, @field(DateFormats, decl.name), .{dt, gpa})};
+                        }
+                    } else {
+                        return .{.err = "unsupported date format"};
                     }
-
-                    const formatted_date = try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
-                        dt._dt.month.name(),
-                        dt._dt.day,
-                        dt._dt.year,
-                    });
-
-                    return .{ .string = formatted_date };
                 }
             };
 
@@ -1039,6 +1035,31 @@ pub fn SliceIterator(comptime Element: type) type {
         }
     };
 }
+
+const DateFormats = struct{
+    pub fn @"January 02, 2006"(dt: DateTime, gpa: std.mem.Allocator) ![]const u8 {
+        return try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
+            dt._dt.month.name(),
+            dt._dt.day,
+            dt._dt.year,
+        });
+    }
+    pub fn @"06-Jan-02"(dt: DateTime, gpa: std.mem.Allocator) ![]const u8 {
+        return try std.fmt.allocPrint(gpa, "{:0>2}-{s}-{:0>2}", .{
+            dt._dt.day,
+            dt._dt.month.shortName(),
+            @mod(dt._dt.year, 100),
+        });
+    }
+    pub fn @"2006/01/02"(dt: DateTime, gpa: std.mem.Allocator) ![]const u8{
+        return try std.fmt.allocPrint(gpa, "{}/{:0>2}/{:0>2}", .{
+            dt._dt.year,
+            @intFromEnum(dt._dt.month),
+            dt._dt.day,
+        });
+    }
+};
+
 
 // pub const Dynamic = struct {
 //     _value: std.json.Value = .null,
