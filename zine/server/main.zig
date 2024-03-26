@@ -70,9 +70,29 @@ const Server = struct {
         }
 
         if (std.mem.eql(u8, path, "/__zine/ws")) {
+            var it = req.iterateHeaders();
+            const key = while (it.next()) |header| {
+                if (std.ascii.eqlIgnoreCase(header.name, "sec-websocket-key")) {
+                    break header.value;
+                }
+            } else {
+                log.debug("couldn't find key header!\n", .{});
+                return false;
+            };
+
+            log.debug("key = '{s}'", .{key});
+
+            var hasher = std.crypto.hash.Sha1.init(.{});
+            hasher.update(key);
+            hasher.update("258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+
+            var h: [20]u8 = undefined;
+            hasher.final(&h);
+
             const ws = try std.Thread.spawn(.{}, Reloader.handleWs, .{
                 s.watcher,
                 req,
+                h,
             });
             ws.detach();
             return true;

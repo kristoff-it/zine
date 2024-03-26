@@ -5,18 +5,164 @@ const contexts = @import("src/contexts.zig");
 const zine = @import("../build.zig");
 
 const FrontParser = ziggy.frontmatter.Parser(contexts.Page);
+const TranslationIndex = std.StringArrayHashMap(TranslationIndexEntry);
+const TranslationIndexEntry = struct {
+    index_file: std.Build.LazyPath = undefined,
+    page_variants: std.ArrayListUnmanaged(PageVariant) = .{},
+};
+const PageVariant = struct {
+    locale_code: []const u8,
+    page: *Section.Page,
+    _meta: struct {
+        host_url_override: ?[]const u8,
+    },
+};
 
 pub fn scan(
     project: *std.Build,
     zine_dep: *std.Build.Dependency,
     opts: zine.AddWebsiteOptions,
 ) !void {
+    const renderer = zine_dep.artifact("markdown-renderer");
+    const layout = zine_dep.artifact("layout");
+    switch (opts) {
+        .multilingual => |ml| {
+            var ti = TranslationIndex.init(project.allocator);
+            const scanned_variants = try project.allocator.alloc(ScannedVariant, ml.variants.len);
+
+            for (ml.variants, scanned_variants) |v, *sv| {
+                const output_path_prefix = v.output_prefix_override orelse
+                    v.locale_code;
+                const url_path_prefix = v.output_prefix_override orelse
+                    if (v.host_url_override != null) "" else v.locale_code;
+
+                const i18n_file_path = project.pathJoin(&.{
+                    ml.i18n_dir_path,
+                    project.fmt("{s}.ziggy", .{v.locale_code}),
+                });
+
+                sv.* = try scanVariant(project, v.content_dir_path, url_path_prefix);
+                sv.output_path_prefix = output_path_prefix;
+                sv.url_path_prefix = url_path_prefix;
+                sv.i18n_file_path = i18n_file_path;
+
+                if (sv.root_index) |*idx| try indexTranslation(
+                    project,
+                    &ti,
+                    v.host_url_override,
+                    v.locale_code,
+                    idx,
+                );
+                var it = sv.sections.constIterator(0);
+                while (it.next()) |s| {
+                    for (s.pages.items) |*p| {
+                        try indexTranslation(
+                            project,
+                            &ti,
+                            v.host_url_override,
+                            v.locale_code,
+                            p,
+                        );
+                    }
+                }
+            }
+
+            writeTranslationIndex(project, &ti);
+
+            for (ml.variants, scanned_variants) |v, sv| {
+                try addAllSteps(
+                    project,
+                    renderer,
+                    layout,
+                    v.title,
+                    v.host_url_override orelse ml.host_url,
+                    ml.layouts_dir_path,
+                    v.content_dir_path,
+                    sv.output_path_prefix,
+                    sv.i18n_file_path,
+                    sv.root_index,
+                    sv.sections,
+                    &ti,
+                );
+            }
+        },
+        .site => |s| {
+            const prefix = s.output_prefix;
+            const sv = try scanVariant(project, s.content_dir_path, prefix);
+            try addAllSteps(
+                project,
+                renderer,
+                layout,
+                s.title,
+                s.host_url,
+                s.layouts_dir_path,
+                s.content_dir_path,
+                prefix,
+                null,
+                sv.root_index,
+                sv.sections,
+                null,
+            );
+        },
+    }
+}
+
+fn indexTranslation(
+    project: *std.Build,
+    translation_index: *TranslationIndex,
+    host_url_override: ?[]const u8,
+    locale_code: []const u8,
+    p: *Section.Page,
+) !void {
+    const fm = p.fm.translation_key;
+    const key = if (fm.len != 0) fm else project.pathJoin(&.{ p.content_sub_path, p.md_name });
+
+    const gop = try translation_index.getOrPut(key);
+
+    if (!gop.found_existing) {
+        gop.value_ptr.* = .{};
+    }
+
+    try gop.value_ptr.page_variants.append(project.allocator, .{
+        .locale_code = locale_code,
+        .page = p,
+        ._meta = .{
+            .host_url_override = host_url_override,
+        },
+    });
+}
+
+fn writeTranslationIndex(project: *std.Build, ti: *TranslationIndex) void {
+    const write_file_step = project.addWriteFiles();
+    for (ti.keys(), ti.values()) |k, *t| {
+        var buf = std.ArrayList(u8).init(project.allocator);
+        ziggy.stringify(t.page_variants.items, .{}, buf.writer()) catch unreachable;
+
+        t.index_file = write_file_step.add(k, buf.items);
+    }
+}
+
+const SectionList = std.SegmentedList(Section, 0);
+const ScannedVariant = struct {
+    root_index: ?Section.Page,
+    sections: SectionList,
+    output_path_prefix: []const u8 = undefined,
+    url_path_prefix: []const u8 = undefined,
+    i18n_file_path: []const u8 = undefined,
+};
+
+pub fn scanVariant(
+    project: *std.Build,
+    content_dir_path: []const u8,
+    url_path_prefix: []const u8,
+) !ScannedVariant {
     // var t = std.time.Timer.start() catch unreachable;
     // defer {
     //     std.debug.print("Scan took {}ms\n", .{t.read() / std.time.ns_per_ms});
     // }
+
     const content_dir = std.fs.cwd().openDir(
-        opts.content_dir_path,
+        content_dir_path,
         .{ .iterate = true },
     ) catch |err| {
         std.debug.print("Unable to open the content directory, please create it before running `zig build`.\nError: {s}\n", .{@errorName(err)});
@@ -36,7 +182,7 @@ pub fn scan(
         .parent_section = null,
     });
 
-    var sections: std.SegmentedList(Section, 1) = .{};
+    var sections: SectionList = .{};
     const root_section = try sections.addOne(project.allocator);
     root_section.* = .{};
 
@@ -58,7 +204,7 @@ pub fn scan(
             const r = buf_reader.reader();
             const result = try FrontParser.parse(project.allocator, r, "index.md");
 
-            const permalink = project.pathJoin(&.{ "/", dir_entry.path, "/" });
+            const permalink = project.pathJoin(&.{ "/", url_path_prefix, dir_entry.path, "/" });
             const fm = switch (result) {
                 .success => |s| fm: {
                     var h = s.header;
@@ -121,7 +267,7 @@ pub fn scan(
             if (index_md_err != error.FileNotFound) {
                 std.debug.print(
                     "Unable to access `index.md` in {s}\n",
-                    .{opts.content_dir_path},
+                    .{content_dir_path},
                 );
                 return index_md_err;
             }
@@ -145,7 +291,13 @@ pub fn scan(
                     var buf_reader = std.io.bufferedReader(file.reader());
                     const r = buf_reader.reader();
 
-                    const permalink = project.pathJoin(&.{ "/", dir_entry.path, entry.name[0 .. entry.name.len - 3] });
+                    const permalink = project.pathJoin(&.{
+                        "/",
+                        url_path_prefix,
+                        dir_entry.path,
+                        entry.name[0 .. entry.name.len - 3],
+                    });
+
                     const result = try FrontParser.parse(project.allocator, r, entry.name);
                     const fm = switch (result) {
                         .success => |s| fm: {
@@ -211,15 +363,49 @@ pub fn scan(
         }
     }
 
-    const renderer = zine_dep.artifact("markdown-renderer");
-    const layout = zine_dep.artifact("layout");
+    return .{
+        .sections = sections,
+        .root_index = root_index,
+    };
+}
 
+pub fn addAllSteps(
+    project: *std.Build,
+    renderer: *std.Build.Step.Compile,
+    layout: *std.Build.Step.Compile,
+    site_title: []const u8,
+    host_url: []const u8,
+    layouts_dir_path: []const u8,
+    content_dir_path: []const u8,
+    output_path_prefix: []const u8,
+    i18n_file_path: ?[]const u8,
+    root_index: ?Section.Page,
+    sections: SectionList,
+    translation_index: ?*TranslationIndex,
+) !void {
     if (root_index) |idx| {
-        const rendered = addMarkdownRenderStep(project, renderer, opts, "", "index.md");
+        const page_variants_index = if (translation_index) |ti| blk: {
+            const fm = idx.fm.translation_key;
+            const key = if (fm.len != 0) fm else "index.md";
+
+            const entry = ti.get(key).?;
+            break :blk entry.index_file;
+        } else null;
+        const rendered = addMarkdownRenderStep(
+            project,
+            renderer,
+            content_dir_path,
+            "",
+            "index.md",
+            output_path_prefix,
+        );
         addLayoutStep(
             project,
             layout,
-            opts,
+            site_title,
+            host_url,
+            content_dir_path,
+            layouts_dir_path,
             "",
             "index.md",
             "index.html",
@@ -230,12 +416,18 @@ pub fn scan(
             null,
             null,
             idx.subpages.?.index,
+            output_path_prefix,
+            i18n_file_path,
+            page_variants_index,
         );
         for (idx.fm.alternatives) |alt| {
             addLayoutStep(
                 project,
                 layout,
-                opts,
+                site_title,
+                host_url,
+                content_dir_path,
+                layouts_dir_path,
                 idx.content_sub_path,
                 idx.md_name,
                 alt.output,
@@ -246,16 +438,34 @@ pub fn scan(
                 null,
                 null,
                 idx.subpages.?.index,
+                output_path_prefix,
+                i18n_file_path,
+                page_variants_index,
             );
         }
     }
 
-    section_it = sections.iterator(0);
+    var section_it = sections.constIterator(0);
     while (section_it.next()) |s| {
         for (s.pages.items, 0..) |p, idx| {
+            const page_variants_index = if (translation_index) |ti| blk: {
+                const fm = p.fm.translation_key;
+                const key = if (fm.len != 0) fm else project.pathJoin(&.{ p.content_sub_path, p.md_name });
+                const entry = ti.get(key).?;
+                const result = entry.index_file;
+                break :blk result;
+            } else null;
+
             const next = if (idx == 0) null else s.pages.items[idx - 1].meta;
             const prev = if (idx == s.pages.items.len - 1) null else s.pages.items[idx + 1].meta;
-            const rendered = addMarkdownRenderStep(project, renderer, opts, p.content_sub_path, p.md_name);
+            const rendered = addMarkdownRenderStep(
+                project,
+                renderer,
+                content_dir_path,
+                p.content_sub_path,
+                p.md_name,
+                output_path_prefix,
+            );
             const sub_index = if (p.subpages) |subsection| subsection.index else null;
 
             const out_basename = p.md_name[0 .. p.md_name.len - 3];
@@ -267,7 +477,10 @@ pub fn scan(
             addLayoutStep(
                 project,
                 layout,
-                opts,
+                site_title,
+                host_url,
+                content_dir_path,
+                layouts_dir_path,
                 p.content_sub_path,
                 p.md_name,
                 out_path,
@@ -278,12 +491,18 @@ pub fn scan(
                 prev,
                 next,
                 sub_index,
+                output_path_prefix,
+                i18n_file_path,
+                page_variants_index,
             );
             for (p.fm.alternatives) |alt| {
                 addLayoutStep(
                     project,
                     layout,
-                    opts,
+                    site_title,
+                    host_url,
+                    content_dir_path,
+                    layouts_dir_path,
                     p.content_sub_path,
                     p.md_name,
                     alt.output,
@@ -294,6 +513,9 @@ pub fn scan(
                     prev,
                     next,
                     sub_index,
+                    output_path_prefix,
+                    i18n_file_path,
+                    page_variants_index,
                 );
             }
         }
@@ -308,16 +530,17 @@ const RenderResult = struct {
 fn addMarkdownRenderStep(
     project: *std.Build,
     renderer: *std.Build.Step.Compile,
-    opts: zine.AddWebsiteOptions,
+    content_dir_path: []const u8,
     content_sub_path: []const u8,
     md_basename: []const u8,
+    output_path_prefix: []const u8,
 ) RenderResult {
-    const in_path = project.pathJoin(&.{ opts.content_dir_path, content_sub_path, md_basename });
+    const in_path = project.pathJoin(&.{ content_dir_path, content_sub_path, md_basename });
     const out_basename = md_basename[0 .. md_basename.len - 3];
 
     const render_step = project.addRunArtifact(renderer);
     // assets_in_dir_path
-    render_step.addDirectoryArg(.{ .path = project.pathJoin(&.{ opts.content_dir_path, content_sub_path }) });
+    render_step.addDirectoryArg(.{ .path = project.pathJoin(&.{ content_dir_path, content_sub_path }) });
     // assets_dep_path
     _ = render_step.addDepFileOutputArg("_zine_assets.d");
     // assets_out_dir_path
@@ -338,7 +561,7 @@ fn addMarkdownRenderStep(
     const install_assets = project.addInstallDirectory(.{
         .source_dir = assets_dir,
         .install_dir = .prefix,
-        .install_subdir = install_subpath,
+        .install_subdir = project.pathJoin(&.{ output_path_prefix, install_subpath }),
         .exclude_extensions = &.{ "_zine_assets.d", "_zine_meta.ziggy", "_zine_rendered.html" },
     });
 
@@ -353,7 +576,10 @@ fn addMarkdownRenderStep(
 fn addLayoutStep(
     project: *std.Build,
     layout: *std.Build.Step.Compile,
-    opts: zine.AddWebsiteOptions,
+    title: []const u8,
+    host_url: []const u8,
+    content_dir_path: []const u8,
+    layouts_dir_path: []const u8,
     content_sub_path: []const u8,
     md_basename: []const u8,
     out_path: []const u8,
@@ -364,12 +590,15 @@ fn addLayoutStep(
     prev: ?std.Build.LazyPath,
     next: ?std.Build.LazyPath,
     subpages: ?std.Build.LazyPath,
+    output_path_prefix: []const u8,
+    i18n_file_path: ?[]const u8,
+    page_variants_index: ?std.Build.LazyPath,
 ) void {
-    const layout_path = project.pathJoin(&.{ opts.layouts_dir_path, layout_name });
+    const layout_path = project.pathJoin(&.{ layouts_dir_path, layout_name });
     std.fs.cwd().access(layout_path, .{}) catch |err| {
         std.debug.print("Unable to find the layout '{s}' used by '{s}/{s}/{s}'\n. Please create it before running `zig build` again.\nError: {s}\n,", .{
             layout_path,
-            opts.content_dir_path,
+            content_dir_path,
             content_sub_path,
             md_basename,
             @errorName(err),
@@ -391,23 +620,31 @@ fn addLayoutStep(
     // layout_name
     layout_step.addArg(layout_name);
     // templates_dir_path
-    layout_step.addArg(project.pathJoin(&.{ opts.layouts_dir_path, "templates" }));
+    layout_step.addArg(project.pathJoin(&.{ layouts_dir_path, "templates" }));
     // dep file
     _ = layout_step.addDepFileOutputArg("templates.d");
     // site base url
-    layout_step.addArg(opts.site.base_url);
+    layout_step.addArg(host_url);
     // site title
-    layout_step.addArg(opts.site.title);
+    layout_step.addArg(title);
 
     if (prev) |p| layout_step.addFileArg(p) else layout_step.addArg("null");
     if (next) |n| layout_step.addFileArg(n) else layout_step.addArg("null");
     if (subpages) |s| layout_step.addFileArg(s) else layout_step.addArg("null");
+    if (i18n_file_path) |i| layout_step.addFileArg(.{ .path = i }) else layout_step.addArg("null");
+    if (page_variants_index) |i| layout_step.addFileArg(i) else layout_step.addArg("null");
 
-    const target_output = project.addInstallFile(final_html, out_path);
+    const target_output = project.addInstallFile(
+        final_html,
+        project.pathJoin(&.{ output_path_prefix, out_path }),
+    );
     project.getInstallStep().dependOn(&target_output.step);
 
     for (aliases) |a| {
-        const alias = project.addInstallFile(final_html, a);
+        const alias = project.addInstallFile(
+            final_html,
+            project.pathJoin(&.{ output_path_prefix, a }),
+        );
         project.getInstallStep().dependOn(&alias.step);
     }
 }

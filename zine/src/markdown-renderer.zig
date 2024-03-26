@@ -7,7 +7,10 @@ const HtmlSafe = hl.HtmlSafe;
 
 const c = @cImport({
     @cInclude("cmark-gfm.h");
+    @cInclude("cmark-gfm-core-extensions.h");
 });
+
+extern fn cmark_list_syntax_extensions([*c]c.cmark_mem) [*c]c.cmark_llist;
 
 pub fn main() !void {
     var arena_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
@@ -69,7 +72,16 @@ pub fn main() !void {
     };
     defer meta_out_file.close();
 
-    const ast = c.cmark_parse_document(in_string.ptr, in_string.len, c.CMARK_OPT_DEFAULT).?;
+    c.cmark_gfm_core_extensions_ensure_registered();
+    const extensions = cmark_list_syntax_extensions(c.cmark_get_arena_mem_allocator());
+    const parser = c.cmark_parser_new(c.CMARK_OPT_DEFAULT);
+    defer c.cmark_parser_free(parser);
+
+    _ = c.cmark_parser_attach_syntax_extension(parser, c.cmark_find_syntax_extension("table"));
+    c.cmark_parser_feed(parser, in_string.ptr, in_string.len);
+    const ast = c.cmark_parser_finish(parser).?;
+
+    // const ast = c.cmark_parse_document(in_string.ptr, in_string.len, c.CMARK_OPT_DEFAULT).?;
 
     const iter = Iter.init(ast);
     defer iter.deinit();
@@ -137,7 +149,11 @@ pub fn main() !void {
                         try w.print("\">", .{});
                     }
                 },
-                else => std.debug.panic("TODO: implement exit for {x}", .{node.nodeType()}),
+                else => {
+                    // const html = c.cmark_render_html(node.n, c.CMARK_OPT_DEFAULT, extensions);
+                    // try w.writeAll(std.mem.span(html));
+                    // std.debug.panic("TODO: implement exit for {x}", .{node.nodeType()});
+                },
             }
             continue;
         }
@@ -238,9 +254,10 @@ pub fn main() !void {
             },
 
             else => {
-                std.debug.panic("TODO: implement support for {x}", .{node.nodeType()});
-                // const html = c.cmark_render_html(it, options, null);
-                // try out_file.writeAll(std.mem.span(html));
+                const html = c.cmark_render_html(node.n, c.CMARK_OPT_DEFAULT, extensions);
+                try w.writeAll(std.mem.span(html));
+                it.exit(node);
+                // std.debug.panic("TODO: implement support for {x}", .{node.nodeType()});
             },
         }
     }
@@ -276,6 +293,10 @@ const Iter = struct {
             .dir = if (exited) .exit else .enter,
             .node = .{ .n = c.cmark_iter_get_node(self.it).? },
         };
+    }
+
+    pub fn exit(self: Iter, node: Node) void {
+        c.cmark_iter_reset(self.it, node.n, c.CMARK_EVENT_EXIT);
     }
 };
 
