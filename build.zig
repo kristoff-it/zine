@@ -2,20 +2,63 @@ const std = @import("std");
 const templating = @import("zine/templating.zig");
 const content = @import("zine/content.zig");
 
-pub const AddWebsiteOptions = struct {
-    layouts_dir_path: []const u8,
-    content_dir_path: []const u8,
-    static_dir_path: []const u8,
+pub const AddWebsiteOptions = union(enum) {
+    multilingual: MultilingualSite,
     site: Site,
 };
 
+pub const MultilingualSite = struct {
+    host_url: []const u8,
+    layouts_dir_path: []const u8,
+    static_dir_path: []const u8,
+    i18n_dir_path: []const u8,
+    variants: []const LocalizedVariant,
+
+    pub const LocalizedVariant = struct {
+        ///A language-NATION code, e.g. 'en-US'.
+        locale_code: []const u8,
+        ///Content dir for this localized variant.
+        content_dir_path: []const u8,
+        ///Site title for this localized variant.
+        title: []const u8,
+        ///Set to a non-null value when deploying this variant from a
+        ///dedicated host (e.g. 'https://us.site.com', 'http://de.site.com').
+        host_url_override: ?[]const u8 = null,
+        /// |  output_ |     host_     |     resulting    |      output     |
+        /// |  prefix_ |      url_     |        url       |       path      |
+        /// | override |   override    |      prefix      |      prefix     |
+        /// | -------- | ------------- | ---------------- | --------------- |
+        /// |   null   |      null     | site.com/en-US/  | zig-out/en-US/  |
+        /// |   null   | "us.site.com" | us.site.com/     | zig-out/en-US/  |
+        /// |   "foo"  |      null     | site.com/foo/    | zig-out/foo/    |
+        /// |   "foo"  | "us.site.com" | us.site.com/foo/ | zig-out/foo/    |
+        /// |    ""    |      null     | site.com/        | zig-out/        |
+        ///
+        /// The last case is how you create a default localized variant.
+        output_prefix_override: ?[]const u8 = null,
+    };
+};
+
 pub const Site = struct {
-    base_url: []const u8,
     title: []const u8,
+    host_url: []const u8,
+    layouts_dir_path: []const u8,
+    content_dir_path: []const u8,
+    static_dir_path: []const u8,
+    output_prefix: []const u8 = "",
 };
 
 /// Adds a 'serve' step to the project's build and sets up the zine build pipeline.
-pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
+pub fn addWebsite(project: *std.Build, opts: Site) !void {
+    try addWebsiteImpl(project, .{ .site = opts });
+}
+
+/// Adds a 'serve' step to the project's build and sets up the zine build pipeline.
+pub fn addMultilingualWebsite(project: *std.Build, opts: MultilingualSite) !void {
+    try addWebsiteImpl(project, .{ .multilingual = opts });
+}
+
+fn addWebsiteImpl(project: *std.Build, opts: AddWebsiteOptions) !void {
     const debug_opt = project.option(
         bool,
         "debug",
@@ -31,14 +74,16 @@ pub fn addWebsite(project: *std.Build, opts: AddWebsiteOptions) !void {
     const optimize: std.builtin.OptimizeMode = if (debug_opt) .Debug else .ReleaseFast;
     const zine_dep = project.dependency("zine", .{ .optimize = optimize, .log = log });
 
-    setupDevelopmentServer(project, zine_dep, opts);
-    // const layouts = try templating.scan(project, zine_dep, opts.layouts_dir_path);
-
     try content.scan(project, zine_dep, opts);
+    setupDevelopmentServer(project, zine_dep, opts);
 
     // Install static files
+    const static_dir_path = switch (opts) {
+        .multilingual => |ml| ml.static_dir_path,
+        .site => |s| s.static_dir_path,
+    };
     const install_static = project.addInstallDirectory(.{
-        .source_dir = .{ .path = opts.static_dir_path },
+        .source_dir = .{ .path = static_dir_path },
         .install_dir = .prefix,
         .install_subdir = "",
     });
@@ -54,12 +99,25 @@ fn setupDevelopmentServer(
     const run_server = project.addRunArtifact(server_exe);
     run_server.addArg("serve");
     run_server.addArg(project.graph.zig_exe);
-    run_server.addArgs(&.{
-        "--root",      project.install_path,
-        "--input-dir", opts.content_dir_path,
-        "--input-dir", opts.layouts_dir_path,
-        "--input-dir", opts.static_dir_path,
-    });
+    run_server.addArgs(&.{ "--root", project.install_path });
+
+    switch (opts) {
+        .multilingual => |ml| {
+            run_server.addArgs(&.{ "--input-dir", ml.static_dir_path });
+            run_server.addArgs(&.{ "--input-dir", ml.layouts_dir_path });
+            for (ml.variants) |v| {
+                if (v.host_url_override) |_| {
+                    @panic("TODO: a variant specifies a dedicated host but multihost support for the dev server has not been implemented yet.");
+                }
+                run_server.addArgs(&.{ "--input-dir", v.content_dir_path });
+            }
+        },
+        .site => |s| {
+            run_server.addArgs(&.{ "--input-dir", s.static_dir_path });
+            run_server.addArgs(&.{ "--input-dir", s.layouts_dir_path });
+            run_server.addArgs(&.{ "--input-dir", s.content_dir_path });
+        },
+    }
 
     if (project.option(u16, "port", "port to listen on for the development server")) |port| {
         run_server.addArgs(&.{ "-p", project.fmt("{d}", .{port}) });

@@ -25,11 +25,13 @@ pub fn main() !void {
     const layout_name = args[6];
     const templates_dir_path = args[7];
     const dep_file_path = args[8];
-    const site_base_url = args[9];
+    const site_host_url = args[9];
     const site_title = args[10];
     const prev_path = args[11];
     const next_path = args[12];
     const subpages_path = args[13];
+    const i18n_path = args[14];
+    const translation_index_path = args[15];
 
     const rendered_md_string = readFile(rendered_md_path, arena) catch |err| {
         fatal("error while opening the rendered markdown file:\n{s}\n{s}\n", .{
@@ -82,7 +84,7 @@ pub fn main() !void {
         if (std.mem.eql(u8, next_path, "null")) break :blk null;
         break :blk readFile(next_path, arena) catch |err| {
             fatal("error while opening the next meta file:\n{s}\n{s}\n", .{
-                layout_path,
+                next_path,
                 @errorName(err),
             });
         };
@@ -92,10 +94,45 @@ pub fn main() !void {
         if (std.mem.eql(u8, subpages_path, "null")) break :blk null;
         break :blk readFile(subpages_path, arena) catch |err| {
             fatal("error while opening the subpages meta file:\n{s}\n{s}\n", .{
-                layout_path,
+                subpages_path,
                 @errorName(err),
             });
         };
+    };
+
+    const i18n: ziggy.dynamic.Value = blk: {
+        if (std.mem.eql(u8, i18n_path, "null")) break :blk .null;
+        const bytes = readFile(i18n_path, arena) catch |err| {
+            fatal("error while opening the i18n file:\n{s}\n{s}\n", .{
+                i18n_path,
+                @errorName(err),
+            });
+        };
+
+        break :blk ziggy.parseLeaky(ziggy.dynamic.Value, arena, bytes, .{}) catch {
+            @panic("TODO: error message when a ziggy i18n file fails to parse.");
+        };
+    };
+
+    const ti: []const contexts.Page.Translation = blk: {
+        if (std.mem.eql(u8, translation_index_path, "null")) break :blk &.{};
+        const bytes = readFile(translation_index_path, arena) catch |err| {
+            fatal("error while opening the translation index file:\n{s}\n{s}\n", .{
+                translation_index_path,
+                @errorName(err),
+            });
+        };
+
+        const ti = ziggy.parseLeaky([]const contexts.Page.Translation, arena, bytes, .{}) catch {
+            @panic("TODO: error message when a ziggy translation index fails to parse.");
+        };
+
+        for (ti) |t| {
+            if (t._meta.host_url_override) |h| {
+                t.page._meta.permalink = try std.fs.path.join(arena, &.{ h, t.page._meta.permalink });
+            }
+        }
+        break :blk ti;
     };
 
     var dep_buf_writer = std.io.bufferedWriter(dep_file.writer());
@@ -107,13 +144,14 @@ pub fn main() !void {
     var out_buf_writer = std.io.bufferedWriter(out_file.writer());
     const out_writer = out_buf_writer.writer();
 
-    const site: contexts.Site = .{ .base_url = site_base_url, .title = site_title };
+    const site: contexts.Site = .{ .host_url = site_host_url, .title = site_title };
 
     const page = try ziggy.parseLeaky(contexts.Page, arena, page_meta, .{});
 
     var ctx: contexts.Template = .{
         .site = site,
         .page = page,
+        .i18n = i18n,
     };
     ctx.page.content = rendered_md_string;
 
@@ -129,6 +167,8 @@ pub fn main() !void {
     if (next_meta) |next| {
         ctx.page._meta.next = try ziggy.parseLeaky(*contexts.Page, arena, next, .{});
     }
+
+    ctx.page._meta.translations = ti;
 
     var super_vm = super.SuperVM(contexts.Template, contexts.Value).init(
         arena,

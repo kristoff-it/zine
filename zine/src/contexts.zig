@@ -93,6 +93,7 @@ pub const DateTime = struct {
 pub const Template = struct {
     site: Site,
     page: Page,
+    i18n: ziggy.dynamic.Value,
 
     // Globals specific to Super
     loop: ?Value = null,
@@ -102,7 +103,7 @@ pub const Template = struct {
 };
 
 pub const Site = struct {
-    base_url: []const u8,
+    host_url: []const u8,
     title: []const u8,
 
     pub const description =
@@ -125,6 +126,7 @@ pub const Page = struct {
     aliases: []const []const u8 = &.{},
     alternatives: []const Alternative = &.{},
     skip_subdirs: bool = false,
+    translation_key: []const u8 = "",
     custom: ziggy.dynamic.Value = .null,
     content: []const u8 = "",
 
@@ -135,9 +137,24 @@ pub const Page = struct {
         next: ?*Page = null,
         subpages: []const Page = &.{},
         is_section: bool = false,
-
+        translations: []const Translation = &.{},
         const Self = @This();
     } = .{},
+
+    pub const Translation = struct {
+        locale_code: []const u8,
+        page: *Page,
+        _meta: struct {
+            host_url_override: ?[]const u8 = null,
+        } = .{},
+
+        pub const dot = scripty.defaultDot(Translation, Value);
+        pub const PassByRef = true;
+        pub const Builtins = struct {};
+        pub const description =
+            \\A Localized Variant of the current page.
+        ;
+    };
 
     pub const Alternative = struct {
         layout: []const u8,
@@ -159,6 +176,21 @@ pub const Page = struct {
     pub const dot = scripty.defaultDot(Page, Value);
     pub const PassByRef = true;
     pub const Builtins = struct {
+        pub const translations = struct {
+            pub const signature: Signature = .{ .ret = .{ .many = .Translation } };
+            pub const description =
+                \\Returns a list of translations for the current page.
+                \\A translation is a file with the same translation key as the current page.
+            ;
+            pub const examples =
+                \\<div loop="$page.translations()"><a href="$loop.it.permalink()" var="$loop.it.title"></a></div>
+            ;
+            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+                _ = gpa;
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+                return .{ .iterator = .{ .translation_it = .{ .items = self._meta.translations } } };
+            }
+        };
         pub const wordCount = struct {
             pub const signature: Signature = .{ .ret = .int };
             pub const description =
@@ -317,6 +349,7 @@ pub const Value = union(enum) {
     template: *Template,
     site: *Site,
     page: *Page,
+    translation: *Page.Translation,
     alternative: *Page.Alternative,
     dynamic: ziggy.dynamic.Value,
     iterator: Iterator,
@@ -342,6 +375,7 @@ pub const Value = union(enum) {
     pub const Iterator = union(enum) {
         string_it: SliceIterator([]const u8),
         page_it: SliceIterator(Page),
+        translation_it: SliceIterator(Page.Translation),
         alt_it: SliceIterator(Page.Alternative),
 
         pub fn len(self: Iterator) usize {
@@ -392,12 +426,14 @@ pub const Value = union(enum) {
         const IterValue = union(enum) {
             string: []const u8,
             page: *Page,
+            translation: *Page.Translation,
             alternative: *Page.Alternative,
 
             pub fn from(v: anytype) IterValue {
                 return switch (@TypeOf(v)) {
                     []const u8 => .{ .string = v },
                     *Page => .{ .page = v },
+                    *Page.Translation => .{ .translation = v },
                     *Page.Alternative => .{ .alternative = v },
                     else => @compileError("TODO: implement IterElement.IterValue.from for " ++ @typeName(@TypeOf(v))),
                 };
@@ -429,6 +465,7 @@ pub const Value = union(enum) {
             *Site => .{ .site = v },
             *Page => .{ .page = v },
             *Page.Alternative => .{ .alternative = v },
+            *Page.Translation => .{ .translation = v },
             []const Page.Alternative => .{ .iterator = .{ .alt_it = .{ .items = v } } },
             // IterElement => .{ .iteration_element = v },
             DateTime => .{ .date = v },
@@ -440,6 +477,7 @@ pub const Value = union(enum) {
             IterElement.IterValue => switch (v) {
                 .string => |s| .{ .string = s },
                 .page => |p| .{ .page = p },
+                .translation => |t| .{ .translation = t },
                 .alternative => |p| .{ .alternative = p },
             },
             Optional => switch (v) {
@@ -519,6 +557,91 @@ pub const Value = union(enum) {
                         };
 
                         try out.appendSlice(fx);
+                    }
+
+                    return .{ .string = try out.toOwnedSlice() };
+                }
+            };
+            pub const fmt = struct {
+                pub const signature: Signature = .{
+                    .params = &.{ .str, .{ .many = .str } },
+                    .ret = .str,
+                };
+                pub const description =
+                    \\Looks for '{}' placeholders in the receiver string and 
+                    \\replaces them with the provided arguments.
+                    \\
+                ;
+                pub const examples =
+                    \\$i18n.get!("welcome-message").fmt($page.custom.get!("name"))
+                ;
+                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len == 0) return .{ .err = "'fmt' wants at least one argument" };
+                    var out = std.ArrayList(u8).init(gpa);
+                    errdefer out.deinit();
+
+                    var it = std.mem.splitSequence(u8, str, "{}");
+                    for (args) |a| {
+                        const str_arg = switch (a) {
+                            .string => |s| s,
+                            else => return .{ .err = "'path' arguments must be strings" },
+                        };
+                        const before = it.next() orelse {
+                            return .{ .err = "fmt: more args than placeholders" };
+                        };
+
+                        try out.appendSlice(before);
+                        try out.appendSlice(str_arg);
+                    }
+
+                    const last = it.next() orelse {
+                        return .{ .err = "fmt: more args than placeholders" };
+                    };
+
+                    try out.appendSlice(last);
+
+                    if (it.next() != null) {
+                        return .{ .err = "fmt: more placeholders than args" };
+                    }
+
+                    return .{ .string = try out.toOwnedSlice() };
+                }
+            };
+
+            pub const addPath = struct {
+                pub const signature: Signature = .{
+                    .params = &.{ .str, .{ .many = .str } },
+                    .ret = .str,
+                };
+                pub const description =
+                    \\Joins URL path segments automatically adding `/` as needed. 
+                ;
+                pub const examples =
+                    \\$site.host_url.addPath("rss.xml")
+                    \\$site.host_url.addPath("foo/bar", "/baz")
+                ;
+                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                    if (args.len == 0) return .{ .err = "'path' wants at least one argument" };
+                    var out = std.ArrayList(u8).init(gpa);
+                    errdefer out.deinit();
+
+                    try out.appendSlice(str);
+                    if (!std.mem.endsWith(u8, str, "/")) {
+                        try out.append('/');
+                    }
+
+                    for (args) |a| {
+                        const fx = switch (a) {
+                            .string => |s| s,
+                            else => return .{ .err = "'path' arguments must be strings" },
+                        };
+
+                        if (fx.len == 0) continue;
+                        if (fx[0] == '/') {
+                            try out.appendSlice(fx[1..]);
+                        } else {
+                            try out.appendSlice(fx);
+                        }
                     }
 
                     return .{ .string = try out.toOwnedSlice() };
@@ -1009,6 +1132,7 @@ pub const Value = union(enum) {
             .site => Site.Builtins,
             .page => Page.Builtins,
             .string => StringBuiltins,
+            .translation => Page.Translation.Builtins,
             .alternative => Page.Alternative.Builtins,
             .date => DateBuiltins,
             .int => IntBuiltins,
