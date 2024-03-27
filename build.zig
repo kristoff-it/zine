@@ -203,7 +203,7 @@ pub fn build(b: *std.Build) !void {
     const scripty = super.builder.dependency("scripty", mode);
     const ziggy = b.dependency("ziggy", mode);
     const zeit = b.dependency("zeit", mode);
-    const syntax = b.dependency("syntax", mode);
+    const syntax = b.dependency("flow-syntax", mode);
     const ts = syntax.builder.dependency("tree-sitter", mode);
 
     layout.root_module.addImport("options", options);

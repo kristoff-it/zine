@@ -20,10 +20,6 @@
         .super = .{
             .path = "super",
         },
-        .syntax = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax.git#e315c10d635522f0d1f06a70c98f959a0ac4f4ad",
-            .hash = "1220e684d60675371b944f7b733533a6991d233b47043b96cb7f829f18361766ef4c",
-        },
         .ziggy = .{
             .url = "git+https://github.com/kristoff-it/ziggy.git#d58d92f07e2bc06395715a5f6b55c1752891416d",
             .hash = "1220b466e4b3a6409c11ed6a2617a7f1d5cea5ca610f8d473c287e6ea021a6181386",
