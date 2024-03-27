@@ -5,16 +5,16 @@ const Reloader = @import("../Reloader.zig");
 
 const log = std.log.scoped(.watcher);
 
-notify_fd: std.os.fd_t,
+notify_fd: std.posix.fd_t,
 
 /// active watch entries
-watch_fds: std.AutoHashMapUnmanaged(std.os.fd_t, WatchEntry) = .{},
+watch_fds: std.AutoHashMapUnmanaged(std.posix.fd_t, WatchEntry) = .{},
 
 /// direct descendant tracker
-children_fds: std.AutoHashMapUnmanaged(std.os.fd_t, std.ArrayListUnmanaged(std.os.fd_t)) = .{},
+children_fds: std.AutoHashMapUnmanaged(std.posix.fd_t, std.ArrayListUnmanaged(std.posix.fd_t)) = .{},
 
 /// inotify cookie tracker for move events
-cookie_fds: std.AutoHashMapUnmanaged(u32, std.os.fd_t) = .{},
+cookie_fds: std.AutoHashMapUnmanaged(u32, std.posix.fd_t) = .{},
 
 const TreeKind = enum { input, output };
 
@@ -29,7 +29,7 @@ pub fn init(
     out_dir_path: []const u8,
     in_dir_paths: []const []const u8,
 ) !LinuxWatcher {
-    const notify_fd = try std.os.inotify_init1(0);
+    const notify_fd = try std.posix.inotify_init1(0);
     var self: LinuxWatcher = .{ .notify_fd = notify_fd };
     _ = try self.addTree(gpa, .output, out_dir_path);
     for (in_dir_paths) |p| {
@@ -42,8 +42,8 @@ pub fn init(
 fn addChild(
     self: *LinuxWatcher,
     gpa: std.mem.Allocator,
-    parent: std.os.fd_t,
-    child: std.os.fd_t,
+    parent: std.posix.fd_t,
+    child: std.posix.fd_t,
 ) !void {
     const children = try self.children_fds.getOrPut(gpa, parent);
     if (!children.found_existing) {
@@ -55,9 +55,9 @@ fn addChild(
 /// Remove `child` from the `parent`, if present
 fn removeChild(
     self: *LinuxWatcher,
-    parent: std.os.fd_t,
-    child: std.os.fd_t,
-) ?std.os.fd_t {
+    parent: std.posix.fd_t,
+    child: std.posix.fd_t,
+) ?std.posix.fd_t {
     if (self.children_fds.getEntry(parent)) |entry| {
         for (0.., entry.value_ptr.items) |i, fd| {
             if (child == fd) {
@@ -71,9 +71,9 @@ fn removeChild(
 /// Remove child identified by `name`, if present
 fn removeChildByName(
     self: *LinuxWatcher,
-    parent: std.os.fd_t,
+    parent: std.posix.fd_t,
     name: []const u8,
-) ?std.os.fd_t {
+) ?std.posix.fd_t {
     if (self.children_fds.getEntry(parent)) |entry| {
         for (0.., entry.value_ptr.items) |i, fd| {
             if (self.watch_fds.get(fd)) |data| {
@@ -94,14 +94,14 @@ fn addTree(
     gpa: std.mem.Allocator,
     tree_kind: TreeKind,
     root_dir_path: []const u8,
-) !std.os.fd_t {
+) !std.posix.fd_t {
     var root_dir = try std.fs.cwd().openDir(root_dir_path, .{ .iterate = true });
     defer root_dir.close();
     const parent_fd = try self.addDir(gpa, tree_kind, root_dir_path);
 
     // tracker for fds associated with dir paths
     // helps to track children within a recursive walk
-    var lookup = std.StringHashMap(std.os.fd_t).init(gpa);
+    var lookup = std.StringHashMap(std.posix.fd_t).init(gpa);
     defer lookup.deinit();
 
     try lookup.put(root_dir_path, parent_fd);
@@ -128,14 +128,14 @@ fn addDir(
     gpa: std.mem.Allocator,
     tree_kind: TreeKind,
     dir_path: []const u8,
-) !std.os.fd_t {
+) !std.posix.fd_t {
     const mask = Mask.all(&.{
         .IN_ONLYDIR,     .IN_CLOSE_WRITE,
         .IN_MOVE,        .IN_MOVE_SELF,
         .IN_CREATE,      .IN_DELETE,
         .IN_EXCL_UNLINK,
     });
-    const watch_fd = try std.os.inotify_add_watch(
+    const watch_fd = try std.posix.inotify_add_watch(
         self.notify_fd,
         dir_path,
         mask,
@@ -154,7 +154,7 @@ fn addDir(
 /// **NOTE**: should only be called on an active `fd`
 fn rmWatch(
     self: *LinuxWatcher,
-    fd: std.os.fd_t,
+    fd: std.posix.fd_t,
 ) void {
     if (self.children_fds.getEntry(fd)) |entry| {
         for (entry.value_ptr.items) |child_fd| {
@@ -162,7 +162,7 @@ fn rmWatch(
         }
         self.children_fds.removeByPtr(entry.key_ptr);
     }
-    std.os.inotify_rm_watch(self.notify_fd, fd);
+    std.posix.inotify_rm_watch(self.notify_fd, fd);
 }
 
 /// Handle the start of the move process
@@ -171,7 +171,7 @@ fn rmWatch(
 fn moveDirStart(
     self: *LinuxWatcher,
     gpa: std.mem.Allocator,
-    from_fd: std.os.fd_t,
+    from_fd: std.posix.fd_t,
     cookie: u32,
     name: []const u8,
 ) !void {
@@ -189,10 +189,10 @@ fn moveDirStart(
 fn moveDirEnd(
     self: *LinuxWatcher,
     gpa: std.mem.Allocator,
-    to_fd: std.os.fd_t,
+    to_fd: std.posix.fd_t,
     cookie: u32,
     name: []const u8,
-) !std.os.fd_t {
+) !std.posix.fd_t {
     const parent = self.watch_fds.get(to_fd).?;
 
     // known cookie - move within watched directories
@@ -220,7 +220,7 @@ fn moveDirEnd(
 fn updateDirPath(
     self: *LinuxWatcher,
     gpa: std.mem.Allocator,
-    fd: std.os.fd_t,
+    fd: std.posix.fd_t,
     parent_dir: []const u8,
 ) !void {
     var data = self.watch_fds.getEntry(fd).?.value_ptr;
@@ -239,7 +239,7 @@ fn updateDirPath(
 /// Remove stale cookie waiting for the `moved_fd`, if present
 fn moveDirComplete(
     self: *LinuxWatcher,
-    moved_fd: std.os.fd_t,
+    moved_fd: std.posix.fd_t,
 ) !void {
     var it = self.cookie_fds.iterator();
     while (it.next()) |entry| {
@@ -257,7 +257,7 @@ fn moveDirComplete(
 fn dropWatch(
     self: *LinuxWatcher,
     gpa: std.mem.Allocator,
-    fd: std.os.fd_t,
+    fd: std.posix.fd_t,
 ) void {
     if (self.watch_fds.fetchRemove(fd)) |entry| {
         gpa.free(entry.value.dir_path);
@@ -283,7 +283,7 @@ pub fn listen(
     const event_size = @sizeOf(Event);
     while (true) {
         var buffer: [event_size * 10]u8 = undefined;
-        const len = try std.os.read(self.notify_fd, &buffer);
+        const len = try std.posix.read(self.notify_fd, &buffer);
         if (len < 0) @panic("notify fd read error");
 
         var event_data = buffer[0..len];
