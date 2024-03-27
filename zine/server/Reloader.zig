@@ -8,7 +8,7 @@ const ListenerFn = fn (self: *Reloader, path: []const u8, name: []const u8) void
 const Watcher = switch (builtin.target.os.tag) {
     .linux => @import("watcher/LinuxWatcher.zig"),
     .macos => @import("watcher/MacosWatcher.zig"),
-    .windows => @compileError("TODO: implement file watcher for windows"),
+    .windows => @import("watcher/WindowsWatcher.zig"),
     else => @compileError("unsupported platform"),
 };
 
