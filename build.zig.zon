@@ -32,6 +32,10 @@
             .url = "git+https://github.com/rockorager/zeit#e75ccb24e88cd0196bed5a60e4bf3b5441c8c700",
             .hash = "122071f325c37101cb8a536f3274337f016369e43b7571a07e99c260a891f2a63199",
         },
+        .@"flow-syntax" = .{
+            .url = "git+https://github.com/neurocyte/flow-syntax#106039c3aea0adc57613640daa9e15cd1ba0775c",
+            .hash = "122040f9537b7abea00d18ace2bbcfebb371040fd5f302c1292000714d0504fd238d",
+        },
     },
     .paths = .{"."},
 }
