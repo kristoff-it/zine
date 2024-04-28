@@ -3,16 +3,16 @@
     .version = "0.0.0",
     .dependencies = .{
         .gfm = .{
-            .url = "git+https://github.com/MFAshby/cmark-gfm.git#93892f5506d45b125ed488e54d1b11a4aad8d758",
+            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#ae30921d8c98970942d3711553aa66ff907482fe",
             .hash = "12206f3bffe38c24addd050e198affd5797582efd9d8dfb34421d358a9344472681b",
         },
         .mime = .{
-            .url = "git+https://github.com/andrewrk/mime.git#0b676643886b1e2f19cf11b4e15b028768708342",
-            .hash = "12209083b0c43d0f68a26a48a7b26ad9f93b22c9cff710c78ddfebb47b89cfb9c7a4",
+            .url = "git+https://github.com/andrewrk/mime.git#d340b5f611a224884eaf316d672121cccf2b0652",
+            .hash = "12208b3c98b4dcc88608e65889abc853f625a06edbb835da90d902bed1ade4da0ac8",
         },
         .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig.git#79f15925798db34267dae27be2245e1d4081ba49",
-            .hash = "1220eb984d97c383df1991078074c04757c6e4a71ad455d105e2619e0b9499d13d7a",
+            .url = "git+https://github.com/karlseguin/websocket.zig.git#c77f87d0e6548865636eb9781106a8be72e5755a",
+            .hash = "12208720b772330f309cfb48957f4152ee0930b716837d0c1d07fee2dea2f4dc712e",
         },
         .frontmatter = .{
             .path = "frontmatter",
@@ -29,8 +29,8 @@
             .hash = "1220478f0d836049cef3e203e665103c0c280b87d3c74b50c8b79c4054a6624498f9",
         },
         .@"flow-syntax" = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#7fc4e01276779e3fa0006cf19098eda2f4fcde1e",
-            .hash = "12207c2b9285958b388e331a8d1f6066b92b30d3dc4d548b1f1d04e7e03c79f8c3c3",
+            .url = "git+https://github.com/neurocyte/flow-syntax#ca031a213e00eeb36b387706d1c07fc400affafc",
+            .hash = "1220512dcd20c4fc31a35ee2cbc5f5a8177effc5a5030c298795ac0c5528408c1083",
         },
     },
     .paths = .{"."},
