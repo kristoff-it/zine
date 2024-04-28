@@ -7,12 +7,12 @@
             .hash = "1220a2d62d1de13c424c79d281c273156083b5232199ff68780c146b9441015ab51c",
         },
         .mime = .{
-            .url = "git+https://github.com/andrewrk/mime.git#bf80e2e8b1d9413ddf9abe7d94537388b54c83ab",
-            .hash = "122074ce2f776dc9dc4a0d2588a5d76b97212a2c311ef8125d4aadffa4b84e5b8b3e",
+            .url = "git+https://github.com/andrewrk/mime.git#d340b5f611a224884eaf316d672121cccf2b0652",
+            .hash = "12208b3c98b4dcc88608e65889abc853f625a06edbb835da90d902bed1ade4da0ac8",
         },
         .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig.git#1f2c4a56c642dab52fe12cdda1bd3f56865d1f86",
-            .hash = "1220ce168e550f8904364acd0a72f5cafd40caa08a50ba83aac50b97ba700d7bcf20",
+            .url = "git+https://github.com/karlseguin/websocket.zig.git#c77f87d0e6548865636eb9781106a8be72e5755a",
+            .hash = "12208720b772330f309cfb48957f4152ee0930b716837d0c1d07fee2dea2f4dc712e",
         },
         .frontmatter = .{
             .path = "frontmatter",
@@ -29,8 +29,8 @@
             .hash = "122071f325c37101cb8a536f3274337f016369e43b7571a07e99c260a891f2a63199",
         },
         .@"flow-syntax" = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#106039c3aea0adc57613640daa9e15cd1ba0775c",
-            .hash = "122040f9537b7abea00d18ace2bbcfebb371040fd5f302c1292000714d0504fd238d",
+            .url = "git+https://github.com/neurocyte/flow-syntax#ca031a213e00eeb36b387706d1c07fc400affafc",
+            .hash = "1220512dcd20c4fc31a35ee2cbc5f5a8177effc5a5030c298795ac0c5528408c1083",
         },
     },
     .paths = .{"."},
