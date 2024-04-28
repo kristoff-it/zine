@@ -3,7 +3,7 @@
     .version = "0.0.0",
     .dependencies = .{
         .ziggy = .{
-            .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
+            .url = "git+https://github.com/kristoff-it/ziggy.git#ae30921d8c98970942d3711553aa66ff907482fe",
             .hash = "1220c198cdaf6cb73fca6603cc5039046ed10de2e9f884cae9224ff826731df1c68d",
         },
     },
