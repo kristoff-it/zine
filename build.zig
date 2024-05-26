@@ -83,7 +83,7 @@ fn addWebsiteImpl(project: *std.Build, opts: AddWebsiteOptions) !void {
         .site => |s| s.static_dir_path,
     };
     const install_static = project.addInstallDirectory(.{
-        .source_dir = .{ .path = static_dir_path },
+        .source_dir = project.path(static_dir_path),
         .install_dir = .prefix,
         .install_subdir = "",
     });
