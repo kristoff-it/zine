@@ -172,7 +172,7 @@ pub fn build(b: *std.Build) !void {
 
     const server = b.addExecutable(.{
         .name = "server",
-        .root_source_file = .{ .path = "zine/server/main.zig" },
+        .root_source_file = b.path("zine/server/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -192,13 +192,14 @@ pub fn build(b: *std.Build) !void {
 
     const layout = b.addExecutable(.{
         .name = "layout",
-        .root_source_file = .{ .path = "zine/src/layout.zig" },
+        .root_source_file = b.path("zine/src/layout.zig"),
         .target = target,
         .optimize = optimize,
         // .strip = true,
 
     });
 
+    // dummy comment
     const super = b.dependency("super", mode);
     const scripty = super.builder.dependency("scripty", mode);
     const ziggy = b.dependency("ziggy", mode);
@@ -220,7 +221,7 @@ pub fn build(b: *std.Build) !void {
 
     const docgen = b.addExecutable(.{
         .name = "docgen",
-        .root_source_file = .{ .path = "zine/src/docgen.zig" },
+        .root_source_file = b.path("zine/src/docgen.zig"),
         .target = target,
         .optimize = .Debug,
     });
@@ -230,7 +231,7 @@ pub fn build(b: *std.Build) !void {
 
     const md_renderer = b.addExecutable(.{
         .name = "markdown-renderer",
-        .root_source_file = .{ .path = "zine/src/markdown-renderer.zig" },
+        .root_source_file = b.path("zine/src/markdown-renderer.zig"),
         .target = b.resolveTargetQuery(.{}),
         .optimize = optimize,
     });

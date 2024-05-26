@@ -3,16 +3,16 @@
     .version = "0.0.0",
     .dependencies = .{
         .gfm = .{
-            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#9b659dada64964c993be6d6ec16b64f1ca1e8f5a",
-            .hash = "1220a2d62d1de13c424c79d281c273156083b5232199ff68780c146b9441015ab51c",
+            .url = "git+https://github.com/MFAshby/cmark-gfm.git#93892f5506d45b125ed488e54d1b11a4aad8d758",
+            .hash = "12206f3bffe38c24addd050e198affd5797582efd9d8dfb34421d358a9344472681b",
         },
         .mime = .{
-            .url = "git+https://github.com/andrewrk/mime.git#bf80e2e8b1d9413ddf9abe7d94537388b54c83ab",
-            .hash = "122074ce2f776dc9dc4a0d2588a5d76b97212a2c311ef8125d4aadffa4b84e5b8b3e",
+            .url = "git+https://github.com/andrewrk/mime.git#0b676643886b1e2f19cf11b4e15b028768708342",
+            .hash = "12209083b0c43d0f68a26a48a7b26ad9f93b22c9cff710c78ddfebb47b89cfb9c7a4",
         },
         .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig.git#1f2c4a56c642dab52fe12cdda1bd3f56865d1f86",
-            .hash = "1220ce168e550f8904364acd0a72f5cafd40caa08a50ba83aac50b97ba700d7bcf20",
+            .url = "git+https://github.com/karlseguin/websocket.zig.git#79f15925798db34267dae27be2245e1d4081ba49",
+            .hash = "1220eb984d97c383df1991078074c04757c6e4a71ad455d105e2619e0b9499d13d7a",
         },
         .frontmatter = .{
             .path = "frontmatter",
@@ -21,16 +21,16 @@
             .path = "super",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy.git#d58d92f07e2bc06395715a5f6b55c1752891416d",
-            .hash = "1220b466e4b3a6409c11ed6a2617a7f1d5cea5ca610f8d473c287e6ea021a6181386",
+            .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
+            .hash = "1220c198cdaf6cb73fca6603cc5039046ed10de2e9f884cae9224ff826731df1c68d",
         },
         .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit#e75ccb24e88cd0196bed5a60e4bf3b5441c8c700",
-            .hash = "122071f325c37101cb8a536f3274337f016369e43b7571a07e99c260a891f2a63199",
+            .url = "git+https://github.com/rockorager/zeit#02b347da743098f1bf8a88e590d38011b188ab51",
+            .hash = "1220478f0d836049cef3e203e665103c0c280b87d3c74b50c8b79c4054a6624498f9",
         },
         .@"flow-syntax" = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#106039c3aea0adc57613640daa9e15cd1ba0775c",
-            .hash = "122040f9537b7abea00d18ace2bbcfebb371040fd5f302c1292000714d0504fd238d",
+            .url = "git+https://github.com/neurocyte/flow-syntax#7fc4e01276779e3fa0006cf19098eda2f4fcde1e",
+            .hash = "12207c2b9285958b388e331a8d1f6066b92b30d3dc4d548b1f1d04e7e03c79f8c3c3",
         },
     },
     .paths = .{"."},
