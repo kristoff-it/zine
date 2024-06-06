@@ -259,11 +259,10 @@ pub const Cursor = struct {
 pub const Element = struct {
     node: Node,
 
-    pub const voidTagMap = std.ComptimeStringMapWithEql(
+    pub const voidTagMap = std.StaticStringMapWithEql(
         void,
-        void_tags,
         std.ascii.eqlIgnoreCase,
-    );
+    ).initComptime(void_tags);
 
     pub fn startTag(self: Element) Tag {
         return self.node.childAt(0).?.toTag().?;
