@@ -46,7 +46,7 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     _ = name;
     _ = path;
     log.debug("re-building!", .{});
-    const result = std.ChildProcess.run(.{
+    const result = std.process.Child.run(.{
         .allocator = self.gpa,
         .argv = &.{ self.zig_exe, "build" },
     }) catch |err| {
