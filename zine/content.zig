@@ -540,13 +540,13 @@ fn addMarkdownRenderStep(
 
     const render_step = project.addRunArtifact(renderer);
     // assets_in_dir_path
-    render_step.addDirectoryArg(.{ .path = project.pathJoin(&.{ content_dir_path, content_sub_path }) });
+    render_step.addDirectoryArg(project.path(project.pathJoin(&.{ content_dir_path, content_sub_path })));
     // assets_dep_path
     _ = render_step.addDepFileOutputArg("_zine_assets.d");
     // assets_out_dir_path
-    const assets_dir = render_step.addOutputFileArg("");
+    const assets_dir = render_step.addOutputFileArg(".");
     // md_in_path
-    render_step.addFileArg(.{ .path = in_path });
+    render_step.addFileArg(project.path(in_path));
     // html_out_path
     const rendered_md = render_step.addOutputFileArg("_zine_rendered.html");
     // frontmatter + computed metadata
@@ -616,7 +616,7 @@ fn addLayoutStep(
     // md_name
     layout_step.addArg(project.pathJoin(&.{ content_sub_path, md_basename }));
     // layout_path
-    layout_step.addFileArg(.{ .path = layout_path });
+    layout_step.addFileArg(project.path(layout_path));
     // layout_name
     layout_step.addArg(layout_name);
     // templates_dir_path
@@ -631,7 +631,7 @@ fn addLayoutStep(
     if (prev) |p| layout_step.addFileArg(p) else layout_step.addArg("null");
     if (next) |n| layout_step.addFileArg(n) else layout_step.addArg("null");
     if (subpages) |s| layout_step.addFileArg(s) else layout_step.addArg("null");
-    if (i18n_file_path) |i| layout_step.addFileArg(.{ .path = i }) else layout_step.addArg("null");
+    if (i18n_file_path) |i| layout_step.addFileArg(project.path(i)) else layout_step.addArg("null");
     if (page_variants_index) |i| layout_step.addFileArg(i) else layout_step.addArg("null");
 
     const target_output = project.addInstallFile(

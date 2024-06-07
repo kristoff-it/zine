@@ -3,8 +3,7 @@
     .version = "0.0.0",
     .dependencies = .{
         .gfm = .{
-            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#42f38e99565f525fff746c70cab7f3b0b314829f",
-            .hash = "122068e4b102c7c52b427702154ea57e635935f14485155bafe65f4ef48ef96d5354",
+            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#b7034624e7da6857a26e4720cd7fde26d5bc715c",
         },
         .mime = .{
             .url = "git+https://github.com/andrewrk/mime.git#ef4381c6a739ca9d44fb7aa6b14c66e1fba2e16d",
@@ -21,12 +20,12 @@
             .path = "super",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy.git#d58d92f07e2bc06395715a5f6b55c1752891416d",
-            .hash = "1220b466e4b3a6409c11ed6a2617a7f1d5cea5ca610f8d473c287e6ea021a6181386",
+            .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
+            .hash = "1220c198cdaf6cb73fca6603cc5039046ed10de2e9f884cae9224ff826731df1c68d",
         },
         .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit#e75ccb24e88cd0196bed5a60e4bf3b5441c8c700",
-            .hash = "122071f325c37101cb8a536f3274337f016369e43b7571a07e99c260a891f2a63199",
+            .url = "git+https://github.com/rockorager/zeit#02b347da743098f1bf8a88e590d38011b188ab51",
+            .hash = "1220478f0d836049cef3e203e665103c0c280b87d3c74b50c8b79c4054a6624498f9",
         },
         .@"flow-syntax" = .{
             .url = "git+https://github.com/neurocyte/flow-syntax#ca031a213e00eeb36b387706d1c07fc400affafc",
