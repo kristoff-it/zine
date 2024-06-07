@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) !void {
     const ts = b.dependency("tree-sitter", mode);
 
     const super = b.addModule("super", .{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .link_libc = true,
     });
 
@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) !void {
     // super.include_dirs.append(b.allocator, .{ .other_step = ts.artifact("tree-sitter") }) catch unreachable;
 
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = .Debug,
         // .strip = true,

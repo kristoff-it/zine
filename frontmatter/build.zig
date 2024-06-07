@@ -6,14 +6,14 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const frontmatter = b.addModule("frontmatter", .{
-        .root_source_file = .{ .path = "frontmatter.zig" },
+        .root_source_file = b.path("frontmatter.zig"),
     });
 
     const ziggy = b.dependency("ziggy", .{ .target = target, .optimize = optimize });
     frontmatter.addImport("ziggy", ziggy.module("ziggy"));
 
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "test.zig" },
+        .root_source_file = b.path("test.zig"),
         .target = target,
         .optimize = optimize,
     });
