@@ -3,12 +3,11 @@
     .version = "0.0.0",
     .dependencies = .{
         .gfm = .{
-            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#ae30921d8c98970942d3711553aa66ff907482fe",
-            .hash = "12206f3bffe38c24addd050e198affd5797582efd9d8dfb34421d358a9344472681b",
+            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#b7034624e7da6857a26e4720cd7fde26d5bc715c",
         },
         .mime = .{
-            .url = "git+https://github.com/andrewrk/mime.git#d340b5f611a224884eaf316d672121cccf2b0652",
-            .hash = "12208b3c98b4dcc88608e65889abc853f625a06edbb835da90d902bed1ade4da0ac8",
+            .url = "git+https://github.com/andrewrk/mime.git#ef4381c6a739ca9d44fb7aa6b14c66e1fba2e16d",
+            .hash = "12204cfebcccb9fb8a5c7b4a6ec663aea691d180f7d346d36f213b4e154a6be1f823",
         },
         .ws = .{
             .url = "git+https://github.com/karlseguin/websocket.zig.git#c77f87d0e6548865636eb9781106a8be72e5755a",
