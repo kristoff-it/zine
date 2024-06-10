@@ -35,7 +35,7 @@ pub const ScriptyParam = union(enum) {
 
     pub fn fromType(t: type) ScriptyParam {
         return switch (t) {
-            contexts.Page => .Page,
+            contexts.Page, *contexts.Page => .Page,
             []const u8 => .str,
             []const []const u8 => .{ .many = .str },
             contexts.DateTime => .date,
@@ -44,6 +44,8 @@ pub const ScriptyParam = union(enum) {
             ziggy.dynamic.Value => .dyn,
             contexts.Page.Alternative => .Alternative,
             []const contexts.Page.Alternative => .{ .many = .Alternative },
+            contexts.Page.Translation => .Translation,
+            []const contexts.Page.Translation => .{ .many = .Translation },
 
             else => @compileError("TODO: add support for " ++ @typeName(t)),
         };
@@ -146,6 +148,7 @@ pub fn main() !void {
             .{ .name = "Site", .t = contexts.Site, .builtins = Value.builtinsFor(.site) },
             .{ .name = "Page", .t = contexts.Page, .builtins = Value.builtinsFor(.page) },
             .{ .name = "Alternative", .t = contexts.Page.Alternative, .builtins = Value.builtinsFor(.alternative) },
+            .{ .name = "Translation", .t = contexts.Page.Translation, .builtins = Value.builtinsFor(.translation) },
             .{ .name = "str", .builtins = Value.builtinsFor(.string) },
             .{ .name = "date", .builtins = Value.builtinsFor(.date) },
             .{ .name = "int", .builtins = Value.builtinsFor(.int) },

@@ -27,6 +27,10 @@ pub fn scan(
     const layout = zine_dep.artifact("layout");
     switch (opts) {
         .multilingual => |ml| {
+            ensureDir(ml.layouts_dir_path);
+            ensureDir(ml.static_dir_path);
+            ensureDir(ml.i18n_dir_path);
+
             var ti = TranslationIndex.init(project.allocator);
             const scanned_variants = try project.allocator.alloc(ScannedVariant, ml.variants.len);
 
@@ -87,6 +91,9 @@ pub fn scan(
             }
         },
         .site => |s| {
+            ensureDir(s.layouts_dir_path);
+            ensureDir(s.static_dir_path);
+
             const prefix = s.output_prefix;
             const sv = try scanVariant(project, s.content_dir_path, prefix);
             try addAllSteps(
@@ -161,11 +168,11 @@ pub fn scanVariant(
     //     std.debug.print("Scan took {}ms\n", .{t.read() / std.time.ns_per_ms});
     // }
 
-    const content_dir = std.fs.cwd().openDir(
+    const content_dir = std.fs.cwd().makeOpenPath(
         content_dir_path,
         .{ .iterate = true },
     ) catch |err| {
-        std.debug.print("Unable to open the content directory, please create it before running `zig build`.\nError: {s}\n", .{@errorName(err)});
+        std.debug.print("Unable to open the content directory: {s}\n", .{@errorName(err)});
         std.process.exit(1);
     };
 
@@ -699,3 +706,12 @@ const Section = struct {
         s.index = write_file_step.add("section.ziggy", buf.items);
     }
 };
+
+pub fn ensureDir(path: []const u8) void {
+    std.fs.cwd().makePath(path) catch |err| {
+        std.debug.print("Error while creating '{s}': {s}\n", .{
+            path, @errorName(err),
+        });
+        std.process.exit(1);
+    };
+}
