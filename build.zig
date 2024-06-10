@@ -72,7 +72,7 @@ fn addWebsiteImpl(project: *std.Build, opts: AddWebsiteOptions) !void {
     ) orelse &.{};
 
     const optimize: std.builtin.OptimizeMode = if (debug_opt) .Debug else .ReleaseFast;
-    const zine_dep = project.dependency("zine", .{ .optimize = optimize, .log = log });
+    const zine_dep = project.dependencyFromBuildZig(@This(), .{ .optimize = optimize, .log = log });
 
     try content.scan(project, zine_dep, opts);
     setupDevelopmentServer(project, zine_dep, opts);
@@ -129,7 +129,7 @@ fn setupDevelopmentServer(
 }
 
 pub fn scriptyReferenceDocs(project: *std.Build, output_file_path: []const u8) void {
-    const zine_dep = project.dependency("zine", .{ .optimize = .Debug });
+    const zine_dep = project.dependencyFromBuildZig(@This(), .{ .optimize = .Debug });
 
     const run_docgen = project.addRunArtifact(zine_dep.artifact("docgen"));
     const reference_md = run_docgen.addOutputFileArg("scripty_reference.md");
