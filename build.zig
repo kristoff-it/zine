@@ -1,6 +1,6 @@
 const std = @import("std");
-const templating = @import("zine/templating.zig");
-const content = @import("zine/content.zig");
+const templating = @import("templating.zig");
+const content = @import("content.zig");
 
 pub const AddWebsiteOptions = union(enum) {
     multilingual: MultilingualSite,
@@ -172,7 +172,7 @@ pub fn build(b: *std.Build) !void {
 
     const server = b.addExecutable(.{
         .name = "server",
-        .root_source_file = b.path("zine/server/main.zig"),
+        .root_source_file = b.path("server/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -192,7 +192,7 @@ pub fn build(b: *std.Build) !void {
 
     const layout = b.addExecutable(.{
         .name = "layout",
-        .root_source_file = b.path("zine/src/layout.zig"),
+        .root_source_file = b.path("src/layout.zig"),
         .target = target,
         .optimize = optimize,
         // .strip = true,
@@ -200,15 +200,15 @@ pub fn build(b: *std.Build) !void {
     });
 
     // dummy comment
-    const super = b.dependency("super", mode);
-    const scripty = super.builder.dependency("scripty", mode);
+    const super = b.dependency("superhtml", mode);
+    const scripty = super.builder.dependency("scripty", .{});
     const ziggy = b.dependency("ziggy", mode);
     const zeit = b.dependency("zeit", mode);
     const syntax = b.dependency("flow-syntax", mode);
     const ts = syntax.builder.dependency("tree-sitter", mode);
 
     layout.root_module.addImport("options", options);
-    layout.root_module.addImport("super", super.module("super"));
+    layout.root_module.addImport("superhtml", super.module("superhtml"));
     layout.root_module.addImport("scripty", scripty.module("scripty"));
     layout.root_module.addImport("ziggy", ziggy.module("ziggy"));
     layout.root_module.addImport("zeit", zeit.module("zeit"));
@@ -221,7 +221,7 @@ pub fn build(b: *std.Build) !void {
 
     const docgen = b.addExecutable(.{
         .name = "docgen",
-        .root_source_file = b.path("zine/src/docgen.zig"),
+        .root_source_file = b.path("src/docgen.zig"),
         .target = target,
         .optimize = .Debug,
     });
@@ -231,7 +231,7 @@ pub fn build(b: *std.Build) !void {
 
     const md_renderer = b.addExecutable(.{
         .name = "markdown-renderer",
-        .root_source_file = b.path("zine/src/markdown-renderer.zig"),
+        .root_source_file = b.path("src/markdown-renderer.zig"),
         .target = b.resolveTargetQuery(.{}),
         .optimize = optimize,
     });

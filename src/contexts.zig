@@ -1,7 +1,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const scripty = @import("scripty");
-const super = @import("super");
+const super = @import("superhtml");
 const ziggy = @import("ziggy");
 const zeit = @import("zeit");
 const timezones = @import("datetime").timezones;
@@ -185,10 +185,19 @@ pub const Page = struct {
             pub const examples =
                 \\<div loop="$page.translations()"><a href="$loop.it.permalink()" var="$loop.it.title"></a></div>
             ;
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                _: *super.utils.ResourceDescriptor,
+            ) !Value {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
-                return .{ .iterator = .{ .translation_it = .{ .items = self._meta.translations } } };
+                return .{
+                    .iterator = .{
+                        .translation_it = .{ .items = self._meta.translations },
+                    },
+                };
             }
         };
         pub const wordCount = struct {
@@ -202,7 +211,12 @@ pub const Page = struct {
             pub const examples =
                 \\<div loop="$page.wordCount()"></div>
             ;
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                _: *super.utils.ResourceDescriptor,
+            ) !Value {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
                 return .{ .int = self._meta.word_count };
@@ -219,7 +233,12 @@ pub const Page = struct {
             pub const examples =
                 \\<div ></div>
             ;
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                _: *super.utils.ResourceDescriptor,
+            ) !Value {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
                 return .{ .bool = self._meta.is_section };
@@ -238,7 +257,12 @@ pub const Page = struct {
             pub const examples =
                 \\<div loop="$page.subpages()"><span var="$loop.it.title"></span></div>
             ;
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                _: *super.utils.ResourceDescriptor,
+            ) !Value {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
@@ -255,7 +279,12 @@ pub const Page = struct {
                 \\<div if="$page.nextPage()"></div>
             ;
 
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                _: *super.utils.ResourceDescriptor,
+            ) !Value {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
                 if (self._meta.next) |next| {
@@ -274,7 +303,12 @@ pub const Page = struct {
                 \\<div if="$page.prevPage()"></div>
             ;
 
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                _: *super.utils.ResourceDescriptor,
+            ) !Value {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
                 if (self._meta.prev) |prev| {
@@ -294,8 +328,13 @@ pub const Page = struct {
                 \\$page.hasNext()
             ;
 
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-                const p = try nextPage.call(self, gpa, args);
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                ext: *super.utils.ResourceDescriptor,
+            ) !Value {
+                const p = try nextPage.call(self, gpa, args, ext);
                 return switch (p) {
                     .err => p,
                     .optional => |opt| if (opt == null)
@@ -314,8 +353,13 @@ pub const Page = struct {
             pub const examples =
                 \\$page.hasPrev()
             ;
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
-                const p = try prevPage.call(self, gpa, args);
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                ext: *super.utils.ResourceDescriptor,
+            ) !Value {
+                const p = try prevPage.call(self, gpa, args, ext);
                 return switch (p) {
                     .err => p,
                     .optional => |opt| if (opt == null)
@@ -336,7 +380,12 @@ pub const Page = struct {
             pub const examples =
                 \\$page.permalink()
             ;
-            pub fn call(self: *Page, gpa: std.mem.Allocator, args: []const Value) !Value {
+            pub fn call(
+                self: *Page,
+                gpa: std.mem.Allocator,
+                args: []const Value,
+                _: *super.utils.ResourceDescriptor,
+            ) !Value {
                 _ = gpa;
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
                 return .{ .string = self._meta.permalink };
@@ -362,7 +411,25 @@ pub const Value = union(enum) {
     float: f64,
     err: []const u8,
 
-    pub const call = scripty.defaultCall(Value);
+    pub fn renderForError(v: Value, arena: std.mem.Allocator, w: anytype) !void {
+        _ = arena;
+
+        w.print(
+            \\Scripty evaluated to type: {s}  
+            \\
+        , .{@tagName(v)}) catch return error.ErrIO;
+
+        if (v == .err) {
+            w.print(
+                \\Error message: '{s}'  
+                \\
+            , .{v.err}) catch return error.ErrIO;
+        }
+
+        w.print("\n", .{}) catch return error.ErrIO;
+    }
+
+    pub const call = scripty.defaultCall(Value, super.utils.ResourceDescriptor);
 
     pub const Optional = union(enum) {
         iter_elem: IterElement,
@@ -422,6 +489,8 @@ pub const Value = union(enum) {
         idx: usize,
         first: bool,
         last: bool,
+        // set by super as needed
+        _up_idx: u32 = undefined,
 
         const IterValue = union(enum) {
             string: []const u8,
@@ -516,6 +585,20 @@ pub const Value = union(enum) {
     }
 
     pub fn builtinsFor(comptime tag: @typeInfo(Value).Union.tag_type.?) type {
+        const IterElementBuiltins = struct {
+            pub const up = struct {
+                pub const signature: Signature = .{ .ret = .dyn };
+                pub const description =
+                    \\In nested loops, accesses the upper `$loop`
+                    \\
+                ;
+                pub const examples =
+                    \\$loop.up().it
+                ;
+                pub const call = super.utils.loopUpFunction(Value);
+            };
+        };
+
         const StringBuiltins = struct {
             pub const len = struct {
                 pub const signature: Signature = .{ .ret = .int };
@@ -526,7 +609,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.title.len()
                 ;
-                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len != 0) return .{ .err = "'len' wants no arguments" };
                     return Value.from(gpa, str.len);
                 }
@@ -544,7 +632,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.title.suffix("Foo","Bar", "Baz")
                 ;
-                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
                     var out = std.ArrayList(u8).init(gpa);
                     errdefer out.deinit();
@@ -575,7 +668,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$i18n.get!("welcome-message").fmt($page.custom.get!("name"))
                 ;
-                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len == 0) return .{ .err = "'fmt' wants at least one argument" };
                     var out = std.ArrayList(u8).init(gpa);
                     errdefer out.deinit();
@@ -620,7 +718,12 @@ pub const Value = union(enum) {
                     \\$site.host_url.addPath("rss.xml")
                     \\$site.host_url.addPath("foo/bar", "/baz")
                 ;
-                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len == 0) return .{ .err = "'path' wants at least one argument" };
                     var out = std.ArrayList(u8).init(gpa);
                     errdefer out.deinit();
@@ -660,7 +763,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\<pre><code class="ziggy" var="$page.custom.get('sample', '').syntaxHighLight('ziggy')"></code></pre>
                 ;
-                pub fn call(str: []const u8, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len != 1) return .{ .err = "'syntaxHighlight' wants one argument" };
                     var out = std.ArrayList(u8).init(gpa);
                     errdefer out.deinit();
@@ -692,7 +800,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\<div if="$page.custom.get?('myValue')"></div>
                 ;
-                pub fn call(dyn: ziggy.dynamic.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                pub fn call(
+                    dyn: ziggy.dynamic.Value,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) Value {
                     _ = gpa;
                     const bad_arg = .{ .err = "'get?' wants 1 string argument" };
                     if (args.len != 1) return bad_arg;
@@ -728,7 +841,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.custom.get!('coauthor')
                 ;
-                pub fn call(dyn: ziggy.dynamic.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                pub fn call(
+                    dyn: ziggy.dynamic.Value,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) Value {
                     _ = gpa;
                     const bad_arg = .{ .err = "'get' wants one (string) argument" };
                     if (args.len != 1) return bad_arg;
@@ -770,7 +888,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.custom.get('coauthor', 'Loris Cro')
                 ;
-                pub fn call(dyn: ziggy.dynamic.Value, gpa: std.mem.Allocator, args: []const Value) Value {
+                pub fn call(
+                    dyn: ziggy.dynamic.Value,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) Value {
                     _ = gpa;
                     const bad_arg = .{ .err = "'get' wants two (string) arguments" };
                     if (args.len != 2) return bad_arg;
@@ -817,7 +940,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.date.gt($page.custom.expiry_date)
                 ;
-                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    dt: DateTime,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     _ = gpa;
                     const argument_error = .{ .err = "'gt' wants one (date) argument" };
                     if (args.len != 1) return argument_error;
@@ -839,7 +967,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.date.lt($page.custom.expiry_date)
                 ;
-                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    dt: DateTime,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     _ = gpa;
                     const argument_error = .{ .err = "'lt' wants one (date) argument" };
                     if (args.len != 1) return argument_error;
@@ -861,7 +994,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.date.eq($page.custom.expiry_date)
                 ;
-                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    dt: DateTime,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     _ = gpa;
                     const argument_error = .{ .err = "'eq' wants one (date) argument" };
                     if (args.len != 1) return argument_error;
@@ -885,7 +1023,12 @@ pub const Value = union(enum) {
                     \\$page.date.format("06-Jan-02")
                     \\$page.date.format("2006/01/02")
                 ;
-                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    dt: DateTime,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     const argument_error = .{ .err = "'format' wants one (string) argument" };
                     if (args.len != 1) return argument_error;
                     const string = switch (args[0]) {
@@ -894,10 +1037,10 @@ pub const Value = union(enum) {
                     };
                     inline for (@typeInfo(DateFormats).Struct.decls) |decl| {
                         if (std.mem.eql(u8, decl.name, string)) {
-                            return .{ .string = try @call(.auto, @field(DateFormats, decl.name), .{dt, gpa})};
+                            return .{ .string = try @call(.auto, @field(DateFormats, decl.name), .{ dt, gpa }) };
                         }
                     } else {
-                        return .{.err = "unsupported date format"};
+                        return .{ .err = "unsupported date format" };
                     }
                 }
             };
@@ -911,7 +1054,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.date.formatHTTP()
                 ;
-                pub fn call(dt: DateTime, gpa: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    dt: DateTime,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     const argument_error = .{ .err = "'formatHTTP' wants no argument" };
                     if (args.len != 0) return argument_error;
 
@@ -945,7 +1093,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.draft.then("<alert>DRAFT!</alert>", "")
                 ;
-                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    b: bool,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len != 2) return .{ .err = "'then' wants two arguments" };
 
                     if (b) {
@@ -964,7 +1117,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.draft.not()
                 ;
-                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    b: bool,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len != 0) return .{ .err = "'not' wants no arguments" };
                     return .{ .bool = !b };
                 }
@@ -982,7 +1140,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.draft.and($site.tags.len().eq(10))
                 ;
-                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    b: bool,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len == 0) return .{ .err = "'and' wants at least one argument" };
                     for (args) |a| switch (a) {
                         .bool => {},
@@ -1006,7 +1169,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.draft.or($site.tags.len().eq(0))
                 ;
-                pub fn call(b: bool, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    b: bool,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     if (args.len == 0) return .{ .err = "'or' wants at least one argument" };
                     for (args) |a| switch (a) {
                         .bool => {},
@@ -1032,7 +1200,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.wordCount().eq(200)
                 ;
-                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    num: i64,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     const argument_error = .{ .err = "'plus' wants one int argument" };
                     if (args.len != 1) return argument_error;
 
@@ -1056,7 +1229,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.wordCount().gt(200)
                 ;
-                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    num: i64,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     const argument_error = .{ .err = "'gt' wants one int argument" };
                     if (args.len != 1) return argument_error;
 
@@ -1081,7 +1259,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.wordCount().plus(10)
                 ;
-                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    num: i64,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     const argument_error = .{ .err = "'plus' wants one (int|float) argument" };
                     if (args.len != 1) return argument_error;
 
@@ -1106,7 +1289,12 @@ pub const Value = union(enum) {
                 pub const examples =
                     \\$page.wordCount().div(10)
                 ;
-                pub fn call(num: i64, _: std.mem.Allocator, args: []const Value) !Value {
+                pub fn call(
+                    num: i64,
+                    _: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
                     const argument_error = .{ .err = "'div' wants one (int|float) argument" };
                     if (args.len != 1) return argument_error;
 
@@ -1134,6 +1322,7 @@ pub const Value = union(enum) {
             .int => IntBuiltins,
             .bool => BoolBuiltins,
             .dynamic => DynamicBuiltins,
+            .iterator_element => IterElementBuiltins,
             else => struct {},
         };
     }
@@ -1150,6 +1339,7 @@ pub fn SliceIterator(comptime Element: type) type {
         pub fn index(self: @This()) usize {
             return self.items.idx;
         }
+
         pub fn next(self: *@This(), gpa: std.mem.Allocator) ?*Element {
             _ = gpa;
             if (self.idx == self.items.len) return null;
@@ -1160,7 +1350,7 @@ pub fn SliceIterator(comptime Element: type) type {
     };
 }
 
-const DateFormats = struct{
+const DateFormats = struct {
     pub fn @"January 02, 2006"(dt: DateTime, gpa: std.mem.Allocator) ![]const u8 {
         return try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
             dt._dt.month.name(),
@@ -1175,7 +1365,7 @@ const DateFormats = struct{
             @mod(dt._dt.year, 100),
         });
     }
-    pub fn @"2006/01/02"(dt: DateTime, gpa: std.mem.Allocator) ![]const u8{
+    pub fn @"2006/01/02"(dt: DateTime, gpa: std.mem.Allocator) ![]const u8 {
         return try std.fmt.allocPrint(gpa, "{}/{:0>2}/{:0>2}", .{
             dt._dt.year,
             @intFromEnum(dt._dt.month),
@@ -1183,7 +1373,6 @@ const DateFormats = struct{
         });
     }
 };
-
 
 // pub const Dynamic = struct {
 //     _value: std.json.Value = .null,

@@ -1,12 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const options = @import("options");
 const ziggy = @import("ziggy");
-const super = @import("super");
+const super = @import("superhtml");
 const contexts = @import("contexts.zig");
 
 const log = std.log.scoped(.layout);
 pub const std_options: std.Options = .{
-    .log_level = .err,
+    .log_level = if (builtin.mode == .Debug) .debug else .err,
     .log_scope_levels = options.log_scope_levels,
 };
 
@@ -170,12 +171,13 @@ pub fn main() !void {
 
     ctx.page._meta.translations = ti;
 
-    var super_vm = super.SuperVM(contexts.Template, contexts.Value).init(
+    var super_vm = super.VM(contexts.Template, contexts.Value).init(
         arena,
         &ctx,
         layout_name,
         layout_path,
         layout_html,
+        std.mem.endsWith(u8, layout_name, ".xml"),
         md_name,
         out_writer,
         std.io.getStdErr().writer(),
@@ -201,11 +203,15 @@ pub fn main() !void {
                 template_name,
             });
             const template_html = readFile(template_path, arena) catch |ioerr| {
-                super_vm.resourceFetchError(ioerr);
+                super_vm.reportResourceFetchError(@errorName(ioerr));
                 std.process.exit(1);
             };
 
-            super_vm.insertTemplate(template_path, template_html);
+            super_vm.insertTemplate(
+                template_path,
+                template_html,
+                std.mem.endsWith(u8, template_name, ".xml"),
+            );
             try dep_writer.print("{s} ", .{template_path});
             log.debug("loaded template: '{s}'", .{template_path});
         },
