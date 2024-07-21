@@ -18,8 +18,8 @@
             .path = "frontmatter",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#497764c5c3704a79f5f360ffa5e28daf971e7735",
-            .hash = "12208df6c257831c49cc296c9efe42b0eeea6cd9d83c1a78aeba3d76eb9193b3110b",
+            .url = "git+https://github.com/kristoff-it/superhtml#186b4bc3d56a67e1b898834393128b2d8b9a1bc6",
+            .hash = "122075eb33b79c21eb478c8dd6d5930e325d75dda619bcb7408fd0586b762c22885a",
         },
         .ziggy = .{
             .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
