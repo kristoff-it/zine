@@ -2,7 +2,7 @@ const std = @import("std");
 const ziggy = @import("ziggy");
 const templating = @import("templating.zig");
 const contexts = @import("src/contexts.zig");
-const zine = @import("../build.zig");
+const zine = @import("build.zig");
 
 const FrontParser = ziggy.frontmatter.Parser(contexts.Page);
 const TranslationIndex = std.StringArrayHashMap(TranslationIndexEntry);
