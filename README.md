@@ -1,6 +1,6 @@
 <h1 align="center">Zine</h1>
 <h3 align="center"><em>Fast, Scalable, Flexible Static Site Generator (SSG)</em></h3>
-<p align="center">Zine is pronounced like in fan<em>zine</em>.</p>
+<p align="center">Zine is pronounced like in <a href="https://en.wikipedia.org/wiki/Zine">fan<em>zine</em></a></a>.</p>
 
 ## Development Status
 Alpha stage, it's strongly recommended to first try Zine out on a small project to get a feeling of the limits of the current implementation.
