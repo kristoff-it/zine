@@ -1,10 +1,9 @@
-# Zine
-Fast, Scalable, Flexible Static Site Generator (SSG)
-
-Zine is pronounced like in fan*zine*.
+<h1 align="center">Zine</h1>
+<h3 align="center"><em>Fast, Scalable, Flexible Static Site Generator (SSG)</em></h3>
+<p align="center">Zine is pronounced like in fan<em>zine</em>.</p>
 
 ## Development Status
-Super alpha stage, using Zine now means participating to its development work.
+Alpha stage, it's strongly recommended to first try Zine out on a small project to get a feeling of the limits of the current implementation.
 
 ## Getting Started
 
@@ -13,9 +12,9 @@ Go to https://zine-ssg.io to get started.
 
 ## Development
 
-It is recommended to develop Zine against a site project (eg zine-sample-site) by running `zig build` on the project and setting the Zine dependency to a local checkout in `build.zig.zon`:
+It is recommended to develop Zine against a site project (eg [kristoff-it/zine-ssg.io](https://github.comk/kristoff-it/zine-ssg.io) by running `zig build` on the project and setting the Zine dependency to a local checkout in `build.zig.zon`:
 
-`zine-sample-site/build.zig.zon`
+`zine-ssg.io/build.zig.zon`
 ```zig
 .{
     .name = "Zine Sample Site",
@@ -35,7 +34,7 @@ Two flags that are going to help you develop Zine:
 Builds Zine in debug mode, which means faster rebuilds and enabling debug logging. 
 
 ### `-Dlog=foo`
-Enables logging only for the specified scopes. Can be passed multiple times to enable more than one scope.
+Enables logging only for the specified scope. Can be passed multiple times to enable more than one scope.
 
 See at the top of each component what is the scope name in a declaration that looks like this:
 
