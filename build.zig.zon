@@ -30,8 +30,8 @@
             .hash = "1220478f0d836049cef3e203e665103c0c280b87d3c74b50c8b79c4054a6624498f9",
         },
         .@"flow-syntax" = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#10a9a8598b837ab1dd5b7adcba8e3a4ed4358983",
-            .hash = "12207c2b9285958b388e331a8d1f6066b92b30d3dc4d548b1f1d04e7e03c79f8c3c3",
+            .url = "git+https://github.com/neurocyte/flow-syntax#26b99478af9a1f09e0af8fd77fbdbe44e2015da4",
+            .hash = "1220f993fa053a2a76355906e74e1559f770fd612b303c8b4a1bafa116ab157b5efa",
         },
     },
     .paths = .{"."},
