@@ -170,35 +170,6 @@ pub fn build(b: *std.Build) !void {
         break :blk options.createModule();
     };
 
-    const server = b.addExecutable(.{
-        .name = "server",
-        .root_source_file = b.path("server/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    if (target.result.os.tag == .macos) {
-        server.linkFramework("CoreServices");
-    }
-
-    const mime = b.dependency("mime", mode);
-    const ws = b.dependency("ws", mode);
-
-    server.root_module.addImport("options", options);
-    server.root_module.addImport("mime", mime.module("mime"));
-    server.root_module.addImport("ws", ws.module("websocket"));
-
-    b.installArtifact(server);
-
-    const layout = b.addExecutable(.{
-        .name = "layout",
-        .root_source_file = b.path("src/layout.zig"),
-        .target = target,
-        .optimize = optimize,
-        // .strip = true,
-
-    });
-
     // dummy comment
     const super = b.dependency("superhtml", mode);
     const scripty = super.builder.dependency("scripty", .{});
@@ -207,6 +178,28 @@ pub fn build(b: *std.Build) !void {
     const syntax = b.dependency("flow-syntax", mode);
     const ts = syntax.builder.dependency("tree-sitter", mode);
 
+    const zine = b.addModule("zine", .{
+        .root_source_file = b.path("src/root.zig"),
+    });
+    zine.addImport("ziggy", ziggy.module("ziggy"));
+    zine.addImport("zeit", zeit.module("zeit"));
+    zine.addImport("syntax", syntax.module("syntax"));
+    zine.addImport("scripty", scripty.module("scripty"));
+    zine.addImport("treez", ts.module("treez"));
+    zine.addImport("superhtml", super.module("superhtml"));
+
+    setupServer(b, options, target, optimize);
+
+    const layout = b.addExecutable(.{
+        .name = "layout",
+        .root_source_file = b.path("src/exes/layout.zig"),
+        .target = target,
+        .optimize = optimize,
+        // .strip = true,
+
+    });
+
+    layout.root_module.addImport("zine", zine);
     layout.root_module.addImport("options", options);
     layout.root_module.addImport("superhtml", super.module("superhtml"));
     layout.root_module.addImport("scripty", scripty.module("scripty"));
@@ -225,19 +218,21 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = .Debug,
     });
+    docgen.root_module.addImport("zine", zine);
     docgen.root_module.addImport("zeit", zeit.module("zeit"));
     docgen.root_module.addImport("ziggy", ziggy.module("ziggy"));
     b.installArtifact(docgen);
 
     const md_renderer = b.addExecutable(.{
         .name = "markdown-renderer",
-        .root_source_file = b.path("src/markdown-renderer.zig"),
+        .root_source_file = b.path("src/exes/markdown-renderer.zig"),
         .target = b.resolveTargetQuery(.{}),
         .optimize = optimize,
     });
 
     const gfm = b.dependency("gfm", mode);
 
+    md_renderer.root_module.addImport("zine", zine);
     md_renderer.root_module.addImport("ziggy", ziggy.module("ziggy"));
     md_renderer.root_module.addImport("zeit", zeit.module("zeit"));
     md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
@@ -248,4 +243,61 @@ pub fn build(b: *std.Build) !void {
     md_renderer.linkLibC();
 
     b.installArtifact(md_renderer);
+
+    const fuzz = b.step("fuzz", "build fuzzing executables");
+    setupFuzzing(b, target, optimize, fuzz);
+}
+
+fn setupServer(
+    b: *std.Build,
+    options: *std.Build.Module,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) void {
+    const server = b.addExecutable(.{
+        .name = "server",
+        .root_source_file = b.path("src/exes/server/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    if (target.result.os.tag == .macos) {
+        server.linkFramework("CoreServices");
+    }
+
+    const mime = b.dependency("mime", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const ws = b.dependency("ws", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    server.root_module.addImport("options", options);
+    server.root_module.addImport("mime", mime.module("mime"));
+    server.root_module.addImport("ws", ws.module("websocket"));
+
+    b.installArtifact(server);
+}
+
+fn setupFuzzing(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    fuzz: *std.Build.Step,
+) void {
+    const afl = @import("zig-afl-kit");
+
+    const scripty_afl_obj = b.addObject(.{
+        .name = "scripty",
+        .root_source_file = b.path("src/fuzz/scripty.zig"),
+        .target = b.resolveTargetQuery(.{}),
+        .optimize = .Debug,
+    });
+    scripty_afl_obj.root_module.stack_check = false;
+    scripty_afl_obj.root_module.link_libc = true;
+
+    const afl_exe = afl.addInstrumentedExe(b, target, optimize, scripty_afl_obj);
+    fuzz.dependOn(&b.addInstallFile(afl_exe, "scripty-afl").step);
 }

@@ -1,7 +1,7 @@
 const std = @import("std");
 const ziggy = @import("ziggy");
-const contexts = @import("contexts.zig");
-const Value = contexts.Value;
+const context = @import("context.zig");
+const Value = context.Value;
 
 pub const Signature = struct {
     params: []const ScriptyParam = &.{},
@@ -35,17 +35,17 @@ pub const ScriptyParam = union(enum) {
 
     pub fn fromType(t: type) ScriptyParam {
         return switch (t) {
-            contexts.Page, *contexts.Page => .Page,
+            context.Page, *context.Page => .Page,
             []const u8 => .str,
             []const []const u8 => .{ .many = .str },
-            contexts.DateTime => .date,
+            context.DateTime => .date,
             usize => .int,
             bool => .bool,
             ziggy.dynamic.Value => .dyn,
-            contexts.Page.Alternative => .Alternative,
-            []const contexts.Page.Alternative => .{ .many = .Alternative },
-            contexts.Page.Translation => .Translation,
-            []const contexts.Page.Translation => .{ .many = .Translation },
+            context.Page.Alternative => .Alternative,
+            []const context.Page.Alternative => .{ .many = .Alternative },
+            context.Page.Translation => .Translation,
+            []const context.Page.Translation => .{ .many = .Translation },
 
             else => @compileError("TODO: add support for " ++ @typeName(t)),
         };
@@ -110,8 +110,8 @@ pub fn main() !void {
         );
 
         const globals = .{
-            .{ .name = "$site", .type_name = "Site", .desc = contexts.Site.description },
-            .{ .name = "$page", .type_name = "Page", .desc = contexts.Page.description },
+            .{ .name = "$site", .type_name = "Site", .desc = context.Site.description },
+            .{ .name = "$page", .type_name = "Page", .desc = context.Page.description },
             .{
                 .name = "$loop",
                 .type_name = "?Loop",
@@ -145,10 +145,10 @@ pub fn main() !void {
             \\
         );
         const types = .{
-            .{ .name = "Site", .t = contexts.Site, .builtins = Value.builtinsFor(.site) },
-            .{ .name = "Page", .t = contexts.Page, .builtins = Value.builtinsFor(.page) },
-            .{ .name = "Alternative", .t = contexts.Page.Alternative, .builtins = Value.builtinsFor(.alternative) },
-            .{ .name = "Translation", .t = contexts.Page.Translation, .builtins = Value.builtinsFor(.translation) },
+            .{ .name = "Site", .t = context.Site, .builtins = Value.builtinsFor(.site) },
+            .{ .name = "Page", .t = context.Page, .builtins = Value.builtinsFor(.page) },
+            .{ .name = "Alternative", .t = context.Page.Alternative, .builtins = Value.builtinsFor(.alternative) },
+            .{ .name = "Translation", .t = context.Page.Translation, .builtins = Value.builtinsFor(.translation) },
             .{ .name = "str", .builtins = Value.builtinsFor(.string) },
             .{ .name = "date", .builtins = Value.builtinsFor(.date) },
             .{ .name = "int", .builtins = Value.builtinsFor(.int) },

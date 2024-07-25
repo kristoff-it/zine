@@ -1,10 +1,10 @@
 const std = @import("std");
 const ziggy = @import("ziggy");
 const templating = @import("templating.zig");
-const contexts = @import("src/contexts.zig");
+const context = @import("src/context.zig");
 const zine = @import("build.zig");
 
-const FrontParser = ziggy.frontmatter.Parser(contexts.Page);
+const FrontParser = ziggy.frontmatter.Parser(context.Page);
 const TranslationIndex = std.StringArrayHashMap(TranslationIndexEntry);
 const TranslationIndexEntry = struct {
     index_file: std.Build.LazyPath = undefined,
@@ -665,7 +665,7 @@ const Section = struct {
     const Page = struct {
         content_sub_path: []const u8,
         md_name: []const u8,
-        fm: contexts.Page,
+        fm: context.Page,
 
         // Present if this page is an 'index.md' and set
         // to the section defined by this page.
