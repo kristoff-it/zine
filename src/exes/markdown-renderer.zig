@@ -1,7 +1,8 @@
 const std = @import("std");
 const ziggy = @import("ziggy");
-const contexts = @import("contexts.zig");
-const hl = @import("highlight.zig");
+const zine = @import("zine");
+const context = zine.context;
+const hl = zine.highlight;
 const highlightCode = hl.highlightCode;
 const HtmlSafe = hl.HtmlSafe;
 
@@ -52,7 +53,7 @@ pub fn main() !void {
 
     var buf_reader = std.io.bufferedReader(in_file.reader());
     const r = buf_reader.reader();
-    const result = try ziggy.frontmatter.Parser(contexts.Page).parse(arena, r, null);
+    const result = try ziggy.frontmatter.Parser(context.Page).parse(arena, r, null);
     var page = switch (result) {
         .success => |s| s.header,
         else => unreachable,

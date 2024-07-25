@@ -3,7 +3,8 @@ const builtin = @import("builtin");
 const options = @import("options");
 const ziggy = @import("ziggy");
 const super = @import("superhtml");
-const contexts = @import("contexts.zig");
+const zine = @import("zine");
+const context = zine.context;
 
 const log = std.log.scoped(.layout);
 pub const std_options: std.Options = .{
@@ -115,7 +116,7 @@ pub fn main() !void {
         };
     };
 
-    const ti: []const contexts.Page.Translation = blk: {
+    const ti: []const context.Page.Translation = blk: {
         if (std.mem.eql(u8, translation_index_path, "null")) break :blk &.{};
         const bytes = readFile(translation_index_path, arena) catch |err| {
             fatal("error while opening the translation index file:\n{s}\n{s}\n", .{
@@ -124,7 +125,7 @@ pub fn main() !void {
             });
         };
 
-        const ti = ziggy.parseLeaky([]const contexts.Page.Translation, arena, bytes, .{}) catch {
+        const ti = ziggy.parseLeaky([]const context.Page.Translation, arena, bytes, .{}) catch {
             @panic("TODO: error message when a ziggy translation index fails to parse.");
         };
 
@@ -145,11 +146,11 @@ pub fn main() !void {
     var out_buf_writer = std.io.bufferedWriter(out_file.writer());
     const out_writer = out_buf_writer.writer();
 
-    const site: contexts.Site = .{ .host_url = site_host_url, .title = site_title };
+    const site: context.Site = .{ .host_url = site_host_url, .title = site_title };
 
-    const page = try ziggy.parseLeaky(contexts.Page, arena, page_meta, .{});
+    const page = try ziggy.parseLeaky(context.Page, arena, page_meta, .{});
 
-    var ctx: contexts.Template = .{
+    var ctx: context.Template = .{
         .site = site,
         .page = page,
         .i18n = i18n,
@@ -157,21 +158,21 @@ pub fn main() !void {
     ctx.page.content = rendered_md_string;
 
     if (subpages_meta) |sub| {
-        ctx.page._meta.subpages = try ziggy.parseLeaky([]const contexts.Page, arena, sub, .{});
+        ctx.page._meta.subpages = try ziggy.parseLeaky([]const context.Page, arena, sub, .{});
         ctx.page._meta.is_section = true;
     }
 
     if (prev_meta) |prev| {
-        ctx.page._meta.prev = try ziggy.parseLeaky(*contexts.Page, arena, prev, .{});
+        ctx.page._meta.prev = try ziggy.parseLeaky(*context.Page, arena, prev, .{});
     }
 
     if (next_meta) |next| {
-        ctx.page._meta.next = try ziggy.parseLeaky(*contexts.Page, arena, next, .{});
+        ctx.page._meta.next = try ziggy.parseLeaky(*context.Page, arena, next, .{});
     }
 
     ctx.page._meta.translations = ti;
 
-    var super_vm = super.VM(contexts.Template, contexts.Value).init(
+    var super_vm = super.VM(context.Template, context.Value).init(
         arena,
         &ctx,
         layout_name,

@@ -18,8 +18,8 @@
             .path = "frontmatter",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#186b4bc3d56a67e1b898834393128b2d8b9a1bc6",
-            .hash = "122075eb33b79c21eb478c8dd6d5930e325d75dda619bcb7408fd0586b762c22885a",
+            .url = "git+https://github.com/kristoff-it/superhtml#7aea5cf0a32a4aa4dce4190219adde60388aaf98",
+            .hash = "122032ed35c90f3accd3ac19041c392dfbad817597643fc6df3a88bcd6b46ff11c7d",
         },
         .ziggy = .{
             .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
@@ -32,6 +32,10 @@
         .@"flow-syntax" = .{
             .url = "git+https://github.com/neurocyte/flow-syntax#26b99478af9a1f09e0af8fd77fbdbe44e2015da4",
             .hash = "1220f993fa053a2a76355906e74e1559f770fd612b303c8b4a1bafa116ab157b5efa",
+        },
+        .@"zig-afl-kit" = .{
+            .url = "git+https://github.com/kristoff-it/zig-afl-kit#f003bfe714f2964c90939fdc940d5993190a66ec",
+            .hash = "1220f2d8402bb7bbc4786b9c0aad73910929ea209cbd3b063842371d68abfed33c1e",
         },
     },
     .paths = .{"."},
