@@ -12,7 +12,7 @@ Go to https://zine-ssg.io to get started.
 
 ## Development
 
-It is recommended to develop Zine against a site project (eg [kristoff-it/zine-ssg.io](https://github.comk/kristoff-it/zine-ssg.io) by running `zig build` on the project and setting the Zine dependency to a local checkout in `build.zig.zon`:
+It is recommended to develop Zine against a site project (eg [kristoff-it/zine-ssg.io](https://github.com/kristoff-it/zine-ssg.io) by running `zig build` on the project and setting the Zine dependency to a local checkout in `build.zig.zon`:
 
 `zine-ssg.io/build.zig.zon`
 ```zig
