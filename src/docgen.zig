@@ -94,7 +94,7 @@ pub fn main() !void {
         \\    .title = "Scripty Reference",
         \\    .description = "",
         \\    .author = "Loris Cro",
-        \\    .layout = "scripty-reference.html",
+        \\    .layout = "scripty-reference.shtml",
         \\    .date = @date("2023-06-16T00:00:00"),
         \\    .draft = false,
         \\}
