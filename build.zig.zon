@@ -18,8 +18,8 @@
             .path = "frontmatter",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#7aea5cf0a32a4aa4dce4190219adde60388aaf98",
-            .hash = "122032ed35c90f3accd3ac19041c392dfbad817597643fc6df3a88bcd6b46ff11c7d",
+            .url = "git+https://github.com/kristoff-it/superhtml#f068535d94401849563aab0b88132a1b26c59be2",
+            .hash = "1220e56fbb4789ee1f34e76b4ca53d6e4e79404a3f1abaad020aa598cee98dd9842f",
         },
         .ziggy = .{
             .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
@@ -36,6 +36,7 @@
         .@"zig-afl-kit" = .{
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#f003bfe714f2964c90939fdc940d5993190a66ec",
             .hash = "1220f2d8402bb7bbc4786b9c0aad73910929ea209cbd3b063842371d68abfed33c1e",
+            .lazy = true,
         },
     },
     .paths = .{"."},
