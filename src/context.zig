@@ -615,8 +615,41 @@ pub const Value = union(enum) {
                     args: []const Value,
                     _: *super.utils.ResourceDescriptor,
                 ) !Value {
-                    if (args.len != 0) return .{ .err = "'len' wants no arguments" };
+                    if (args.len != 0) return .{ .err = "expected 0 arguments" };
                     return Value.from(gpa, str.len);
+                }
+            };
+
+            pub const contains = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.str},
+                    .ret = .bool,
+                };
+                pub const description =
+                    \\Returns true if the receiver contains the provided string.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.permalink().contains("/blog/")
+                ;
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
+                    _ = gpa;
+                    const bad_arg = .{
+                        .err = "expected 1 string argument",
+                    };
+                    if (args.len != 1) return bad_arg;
+
+                    const needle = switch (args[0]) {
+                        .string => |s| s,
+                        else => return bad_arg,
+                    };
+
+                    return .{ .bool = std.mem.indexOf(u8, str, needle) != null };
                 }
             };
 
@@ -640,11 +673,9 @@ pub const Value = union(enum) {
                 ) !Value {
                     _ = gpa;
                     const bad_arg = .{
-                        .err = "'endsWith' wants 1 string argument",
+                        .err = "expected 1 string argument",
                     };
-                    if (args.len != 1) return .{
-                        .err = "'endsWith' wants 1 argument",
-                    };
+                    if (args.len != 1) return bad_arg;
 
                     const needle = switch (args[0]) {
                         .string => |s| s,
@@ -674,12 +705,9 @@ pub const Value = union(enum) {
                 ) !Value {
                     _ = gpa;
                     const bad_arg = .{
-                        .err = "'eql' wants 1 string argument",
+                        .err = "expected 1 string argument",
                     };
-                    if (args.len != 1) return .{
-                        .err = "'eql' wants 1 argument",
-                    };
-
+                    if (args.len != 1) return bad_arg;
                     const needle = switch (args[0]) {
                         .string => |s| s,
                         else => return bad_arg,
