@@ -231,7 +231,7 @@ pub const Page = struct {
                 \\
             ;
             pub const examples =
-                \\<div ></div>
+                \\$page.isSection()
             ;
             pub fn call(
                 self: *Page,
@@ -620,6 +620,74 @@ pub const Value = union(enum) {
                 }
             };
 
+            pub const endsWith = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.str},
+                    .ret = .bool,
+                };
+                pub const description =
+                    \\Returns true if the receiver ends with the provided string.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.permalink().endsWith("/blog/")
+                ;
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
+                    _ = gpa;
+                    const bad_arg = .{
+                        .err = "'endsWith' wants 1 string argument",
+                    };
+                    if (args.len != 1) return .{
+                        .err = "'endsWith' wants 1 argument",
+                    };
+
+                    const needle = switch (args[0]) {
+                        .string => |s| s,
+                        else => return bad_arg,
+                    };
+
+                    return .{ .bool = std.mem.endsWith(u8, str, needle) };
+                }
+            };
+            pub const eql = struct {
+                pub const signature: Signature = .{
+                    .params = &.{.str},
+                    .ret = .bool,
+                };
+                pub const description =
+                    \\Returns true if the receiver equals the provided string.
+                    \\
+                ;
+                pub const examples =
+                    \\$page.author.eql("Loris Cro")
+                ;
+                pub fn call(
+                    str: []const u8,
+                    gpa: std.mem.Allocator,
+                    args: []const Value,
+                    _: *super.utils.ResourceDescriptor,
+                ) !Value {
+                    _ = gpa;
+                    const bad_arg = .{
+                        .err = "'eql' wants 1 string argument",
+                    };
+                    if (args.len != 1) return .{
+                        .err = "'eql' wants 1 argument",
+                    };
+
+                    const needle = switch (args[0]) {
+                        .string => |s| s,
+                        else => return bad_arg,
+                    };
+
+                    return .{ .bool = std.mem.eql(u8, str, needle) };
+                }
+            };
             pub const suffix = struct {
                 pub const signature: Signature = .{
                     .params = &.{ .str, .{ .many = .str } },
