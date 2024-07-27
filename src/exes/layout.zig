@@ -8,7 +8,7 @@ const context = zine.context;
 
 const log = std.log.scoped(.layout);
 pub const std_options: std.Options = .{
-    .log_level = if (builtin.mode == .Debug) .debug else .err,
+    .log_level = .err,
     .log_scope_levels = options.log_scope_levels,
 };
 
