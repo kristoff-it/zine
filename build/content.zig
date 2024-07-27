@@ -43,15 +43,16 @@ pub fn addWebsiteImpl(
         .install_dir = .prefix,
         .install_subdir = "",
     });
-    b.getInstallStep().dependOn(&install_static.step);
+    step.dependOn(&install_static.step);
 
     // Scan the content folder
-    scan(b, step, zine_dep, web);
+    scan(b, step, opts.optimize == .Debug, zine_dep, web);
 }
 
 fn scan(
     project: *std.Build,
     step: *std.Build.Step,
+    debug: bool,
     zine_dep: *std.Build.Dependency,
     website: AddWebsiteOptions,
 ) void {
@@ -82,6 +83,9 @@ fn scan(
 
                 sv.* = scanVariant(
                     project,
+
+                    step,
+                    debug,
                     v.content_dir_path,
                     url_path_prefix,
                 );
@@ -135,7 +139,13 @@ fn scan(
             ensureDir(s.static_dir_path);
 
             const prefix = s.output_prefix;
-            const sv = scanVariant(project, s.content_dir_path, prefix);
+            const sv = scanVariant(
+                project,
+                step,
+                debug,
+                s.content_dir_path,
+                prefix,
+            );
             addAllSteps(
                 project,
                 step,
@@ -201,11 +211,13 @@ const ScannedVariant = struct {
 
 pub fn scanVariant(
     project: *std.Build,
+    step: *std.Build.Step,
+    debug: bool,
     content_dir_path: []const u8,
     url_path_prefix: []const u8,
 ) ScannedVariant {
     var t = std.time.Timer.start() catch unreachable;
-    defer std.debug.print(
+    defer if (debug) std.debug.print(
         "Content scan took {}ms\n",
         .{t.read() / std.time.ns_per_ms},
     );
@@ -254,6 +266,7 @@ pub fn scanVariant(
             const result = FrontParser.parse(project.allocator, r, "index.md") catch @panic("TODO: report frontmatter parser error");
 
             const permalink = project.pathJoin(&.{ "/", url_path_prefix, dir_entry.path, "/" });
+
             const fm = switch (result) {
                 .success => |s| fm: {
                     var h = s.header;
@@ -406,9 +419,9 @@ pub fn scanVariant(
 
     var section_it = sections.iterator(0);
     while (section_it.next()) |s| {
-        s.writeIndex(project);
+        s.writeIndex(project, step);
         for (s.pages.items) |*p| {
-            p.writeMeta(project);
+            p.writeMeta(project, step);
         }
     }
 
@@ -449,6 +462,7 @@ pub fn addAllSteps(
             "",
             "index.md",
             output_path_prefix,
+            idx.fm._meta.permalink,
         );
         addLayoutStep(
             project,
@@ -519,6 +533,7 @@ pub fn addAllSteps(
                 p.content_sub_path,
                 p.md_name,
                 output_path_prefix,
+                p.fm._meta.permalink,
             );
             const sub_index = if (p.subpages) |subsection| subsection.index else null;
 
@@ -591,6 +606,7 @@ fn addMarkdownRenderStep(
     content_sub_path: []const u8,
     md_basename: []const u8,
     output_path_prefix: []const u8,
+    permalink: []const u8,
 ) RenderResult {
     const in_path = project.pathJoin(&.{ content_dir_path, content_sub_path, md_basename });
     const out_basename = md_basename[0 .. md_basename.len - 3];
@@ -608,6 +624,8 @@ fn addMarkdownRenderStep(
     const rendered_md = render_step.addOutputFileArg("_zine_rendered.html");
     // frontmatter + computed metadata
     const page_metadata = render_step.addOutputFileArg("_zine_meta.ziggy");
+    // permalink
+    render_step.addArg(permalink);
 
     const install_subpath = if (std.mem.eql(u8, out_basename, "index"))
         content_sub_path
@@ -741,20 +759,30 @@ const Section = struct {
             return rhs.fm.date.lessThan(lhs.fm.date);
         }
 
-        pub fn writeMeta(p: *Page, project: *std.Build) void {
+        pub fn writeMeta(
+            p: *Page,
+            project: *std.Build,
+            step: *std.Build.Step,
+        ) void {
             var buf = std.ArrayList(u8).init(project.allocator);
             ziggy.stringify(p.fm, .{}, buf.writer()) catch unreachable;
             const write_file_step = project.addWriteFiles();
             p.meta = write_file_step.add("page_meta.ziggy", buf.items);
+            step.dependOn(p.meta.generated.file.step);
         }
     };
 
-    pub fn writeIndex(s: *Section, project: *std.Build) void {
+    pub fn writeIndex(
+        s: *Section,
+        project: *std.Build,
+        step: *std.Build.Step,
+    ) void {
         std.mem.sort(Page, s.pages.items, {}, Page.lessThan);
         var buf = std.ArrayList(u8).init(project.allocator);
         ziggy.stringify(s.pages.items, .{}, buf.writer()) catch unreachable;
         const write_file_step = project.addWriteFiles();
         s.index = write_file_step.add("section.ziggy", buf.items);
+        step.dependOn(s.index.generated.file.step);
     }
 };
 

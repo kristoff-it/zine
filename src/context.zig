@@ -8,6 +8,8 @@ const timezones = @import("datetime").timezones;
 const Signature = @import("docgen.zig").Signature;
 const hl = @import("highlight.zig");
 
+const log = std.log.scoped(.builtin);
+
 pub const DateTime = struct {
     _dt: zeit.Time,
     // Use inst() to access this field
@@ -682,7 +684,10 @@ pub const Value = union(enum) {
                         else => return bad_arg,
                     };
 
-                    return .{ .bool = std.mem.endsWith(u8, str, needle) };
+                    const result = std.mem.endsWith(u8, str, needle);
+                    log.debug("endsWith('{s}', '{s}') = {}", .{ str, needle, result });
+
+                    return .{ .bool = result };
                 }
             };
             pub const eql = struct {

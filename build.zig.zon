@@ -18,8 +18,7 @@
             .path = "frontmatter",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#bdaafecd533cc319d0b3ce4e72869795ee1dfc15",
-            .hash = "1220f7fc3a4cf9342920c77486a475f46617d0b97d598f9e6328211aaf878c14b45c",
+            .path = "../superhtml",
         },
         .ziggy = .{
             .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
