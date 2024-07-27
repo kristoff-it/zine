@@ -164,5 +164,5 @@ fn setupFuzzing(
     scripty_afl_obj.root_module.link_libc = true;
 
     const afl_exe = afl.addInstrumentedExe(b, target, optimize, scripty_afl_obj);
-    b.defaultInstallStep().dependOn(&b.addInstallFile(afl_exe, "scripty-afl").step);
+    b.getInstallStep().dependOn(&b.addInstallFile(afl_exe, "scripty-afl").step);
 }
