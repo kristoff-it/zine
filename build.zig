@@ -1,11 +1,10 @@
+const zine = @This();
 const std = @import("std");
-const templating = @import("templating.zig");
-const content = @import("content.zig");
 
-pub const AddWebsiteOptions = union(enum) {
-    multilingual: MultilingualSite,
-    site: Site,
-};
+// This file only contains definitions that might be
+// of interest to advanced Zine users, Zine's main
+// build function is in another castle!
+pub const build = @import("build/tools.zig").build;
 
 pub const MultilingualSite = struct {
     host_url: []const u8,
@@ -13,6 +12,9 @@ pub const MultilingualSite = struct {
     static_dir_path: []const u8,
     i18n_dir_path: []const u8,
     variants: []const LocalizedVariant,
+    /// Enables Zine's -Ddebug and -Dscope flags
+    /// (only useful if you're developing Zine)
+    debug: bool = false,
 
     pub const LocalizedVariant = struct {
         ///A language-NATION code, e.g. 'en-US'.
@@ -46,90 +48,198 @@ pub const Site = struct {
     content_dir_path: []const u8,
     static_dir_path: []const u8,
     output_prefix: []const u8 = "",
+    /// Enables Zine's -Ddebug and -Dscope flags
+    /// (only useful if you're developing Zine)
+    debug: bool = false,
 };
 
-/// Adds a 'serve' step to the project's build and sets up the zine build pipeline.
-pub fn addWebsite(project: *std.Build, opts: Site) !void {
-    try addWebsiteImpl(project, .{ .site = opts });
-}
+/// Adds a 'website' and a 'serve' step to the project's build and sets up
+/// the zine build pipeline in a standardized way. Look at the implementation
+/// of this function to see how you can use `addWebsiteStep` and
+/// `addDevelopmentServerStep` for more fine-grained control over the pipeline.
+pub fn website(b: *std.Build, site: Site) void {
+    // Setup debug flags if the user enabled Zine debug.
+    // If you're copying this code into your build script
+    // you will probably want to skip this step and directly
+    // pass `.{}` to `addWebsite`
+    const opts = zine.defaultZineOptions(b, site.debug);
 
-/// Adds a 'serve' step to the project's build and sets up the zine build pipeline.
-pub fn addMultilingualWebsite(project: *std.Build, opts: MultilingualSite) !void {
-    try addWebsiteImpl(project, .{ .multilingual = opts });
-}
+    const website_step = b.step(
+        "website",
+        "Builds the website",
+    );
+    zine.addWebsite(b, opts, website_step, site);
 
-fn addWebsiteImpl(project: *std.Build, opts: AddWebsiteOptions) !void {
-    const debug_opt = project.option(
-        bool,
-        "debug",
-        "build Zine tools in debug mode",
-    ) orelse false;
+    // Invoking the default step also builds the website
+    b.getInstallStep().dependOn(website_step);
 
-    const log: []const []const u8 = project.option(
-        []const []const u8,
-        "log",
-        "logging scopes to enable (defaults to all scopes)",
-    ) orelse &.{};
+    const serve = b.step(
+        "serve",
+        "Starts the Zine development server",
+    );
 
-    const optimize: std.builtin.OptimizeMode = if (debug_opt) .Debug else .ReleaseFast;
-    const zine_dep = project.dependencyFromBuildZig(@This(), .{ .optimize = optimize, .log = log });
+    const port = b.option(
+        u16,
+        "port",
+        "port to listen on for the development server",
+    ) orelse 1990;
 
-    try content.scan(project, zine_dep, opts);
-    setupDevelopmentServer(project, zine_dep, opts);
-
-    // Install static files
-    const static_dir_path = switch (opts) {
-        .multilingual => |ml| ml.static_dir_path,
-        .site => |s| s.static_dir_path,
-    };
-    const install_static = project.addInstallDirectory(.{
-        .source_dir = project.path(static_dir_path),
-        .install_dir = .prefix,
-        .install_subdir = "",
+    zine.addDevelopmentServer(b, opts, serve, .{
+        .host = "localhost",
+        .port = port,
+        .input_dirs = &.{
+            site.static_dir_path,
+            site.layouts_dir_path,
+            site.content_dir_path,
+        },
     });
-    project.getInstallStep().dependOn(&install_static.step);
+
+    // Build the website once before starting the web server
+    serve.dependOn(website_step);
 }
 
-fn setupDevelopmentServer(
-    project: *std.Build,
-    zine_dep: *std.Build.Dependency,
-    opts: AddWebsiteOptions,
+/// Adds a 'website' and a 'serve' step to the project's build and sets up
+/// the zine build pipeline in a standardized way. Look at the implementation
+/// of this function to see how you can use `addMultilingualWebsiteStep` and
+/// `addDevelopmentServerStep` for more fine-grained control over the pipeline.
+pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
+    // Setup debug flags if the user enabled Zine debug.
+    // If you're copying this code into your build script
+    // you will probably want to skip this step and directly
+    // pass `.{}` to `addMultilingualWebsite`
+    const opts = zine.defaultZineOptions(b, multi.debug);
+
+    const website_step = b.step(
+        "website",
+        "Builds the website",
+    );
+    zine.addMultilingualWebsite(b, website_step, multi, opts);
+
+    // Invoking the default step also builds the website
+    b.getInstallStep().dependOn(website_step);
+
+    const serve = b.step(
+        "serve",
+        "Starts the Zine development server",
+    );
+
+    const port = b.option(
+        u16,
+        "port",
+        "port to listen on for the development server",
+    ) orelse 1990;
+
+    var input_dirs = std.ArrayList.init(b.allocator);
+    input_dirs.appendSlice(&.{
+        multi.static_dir_path,
+        multi.layouts_dir_path,
+    });
+
+    for (multi.variants) |v| {
+        if (v.host_url_override) |_| {
+            @panic("TODO: a variant specifies a dedicated host but multihost support for the dev server has not been implemented yet.");
+        }
+        input_dirs.append(v.content_dir_path) catch unreachable;
+    }
+
+    zine.addDevelopmentServer(b, opts, serve, .{
+        .host = "localhost",
+        .port = port,
+        .input_dirs = input_dirs.items,
+    });
+
+    // Build the website once before starting the web server
+    serve.dependOn(website_step);
+}
+
+pub fn addWebsite(
+    b: *std.Build,
+    opts: ZineOptions,
+    step: *std.Build.Step,
+    site: Site,
 ) void {
-    const server_exe = zine_dep.artifact("server");
-    const run_server = project.addRunArtifact(server_exe);
-    run_server.addArg("serve");
-    run_server.addArg(project.graph.zig_exe);
-    run_server.addArgs(&.{ "--root", project.install_path });
-
-    switch (opts) {
-        .multilingual => |ml| {
-            run_server.addArgs(&.{ "--input-dir", ml.static_dir_path });
-            run_server.addArgs(&.{ "--input-dir", ml.layouts_dir_path });
-            for (ml.variants) |v| {
-                if (v.host_url_override) |_| {
-                    @panic("TODO: a variant specifies a dedicated host but multihost support for the dev server has not been implemented yet.");
-                }
-                run_server.addArgs(&.{ "--input-dir", v.content_dir_path });
-            }
-        },
-        .site => |s| {
-            run_server.addArgs(&.{ "--input-dir", s.static_dir_path });
-            run_server.addArgs(&.{ "--input-dir", s.layouts_dir_path });
-            run_server.addArgs(&.{ "--input-dir", s.content_dir_path });
-        },
-    }
-
-    if (project.option(u16, "port", "port to listen on for the development server")) |port| {
-        run_server.addArgs(&.{ "-p", project.fmt("{d}", .{port}) });
-    }
-
-    const run_step = project.step("serve", "Run the local development web server");
-    run_step.dependOn(&run_server.step);
-    run_server.step.dependOn(project.getInstallStep());
+    @import("build/content.zig").addWebsiteImpl(
+        b,
+        opts,
+        step,
+        .{ .site = site },
+    );
+}
+pub fn addMultilingualWebsite(
+    b: *std.Build,
+    step: *std.Build.Step,
+    multi: MultilingualSite,
+    opts: ZineOptions,
+) void {
+    @import("build/content.zig").addWebsiteImpl(
+        b,
+        opts,
+        step,
+        .{ .multilingual = multi },
+    );
 }
 
-pub fn scriptyReferenceDocs(project: *std.Build, output_file_path: []const u8) void {
-    const zine_dep = project.dependencyFromBuildZig(@This(), .{ .optimize = .Debug });
+pub const DevelopmentServerOptions = struct {
+    host: []const u8,
+    port: u16 = 1990,
+    input_dirs: []const []const u8,
+};
+pub fn addDevelopmentServer(
+    b: *std.Build,
+    zine_opts: ZineOptions,
+    step: *std.Build.Step,
+    server_opts: DevelopmentServerOptions,
+) void {
+    const zine_dep = b.dependencyFromBuildZig(zine, .{
+        .optimize = zine_opts.optimize,
+        .scope = zine_opts.scopes,
+    });
+    const server_exe = zine_dep.artifact("server");
+    const run_server = b.addRunArtifact(server_exe);
+    run_server.addArg("serve");
+    run_server.addArg(b.graph.zig_exe);
+    run_server.addArgs(&.{ "--root", b.install_path });
+
+    run_server.addArgs(&.{ "-p", b.fmt("{d}", .{server_opts.port}) });
+
+    for (server_opts.input_dirs) |dir| {
+        run_server.addArgs(&.{ "--input-dir", dir });
+    }
+
+    step.dependOn(&run_server.step);
+}
+
+pub const ZineOptions = struct {
+    optimize: std.builtin.OptimizeMode = .ReleaseFast,
+    /// Logging scopes to enable, mainly useful
+    /// when building in debug mode to develop Zine.
+    scopes: []const []const u8 = &.{},
+};
+fn defaultZineOptions(b: *std.Build, debug: bool) ZineOptions {
+    var flags: ZineOptions = .{};
+    if (debug) {
+        flags.optimize = if (b.option(
+            bool,
+            "debug",
+            "build Zine tools in debug mode",
+        ) orelse false) .Debug else .ReleaseFast;
+        flags.scopes = b.option(
+            []const []const u8,
+            "scope",
+            "logging scopes to enable",
+        ) orelse &.{};
+    }
+    return flags;
+}
+
+pub fn scriptyReferenceDocs(
+    project: *std.Build,
+    output_file_path: []const u8,
+) void {
+    const zine_dep = project.dependencyFromBuildZig(
+        zine,
+        .{ .optimize = .Debug },
+    );
 
     const run_docgen = project.addRunArtifact(zine_dep.artifact("docgen"));
     const reference_md = run_docgen.addOutputFileArg("scripty_reference.md");
@@ -140,164 +250,4 @@ pub fn scriptyReferenceDocs(project: *std.Build, output_file_path: []const u8) v
     const desc = project.fmt("Regenerates Scripty reference docs in '{s}'", .{output_file_path});
     const run_step = project.step("docgen", desc);
     run_step.dependOn(&wf.step);
-}
-
-pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
-
-    const log: []const []const u8 = b.option(
-        []const []const u8,
-        "log",
-        "logging scopes to enable (defaults to all scopes)",
-    ) orelse &.{};
-
-    const mode = .{ .target = target, .optimize = optimize };
-
-    const options = blk: {
-        const options = b.addOptions();
-        const out = options.contents.writer();
-        try out.writeAll(
-            \\// module = zine
-            \\const std = @import("std");
-            \\pub const log_scope_levels: []const std.log.ScopeLevel = &.{
-            \\
-        );
-        for (log) |l| try out.print(
-            \\.{{.scope = .{s}, .level = .debug}},
-        , std.zig.fmtId(l));
-        try out.writeAll("};");
-        break :blk options.createModule();
-    };
-
-    // dummy comment
-    const super = b.dependency("superhtml", mode);
-    const scripty = super.builder.dependency("scripty", .{});
-    const ziggy = b.dependency("ziggy", mode);
-    const zeit = b.dependency("zeit", mode);
-    const syntax = b.dependency("flow-syntax", mode);
-    const ts = syntax.builder.dependency("tree-sitter", mode);
-
-    const zine = b.addModule("zine", .{
-        .root_source_file = b.path("src/root.zig"),
-    });
-    zine.addImport("ziggy", ziggy.module("ziggy"));
-    zine.addImport("zeit", zeit.module("zeit"));
-    zine.addImport("syntax", syntax.module("syntax"));
-    zine.addImport("scripty", scripty.module("scripty"));
-    zine.addImport("treez", ts.module("treez"));
-    zine.addImport("superhtml", super.module("superhtml"));
-
-    setupServer(b, options, target, optimize);
-
-    const layout = b.addExecutable(.{
-        .name = "layout",
-        .root_source_file = b.path("src/exes/layout.zig"),
-        .target = target,
-        .optimize = optimize,
-        // .strip = true,
-
-    });
-
-    layout.root_module.addImport("zine", zine);
-    layout.root_module.addImport("options", options);
-    layout.root_module.addImport("superhtml", super.module("superhtml"));
-    layout.root_module.addImport("scripty", scripty.module("scripty"));
-    layout.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    layout.root_module.addImport("zeit", zeit.module("zeit"));
-    layout.root_module.addImport("syntax", syntax.module("syntax"));
-    layout.root_module.addImport("treez", ts.module("treez"));
-    layout.linkLibrary(ts.artifact("tree-sitter"));
-    layout.linkLibC();
-
-    b.installArtifact(layout);
-
-    const docgen = b.addExecutable(.{
-        .name = "docgen",
-        .root_source_file = b.path("src/docgen.zig"),
-        .target = target,
-        .optimize = .Debug,
-    });
-    docgen.root_module.addImport("zine", zine);
-    docgen.root_module.addImport("zeit", zeit.module("zeit"));
-    docgen.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    b.installArtifact(docgen);
-
-    const md_renderer = b.addExecutable(.{
-        .name = "markdown-renderer",
-        .root_source_file = b.path("src/exes/markdown-renderer.zig"),
-        .target = b.resolveTargetQuery(.{}),
-        .optimize = optimize,
-    });
-
-    const gfm = b.dependency("gfm", mode);
-
-    md_renderer.root_module.addImport("zine", zine);
-    md_renderer.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    md_renderer.root_module.addImport("zeit", zeit.module("zeit"));
-    md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
-    md_renderer.root_module.addImport("treez", ts.module("treez"));
-
-    md_renderer.linkLibrary(gfm.artifact("cmark-gfm"));
-    md_renderer.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
-    md_renderer.linkLibC();
-
-    b.installArtifact(md_renderer);
-
-    const fuzz = b.step("fuzz", "build fuzzing executables");
-    setupFuzzing(b, target, optimize, fuzz);
-}
-
-fn setupServer(
-    b: *std.Build,
-    options: *std.Build.Module,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-) void {
-    const server = b.addExecutable(.{
-        .name = "server",
-        .root_source_file = b.path("src/exes/server/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    if (target.result.os.tag == .macos) {
-        server.linkFramework("CoreServices");
-    }
-
-    const mime = b.dependency("mime", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const ws = b.dependency("ws", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
-    server.root_module.addImport("options", options);
-    server.root_module.addImport("mime", mime.module("mime"));
-    server.root_module.addImport("ws", ws.module("websocket"));
-
-    b.installArtifact(server);
-}
-
-fn setupFuzzing(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    fuzz: *std.Build.Step,
-) void {
-    const afl = @import("zig-afl-kit");
-
-    const scripty_afl_obj = b.addObject(.{
-        .name = "scripty",
-        .root_source_file = b.path("src/fuzz/scripty.zig"),
-        .target = b.resolveTargetQuery(.{}),
-        .optimize = .Debug,
-    });
-    scripty_afl_obj.root_module.stack_check = false;
-    scripty_afl_obj.root_module.link_libc = true;
-
-    const afl_exe = afl.addInstrumentedExe(b, target, optimize, scripty_afl_obj);
-    fuzz.dependOn(&b.addInstallFile(afl_exe, "scripty-afl").step);
 }

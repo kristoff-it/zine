@@ -1,8 +1,8 @@
 const std = @import("std");
 const ziggy = @import("ziggy");
 const templating = @import("templating.zig");
-const context = @import("src/context.zig");
-const zine = @import("build.zig");
+const context = @import("../src/context.zig");
+const zine = @import("../build.zig");
 
 const FrontParser = ziggy.frontmatter.Parser(context.Page);
 const TranslationIndex = std.StringArrayHashMap(TranslationIndexEntry);
@@ -18,21 +18,56 @@ const PageVariant = struct {
     },
 };
 
-pub fn scan(
+const AddWebsiteOptions = union(enum) {
+    multilingual: zine.MultilingualSite,
+    site: zine.Site,
+};
+pub fn addWebsiteImpl(
+    b: *std.Build,
+    opts: zine.ZineOptions,
+    step: *std.Build.Step,
+    web: AddWebsiteOptions,
+) void {
+    const zine_dep = b.dependencyFromBuildZig(zine, .{
+        .optimize = opts.optimize,
+        .scope = opts.scopes,
+    });
+
+    // Install static files
+    const static_dir_path = switch (web) {
+        .multilingual => |ml| ml.static_dir_path,
+        .site => |s| s.static_dir_path,
+    };
+    const install_static = b.addInstallDirectory(.{
+        .source_dir = b.path(static_dir_path),
+        .install_dir = .prefix,
+        .install_subdir = "",
+    });
+    b.getInstallStep().dependOn(&install_static.step);
+
+    // Scan the content folder
+    scan(b, step, zine_dep, web);
+}
+
+fn scan(
     project: *std.Build,
+    step: *std.Build.Step,
     zine_dep: *std.Build.Dependency,
-    opts: zine.AddWebsiteOptions,
-) !void {
+    website: AddWebsiteOptions,
+) void {
     const renderer = zine_dep.artifact("markdown-renderer");
     const layout = zine_dep.artifact("layout");
-    switch (opts) {
+    switch (website) {
         .multilingual => |ml| {
             ensureDir(ml.layouts_dir_path);
             ensureDir(ml.static_dir_path);
             ensureDir(ml.i18n_dir_path);
 
             var ti = TranslationIndex.init(project.allocator);
-            const scanned_variants = try project.allocator.alloc(ScannedVariant, ml.variants.len);
+            const scanned_variants = project.allocator.alloc(
+                ScannedVariant,
+                ml.variants.len,
+            ) catch unreachable;
 
             for (ml.variants, scanned_variants) |v, *sv| {
                 const output_path_prefix = v.output_prefix_override orelse
@@ -45,12 +80,16 @@ pub fn scan(
                     project.fmt("{s}.ziggy", .{v.locale_code}),
                 });
 
-                sv.* = try scanVariant(project, v.content_dir_path, url_path_prefix);
+                sv.* = scanVariant(
+                    project,
+                    v.content_dir_path,
+                    url_path_prefix,
+                );
                 sv.output_path_prefix = output_path_prefix;
                 sv.url_path_prefix = url_path_prefix;
                 sv.i18n_file_path = i18n_file_path;
 
-                if (sv.root_index) |*idx| try indexTranslation(
+                if (sv.root_index) |*idx| indexTranslation(
                     project,
                     &ti,
                     v.host_url_override,
@@ -60,7 +99,7 @@ pub fn scan(
                 var it = sv.sections.constIterator(0);
                 while (it.next()) |s| {
                     for (s.pages.items) |*p| {
-                        try indexTranslation(
+                        indexTranslation(
                             project,
                             &ti,
                             v.host_url_override,
@@ -74,8 +113,9 @@ pub fn scan(
             writeTranslationIndex(project, &ti);
 
             for (ml.variants, scanned_variants) |v, sv| {
-                try addAllSteps(
+                addAllSteps(
                     project,
+                    step,
                     renderer,
                     layout,
                     v.title,
@@ -95,9 +135,10 @@ pub fn scan(
             ensureDir(s.static_dir_path);
 
             const prefix = s.output_prefix;
-            const sv = try scanVariant(project, s.content_dir_path, prefix);
-            try addAllSteps(
+            const sv = scanVariant(project, s.content_dir_path, prefix);
+            addAllSteps(
                 project,
+                step,
                 renderer,
                 layout,
                 s.title,
@@ -120,23 +161,23 @@ fn indexTranslation(
     host_url_override: ?[]const u8,
     locale_code: []const u8,
     p: *Section.Page,
-) !void {
+) void {
     const fm = p.fm.translation_key;
     const key = if (fm.len != 0) fm else project.pathJoin(&.{ p.content_sub_path, p.md_name });
 
-    const gop = try translation_index.getOrPut(key);
+    const gop = translation_index.getOrPut(key) catch unreachable;
 
     if (!gop.found_existing) {
         gop.value_ptr.* = .{};
     }
 
-    try gop.value_ptr.page_variants.append(project.allocator, .{
+    gop.value_ptr.page_variants.append(project.allocator, .{
         .locale_code = locale_code,
         .page = p,
         ._meta = .{
             .host_url_override = host_url_override,
         },
-    });
+    }) catch unreachable;
 }
 
 fn writeTranslationIndex(project: *std.Build, ti: *TranslationIndex) void {
@@ -162,11 +203,12 @@ pub fn scanVariant(
     project: *std.Build,
     content_dir_path: []const u8,
     url_path_prefix: []const u8,
-) !ScannedVariant {
-    // var t = std.time.Timer.start() catch unreachable;
-    // defer {
-    //     std.debug.print("Scan took {}ms\n", .{t.read() / std.time.ns_per_ms});
-    // }
+) ScannedVariant {
+    var t = std.time.Timer.start() catch unreachable;
+    defer std.debug.print(
+        "Content scan took {}ms\n",
+        .{t.read() / std.time.ns_per_ms},
+    );
 
     const content_dir = std.fs.cwd().makeOpenPath(
         content_dir_path,
@@ -183,14 +225,14 @@ pub fn scanVariant(
     };
 
     var dir_stack = std.ArrayList(Entry).init(project.allocator);
-    try dir_stack.append(.{
+    dir_stack.append(.{
         .dir = content_dir,
         .path = "",
         .parent_section = null,
-    });
+    }) catch unreachable;
 
     var sections: SectionList = .{};
-    const root_section = try sections.addOne(project.allocator);
+    const root_section = sections.addOne(project.allocator) catch unreachable;
     root_section.* = .{};
 
     var root_index: ?Section.Page = null;
@@ -209,7 +251,7 @@ pub fn scanVariant(
 
             var buf_reader = std.io.bufferedReader(file.reader());
             const r = buf_reader.reader();
-            const result = try FrontParser.parse(project.allocator, r, "index.md");
+            const result = FrontParser.parse(project.allocator, r, "index.md") catch @panic("TODO: report frontmatter parser error");
 
             const permalink = project.pathJoin(&.{ "/", url_path_prefix, dir_entry.path, "/" });
             const fm = switch (result) {
@@ -251,14 +293,14 @@ pub fn scanVariant(
             // This is going to be null only for 'contents/index.md'
             if (dir_entry.parent_section) |parent_section| {
                 const content_sub_path = project.dupe(dir_entry.path);
-                current_section = try sections.addOne(project.allocator);
+                current_section = sections.addOne(project.allocator) catch unreachable;
                 current_section.* = .{};
-                try parent_section.pages.append(project.allocator, .{
+                parent_section.pages.append(project.allocator, .{
                     .content_sub_path = content_sub_path,
                     .md_name = "index.md",
                     .fm = fm,
                     .subpages = current_section,
-                });
+                }) catch unreachable;
             } else {
                 root_index = .{
                     .content_sub_path = project.dupe(dir_entry.path),
@@ -276,22 +318,22 @@ pub fn scanVariant(
                     "Unable to access `index.md` in {s}\n",
                     .{content_dir_path},
                 );
-                return index_md_err;
+                std.process.exit(1);
             }
         }
 
         var it = dir_entry.dir.iterate();
-        while (try it.next()) |entry| {
+        while (it.next() catch unreachable) |entry| {
             switch (entry.kind) {
                 else => continue,
                 .file => if (std.mem.endsWith(u8, entry.name, ".md")) {
                     if (std.mem.eql(u8, entry.name, "index.md")) continue;
-                    const file = dir_entry.dir.openFile(entry.name, .{}) catch |err| {
+                    const file = dir_entry.dir.openFile(entry.name, .{}) catch {
                         std.debug.print(
                             "Error while reading {s} in /{s}\n",
                             .{ entry.name, dir_entry.path },
                         );
-                        return err;
+                        std.process.exit(1);
                     };
                     defer file.close();
 
@@ -305,7 +347,7 @@ pub fn scanVariant(
                         entry.name[0 .. entry.name.len - 3],
                     });
 
-                    const result = try FrontParser.parse(project.allocator, r, entry.name);
+                    const result = FrontParser.parse(project.allocator, r, entry.name) catch @panic("TODO: report frontmatter parse error");
                     const fm = switch (result) {
                         .success => |s| fm: {
                             var h = s.header;
@@ -342,21 +384,21 @@ pub fn scanVariant(
 
                     if (fm.draft) continue;
 
-                    try current_section.pages.append(project.allocator, .{
+                    current_section.pages.append(project.allocator, .{
                         .content_sub_path = project.dupe(dir_entry.path),
-                        .md_name = try project.allocator.dupe(u8, entry.name),
+                        .md_name = project.dupe(entry.name),
                         .fm = fm,
-                    });
+                    }) catch unreachable;
                 },
                 .directory => {
-                    try dir_stack.append(.{
-                        .dir = try dir_entry.dir.openDir(
+                    dir_stack.append(.{
+                        .dir = dir_entry.dir.openDir(
                             entry.name,
                             .{ .iterate = true },
-                        ),
+                        ) catch unreachable,
                         .path = project.pathJoin(&.{ dir_entry.path, entry.name }),
                         .parent_section = current_section,
-                    });
+                    }) catch unreachable;
                 },
             }
         }
@@ -378,6 +420,7 @@ pub fn scanVariant(
 
 pub fn addAllSteps(
     project: *std.Build,
+    step: *std.Build.Step,
     renderer: *std.Build.Step.Compile,
     layout: *std.Build.Step.Compile,
     site_title: []const u8,
@@ -389,7 +432,7 @@ pub fn addAllSteps(
     root_index: ?Section.Page,
     sections: SectionList,
     translation_index: ?*TranslationIndex,
-) !void {
+) void {
     if (root_index) |idx| {
         const page_variants_index = if (translation_index) |ti| blk: {
             const fm = idx.fm.translation_key;
@@ -400,6 +443,7 @@ pub fn addAllSteps(
         } else null;
         const rendered = addMarkdownRenderStep(
             project,
+            step,
             renderer,
             content_dir_path,
             "",
@@ -408,6 +452,7 @@ pub fn addAllSteps(
         );
         addLayoutStep(
             project,
+            step,
             layout,
             site_title,
             host_url,
@@ -430,6 +475,7 @@ pub fn addAllSteps(
         for (idx.fm.alternatives) |alt| {
             addLayoutStep(
                 project,
+                step,
                 layout,
                 site_title,
                 host_url,
@@ -467,6 +513,7 @@ pub fn addAllSteps(
             const prev = if (idx == s.pages.items.len - 1) null else s.pages.items[idx + 1].meta;
             const rendered = addMarkdownRenderStep(
                 project,
+                step,
                 renderer,
                 content_dir_path,
                 p.content_sub_path,
@@ -483,6 +530,7 @@ pub fn addAllSteps(
 
             addLayoutStep(
                 project,
+                step,
                 layout,
                 site_title,
                 host_url,
@@ -505,6 +553,7 @@ pub fn addAllSteps(
             for (p.fm.alternatives) |alt| {
                 addLayoutStep(
                     project,
+                    step,
                     layout,
                     site_title,
                     host_url,
@@ -536,6 +585,7 @@ const RenderResult = struct {
 
 fn addMarkdownRenderStep(
     project: *std.Build,
+    step: *std.Build.Step,
     renderer: *std.Build.Step.Compile,
     content_dir_path: []const u8,
     content_sub_path: []const u8,
@@ -572,7 +622,7 @@ fn addMarkdownRenderStep(
         .exclude_extensions = &.{ "_zine_assets.d", "_zine_meta.ziggy", "_zine_rendered.html" },
     });
 
-    project.getInstallStep().dependOn(&install_assets.step);
+    step.dependOn(&install_assets.step);
 
     return .{
         .content = rendered_md,
@@ -582,6 +632,7 @@ fn addMarkdownRenderStep(
 
 fn addLayoutStep(
     project: *std.Build,
+    step: *std.Build.Step,
     layout: *std.Build.Step.Compile,
     title: []const u8,
     host_url: []const u8,
@@ -645,14 +696,14 @@ fn addLayoutStep(
         final_html,
         project.pathJoin(&.{ output_path_prefix, out_path }),
     );
-    project.getInstallStep().dependOn(&target_output.step);
+    step.dependOn(&target_output.step);
 
     for (aliases) |a| {
         const alias = project.addInstallFile(
             final_html,
             project.pathJoin(&.{ output_path_prefix, a }),
         );
-        project.getInstallStep().dependOn(&alias.step);
+        step.dependOn(&alias.step);
     }
 }
 
