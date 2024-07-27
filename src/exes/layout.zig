@@ -72,6 +72,8 @@ pub fn main() !void {
         });
     };
 
+    log.debug("current page meta: \n{s}\n\n", .{page_meta});
+
     const prev_meta: ?[:0]const u8 = blk: {
         if (std.mem.eql(u8, prev_path, "null")) break :blk null;
         break :blk readFile(prev_path, arena) catch |err| {

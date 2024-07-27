@@ -26,6 +26,7 @@ pub fn main() !void {
     const md_in_path = args[4];
     const html_out_path = args[5];
     const meta_out_path = args[6];
+    const permalink = args[7];
 
     var assets_in_dir = std.fs.cwd().openDir(assets_in_path, .{}) catch |err| {
         std.debug.print("Error while opening assets input dir: {s}\n", .{assets_in_path});
@@ -89,6 +90,7 @@ pub fn main() !void {
 
     // TODO: unicode this
     page._meta.word_count = @intCast(in_string.len / 6);
+    page._meta.permalink = permalink;
 
     // Copy local images
     try assets_dep_file.writeAll("assets: ");

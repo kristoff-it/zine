@@ -95,7 +95,7 @@ pub fn website(b: *std.Build, site: Site) void {
     });
 
     // Build the website once before starting the web server
-    serve.dependOn(website_step);
+    serve.dependOn(b.getInstallStep());
 }
 
 /// Adds a 'website' and a 'serve' step to the project's build and sets up
@@ -149,7 +149,7 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
     });
 
     // Build the website once before starting the web server
-    serve.dependOn(website_step);
+    serve.dependOn(b.getInstallStep());
 }
 
 pub fn addWebsite(
