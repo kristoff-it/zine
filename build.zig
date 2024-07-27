@@ -6,12 +6,26 @@ const std = @import("std");
 // build function is in another castle!
 pub const build = @import("build/tools.zig").build;
 
+pub const Site = struct {
+    title: []const u8,
+    host_url: []const u8,
+    layouts_dir_path: []const u8,
+    content_dir_path: []const u8,
+    static_dir_path: []const u8,
+    output_prefix: []const u8 = "",
+
+    /// Enables Zine's -Ddebug and -Dscope flags
+    /// (only useful if you're developing Zine)
+    debug: bool = false,
+};
+
 pub const MultilingualSite = struct {
     host_url: []const u8,
     layouts_dir_path: []const u8,
     static_dir_path: []const u8,
     i18n_dir_path: []const u8,
     variants: []const LocalizedVariant,
+
     /// Enables Zine's -Ddebug and -Dscope flags
     /// (only useful if you're developing Zine)
     debug: bool = false,
@@ -41,27 +55,20 @@ pub const MultilingualSite = struct {
     };
 };
 
-pub const Site = struct {
-    title: []const u8,
-    host_url: []const u8,
-    layouts_dir_path: []const u8,
-    content_dir_path: []const u8,
-    static_dir_path: []const u8,
-    output_prefix: []const u8 = "",
-    /// Enables Zine's -Ddebug and -Dscope flags
-    /// (only useful if you're developing Zine)
-    debug: bool = false,
-};
-
-/// Adds a 'website' and a 'serve' step to the project's build and sets up
-/// the zine build pipeline in a standardized way. Look at the implementation
-/// of this function to see how you can use `addWebsiteStep` and
-/// `addDevelopmentServerStep` for more fine-grained control over the pipeline.
+/// Defines a default Zine project:
+/// - Creates a 'website' step that will generate all the static content and
+///   install it in the prefix directory.
+/// - Creates a 'serve' step that depends on 'website' and that also starts
+///   Zine's development server on a default address (localhost:1990).
+/// - Defines custom flags:
+///   - `-Dport` to override the port used by the development server
+/// - Sets other default Zine options
+///
+/// Look at the implementation of this function to see how you can use
+/// `addWebsiteStep` and `addDevelopmentServerStep` for more fine-grained
+/// control over the pipeline.
 pub fn website(b: *std.Build, site: Site) void {
     // Setup debug flags if the user enabled Zine debug.
-    // If you're copying this code into your build script
-    // you will probably want to skip this step and directly
-    // pass `.{}` to `addWebsite`
     const opts = zine.defaultZineOptions(b, site.debug);
 
     const website_step = b.step(
@@ -98,15 +105,20 @@ pub fn website(b: *std.Build, site: Site) void {
     serve.dependOn(b.getInstallStep());
 }
 
-/// Adds a 'website' and a 'serve' step to the project's build and sets up
-/// the zine build pipeline in a standardized way. Look at the implementation
-/// of this function to see how you can use `addMultilingualWebsiteStep` and
-/// `addDevelopmentServerStep` for more fine-grained control over the pipeline.
+/// Defines a default multilingual Zine project:
+/// - Creates a 'website' step that will generate all the static content and
+///   install it in the prefix directory.
+/// - Creates a 'serve' step that depends on 'website' and that also starts
+///   Zine's development server on a default address (localhost:1990).
+/// - Defines custom flags:
+///   - `-Dport` to override the port used by the development server
+/// - Sets other default Zine options
+///
+/// Look at the implementation of this function to see how you can use
+/// `addMultilingualWebsiteStep` and `addDevelopmentServerStep` for more
+/// fine-grained control over the pipeline.
 pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
     // Setup debug flags if the user enabled Zine debug.
-    // If you're copying this code into your build script
-    // you will probably want to skip this step and directly
-    // pass `.{}` to `addMultilingualWebsite`
     const opts = zine.defaultZineOptions(b, multi.debug);
 
     const website_step = b.step(
