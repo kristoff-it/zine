@@ -56,6 +56,11 @@ fn scan(
     zine_dep: *std.Build.Dependency,
     website: AddWebsiteOptions,
 ) void {
+    const index_dir = project.cache_root.handle.makeOpenPath(
+        "zine",
+        .{},
+    ) catch unreachable;
+
     const renderer = zine_dep.artifact("markdown-renderer");
     const layout = zine_dep.artifact("layout");
     switch (website) {
@@ -83,8 +88,7 @@ fn scan(
 
                 sv.* = scanVariant(
                     project,
-
-                    step,
+                    index_dir,
                     debug,
                     v.content_dir_path,
                     url_path_prefix,
@@ -141,7 +145,7 @@ fn scan(
             const prefix = s.output_prefix;
             const sv = scanVariant(
                 project,
-                step,
+                index_dir,
                 debug,
                 s.content_dir_path,
                 prefix,
@@ -211,7 +215,7 @@ const ScannedVariant = struct {
 
 pub fn scanVariant(
     project: *std.Build,
-    step: *std.Build.Step,
+    index_dir: std.fs.Dir,
     debug: bool,
     content_dir_path: []const u8,
     url_path_prefix: []const u8,
@@ -419,9 +423,9 @@ pub fn scanVariant(
 
     var section_it = sections.iterator(0);
     while (section_it.next()) |s| {
-        s.writeIndex(project, step);
+        s.writeIndex(project, index_dir);
         for (s.pages.items) |*p| {
-            p.writeMeta(project, step);
+            p.writeMeta(project);
         }
     }
 
@@ -479,9 +483,9 @@ pub fn addAllSteps(
             rendered.meta,
             idx.fm.layout,
             idx.fm.aliases,
-            null,
-            null,
-            idx.subpages.?.index,
+            // null,
+            // null,
+            // idx.subpages.?.index,
             output_path_prefix,
             i18n_file_path,
             page_variants_index,
@@ -502,9 +506,9 @@ pub fn addAllSteps(
                 rendered.meta,
                 alt.layout,
                 &.{},
-                null,
-                null,
-                idx.subpages.?.index,
+                // null,
+                // null,
+                // idx.subpages.?.index,
                 output_path_prefix,
                 i18n_file_path,
                 page_variants_index,
@@ -558,9 +562,9 @@ pub fn addAllSteps(
                 rendered.meta,
                 p.fm.layout,
                 p.fm.aliases,
-                prev,
-                next,
-                sub_index,
+                // prev,
+                // next,
+                // sub_index,
                 output_path_prefix,
                 i18n_file_path,
                 page_variants_index,
@@ -581,9 +585,9 @@ pub fn addAllSteps(
                     rendered.meta,
                     alt.layout,
                     &.{},
-                    prev,
-                    next,
-                    sub_index,
+                    // prev,
+                    // next,
+                    // sub_index,
                     output_path_prefix,
                     i18n_file_path,
                     page_variants_index,
@@ -663,9 +667,9 @@ fn addLayoutStep(
     meta: std.Build.LazyPath,
     layout_name: []const u8,
     aliases: []const []const u8,
-    prev: ?std.Build.LazyPath,
-    next: ?std.Build.LazyPath,
-    subpages: ?std.Build.LazyPath,
+    // prev: ?std.Build.LazyPath,
+    // next: ?std.Build.LazyPath,
+    // subpages: ?std.Build.LazyPath,
     output_path_prefix: []const u8,
     i18n_file_path: ?[]const u8,
     page_variants_index: ?std.Build.LazyPath,
@@ -725,11 +729,33 @@ fn addLayoutStep(
     }
 }
 
+///    ----------  PAGE METADATA  ----------
+///
+///
+///
+///
+///
+///
+///    ----------  SECTION INDEX  ----------
+/// One file per section, organized on the filesystem
+/// as a mirror of the content folder.
+///     /posts/index.md  ->  /posts/section_index
+///
+/// The index contains:
+/// - hash of the file
+/// - mapping from file name to
+///
+///
+///
+///
+///
+///
 const Section = struct {
     pages: std.ArrayListUnmanaged(Page) = .{},
 
+    // NOTE: toggled off to try the index_dir strat
     // Not used while iterating directories
-    index: std.Build.LazyPath = undefined,
+    // index: std.Build.LazyPath = undefined,
 
     const Page = struct {
         content_sub_path: []const u8,
@@ -740,8 +766,9 @@ const Section = struct {
         // to the section defined by this page.
         subpages: ?*Section = null,
 
+        // NOTE: toggled off to try the index_dir strat
         // Not used while iterating directories
-        meta: std.Build.LazyPath = undefined,
+        // meta: std.Build.LazyPath = undefined,
 
         pub const ziggy_options = struct {
             pub fn stringify(
@@ -761,28 +788,46 @@ const Section = struct {
 
         pub fn writeMeta(
             p: *Page,
+            index_dir: std.fs.Dir,
             project: *std.Build,
-            step: *std.Build.Step,
         ) void {
             var buf = std.ArrayList(u8).init(project.allocator);
             ziggy.stringify(p.fm, .{}, buf.writer()) catch unreachable;
-            const write_file_step = project.addWriteFiles();
-            p.meta = write_file_step.add("page_meta.ziggy", buf.items);
-            step.dependOn(p.meta.generated.file.step);
+            // if this trips, we need to replicate the logic from
+            // writeindex
+            std.debug.assert(p.content_sub_path.len != 0);
+            const page_dir = index_dir.makeOpenPath(
+                p.content_sub_path,
+                .{},
+            ) catch unreachable;
+            const page_file = page_dir.createFile("page_meta.ziggy", .{}) catch unreachable;
+            defer page_file.close();
+            page_file.writeAll(buf.items) catch unreachable;
+            // const write_file_step = project.addWriteFiles();
+            // p.meta = write_file_step.add("page_meta.ziggy", buf.items);
+            // step.dependOn(p.meta.generated.file.step);
         }
     };
 
     pub fn writeIndex(
         s: *Section,
+        index_dir: std.fs.Dir,
         project: *std.Build,
-        step: *std.Build.Step,
     ) void {
         std.mem.sort(Page, s.pages.items, {}, Page.lessThan);
         var buf = std.ArrayList(u8).init(project.allocator);
         ziggy.stringify(s.pages.items, .{}, buf.writer()) catch unreachable;
-        const write_file_step = project.addWriteFiles();
-        s.index = write_file_step.add("section.ziggy", buf.items);
-        step.dependOn(s.index.generated.file.step);
+        const section_dir = if (s.content_sub_path.len == 0)
+            index_dir
+        else
+            index_dir.makeOpenPath(s.content_sub_path, .{}) catch unreachable;
+        const section_file = section_dir.createFile("section.ziggy", .{}) catch unreachable;
+        defer section_file.close();
+        section_file.writeAll(buf.items) catch unreachable;
+
+        // step.dependOn(s.index.generated.file.step);
+        // const write_file_step = project.addWriteFiles();
+        // s.index = write_file_step.add("section.ziggy", buf.items);
     }
 };
 
