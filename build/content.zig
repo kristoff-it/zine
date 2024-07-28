@@ -21,6 +21,12 @@ const PageVariant = struct {
 const AddWebsiteOptions = union(enum) {
     multilingual: zine.MultilingualSite,
     site: zine.Site,
+
+    pub fn getAssets(web: AddWebsiteOptions) zine.AssetMap {
+        return switch (web) {
+            inline else => |v| v.buildtime_assets,
+        };
+    }
 };
 pub fn addWebsiteImpl(
     b: *std.Build,
@@ -33,6 +39,31 @@ pub fn addWebsiteImpl(
         .scope = opts.scopes,
     });
 
+    {
+        const assets = web.getAssets();
+        var it = assets.iterator();
+        while (it.next()) |kv| {
+            const msg =
+                \\build.zig error: buildtime asset '{s}': only LazyPaths from generated files (eg from a RunStep) or dependencies are allowed
+                \\
+                \\note: set 'assets_dir_path' and use `$assets.file('{s}')` to access it from Scripty
+                \\
+                \\
+                \\
+            ;
+            switch (kv.value_ptr.*) {
+                .src_path => |v| {
+                    std.debug.print(msg, .{ kv.key_ptr.*, v.sub_path });
+                    std.process.exit(1);
+                },
+                .cwd_relative => |v| {
+                    std.debug.print(msg, .{ kv.key_ptr.*, v });
+                    std.process.exit(1);
+                },
+                .generated, .dependency => {},
+            }
+        }
+    }
     // Install static files
     const static_dir_path = switch (web) {
         .multilingual => |ml| ml.static_dir_path,

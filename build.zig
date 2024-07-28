@@ -6,6 +6,28 @@ const std = @import("std");
 // build function is in another castle!
 pub const build = @import("build/tools.zig").build;
 
+// $assets.buildtime("settings")
+
+pub const AssetMap = std.StringHashMapUnmanaged(std.Build.LazyPath);
+
+/// Values is expected to be an anonymous struct literal.
+/// Each field in the struct literal will become a key-value pair.
+/// Values must be instances of `std.Build.LazyPath`.
+///
+/// `b.allocator` is used to add items to the map.
+pub fn assets(b: *std.Build, values: anytype) AssetMap {
+    const info = @typeInfo(@TypeOf(values));
+    std.debug.assert(info == .Struct);
+
+    var map: AssetMap = .{};
+    inline for (info.Struct.fields) |f| {
+        const v = @field(values, f.name);
+        std.debug.assert(@TypeOf(v) == std.Build.LazyPath);
+        map.putNoClobber(b.allocator, f.name, v) catch unreachable;
+    }
+    return map;
+}
+
 pub const Site = struct {
     title: []const u8,
     host_url: []const u8,
@@ -13,6 +35,7 @@ pub const Site = struct {
     content_dir_path: []const u8,
     static_dir_path: []const u8,
     output_prefix: []const u8 = "",
+    buildtime_assets: AssetMap = .{},
 
     /// Enables Zine's -Ddebug and -Dscope flags
     /// (only useful if you're developing Zine)
@@ -24,6 +47,7 @@ pub const MultilingualSite = struct {
     layouts_dir_path: []const u8,
     static_dir_path: []const u8,
     i18n_dir_path: []const u8,
+    buildtime_assets: AssetMap = .{},
     variants: []const LocalizedVariant,
 
     /// Enables Zine's -Ddebug and -Dscope flags
