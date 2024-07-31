@@ -2,6 +2,7 @@ const Reloader = @This();
 const std = @import("std");
 const builtin = @import("builtin");
 const ws = @import("ws");
+const AnsiRenderer = @import("AnsiRenderer.zig");
 
 const log = std.log.scoped(.watcher);
 const ListenerFn = fn (self: *Reloader, path: []const u8, name: []const u8) void;
@@ -71,6 +72,12 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     self.clients_lock.lock();
     defer self.clients_lock.unlock();
 
+    const html_err = AnsiRenderer.renderSlice(self.gpa, result.stderr) catch |err| err: {
+        log.err("error rendering the ANSI-encoded error message: {s}", .{@errorName(err)});
+        break :err result.stderr;
+    };
+    defer self.gpa.free(html_err);
+
     var idx: usize = 0;
     while (idx < self.clients.entries.len) {
         const conn = self.clients.entries.get(idx).key;
@@ -80,7 +87,7 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
             err: []const u8,
         };
 
-        const cmd: BuildCommand = .{ .err = result.stderr };
+        const cmd: BuildCommand = .{ .err = html_err };
 
         var buf = std.ArrayList(u8).init(self.gpa);
         defer buf.deinit();
