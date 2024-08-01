@@ -72,11 +72,11 @@ function zineConnect() {
         let box = document.getElementById(id);
         if (box == null) {
           box = document.createElement("pre");
-          box.style = "position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;color: white; background-color: darkred;z-index:100; overflow-y: scroll; margin: 0; padding: 5px; font-family: monospace;";
+          box.style = "position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;color: white; background-color: black;z-index:100; overflow-y: scroll; margin: 0; padding: 5px; font-family: monospace;";
           box.id = id;
           document.body.appendChild(box); 
         }
-        box.textContent = "ZINE BUILD ERROR (note: this error message in the future will look better :^)\n\n\n\n" + msg.err;
+        box.innerHTML = "<h1 style=\"color: red\">ZINE BUILD ERROR</h1>" + msg.err;
       } else {
         let box = document.getElementById(id);
         if (box != null) box.remove();
