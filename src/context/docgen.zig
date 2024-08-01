@@ -1,6 +1,6 @@
 const std = @import("std");
 const ziggy = @import("ziggy");
-const context = @import("context.zig");
+const context = @import("../context.zig");
 const Value = context.Value;
 
 pub const Signature = struct {
@@ -11,6 +11,9 @@ pub const Signature = struct {
 pub const ScriptyParam = union(enum) {
     Site,
     Page,
+    Build,
+    Assets,
+    Asset,
     Alternative,
     Translation,
     str,
