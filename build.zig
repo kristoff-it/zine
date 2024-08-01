@@ -141,11 +141,11 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
         "port to listen on for the development server",
     ) orelse 1990;
 
-    var input_dirs = std.ArrayList.init(b.allocator);
+    var input_dirs = std.ArrayList([]const u8).init(b.allocator);
     input_dirs.appendSlice(&.{
         multi.static_dir_path,
         multi.layouts_dir_path,
-    });
+    }) catch unreachable;
 
     for (multi.variants) |v| {
         if (v.host_url_override) |_| {
