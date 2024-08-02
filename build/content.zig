@@ -12,9 +12,10 @@ const TranslationIndexEntry = struct {
 };
 const PageVariant = struct {
     locale_code: []const u8,
-    page: *Section.Page,
+    // page: *Section.Page,
+    title: []const u8,
     _meta: struct {
-        host_url_override: ?[]const u8,
+        url: []const u8,
     },
 };
 
@@ -76,17 +77,15 @@ fn scan(
                 zine_dep,
                 index_dir_path,
                 ml.build_assets,
-                ml.assets_dir_path,
-                ml.static_assets,
             );
 
             var ti = TranslationIndex.init(project.allocator);
             const scanned_variants = project.allocator.alloc(
                 ScannedVariant,
-                ml.variants.len,
+                ml.localized_variants.len,
             ) catch unreachable;
 
-            for (ml.variants, scanned_variants) |v, *sv| {
+            for (ml.localized_variants, scanned_variants) |v, *sv| {
                 const output_path_prefix = v.output_prefix_override orelse
                     v.locale_code;
                 const url_path_prefix = v.output_prefix_override orelse
@@ -96,6 +95,15 @@ fn scan(
                     ml.i18n_dir_path,
                     project.fmt("{s}.ziggy", .{v.locale_code}),
                 });
+
+                installStaticAssets(
+                    project,
+                    step,
+                    ml.assets_dir_path,
+                    ml.static_assets,
+                    ml.build_assets,
+                    output_path_prefix,
+                );
 
                 sv.* = scanVariant(
                     project,
@@ -111,6 +119,7 @@ fn scan(
                 if (sv.root_index) |*idx| indexTranslation(
                     project,
                     &ti,
+                    url_path_prefix,
                     v.host_url_override,
                     v.locale_code,
                     idx,
@@ -121,6 +130,7 @@ fn scan(
                         indexTranslation(
                             project,
                             &ti,
+                            url_path_prefix,
                             v.host_url_override,
                             v.locale_code,
                             p,
@@ -131,7 +141,7 @@ fn scan(
 
             writeTranslationIndex(project, &ti);
 
-            for (ml.variants, scanned_variants) |v, sv| {
+            for (ml.localized_variants, scanned_variants) |v, sv| {
                 const url_path_prefix = v.output_prefix_override orelse
                     if (v.host_url_override != null) "" else v.locale_code;
                 addAllSteps(
@@ -165,8 +175,15 @@ fn scan(
                 zine_dep,
                 index_dir_path,
                 s.build_assets,
+            );
+
+            installStaticAssets(
+                project,
+                step,
                 s.assets_dir_path,
                 s.static_assets,
+                s.build_assets,
+                s.output_path_prefix,
             );
 
             const sv = scanVariant(
@@ -204,12 +221,13 @@ fn scan(
 fn indexTranslation(
     project: *std.Build,
     translation_index: *TranslationIndex,
+    url_path_prefix: []const u8,
     host_url_override: ?[]const u8,
     locale_code: []const u8,
     p: *Section.Page,
 ) void {
-    const fm = p.fm.translation_key;
-    const key = if (fm.len != 0) fm else project.pathJoin(&.{ p.content_sub_path, p.md_name });
+    const tk = p.fm.translation_key;
+    const key = if (tk.len != 0) tk else project.pathJoin(&.{ p.content_sub_path, p.md_name });
 
     const gop = translation_index.getOrPut(key) catch unreachable;
 
@@ -217,12 +235,21 @@ fn indexTranslation(
         gop.value_ptr.* = .{};
     }
 
+    const url = project.pathJoin(&.{
+        host_url_override orelse "/",
+        url_path_prefix,
+        p.content_sub_path,
+        if (std.mem.eql(u8, p.md_name, "index.md"))
+            ""
+        else
+            p.md_name[0 .. p.md_name.len - ".md".len],
+        "/",
+    });
+
     gop.value_ptr.page_variants.append(project.allocator, .{
         .locale_code = locale_code,
-        .page = p,
-        ._meta = .{
-            .host_url_override = host_url_override,
-        },
+        .title = p.fm.title,
+        ._meta = .{ .url = url },
     }) catch unreachable;
 }
 
@@ -245,59 +272,83 @@ fn writeAssetIndex(
     project: *std.Build,
     zine_dep: *std.Build.Dependency,
     index_dir_path: []const u8,
-    build_assets: zine.BuildAssetMap,
-    assets_dir_path: []const u8,
-    static_assets: []const []const u8,
+    build_assets: []const zine.BuildAsset,
 ) *std.Build.Step {
     const name = "Zine Index Content";
     const index_step = project.step(name, "");
     _ = project.top_level_steps.orderedRemove(name);
 
-    for (static_assets) |sa| {
-        const install = project.addInstallFile(project.path(
-            project.pathJoin(&.{
-                assets_dir_path,
-                sa,
-            }),
-        ), sa);
-        index_step.dependOn(&install.step);
-    }
-
     // do nothing if there are no assets to index
-    if (build_assets.count() == 0) return index_step;
+    if (build_assets.len == 0) return index_step;
 
     const indexer = zine_dep.artifact("index-assets");
     const run = project.addRunArtifact(indexer);
 
     run.addArg(project.pathJoin(&.{ index_dir_path, "a" }));
-    var it = build_assets.iterator();
-    while (it.next()) |kv| {
+    for (build_assets) |asset| {
         const msg =
-            \\build.zig error: build asset '{s}': only LazyPaths from generated files (eg from a RunStep) or from dependencies are allowed
+            \\build.zig error: build asset '{s}': only LazyPaths from generated files (eg from a Run step) or from dependencies are allowed
             \\
-            \\note: set 'assets_dir_path' and use `$site.assets.file('{s}')` to access it from Scripty
+            \\NOTE: see the official documentation about Zine's asset system
+            \\      to learn how to use assets located in your file system.
             \\
             \\
         ;
-        switch (kv.value_ptr.lp) {
-            .src_path => |v| {
-                std.debug.print(msg, .{ kv.key_ptr.*, v.sub_path });
-                std.process.exit(1);
-            },
-            .cwd_relative => |v| {
-                std.debug.print(msg, .{ kv.key_ptr.*, v });
+        switch (asset.lp) {
+            .src_path, .cwd_relative => {
+                std.debug.print(msg, .{asset.name});
                 std.process.exit(1);
             },
             .generated, .dependency => {
-                run.addArg(kv.key_ptr.*);
-                run.addFileArg(kv.value_ptr.lp);
-                run.addArg(kv.value_ptr.install_path orelse "null");
+                run.addArg(asset.name);
+                run.addFileArg(asset.lp);
+                run.addArg(asset.install_path orelse "null");
             },
         }
     }
 
     index_step.dependOn(&run.step);
     return index_step;
+}
+
+fn installStaticAssets(
+    project: *std.Build,
+    step: *std.Build.Step,
+    assets_dir_path: []const u8,
+    static_assets: []const []const u8,
+    build_assets: []const zine.BuildAsset,
+    output_path_prefix: []const u8,
+) void {
+    for (static_assets) |sa| {
+        const install_path = if (output_path_prefix.len == 0)
+            sa
+        else
+            project.pathJoin(&.{ output_path_prefix, sa });
+
+        const install = project.addInstallFile(
+            project.path(project.pathJoin(&.{ assets_dir_path, sa })),
+            install_path,
+        );
+        step.dependOn(&install.step);
+    }
+
+    for (build_assets) |asset| {
+        if (!asset.install_always) continue;
+
+        const rel_install_path = asset.install_path orelse {
+            std.debug.print("build asset '{s}' is marked as `install_always` but it doesn't define an `install_path` in `build.zig`", .{
+                asset.name,
+            });
+            std.process.exit(1);
+        };
+        const install_path = if (output_path_prefix.len == 0)
+            rel_install_path
+        else
+            project.pathJoin(&.{ output_path_prefix, rel_install_path });
+
+        const install = project.addInstallFile(asset.lp, install_path);
+        step.dependOn(&install.step);
+    }
 }
 
 fn writeTranslationIndex(project: *std.Build, ti: *TranslationIndex) void {
@@ -844,6 +895,9 @@ fn addLayoutStep(
     const collected_assets = layout_step.addOutputFileArg("assets");
     update_assets.addFileArg(collected_assets);
 
+    layout_step.addArg(output_path_prefix);
+
+    // ------------
     const target_output = project.addInstallFile(
         final_html,
         project.pathJoin(&.{ output_path_prefix, out_path }),
@@ -920,14 +974,14 @@ const Section = struct {
 
         // prev-next index
         {
+            std.mem.reverse(Page, s.pages.items);
             for (s.pages.items, 0..) |p, idx| {
                 defer buf.clearRetainingCapacity();
 
-                if (idx == s.pages.items.len - 1) continue;
-                const next = project.pathJoin(&.{
+                const next = if (idx < s.pages.items.len - 1) project.pathJoin(&.{
                     s.pages.items[idx + 1].content_sub_path,
                     s.pages.items[idx + 1].md_name,
-                });
+                }) else "";
 
                 const current = project.pathJoin(&.{
                     p.content_sub_path,

@@ -52,11 +52,15 @@ pub fn listen(self: *Reloader) !void {
 pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     _ = name;
     _ = path;
-    const args: []const []const u8 = &.{
+    const args: []const []const u8 = if (self.debug) &.{
         self.zig_exe,
         "build",
         self.website_step_name,
-        if (self.debug) "-Ddebug" else "",
+        "-Ddebug",
+    } else &.{
+        self.zig_exe,
+        "build",
+        self.website_step_name,
     };
     log.debug("re-building! args: {s}", .{args});
 

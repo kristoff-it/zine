@@ -43,17 +43,43 @@ _meta: struct {
 
 pub const Translation = struct {
     locale_code: []const u8,
-    page: *Page,
+    title: []const u8,
     _meta: struct {
-        host_url_override: ?[]const u8 = null,
+        url: []const u8 = "",
     } = .{},
 
     pub const dot = scripty.defaultDot(Translation, Value);
     pub const PassByRef = true;
-    pub const Builtins = struct {};
     pub const description =
-        \\A Localized Variant of the current page.
+        \\Basic info about a localized variant of the current page.
     ;
+    pub const Builtins = struct {
+        pub const link = struct {
+            pub const signature: Signature = .{
+                .ret = .str,
+            };
+            pub const description =
+                \\Returns a link to a localized variant of the current page.
+            ;
+            pub const examples =
+                \\<div loop="$page.translations()"><a href="$loop.it.link()" var="$loop.it.title"></a></div>
+            ;
+            pub fn call(
+                t: *Translation,
+                gpa: Allocator,
+                args: []const Value,
+                _: *utils.SuperHTMLResource,
+            ) !Value {
+                _ = gpa;
+                const bad_arg = .{
+                    .err = "expected 0 arguments",
+                };
+                if (args.len != 0) return bad_arg;
+
+                return .{ .string = t._meta.url };
+            }
+        };
+    };
 };
 
 pub const Alternative = struct {
@@ -82,10 +108,20 @@ pub const Builtins = struct {
             .ret = .Asset,
         };
         pub const description =
-            \\Retuns an asset by name from inside the page's subdirectory.
+            \\Retuns an asset by name from inside the page's asset directory.
+            \\
+            \\Assets for a non-section page must be placed under a subdirectory 
+            \\that shares the same name with the corresponding markdown file.
+            \\
+            \\(as a reminder sections are defined by pages named `index.md`)
+            \\
+            \\| section? |      page path      | asset directory |
+            \\|----------|---------------------|-----------------|
+            \\|   yes    |  blog/foo/index.md  |    blog/foo/    |
+            \\|   no     |  blog/bar.md        |    blog/bar/    |
         ;
         pub const examples =
-            \\<img src="$page.asset('foo.png')">
+            \\<img src="$page.asset('foo.png').link(false)">
         ;
         pub fn call(
             p: *Page,
@@ -93,25 +129,28 @@ pub const Builtins = struct {
             args: []const Value,
             _: *utils.SuperHTMLResource,
         ) !Value {
+            if (!p._meta.is_root) return .{
+                .err = "accessing assets of other pages has not been implemented yet, sorry!",
+            };
+
             const bad_arg = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
 
-            if (!p._meta.is_root) return .{
-                .err = "accessing assets of other pages has not been implemented yet, sorry!",
-            };
-
             const ref = switch (args[0]) {
-                .string => |s| try std.fs.path.join(gpa, &.{
-                    std.fs.path.dirname(p._meta.md_rel_path).?,
-                    s,
-                }),
+                .string => |s| s,
                 else => return bad_arg,
             };
 
+            const path = p._meta.md_rel_path;
+            const asset_dir = if (std.mem.endsWith(u8, path, "index.md"))
+                path[0 .. path.len - "index.md".len]
+            else
+                path[0 .. path.len - ".md".len];
+
             return p._assets.call(gpa, .{
-                .kind = .page,
+                .kind = .{ .page = asset_dir },
                 .ref = ref,
             });
         }
@@ -294,23 +333,22 @@ pub const Builtins = struct {
             self: *Page,
             gpa: Allocator,
             args: []const Value,
-            ext: *utils.SuperHTMLResource,
+            _: *utils.SuperHTMLResource,
         ) !Value {
-            _ = self;
-            _ = gpa;
-            _ = args;
-            _ = ext;
-            // const p = try nextPage.call(self, gpa, args, ext);
-            // return switch (p) {
-            //     .err => p,
-            //     .optional => |opt| if (opt == null)
-            //         .{ .bool = false }
-            //     else
-            //         .{ .bool = true },
-            //     else => unreachable,
-            // };
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            @panic("todo");
+            const idx = self._meta.index_in_section orelse return .{
+                .bool = false,
+            };
+
+            const p = self._meta.md_rel_path;
+            return self._pages.call(gpa, .{
+                .just_check = true,
+                .md_rel_path = p,
+                .url_path_prefix = self._meta.url_path_prefix,
+                .parent_section_path = self._meta.parent_section_path.?,
+                .kind = .{ .next = idx },
+            });
         }
     };
     pub const hasPrev = struct {
@@ -325,23 +363,23 @@ pub const Builtins = struct {
             self: *Page,
             gpa: Allocator,
             args: []const Value,
-            ext: *utils.SuperHTMLResource,
+            _: *utils.SuperHTMLResource,
         ) !Value {
-            _ = self;
-            _ = gpa;
-            _ = args;
-            _ = ext;
-            // const p = try prevPage.call(self, gpa, args, ext);
-            // return switch (p) {
-            //     .err => p,
-            //     .optional => |opt| if (opt == null)
-            //         .{ .bool = false }
-            //     else
-            //         .{ .bool = true },
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            //     else => unreachable,
-            // };
-            @panic("todo");
+            const idx = self._meta.index_in_section orelse return .{
+                .bool = false,
+            };
+
+            if (idx == 0) return .{ .bool = false };
+            const p = self._meta.md_rel_path;
+            return self._pages.call(gpa, .{
+                .just_check = true,
+                .md_rel_path = p,
+                .url_path_prefix = self._meta.url_path_prefix,
+                .parent_section_path = self._meta.parent_section_path.?,
+                .kind = .{ .prev = idx },
+            });
         }
     };
 
@@ -374,6 +412,22 @@ pub const Builtins = struct {
             });
 
             return .{ .string = result };
+        }
+    };
+
+    pub const permalink = struct {
+        pub const signature: Signature = .{ .ret = .str };
+        pub const description =
+            \\Deprecated, use `link()`
+        ;
+        pub const examples = "";
+        pub fn call(
+            _: *Page,
+            _: Allocator,
+            _: []const Value,
+            _: *utils.SuperHTMLResource,
+        ) !Value {
+            return .{ .err = "deprecated, use `link`" };
         }
     };
 };

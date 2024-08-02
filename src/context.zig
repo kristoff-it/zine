@@ -2,19 +2,41 @@ const std = @import("std");
 const scripty = @import("scripty");
 const super = @import("superhtml");
 const ziggy = @import("ziggy");
+const docgen = @import("context/docgen.zig");
 const utils = @import("context/utils.zig");
-const Signature = @import("context/docgen.zig").Signature;
 const Allocator = std.mem.Allocator;
 const HostExtern = utils.HostExtern;
 
+pub const ScriptyParam = docgen.ScriptyParam;
+pub const Signature = docgen.Signature;
+
 pub const Resources = utils.Resources;
 
+pub const AssetKindUnion = union(Asset.Kind) {
+    site,
+    // path to the page
+    page: []const u8,
+    // defined install path for a build asset as defined in the user's
+    // build.zig
+    build: ?[]const u8,
+};
 pub const AssetExtern = HostExtern(struct {
-    kind: Asset.Kind,
+    // the user-provided asset reference
     ref: []const u8,
+    kind: AssetKindUnion,
+});
+
+pub const AssetCollectorExtern = HostExtern(struct {
+    // the user-provided asset reference
+    ref: []const u8,
+    // full path to the asset
+    path: []const u8,
+    kind: AssetKindUnion,
 });
 
 pub const PageExtern = HostExtern(struct {
+    // used by hasNext, hasPrev to simply return a boolean value
+    just_check: bool = false,
     md_rel_path: []const u8,
     parent_section_path: []const u8,
     url_path_prefix: []const u8,
@@ -33,20 +55,6 @@ pub const PageLoaderExtern = HostExtern(struct {
     parent_section_path: []const u8,
     url_path_prefix: []const u8,
     index_in_section: usize,
-});
-
-pub const AssetCollectorExtern = HostExtern(struct {
-    kind: Asset.Kind,
-    // - build: name of the asset
-    // - asset: rel path of the asset (rooted in either content/ or assets/)
-    ref: []const u8,
-    // absolute path to the asset
-    path: []const u8,
-    // defined install path for a build asset as defined in the user's build.zig
-    // unused otherwise
-    build_out_path: []const u8,
-    // wether the link should be made unique or not
-    unique: bool,
 });
 
 pub const Template = @import("context/Template.zig");

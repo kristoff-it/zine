@@ -124,11 +124,9 @@ pub fn render(
             };
 
             _ = try asset_collector.collect(arena, .{
-                .kind = .page,
-                .ref = asset_rel_path,
+                .kind = .{ .page = md_asset_dir_rel_path },
+                .ref = link,
                 .path = asset_path,
-                .build_out_path = undefined,
-                .unique = false,
             });
         }
     };

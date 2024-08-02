@@ -45,7 +45,7 @@ pub const Builtins = struct {
             };
 
             return b._assets.call(gpa, .{
-                .kind = .build,
+                .kind = .{ .build = null },
                 .ref = ref,
             });
         }

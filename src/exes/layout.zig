@@ -55,6 +55,7 @@ pub fn main() !void {
         args[18];
 
     const asset_list_file_path = args[19];
+    const output_path_prefix = args[20];
 
     for (args, 0..) |a, idx| log.debug("args[{}]: {s}", .{ idx, a });
 
@@ -107,8 +108,11 @@ pub fn main() !void {
         fatal("error writing to the dep file: {s}", .{@errorName(err)});
     };
 
+    var locale: ?[]const u8 = null;
     const i18n: ziggy.dynamic.Value = blk: {
         if (std.mem.eql(u8, i18n_path, "null")) break :blk .null;
+
+        locale = std.fs.path.stem(i18n_path);
         const bytes = readFile(build_root, i18n_path, arena) catch |err| {
             fatal("error while opening the i18n file:\n{s}\n{s}\n", .{
                 i18n_path,
@@ -116,8 +120,17 @@ pub fn main() !void {
             });
         };
 
-        break :blk ziggy.parseLeaky(ziggy.dynamic.Value, arena, bytes, .{}) catch {
-            @panic("TODO: error message when a ziggy i18n file fails to parse.");
+        var diag: ziggy.Diagnostic = .{
+            .path = i18n_path,
+        };
+
+        break :blk ziggy.parseLeaky(ziggy.dynamic.Value, arena, bytes, .{
+            .diagnostic = &diag,
+        }) catch {
+            std.debug.print("unable to load i18n file:\n{s}\n\n", .{
+                diag,
+            });
+            std.process.exit(1);
         };
     };
 
@@ -130,15 +143,17 @@ pub fn main() !void {
             });
         };
 
-        const ti = ziggy.parseLeaky([]const context.Page.Translation, arena, bytes, .{}) catch {
-            @panic("TODO: error message when a ziggy translation index fails to parse.");
+        var diag: ziggy.Diagnostic = .{
+            .path = i18n_path,
         };
 
-        for (ti) |t| {
-            if (t._meta.host_url_override) |h| {
-                t.page._meta.md_rel_path = try std.fs.path.join(arena, &.{ h, t.page._meta.md_rel_path });
-            }
-        }
+        const ti = ziggy.parseLeaky([]const context.Page.Translation, arena, bytes, .{
+            .diagnostic = &diag,
+        }) catch {
+            std.debug.panic("unable to load translation index:\n{s}\n\n", .{
+                diag,
+            });
+        };
         break :blk ti;
     };
 
@@ -180,12 +195,19 @@ pub fn main() !void {
         };
 
         asset_collector = .{
+            .output_path_prefix = output_path_prefix,
             .url_path_prefix = url_path_prefix,
             .asset_list_writer = asset_list_writer.any(),
         };
     }
 
-    const site: context.Site = .{ .host_url = site_host_url, .title = site_title };
+    const site: context.Site = .{
+        .host_url = site_host_url,
+        .title = site_title,
+        ._meta = .{
+            .locale = locale,
+        },
+    };
 
     const page = md.render(
         arena,
@@ -319,106 +341,6 @@ pub fn oom() noreturn {
     fatal("out of memory", .{});
 }
 
-const AssetFinder = struct {
-    // site assets directory
-    content_dir_path: []const u8,
-    // site assets directory
-    assets_dir_path: []const u8,
-    // build assets
-    build_index_dir_path: []const u8,
-
-    dep_writer: std.io.AnyWriter,
-    host_extern: context.AssetExtern = .{ .ext_fn = ext },
-
-    fn ext(
-        he: *const context.AssetExtern,
-        gpa: Allocator,
-        arg: context.AssetExtern.Args,
-    ) !context.Value {
-        const f: *const AssetFinder = @fieldParentPtr("host_extern", he);
-
-        const base_path = switch (arg.kind) {
-            .site => f.assets_dir_path,
-            .page => f.content_dir_path,
-            // separate workflow that doesn't return a base path
-            .build => {
-                const full_path = try std.fs.path.join(gpa, &.{
-                    f.build_index_dir_path,
-                    arg.ref,
-                });
-
-                const paths = std.fs.cwd().readFileAlloc(
-                    gpa,
-                    full_path,
-                    std.math.maxInt(u16),
-                ) catch {
-                    return context.Value.errFmt(
-                        gpa,
-                        "build asset '{s}' doesn't exist",
-                        .{arg.ref},
-                    );
-                };
-
-                log.debug("dep: '{s}'", .{full_path});
-                f.dep_writer.print("{s} ", .{full_path}) catch {
-                    std.debug.panic(
-                        "error while writing to dep file file: '{s}'",
-                        .{arg.ref},
-                    );
-                };
-
-                // Index file structure:
-                // - first line: asset path in cache
-                // - second line: optional install path for asset
-                var it = std.mem.tokenizeScalar(u8, paths, '\n');
-
-                return .{
-                    .asset = .{
-                        ._kind = .build,
-                        ._ref = arg.ref,
-                        ._path = it.next().?,
-                        ._build_out_path = it.next(),
-                        ._collector = &asset_collector.host_extern,
-                    },
-                };
-            },
-        };
-
-        const dir = std.fs.cwd().openDir(base_path, .{}) catch {
-            @panic("error while opening asset index dir");
-        };
-
-        dir.access(arg.ref, .{}) catch |err| {
-            return context.Value.errFmt(gpa, "unable to access '{s}': {}", .{
-                arg.ref,
-                err,
-            });
-        };
-
-        const full_path = try std.fs.path.join(gpa, &.{
-            base_path,
-            arg.ref,
-        });
-
-        log.debug("dep: '{s}'", .{full_path});
-        f.dep_writer.print("{s} ", .{full_path}) catch {
-            std.debug.panic(
-                "error while writing to dep file file: '{s}'",
-                .{arg.ref},
-            );
-        };
-
-        return .{
-            .asset = .{
-                ._kind = arg.kind,
-                ._ref = arg.ref,
-                ._path = full_path,
-                ._collector = &asset_collector.host_extern,
-            },
-        };
-    }
-};
-
 const PageFinder = struct {
     page_index_dir_path: []const u8,
     dep_writer: std.io.AnyWriter,
@@ -466,13 +388,24 @@ const PageFinder = struct {
                     gpa,
                     index_path,
                     std.math.maxInt(u32),
-                ) catch {
-                    return .{ .optional = null };
+                ) catch |err| {
+                    std.debug.panic("error while trying to read page index '{s}': {s}", .{
+                        index_path,
+                        @errorName(err),
+                    });
                 };
 
                 var it = std.mem.tokenizeScalar(u8, pages, '\n');
                 if (args.kind == .next) _ = it.next().?;
                 const md_rel_path = it.next().?;
+
+                if (args.just_check) {
+                    return .{ .bool = md_rel_path.len > 0 };
+                }
+
+                if (md_rel_path.len == 0) {
+                    return .{ .optional = null };
+                }
 
                 const val = try page_loader.host_extern.call(gpa, .{
                     .md_rel_path = md_rel_path,
@@ -595,7 +528,116 @@ const PageLoader = struct {
     }
 };
 
+const AssetFinder = struct {
+    // site content directory
+    content_dir_path: []const u8,
+    // site assets directory
+    assets_dir_path: []const u8,
+    // build assets
+    build_index_dir_path: []const u8,
+
+    dep_writer: std.io.AnyWriter,
+    host_extern: context.AssetExtern = .{ .ext_fn = ext },
+
+    fn ext(
+        he: *const context.AssetExtern,
+        gpa: Allocator,
+        arg: context.AssetExtern.Args,
+    ) !context.Value {
+        const f: *const AssetFinder = @fieldParentPtr("host_extern", he);
+
+        const base_path = switch (arg.kind) {
+            .site => f.assets_dir_path,
+            .page => |p| try std.fs.path.join(gpa, &.{
+                f.content_dir_path,
+                p,
+            }),
+            // separate workflow that doesn't return a base path
+            .build => {
+                const full_path = try std.fs.path.join(gpa, &.{
+                    f.build_index_dir_path,
+                    arg.ref,
+                });
+
+                const paths = std.fs.cwd().readFileAlloc(
+                    gpa,
+                    full_path,
+                    std.math.maxInt(u16),
+                ) catch {
+                    return context.Value.errFmt(
+                        gpa,
+                        "build asset '{s}' doesn't exist",
+                        .{arg.ref},
+                    );
+                };
+
+                log.debug("dep: '{s}'", .{full_path});
+                f.dep_writer.print("{s} ", .{full_path}) catch {
+                    std.debug.panic(
+                        "error while writing to dep file file: '{s}'",
+                        .{arg.ref},
+                    );
+                };
+
+                // Index file structure:
+                // - first line: asset path in cache
+                // - second line: optional install path for asset
+                var it = std.mem.tokenizeScalar(u8, paths, '\n');
+
+                const asset_path = it.next().?;
+                const asset_install_path = it.next();
+
+                return .{
+                    .asset = .{
+                        ._collector = &asset_collector.host_extern,
+                        ._meta = .{
+                            .kind = .{ .build = asset_install_path },
+                            .ref = arg.ref,
+                            .path = asset_path,
+                        },
+                    },
+                };
+            },
+        };
+
+        const dir = std.fs.cwd().openDir(base_path, .{}) catch {
+            @panic("error while opening asset index dir");
+        };
+
+        dir.access(arg.ref, .{}) catch |err| {
+            return context.Value.errFmt(gpa, "unable to access '{s}': {}", .{
+                arg.ref,
+                err,
+            });
+        };
+
+        const full_path = try std.fs.path.join(gpa, &.{
+            base_path,
+            arg.ref,
+        });
+
+        log.debug("dep: '{s}'", .{full_path});
+        f.dep_writer.print("{s} ", .{full_path}) catch {
+            std.debug.panic(
+                "error while writing to dep file file: '{s}'",
+                .{arg.ref},
+            );
+        };
+
+        return .{
+            .asset = .{
+                ._collector = &asset_collector.host_extern,
+                ._meta = .{
+                    .kind = arg.kind,
+                    .ref = arg.ref,
+                    .path = full_path,
+                },
+            },
+        };
+    }
+};
 const AssetCollector = struct {
+    output_path_prefix: []const u8,
     url_path_prefix: []const u8,
     asset_list_writer: std.io.AnyWriter,
 
@@ -612,10 +654,21 @@ const AssetCollector = struct {
     }
 
     pub fn collect(ac: AssetCollector, gpa: Allocator, args: context.AssetCollectorExtern.Args) ![]const u8 {
-        const install_path = switch (args.kind) {
+        const install_rel_path = switch (args.kind) {
             .site, .page => args.ref,
-            .build => args.build_out_path,
+            .build => |bip| bip.?,
         };
+
+        const maybe_page_rel_path = switch (args.kind) {
+            .page => |p| p,
+            else => "",
+        };
+
+        const install_path = try std.fs.path.join(gpa, &.{
+            ac.output_path_prefix,
+            maybe_page_rel_path,
+            install_rel_path,
+        });
 
         log.debug("collect asset: '{s}' -> '{s}'", .{ args.path, install_path });
 
@@ -629,10 +682,21 @@ const AssetCollector = struct {
             );
         };
 
-        return std.fs.path.join(gpa, &.{
-            "/",
-            ac.url_path_prefix,
-            install_path,
-        });
+        return switch (args.kind) {
+            // Links to page assets are relative
+            .page => args.ref,
+            // Links to site assets are absolute
+            .site => try std.fs.path.join(gpa, &.{
+                "/",
+                ac.url_path_prefix,
+                args.ref,
+            }),
+            // Links to build assets are absolute
+            .build => |bip| try std.fs.path.join(gpa, &.{
+                "/",
+                ac.url_path_prefix,
+                bip.?,
+            }),
+        };
     }
 };

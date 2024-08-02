@@ -10,15 +10,7 @@ const context = @import("../context.zig");
 const Value = context.Value;
 const Allocator = std.mem.Allocator;
 
-_kind: Kind,
-// - build: name of the asset
-// - asset: rel path of the asset (rooted in either content/ or assets/)
-_ref: []const u8,
-// absolute path to the asset
-_path: []const u8,
-// defined install path for a build asset as defined in the user's build.zig
-// unused otherwise
-_build_out_path: ?[]const u8 = null,
+_meta: context.AssetCollectorExtern.Args,
 _collector: *const context.AssetCollectorExtern = &.{},
 
 pub const Kind = enum {
@@ -35,16 +27,10 @@ pub const dot = scripty.defaultDot(Asset, Value);
 pub const Builtins = struct {
     pub const link = struct {
         pub const signature: Signature = .{
-            .parameters = .{.bool},
             .ret = .str,
         };
         pub const description =
             \\Returns a link to the asset.
-            \\
-            \\If the provided boolean argument is `true`, the link will
-            \\be suffixed with a query parameter that contains a hash of
-            \\the file's contents, wich can be used as a cache-busting 
-            \\technique.
             \\
             \\Calling `link` on an asset will cause it to be installed 
             \\under the same relative path into the output directory.
@@ -56,7 +42,8 @@ pub const Builtins = struct {
             \\your `build.zig`.
         ;
         pub const examples =
-            \\<img src="$site.asset('profile.jpg').link(true)">
+            \\<img src="$site.asset('logo.jpg').link()">
+            \\<img src="$page.asset('profile.jpg').link()">
         ;
         pub fn call(
             asset: Asset,
@@ -64,33 +51,19 @@ pub const Builtins = struct {
             args: []const Value,
             _: *utils.SuperHTMLResource,
         ) !Value {
-            const bad_arg = .{
-                .err = "expected 1 boolean argument",
-            };
-            if (args.len != 1) return bad_arg;
+            const bad_arg = .{ .err = "expected 0 arguments" };
+            if (args.len != 0) return bad_arg;
 
-            const unique = switch (args[0]) {
-                .bool => |s| s,
-                else => return bad_arg,
-            };
-
-            const build_out_path = switch (asset._kind) {
-                .build => asset._build_out_path orelse {
+            switch (asset._meta.kind) {
+                else => {},
+                .build => |bip| if (bip == null) {
                     return Value.errFmt(gpa, "build asset '{s}' is being linked but it doesn't define an `install_path` in `build.zig`", .{
-                        asset._ref,
+                        asset._meta.ref,
                     });
                 },
-                // not used when kind is not build
-                else => undefined,
-            };
+            }
 
-            return asset._collector.call(gpa, .{
-                .kind = asset._kind,
-                .ref = asset._ref,
-                .path = asset._path,
-                .build_out_path = build_out_path,
-                .unique = unique,
-            });
+            return asset._collector.call(gpa, asset._meta);
         }
     };
     pub const size = struct {
@@ -112,7 +85,7 @@ pub const Builtins = struct {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const stat = std.fs.cwd().statFile(self._path) catch {
+            const stat = std.fs.cwd().statFile(self._meta.path) catch {
                 return .{ .err = "i/o error while reading asset file" };
             };
             return .{ .int = @intCast(stat.size) };
@@ -136,7 +109,7 @@ pub const Builtins = struct {
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const data = std.fs.cwd().readFileAlloc(gpa, self._path, std.math.maxInt(u32)) catch {
+            const data = std.fs.cwd().readFileAlloc(gpa, self._meta.path, std.math.maxInt(u32)) catch {
                 return .{ .err = "i/o error while reading asset file" };
             };
             return .{ .string = data };
@@ -163,7 +136,7 @@ pub const Builtins = struct {
 
             const data = std.fs.cwd().readFileAllocOptions(
                 gpa,
-                self._path,
+                self._meta.path,
                 std.math.maxInt(u32),
                 null,
                 1,
@@ -174,7 +147,7 @@ pub const Builtins = struct {
 
             log.debug("parsing ziggy file: '{s}'", .{data});
 
-            var diag: _ziggy.Diagnostic = .{ .path = self._ref };
+            var diag: _ziggy.Diagnostic = .{ .path = self._meta.ref };
             const parsed = _ziggy.parseLeaky(_ziggy.dynamic.Value, gpa, data, .{
                 .diagnostic = &diag,
                 .copy_strings = .to_unescape,
