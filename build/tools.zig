@@ -31,7 +31,24 @@ pub fn build(b: *std.Build) !void {
         break :blk options.createModule();
     };
 
-    // dummy comment
+    const index_assets = b.addExecutable(.{
+        .name = "index-assets",
+        .root_source_file = b.path("src/exes/index-assets.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    index_assets.root_module.addImport("options", options);
+    b.installArtifact(index_assets);
+
+    const update_assets = b.addExecutable(.{
+        .name = "update-assets",
+        .root_source_file = b.path("src/exes/update-assets.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    update_assets.root_module.addImport("options", options);
+    b.installArtifact(update_assets);
+
     const super = b.dependency("superhtml", mode);
     const scripty = super.builder.dependency("scripty", .{});
     const ziggy = b.dependency("ziggy", mode);
@@ -60,6 +77,7 @@ pub fn build(b: *std.Build) !void {
 
     });
 
+    const gfm = b.dependency("gfm", mode);
     layout.root_module.addImport("zine", zine);
     layout.root_module.addImport("options", options);
     layout.root_module.addImport("superhtml", super.module("superhtml"));
@@ -69,13 +87,15 @@ pub fn build(b: *std.Build) !void {
     layout.root_module.addImport("syntax", syntax.module("syntax"));
     layout.root_module.addImport("treez", ts.module("treez"));
     layout.linkLibrary(ts.artifact("tree-sitter"));
+    layout.linkLibrary(gfm.artifact("cmark-gfm"));
+    layout.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
     layout.linkLibC();
 
     b.installArtifact(layout);
 
     const docgen = b.addExecutable(.{
         .name = "docgen",
-        .root_source_file = b.path("src/docgen.zig"),
+        .root_source_file = b.path("src/exes/docgen.zig"),
         .target = target,
         .optimize = .Debug,
     });
@@ -84,26 +104,20 @@ pub fn build(b: *std.Build) !void {
     docgen.root_module.addImport("ziggy", ziggy.module("ziggy"));
     b.installArtifact(docgen);
 
-    const md_renderer = b.addExecutable(.{
-        .name = "markdown-renderer",
-        .root_source_file = b.path("src/exes/markdown-renderer.zig"),
-        .target = b.resolveTargetQuery(.{}),
-        .optimize = optimize,
-    });
+    // const md_renderer = b.addExecutable(.{
+    //     .name = "markdown-renderer",
+    //     .root_source_file = b.path("src/exes/markdown-renderer.zig"),
+    //     .target = b.resolveTargetQuery(.{}),
+    //     .optimize = optimize,
+    // });
 
-    const gfm = b.dependency("gfm", mode);
+    // md_renderer.root_module.addImport("zine", zine);
+    // md_renderer.root_module.addImport("ziggy", ziggy.module("ziggy"));
+    // md_renderer.root_module.addImport("zeit", zeit.module("zeit"));
+    // md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
+    // md_renderer.root_module.addImport("treez", ts.module("treez"));
 
-    md_renderer.root_module.addImport("zine", zine);
-    md_renderer.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    md_renderer.root_module.addImport("zeit", zeit.module("zeit"));
-    md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
-    md_renderer.root_module.addImport("treez", ts.module("treez"));
-
-    md_renderer.linkLibrary(gfm.artifact("cmark-gfm"));
-    md_renderer.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
-    md_renderer.linkLibC();
-
-    b.installArtifact(md_renderer);
+    // b.installArtifact(md_renderer);
 
     if (b.option(
         bool,

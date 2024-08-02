@@ -1,10 +1,15 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const zine = @import("zine");
 const context = zine.context;
 const hl = zine.highlight;
 const highlightCode = hl.highlightCode;
 const HtmlSafe = hl.HtmlSafe;
+
+const log = std.log.scoped(.layout);
+
+const asset_collector = &@import("layout.zig").asset_collector;
 
 const c = @cImport({
     @cInclude("cmark-gfm.h");
@@ -13,41 +18,43 @@ const c = @cImport({
 
 extern fn cmark_list_syntax_extensions([*c]c.cmark_mem) [*c]c.cmark_llist;
 
-pub fn main() !void {
-    var arena_impl = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-    defer arena_impl.deinit();
+pub fn render(
+    arena: std.mem.Allocator,
+    md_path: []const u8,
+    md_rel_path: []const u8,
+    url_path_prefix: []const u8,
+    index_in_section: ?usize,
+    parent_section_path: ?[]const u8,
+    // Pass null when loading the page through Scripty,
+    // assets should be referenced for real only by the
+    // layout process that builds the target page.
+    maybe_dep_writer: ?std.io.AnyWriter,
+) !context.Page {
+    var time = std.time.Timer.start() catch unreachable;
 
-    const arena = arena_impl.allocator();
+    defer log.debug(
+        "Rendering '{s}' took {}ms ({}ns)\n",
+        .{
+            md_path,
+            time.read() / std.time.ns_per_ms,
+            time.read(),
+        },
+    );
 
-    const args = try std.process.argsAlloc(arena);
-    const assets_in_path = args[1];
-    const assets_dep_path = args[2];
-    const assets_out_path = args[3];
-    const md_in_path = args[4];
-    const html_out_path = args[5];
-    const meta_out_path = args[6];
-    const permalink = args[7];
+    var is_section = false;
+    var md_asset_dir_path: []const u8 = undefined;
+    var md_asset_dir_rel_path: []const u8 = undefined;
+    if (std.mem.endsWith(u8, md_path, "index.md")) {
+        is_section = true;
+        md_asset_dir_path = md_path[0 .. md_path.len - "index.md".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - "index.md".len];
+    } else {
+        md_asset_dir_path = md_path[0 .. md_path.len - ".md".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - ".md".len];
+    }
 
-    var assets_in_dir = std.fs.cwd().openDir(assets_in_path, .{}) catch |err| {
-        std.debug.print("Error while opening assets input dir: {s}\n", .{assets_in_path});
-        return err;
-    };
-    defer assets_in_dir.close();
-
-    const assets_dep_file = std.fs.cwd().createFile(assets_dep_path, .{}) catch |err| {
-        std.debug.print("Error while creating file: {s}\n", .{assets_dep_path});
-        return err;
-    };
-    defer assets_dep_file.close();
-
-    var assets_out_dir = std.fs.cwd().openDir(assets_out_path, .{}) catch |err| {
-        std.debug.print("Error while opening assets output dir: {s}\n", .{assets_out_path});
-        return err;
-    };
-    defer assets_out_dir.close();
-
-    const in_file = std.fs.cwd().openFile(md_in_path, .{}) catch |err| {
-        std.debug.print("Error while opening file: {s}\n", .{md_in_path});
+    const in_file = std.fs.cwd().openFile(md_path, .{}) catch |err| {
+        std.debug.print("Error while opening file: {s}\n", .{md_path});
         return err;
     };
     defer in_file.close();
@@ -61,18 +68,6 @@ pub fn main() !void {
     };
 
     const in_string = try r.readAllAlloc(arena, 1024 * 1024 * 10);
-
-    const out_file = std.fs.cwd().createFile(html_out_path, .{}) catch |err| {
-        std.debug.print("Error while creating file: {s}\n", .{html_out_path});
-        return err;
-    };
-    defer out_file.close();
-
-    const meta_out_file = std.fs.cwd().createFile(meta_out_path, .{}) catch |err| {
-        std.debug.print("Error while creating file: {s}\n", .{meta_out_path});
-        return err;
-    };
-    defer meta_out_file.close();
 
     c.cmark_gfm_core_extensions_ensure_registered();
     const extensions = cmark_list_syntax_extensions(c.cmark_get_arena_mem_allocator());
@@ -88,14 +83,9 @@ pub fn main() !void {
     const iter = Iter.init(ast);
     defer iter.deinit();
 
-    // TODO: unicode this
-    page._meta.word_count = @intCast(in_string.len / 6);
-    page._meta.permalink = permalink;
-
-    // Copy local images
-    try assets_dep_file.writeAll("assets: ");
-    var seen_assets = std.StringHashMap(void).init(arena);
-    while (iter.next()) |ev| {
+    // Copy local images only if the page is the root page of this
+    // process, pages loaded via Scripty should skip this analysis.
+    if (maybe_dep_writer) |dep_writer| while (iter.next()) |ev| {
         if (ev.dir == .exit) continue;
         const node = ev.node;
         if (node.isImage()) {
@@ -103,35 +93,49 @@ pub fn main() !void {
                 @panic("TODO: explain that an image without url was found in the markdown file");
             };
 
-            // Skip duplicates
-            if (seen_assets.contains(link)) continue;
-
             // Skip non-local images
             if (std.mem.startsWith(u8, link, "http")) continue;
 
-            assets_in_dir.access(link, .{}) catch {
-                @panic("TODO: explain that a missing image has been found in a markdown file");
+            const asset_path =
+                try std.fs.path.join(arena, &.{
+                md_asset_dir_path,
+                link,
+            });
+            const offset = md_asset_dir_path.len - md_asset_dir_rel_path.len;
+            const asset_rel_path = asset_path[offset..asset_path.len];
+
+            std.fs.cwd().access(asset_path, .{}) catch |err| {
+                std.debug.panic("while parsing page '{s}', unable to find asset '{s}': {s}\n{s}", .{
+                    md_rel_path,
+                    asset_rel_path,
+                    @errorName(err),
+                    if (is_section) "" else 
+                    \\NOTE: assets for this page must be placed under a subdirectory that shares the same name with the corresponding markdown file!
+                    ,
+                });
             };
 
-            // Ensure any subdir exists
-            if (std.fs.path.dirname(link)) |dirname| {
-                try assets_out_dir.makePath(dirname);
-            }
+            log.debug("markdown dep: '{s}'", .{asset_path});
+            dep_writer.print("{s} ", .{asset_path}) catch {
+                std.debug.panic(
+                    "error while writing to dep file file: '{s}'",
+                    .{asset_path},
+                );
+            };
 
-            const path = try std.fs.path.join(arena, &.{ assets_in_path, link });
-            try assets_dep_file.writer().print("{s} ", .{path});
-            try assets_in_dir.copyFile(link, assets_out_dir, link, .{});
-            try seen_assets.put(link, {});
+            _ = try asset_collector.collect(arena, .{
+                .kind = .{ .page = md_asset_dir_rel_path },
+                .ref = link,
+                .path = asset_path,
+            });
         }
-    }
-
-    try ziggy.stringify(page, .{}, meta_out_file.writer());
+    };
 
     // const options = c.CMARK_OPT_DEFAULT | c.CMARK_OPT_UNSAFE;
     var it = Iter.init(ast);
 
-    var buffered_writer = std.io.bufferedWriter(out_file.writer());
-    const w = buffered_writer.writer();
+    var html_buf = std.ArrayList(u8).init(arena);
+    const w = html_buf.writer();
 
     while (it.next()) |ev| {
         const node = ev.node;
@@ -240,7 +244,7 @@ pub fn main() !void {
                                     \\Unable to find highlighting queries for language '{s}'
                                     \\
                                 ,
-                                    .{ md_in_path, line, col, lang_name },
+                                    .{ md_path, line, col, lang_name },
                                 );
                                 std.process.exit(1);
                             },
@@ -250,7 +254,7 @@ pub fn main() !void {
                                     \\Error while syntax highlighting: {s}
                                     \\
                                 ,
-                                    .{ md_in_path, line, col, @errorName(err) },
+                                    .{ md_path, line, col, @errorName(err) },
                                 );
                                 std.process.exit(1);
                             },
@@ -270,7 +274,17 @@ pub fn main() !void {
         }
     }
 
-    try buffered_writer.flush();
+    page._meta = .{
+        // TODO: unicode this
+        .word_count = @intCast(in_string.len / 6),
+        .is_section = std.mem.endsWith(u8, md_path, "/index.md"),
+        .md_rel_path = md_rel_path,
+        .url_path_prefix = url_path_prefix,
+        .index_in_section = index_in_section,
+        .parent_section_path = parent_section_path,
+    };
+    page.content = html_buf.items;
+    return page;
 }
 
 const Iter = struct {
