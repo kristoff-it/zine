@@ -17,6 +17,8 @@ gpa: std.mem.Allocator,
 ws_server: ws.Server,
 zig_exe: []const u8,
 out_dir_path: []const u8,
+website_step_name: []const u8,
+debug: bool,
 watcher: Watcher,
 
 clients_lock: std.Thread.Mutex = .{},
@@ -27,6 +29,8 @@ pub fn init(
     zig_exe: []const u8,
     out_dir_path: []const u8,
     in_dir_paths: []const []const u8,
+    website_step_name: []const u8,
+    debug: bool,
 ) !Reloader {
     const ws_server = try ws.Server.init(gpa, .{});
 
@@ -35,6 +39,8 @@ pub fn init(
         .zig_exe = zig_exe,
         .out_dir_path = out_dir_path,
         .ws_server = ws_server,
+        .website_step_name = website_step_name,
+        .debug = debug,
         .watcher = try Watcher.init(gpa, out_dir_path, in_dir_paths),
     };
 }
@@ -46,10 +52,21 @@ pub fn listen(self: *Reloader) !void {
 pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     _ = name;
     _ = path;
-    log.debug("re-building!", .{});
+    const args: []const []const u8 = if (self.debug) &.{
+        self.zig_exe,
+        "build",
+        self.website_step_name,
+        "-Ddebug",
+    } else &.{
+        self.zig_exe,
+        "build",
+        self.website_step_name,
+    };
+    log.debug("re-building! args: {s}", .{args});
+
     const result = std.process.Child.run(.{
         .allocator = self.gpa,
-        .argv = &.{ self.zig_exe, "build" },
+        .argv = args,
     }) catch |err| {
         log.err("unable to run zig build: {s}", .{@errorName(err)});
         return;

@@ -18,12 +18,11 @@
             .path = "frontmatter",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#554090d4e7bb3fb8a4dc097ac619f9f26b44bfc8",
-            .hash = "1220121b6c66482709aad07836f9cdf39547c07b9b08dbfb7be35f885ef44f78d4b5",
+            .path = "../superhtml",
         },
         .ziggy = .{
-            .url = "git+https://github.com/MFAshby/ziggy.git#2f34b58ca2c5e72c7dbd3ad3756df537d03d79e0",
-            .hash = "1220c198cdaf6cb73fca6603cc5039046ed10de2e9f884cae9224ff826731df1c68d",
+            .url = "git+https://github.com/kristoff-it/ziggy#20c8088dbf4b22dc2f6e21d289cfb3dcc25c8cae",
+            .hash = "12206a0d6884ef31e3d4e47d5c9c6c4121b0a891258d6072ad7f5bac826803d29d36",
         },
         .zeit = .{
             .url = "git+https://github.com/rockorager/zeit#02b347da743098f1bf8a88e590d38011b188ab51",

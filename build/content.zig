@@ -12,9 +12,10 @@ const TranslationIndexEntry = struct {
 };
 const PageVariant = struct {
     locale_code: []const u8,
-    page: *Section.Page,
+    // page: *Section.Page,
+    title: []const u8,
     _meta: struct {
-        host_url_override: ?[]const u8,
+        url: []const u8,
     },
 };
 
@@ -23,30 +24,18 @@ const AddWebsiteOptions = union(enum) {
     site: zine.Site,
 };
 pub fn addWebsiteImpl(
-    b: *std.Build,
+    project: *std.Build,
     opts: zine.ZineOptions,
     step: *std.Build.Step,
     web: AddWebsiteOptions,
 ) void {
-    const zine_dep = b.dependencyFromBuildZig(zine, .{
+    const zine_dep = project.dependencyFromBuildZig(zine, .{
         .optimize = opts.optimize,
         .scope = opts.scopes,
     });
 
-    // Install static files
-    const static_dir_path = switch (web) {
-        .multilingual => |ml| ml.static_dir_path,
-        .site => |s| s.static_dir_path,
-    };
-    const install_static = b.addInstallDirectory(.{
-        .source_dir = b.path(static_dir_path),
-        .install_dir = .prefix,
-        .install_subdir = "",
-    });
-    step.dependOn(&install_static.step);
-
     // Scan the content folder
-    scan(b, step, opts.optimize == .Debug, zine_dep, web);
+    scan(project, step, opts.optimize == .Debug, zine_dep, web);
 }
 
 fn scan(
@@ -56,21 +45,47 @@ fn scan(
     zine_dep: *std.Build.Dependency,
     website: AddWebsiteOptions,
 ) void {
-    const renderer = zine_dep.artifact("markdown-renderer");
+    const index_dir_path = project.pathJoin(&.{
+        project.cache_root.path orelse ".",
+        "zine",
+    });
+    const index_dir = project.cache_root.handle.makeOpenPath(
+        "zine",
+        .{},
+    ) catch unreachable;
+
+    // buldtime assets
+    index_dir.makePath("a") catch unreachable;
+    // site index
+    const site_index_dir = index_dir.makeOpenPath("s", .{}) catch unreachable;
+
+    const assets_updater = zine_dep.artifact("update-assets");
+    const update_assets = project.addRunArtifact(assets_updater);
+    update_assets.addArg(project.install_path);
+    step.dependOn(&update_assets.step);
+
+    // const renderer = zine_dep.artifact("markdown-renderer");
     const layout = zine_dep.artifact("layout");
     switch (website) {
         .multilingual => |ml| {
-            ensureDir(ml.layouts_dir_path);
-            ensureDir(ml.static_dir_path);
-            ensureDir(ml.i18n_dir_path);
+            ensureDir(project, ml.layouts_dir_path);
+            ensureDir(project, ml.assets_dir_path);
+            ensureDir(project, ml.i18n_dir_path);
+
+            const index_step = writeAssetIndex(
+                project,
+                zine_dep,
+                index_dir_path,
+                ml.build_assets,
+            );
 
             var ti = TranslationIndex.init(project.allocator);
             const scanned_variants = project.allocator.alloc(
                 ScannedVariant,
-                ml.variants.len,
+                ml.localized_variants.len,
             ) catch unreachable;
 
-            for (ml.variants, scanned_variants) |v, *sv| {
+            for (ml.localized_variants, scanned_variants) |v, *sv| {
                 const output_path_prefix = v.output_prefix_override orelse
                     v.locale_code;
                 const url_path_prefix = v.output_prefix_override orelse
@@ -81,10 +96,18 @@ fn scan(
                     project.fmt("{s}.ziggy", .{v.locale_code}),
                 });
 
+                installStaticAssets(
+                    project,
+                    step,
+                    ml.assets_dir_path,
+                    ml.static_assets,
+                    ml.build_assets,
+                    output_path_prefix,
+                );
+
                 sv.* = scanVariant(
                     project,
-
-                    step,
+                    site_index_dir,
                     debug,
                     v.content_dir_path,
                     url_path_prefix,
@@ -96,6 +119,7 @@ fn scan(
                 if (sv.root_index) |*idx| indexTranslation(
                     project,
                     &ti,
+                    url_path_prefix,
                     v.host_url_override,
                     v.locale_code,
                     idx,
@@ -106,6 +130,7 @@ fn scan(
                         indexTranslation(
                             project,
                             &ti,
+                            url_path_prefix,
                             v.host_url_override,
                             v.locale_code,
                             p,
@@ -116,50 +141,78 @@ fn scan(
 
             writeTranslationIndex(project, &ti);
 
-            for (ml.variants, scanned_variants) |v, sv| {
+            for (ml.localized_variants, scanned_variants) |v, sv| {
+                const url_path_prefix = v.output_prefix_override orelse
+                    if (v.host_url_override != null) "" else v.locale_code;
                 addAllSteps(
                     project,
                     step,
-                    renderer,
+                    index_step,
+                    // renderer,
                     layout,
                     v.title,
                     v.host_url_override orelse ml.host_url,
                     ml.layouts_dir_path,
+                    ml.assets_dir_path,
                     v.content_dir_path,
                     sv.output_path_prefix,
                     sv.i18n_file_path,
                     sv.root_index,
                     sv.sections,
                     &ti,
+                    index_dir_path,
+                    url_path_prefix,
+                    update_assets,
                 );
             }
         },
         .site => |s| {
-            ensureDir(s.layouts_dir_path);
-            ensureDir(s.static_dir_path);
+            ensureDir(project, s.layouts_dir_path);
+            ensureDir(project, s.assets_dir_path);
 
-            const prefix = s.output_prefix;
-            const sv = scanVariant(
+            const index_step = writeAssetIndex(
+                project,
+                zine_dep,
+                index_dir_path,
+                s.build_assets,
+            );
+
+            installStaticAssets(
                 project,
                 step,
+                s.assets_dir_path,
+                s.static_assets,
+                s.build_assets,
+                s.output_path_prefix,
+            );
+
+            const sv = scanVariant(
+                project,
+                site_index_dir,
                 debug,
                 s.content_dir_path,
-                prefix,
+                s.output_path_prefix,
             );
+
             addAllSteps(
                 project,
                 step,
-                renderer,
+                index_step,
+                // renderer,
                 layout,
                 s.title,
                 s.host_url,
                 s.layouts_dir_path,
+                s.assets_dir_path,
                 s.content_dir_path,
-                prefix,
+                s.output_path_prefix,
                 null,
                 sv.root_index,
                 sv.sections,
                 null,
+                index_dir_path,
+                s.url_path_prefix,
+                update_assets,
             );
         },
     }
@@ -168,12 +221,13 @@ fn scan(
 fn indexTranslation(
     project: *std.Build,
     translation_index: *TranslationIndex,
+    url_path_prefix: []const u8,
     host_url_override: ?[]const u8,
     locale_code: []const u8,
     p: *Section.Page,
 ) void {
-    const fm = p.fm.translation_key;
-    const key = if (fm.len != 0) fm else project.pathJoin(&.{ p.content_sub_path, p.md_name });
+    const tk = p.fm.translation_key;
+    const key = if (tk.len != 0) tk else project.pathJoin(&.{ p.content_sub_path, p.md_name });
 
     const gop = translation_index.getOrPut(key) catch unreachable;
 
@@ -181,13 +235,120 @@ fn indexTranslation(
         gop.value_ptr.* = .{};
     }
 
+    const url = project.pathJoin(&.{
+        host_url_override orelse "/",
+        url_path_prefix,
+        p.content_sub_path,
+        if (std.mem.eql(u8, p.md_name, "index.md"))
+            ""
+        else
+            p.md_name[0 .. p.md_name.len - ".md".len],
+        "/",
+    });
+
     gop.value_ptr.page_variants.append(project.allocator, .{
         .locale_code = locale_code,
-        .page = p,
-        ._meta = .{
-            .host_url_override = host_url_override,
-        },
+        .title = p.fm.title,
+        ._meta = .{ .url = url },
     }) catch unreachable;
+}
+
+/// Assets are indexed as a directory containing
+/// one file per asset, where the filename matches
+/// the asset name, and the contents contain the
+/// final lazypath value.
+/// Since we don't know LazyPath vales for generated
+/// content at config time, we create a RunStep to do
+/// that for us.
+///
+/// Since we're doing indexing work, this function will
+/// create an index_step that markdown parsing steps can
+/// syncronize over in order to wait running layouts until
+/// all markdown files are done parsing.
+///
+/// This function is also in charge of installing static
+/// assets (ie assets that get installed unconditionally).
+fn writeAssetIndex(
+    project: *std.Build,
+    zine_dep: *std.Build.Dependency,
+    index_dir_path: []const u8,
+    build_assets: []const zine.BuildAsset,
+) *std.Build.Step {
+    const name = "Zine Index Content";
+    const index_step = project.step(name, "");
+    _ = project.top_level_steps.orderedRemove(name);
+
+    // do nothing if there are no assets to index
+    if (build_assets.len == 0) return index_step;
+
+    const indexer = zine_dep.artifact("index-assets");
+    const run = project.addRunArtifact(indexer);
+
+    run.addArg(project.pathJoin(&.{ index_dir_path, "a" }));
+    for (build_assets) |asset| {
+        const msg =
+            \\build.zig error: build asset '{s}': only LazyPaths from generated files (eg from a Run step) or from dependencies are allowed
+            \\
+            \\NOTE: see the official documentation about Zine's asset system
+            \\      to learn how to use assets located in your file system.
+            \\
+            \\
+        ;
+        switch (asset.lp) {
+            .src_path, .cwd_relative => {
+                std.debug.print(msg, .{asset.name});
+                std.process.exit(1);
+            },
+            .generated, .dependency => {
+                run.addArg(asset.name);
+                run.addFileArg(asset.lp);
+                run.addArg(asset.install_path orelse "null");
+            },
+        }
+    }
+
+    index_step.dependOn(&run.step);
+    return index_step;
+}
+
+fn installStaticAssets(
+    project: *std.Build,
+    step: *std.Build.Step,
+    assets_dir_path: []const u8,
+    static_assets: []const []const u8,
+    build_assets: []const zine.BuildAsset,
+    output_path_prefix: []const u8,
+) void {
+    for (static_assets) |sa| {
+        const install_path = if (output_path_prefix.len == 0)
+            sa
+        else
+            project.pathJoin(&.{ output_path_prefix, sa });
+
+        const install = project.addInstallFile(
+            project.path(project.pathJoin(&.{ assets_dir_path, sa })),
+            install_path,
+        );
+        step.dependOn(&install.step);
+    }
+
+    for (build_assets) |asset| {
+        if (!asset.install_always) continue;
+
+        const rel_install_path = asset.install_path orelse {
+            std.debug.print("build asset '{s}' is marked as `install_always` but it doesn't define an `install_path` in `build.zig`", .{
+                asset.name,
+            });
+            std.process.exit(1);
+        };
+        const install_path = if (output_path_prefix.len == 0)
+            rel_install_path
+        else
+            project.pathJoin(&.{ output_path_prefix, rel_install_path });
+
+        const install = project.addInstallFile(asset.lp, install_path);
+        step.dependOn(&install.step);
+    }
 }
 
 fn writeTranslationIndex(project: *std.Build, ti: *TranslationIndex) void {
@@ -211,7 +372,7 @@ const ScannedVariant = struct {
 
 pub fn scanVariant(
     project: *std.Build,
-    step: *std.Build.Step,
+    site_index_dir: std.fs.Dir,
     debug: bool,
     content_dir_path: []const u8,
     url_path_prefix: []const u8,
@@ -222,7 +383,7 @@ pub fn scanVariant(
         .{t.read() / std.time.ns_per_ms},
     );
 
-    const content_dir = std.fs.cwd().makeOpenPath(
+    const content_dir = project.build_root.handle.makeOpenPath(
         content_dir_path,
         .{ .iterate = true },
     ) catch |err| {
@@ -245,7 +406,7 @@ pub fn scanVariant(
 
     var sections: SectionList = .{};
     const root_section = sections.addOne(project.allocator) catch unreachable;
-    root_section.* = .{};
+    root_section.* = .{ .content_sub_path = "" };
 
     var root_index: ?Section.Page = null;
     var current_section = root_section;
@@ -268,21 +429,7 @@ pub fn scanVariant(
             const permalink = project.pathJoin(&.{ "/", url_path_prefix, dir_entry.path, "/" });
 
             const fm = switch (result) {
-                .success => |s| fm: {
-                    var h = s.header;
-                    h._meta.permalink = permalink;
-                    var letters: usize = 0;
-                    while (true) {
-                        const c = r.readByte() catch break;
-                        switch (c) {
-                            'a'...'z', 'A'...'Z' => letters += 1,
-                            else => {},
-                        }
-                    }
-
-                    h._meta.word_count = @intCast(letters / 5);
-                    break :fm h;
-                },
+                .success => |s| s.header,
                 .empty => {
                     std.debug.print("WARNING: ignoring empty file '{s}{s}'\n", .{
                         permalink, "index.md",
@@ -307,7 +454,7 @@ pub fn scanVariant(
             if (dir_entry.parent_section) |parent_section| {
                 const content_sub_path = project.dupe(dir_entry.path);
                 current_section = sections.addOne(project.allocator) catch unreachable;
-                current_section.* = .{};
+                current_section.* = .{ .content_sub_path = content_sub_path };
                 parent_section.pages.append(project.allocator, .{
                     .content_sub_path = content_sub_path,
                     .md_name = "index.md",
@@ -362,21 +509,7 @@ pub fn scanVariant(
 
                     const result = FrontParser.parse(project.allocator, r, entry.name) catch @panic("TODO: report frontmatter parse error");
                     const fm = switch (result) {
-                        .success => |s| fm: {
-                            var h = s.header;
-                            h._meta.permalink = project.pathJoin(&.{ permalink, "/" });
-                            var letters: usize = 0;
-                            while (true) {
-                                const c = r.readByte() catch break;
-                                switch (c) {
-                                    'a'...'z', 'A'...'Z' => letters += 1,
-                                    else => {},
-                                }
-                            }
-
-                            h._meta.word_count = @intCast(letters / 5);
-                            break :fm h;
-                        },
+                        .success => |s| s.header,
                         .empty => {
                             std.debug.print("WARNING: ignoring empty file '{s}.md'\n", .{
                                 permalink,
@@ -419,10 +552,10 @@ pub fn scanVariant(
 
     var section_it = sections.iterator(0);
     while (section_it.next()) |s| {
-        s.writeIndex(project, step);
-        for (s.pages.items) |*p| {
-            p.writeMeta(project, step);
-        }
+        s.writeIndex(project, site_index_dir);
+        // for (s.pages.items) |*p| {
+        //     p.writeMeta(project, index_dir);
+        // }
     }
 
     return .{
@@ -434,17 +567,22 @@ pub fn scanVariant(
 pub fn addAllSteps(
     project: *std.Build,
     step: *std.Build.Step,
-    renderer: *std.Build.Step.Compile,
+    index_step: *std.Build.Step,
+    // renderer: *std.Build.Step.Compile,
     layout: *std.Build.Step.Compile,
     site_title: []const u8,
     host_url: []const u8,
     layouts_dir_path: []const u8,
+    assets_dir_path: []const u8,
     content_dir_path: []const u8,
     output_path_prefix: []const u8,
     i18n_file_path: ?[]const u8,
     root_index: ?Section.Page,
     sections: SectionList,
     translation_index: ?*TranslationIndex,
+    index_dir_path: []const u8,
+    url_path_prefix: []const u8,
+    update_assets: *std.Build.Step.Run,
 ) void {
     if (root_index) |idx| {
         const page_variants_index = if (translation_index) |ti| blk: {
@@ -454,60 +592,64 @@ pub fn addAllSteps(
             const entry = ti.get(key).?;
             break :blk entry.index_file;
         } else null;
-        const rendered = addMarkdownRenderStep(
-            project,
-            step,
-            renderer,
-            content_dir_path,
-            "",
-            "index.md",
-            output_path_prefix,
-            idx.fm._meta.permalink,
-        );
+        // const rendered = addMarkdownRenderStep(
+        //     project,
+        //     index_step,
+        //     renderer,
+        //     content_dir_path,
+        //     "",
+        //     "index.md",
+        //     output_path_prefix,
+        //     idx.fm._meta.permalink,
+        // );
         addLayoutStep(
             project,
             step,
+            index_step,
             layout,
             site_title,
             host_url,
             content_dir_path,
             layouts_dir_path,
+            assets_dir_path,
             "",
             "index.md",
             "index.html",
-            rendered.content,
-            rendered.meta,
             idx.fm.layout,
             idx.fm.aliases,
-            null,
-            null,
-            idx.subpages.?.index,
             output_path_prefix,
             i18n_file_path,
             page_variants_index,
+            index_dir_path,
+            url_path_prefix,
+            null,
+            null,
+            update_assets,
         );
         for (idx.fm.alternatives) |alt| {
             addLayoutStep(
                 project,
                 step,
+                index_step,
                 layout,
                 site_title,
                 host_url,
                 content_dir_path,
                 layouts_dir_path,
+                assets_dir_path,
                 idx.content_sub_path,
                 idx.md_name,
                 alt.output,
-                rendered.content,
-                rendered.meta,
                 alt.layout,
                 &.{},
-                null,
-                null,
-                idx.subpages.?.index,
                 output_path_prefix,
                 i18n_file_path,
                 page_variants_index,
+                index_dir_path,
+                url_path_prefix,
+                null,
+                null,
+                update_assets,
             );
         }
     }
@@ -523,19 +665,19 @@ pub fn addAllSteps(
                 break :blk result;
             } else null;
 
-            const next = if (idx == 0) null else s.pages.items[idx - 1].meta;
-            const prev = if (idx == s.pages.items.len - 1) null else s.pages.items[idx + 1].meta;
-            const rendered = addMarkdownRenderStep(
-                project,
-                step,
-                renderer,
-                content_dir_path,
-                p.content_sub_path,
-                p.md_name,
-                output_path_prefix,
-                p.fm._meta.permalink,
-            );
-            const sub_index = if (p.subpages) |subsection| subsection.index else null;
+            // const next = if (idx == 0) null else s.pages.items[idx - 1].meta;
+            // const prev = if (idx == s.pages.items.len - 1) null else s.pages.items[idx + 1].meta;
+            // const rendered = addMarkdownRenderStep(
+            //     project,
+            //     index_step,
+            //     renderer,
+            //     content_dir_path,
+            //     p.content_sub_path,
+            //     p.md_name,
+            //     output_path_prefix,
+            //     p.fm._meta.permalink,
+            // );
+            // const sub_index = if (p.subpages) |subsection| subsection.index else null;
 
             const out_basename = p.md_name[0 .. p.md_name.len - 3];
             const out_path = if (std.mem.eql(u8, out_basename, "index"))
@@ -546,47 +688,51 @@ pub fn addAllSteps(
             addLayoutStep(
                 project,
                 step,
+                index_step,
                 layout,
                 site_title,
                 host_url,
                 content_dir_path,
                 layouts_dir_path,
+                assets_dir_path,
                 p.content_sub_path,
                 p.md_name,
                 out_path,
-                rendered.content,
-                rendered.meta,
                 p.fm.layout,
                 p.fm.aliases,
-                prev,
-                next,
-                sub_index,
                 output_path_prefix,
                 i18n_file_path,
                 page_variants_index,
+                index_dir_path,
+                url_path_prefix,
+                idx,
+                s.content_sub_path,
+                update_assets,
             );
             for (p.fm.alternatives) |alt| {
                 addLayoutStep(
                     project,
                     step,
+                    index_step,
                     layout,
                     site_title,
                     host_url,
                     content_dir_path,
                     layouts_dir_path,
+                    assets_dir_path,
                     p.content_sub_path,
                     p.md_name,
                     alt.output,
-                    rendered.content,
-                    rendered.meta,
                     alt.layout,
                     &.{},
-                    prev,
-                    next,
-                    sub_index,
                     output_path_prefix,
                     i18n_file_path,
                     page_variants_index,
+                    index_dir_path,
+                    url_path_prefix,
+                    idx,
+                    s.content_sub_path,
+                    update_assets,
                 );
             }
         }
@@ -600,7 +746,7 @@ const RenderResult = struct {
 
 fn addMarkdownRenderStep(
     project: *std.Build,
-    step: *std.Build.Step,
+    index_step: *std.Build.Step,
     renderer: *std.Build.Step.Compile,
     content_dir_path: []const u8,
     content_sub_path: []const u8,
@@ -640,7 +786,7 @@ fn addMarkdownRenderStep(
         .exclude_extensions = &.{ "_zine_assets.d", "_zine_meta.ziggy", "_zine_rendered.html" },
     });
 
-    step.dependOn(&install_assets.step);
+    index_step.dependOn(&install_assets.step);
 
     return .{
         .content = rendered_md,
@@ -651,27 +797,29 @@ fn addMarkdownRenderStep(
 fn addLayoutStep(
     project: *std.Build,
     step: *std.Build.Step,
+    index_step: *std.Build.Step,
     layout: *std.Build.Step.Compile,
     title: []const u8,
     host_url: []const u8,
     content_dir_path: []const u8,
     layouts_dir_path: []const u8,
+    assets_dir_path: []const u8,
     content_sub_path: []const u8,
     md_basename: []const u8,
     out_path: []const u8,
-    rendered_md: std.Build.LazyPath,
-    meta: std.Build.LazyPath,
     layout_name: []const u8,
     aliases: []const []const u8,
-    prev: ?std.Build.LazyPath,
-    next: ?std.Build.LazyPath,
-    subpages: ?std.Build.LazyPath,
     output_path_prefix: []const u8,
     i18n_file_path: ?[]const u8,
     page_variants_index: ?std.Build.LazyPath,
+    index_dir_path: []const u8,
+    url_path_prefix: []const u8,
+    index_in_section: ?usize,
+    parent_section_path: ?[]const u8,
+    update_assets: *std.Build.Step.Run,
 ) void {
     const layout_path = project.pathJoin(&.{ layouts_dir_path, layout_name });
-    std.fs.cwd().access(layout_path, .{}) catch |err| {
+    project.build_root.handle.access(layout_path, .{}) catch |err| {
         std.debug.print("Unable to find the layout '{s}' used by '{s}/{s}/{s}'\n. Please create it before running `zig build` again.\nError: {s}\n,", .{
             layout_path,
             content_dir_path,
@@ -682,15 +830,23 @@ fn addLayoutStep(
         std.process.exit(1);
     };
 
+    const md_name = project.pathJoin(&.{ content_sub_path, md_basename });
+
     const layout_step = project.addRunArtifact(layout);
+    // layouts start running after all content has been processed
+    layout_step.step.dependOn(index_step);
+
     // output file
-    const final_html = layout_step.addOutputFileArg("output.html");
-    // rendered_md_path
-    layout_step.addFileArg(rendered_md);
-    // meta (frontmatter + extra info)
-    layout_step.addFileArg(meta);
+    const final_html = layout_step.addOutputFileArg(md_name);
+
+    // root path used to avoid ambiguous relative paths in dep file
+    layout_step.addArg(project.build_root.path orelse ".");
+
+    // used to generate correct url paths for assets in scripty
+    layout_step.addArg(url_path_prefix);
+
     // md_name
-    layout_step.addArg(project.pathJoin(&.{ content_sub_path, md_basename }));
+    layout_step.addArg(md_name);
     // layout_path
     layout_step.addFileArg(project.path(layout_path));
     // layout_name
@@ -703,13 +859,45 @@ fn addLayoutStep(
     layout_step.addArg(host_url);
     // site title
     layout_step.addArg(title);
+    // // page assets dir path
+    // layout_step.addDirectoryArg(project.path(project.pathJoin(&.{ content_dir_path, content_sub_path })));
 
-    if (prev) |p| layout_step.addFileArg(p) else layout_step.addArg("null");
-    if (next) |n| layout_step.addFileArg(n) else layout_step.addArg("null");
-    if (subpages) |s| layout_step.addFileArg(s) else layout_step.addArg("null");
-    if (i18n_file_path) |i| layout_step.addFileArg(project.path(i)) else layout_step.addArg("null");
-    if (page_variants_index) |i| layout_step.addFileArg(i) else layout_step.addArg("null");
+    // if (prev) |p| layout_step.addFileArg(p) else layout_step.addArg("null");
+    // if (next) |n| layout_step.addFileArg(n) else layout_step.addArg("null");
+    // if (subpages) |s| layout_step.addFileArg(s) else layout_step.addArg("null");
+    if (i18n_file_path) |i|
+        layout_step.addFileArg(project.path(i))
+    else
+        layout_step.addArg("null");
 
+    if (page_variants_index) |i|
+        layout_step.addFileArg(i)
+    else
+        layout_step.addArg("null");
+
+    layout_step.addArg(index_dir_path);
+    layout_step.addArg(assets_dir_path);
+    layout_step.addArg(content_dir_path);
+    // md_path
+    const md_path = project.pathJoin(&.{ content_dir_path, content_sub_path, md_basename });
+    layout_step.addFileArg(project.path(md_path));
+
+    if (index_in_section) |idx|
+        layout_step.addArg(project.fmt("{d}", .{idx}))
+    else
+        layout_step.addArg("null");
+
+    if (parent_section_path) |pp|
+        layout_step.addArg(project.fmt("{?s}", .{pp}))
+    else
+        layout_step.addArg("null");
+
+    const collected_assets = layout_step.addOutputFileArg("assets");
+    update_assets.addFileArg(collected_assets);
+
+    layout_step.addArg(output_path_prefix);
+
+    // ------------
     const target_output = project.addInstallFile(
         final_html,
         project.pathJoin(&.{ output_path_prefix, out_path }),
@@ -726,10 +914,12 @@ fn addLayoutStep(
 }
 
 const Section = struct {
+    content_sub_path: []const u8,
     pages: std.ArrayListUnmanaged(Page) = .{},
 
+    // NOTE: toggled off to try the index_dir strat
     // Not used while iterating directories
-    index: std.Build.LazyPath = undefined,
+    // index: std.Build.LazyPath = undefined,
 
     const Page = struct {
         content_sub_path: []const u8,
@@ -740,54 +930,79 @@ const Section = struct {
         // to the section defined by this page.
         subpages: ?*Section = null,
 
-        // Not used while iterating directories
-        meta: std.Build.LazyPath = undefined,
-
-        pub const ziggy_options = struct {
-            pub fn stringify(
-                value: Page,
-                opts: ziggy.serializer.StringifyOptions,
-                indent_level: usize,
-                depth: usize,
-                writer: anytype,
-            ) !void {
-                return ziggy.serializer.stringifyInner(value.fm, opts, indent_level, depth, writer);
-            }
-        };
-
         pub fn lessThan(_: void, lhs: Page, rhs: Page) bool {
             return rhs.fm.date.lessThan(lhs.fm.date);
-        }
-
-        pub fn writeMeta(
-            p: *Page,
-            project: *std.Build,
-            step: *std.Build.Step,
-        ) void {
-            var buf = std.ArrayList(u8).init(project.allocator);
-            ziggy.stringify(p.fm, .{}, buf.writer()) catch unreachable;
-            const write_file_step = project.addWriteFiles();
-            p.meta = write_file_step.add("page_meta.ziggy", buf.items);
-            step.dependOn(p.meta.generated.file.step);
         }
     };
 
     pub fn writeIndex(
         s: *Section,
         project: *std.Build,
-        step: *std.Build.Step,
+        site_index_dir: std.fs.Dir,
     ) void {
         std.mem.sort(Page, s.pages.items, {}, Page.lessThan);
+        const in_subdir = s.content_sub_path.len != 0;
+        var section_dir = if (in_subdir)
+            site_index_dir.makeOpenPath(
+                s.content_sub_path,
+                .{},
+            ) catch unreachable
+        else
+            site_index_dir;
+        defer if (in_subdir) section_dir.close();
+
+        // Section lists all the original markdown files
+        // in the content dir. Sorting order is by date.
         var buf = std.ArrayList(u8).init(project.allocator);
-        ziggy.stringify(s.pages.items, .{}, buf.writer()) catch unreachable;
-        const write_file_step = project.addWriteFiles();
-        s.index = write_file_step.add("section.ziggy", buf.items);
-        step.dependOn(s.index.generated.file.step);
+        const w = buf.writer();
+        defer buf.deinit();
+        {
+            defer buf.clearRetainingCapacity();
+            const section_file = section_dir.createFile(
+                "s",
+                .{},
+            ) catch unreachable;
+            defer section_file.close();
+
+            for (s.pages.items) |p| {
+                w.print("{s}\n", .{
+                    project.pathJoin(&.{ p.content_sub_path, p.md_name }),
+                }) catch unreachable;
+            }
+            section_file.writeAll(buf.items) catch unreachable;
+        }
+
+        // prev-next index
+        {
+            std.mem.reverse(Page, s.pages.items);
+            for (s.pages.items, 0..) |p, idx| {
+                defer buf.clearRetainingCapacity();
+
+                const next = if (idx < s.pages.items.len - 1) project.pathJoin(&.{
+                    s.pages.items[idx + 1].content_sub_path,
+                    s.pages.items[idx + 1].md_name,
+                }) else "";
+
+                const current = project.pathJoin(&.{
+                    p.content_sub_path,
+                    p.md_name,
+                });
+                w.print("{s}\n{s}\n", .{ current, next }) catch unreachable;
+
+                const page_file = section_dir.createFile(
+                    project.fmt("{d}_{d}", .{ idx, idx + 1 }),
+                    .{},
+                ) catch unreachable;
+                defer page_file.close();
+
+                page_file.writeAll(buf.items) catch unreachable;
+            }
+        }
     }
 };
 
-pub fn ensureDir(path: []const u8) void {
-    std.fs.cwd().makePath(path) catch |err| {
+pub fn ensureDir(project: *std.Build, path: []const u8) void {
+    project.build_root.handle.makePath(path) catch |err| {
         std.debug.print("Error while creating '{s}': {s}\n", .{
             path, @errorName(err),
         });

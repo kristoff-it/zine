@@ -14,15 +14,6 @@ pub const std_options: std.Options = .{
     .log_scope_levels = options.log_scope_levels,
 };
 
-const usage =
-    \\usage: zine serve [options]
-    \\
-    \\options:
-    \\      -p [port]        set the port number to listen on
-    \\      --root [path]    directory of static files to serve
-    \\
-;
-
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 const Server = struct {
@@ -207,59 +198,27 @@ fn appendSlashRedirect(
     log.debug("append final slash redirect\n", .{});
 }
 
-pub fn main() !void {
-    const gpa = general_purpose_allocator.allocator();
-
-    const args = try std.process.argsAlloc(gpa);
-
-    log.debug("log from server!", .{});
-
-    if (args.len < 2) fatal("missing subcommand argument", .{});
-
-    const cmd_name = args[1];
-    if (std.mem.eql(u8, cmd_name, "serve")) {
-        return cmdServe(gpa, args[2..]);
-    } else {
-        fatal("unrecognized subcommand: '{s}'", .{cmd_name});
-    }
-}
-
 fn fatal(comptime format: []const u8, args: anytype) noreturn {
     std.debug.print(format, args);
     std.process.exit(1);
 }
 
-fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
-    var listen_port: u16 = 0;
-    var opt_root_dir_path: ?[]const u8 = null;
-    var input_dirs: std.ArrayListUnmanaged([]const u8) = .{};
-    const zig_exe = args[0];
+pub fn main() !void {
+    const gpa = general_purpose_allocator.allocator();
+    const args = try std.process.argsAlloc(gpa);
+    log.debug("server args: {s}", .{args});
 
-    {
-        var i: usize = 1;
-        while (i < args.len) : (i += 1) {
-            const arg = args[i];
-            if (std.mem.eql(u8, arg, "-p")) {
-                i += 1;
-                if (i >= args.len) fatal("expected arg after '{s}'", .{arg});
-                listen_port = std.fmt.parseInt(u16, args[i], 10) catch |err| {
-                    fatal("unable to parse port '{s}': {s}", .{ args[i], @errorName(err) });
-                };
-            } else if (std.mem.eql(u8, arg, "--root")) {
-                i += 1;
-                if (i >= args.len) fatal("expected arg after '{s}'", .{arg});
-                opt_root_dir_path = args[i];
-            } else if (std.mem.eql(u8, arg, "--input-dir")) {
-                i += 1;
-                if (i >= args.len) fatal("expected arg after '{s}'", .{arg});
-                try input_dirs.append(gpa, args[i]);
-            } else {
-                fatal("unrecognized arg: '{s}'", .{arg});
-            }
-        }
-    }
+    std.debug.assert(args.len > 5);
 
-    const root_dir_path = opt_root_dir_path orelse ".";
+    const zig_exe = args[1];
+    const root_dir_path = args[2];
+    const listen_port = std.fmt.parseInt(u16, args[3], 10) catch {
+        @panic("unable to parse port argument!");
+    };
+    const rebuild_step_name = args[4];
+    const debug = std.mem.eql(u8, args[5], "Debug");
+
+    const input_dirs = args[6..];
 
     // ensure the path exists. without this, an empty website that
     // doesn't generate a zig-out/ will cause the server to error out
@@ -269,7 +228,14 @@ fn cmdServe(gpa: Allocator, args: []const []const u8) !void {
         fatal("unable to open directory '{s}': {s}", .{ root_dir_path, @errorName(e) });
     defer root_dir.close();
 
-    var watcher = try Reloader.init(gpa, zig_exe, root_dir_path, input_dirs.items);
+    var watcher = try Reloader.init(
+        gpa,
+        zig_exe,
+        root_dir_path,
+        input_dirs,
+        rebuild_step_name,
+        debug,
+    );
 
     var server: Server = .{
         .watcher = &watcher,

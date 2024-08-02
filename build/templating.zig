@@ -17,7 +17,7 @@ pub fn scan(
     const compiled_templates = std.StringHashMap(Layout).init(project.allocator);
     _ = compiled_templates;
 
-    const layouts_dir = try std.fs.cwd().openDir(
+    const layouts_dir = try project.build_root.handle.openDir(
         layouts_dir_path,
         .{ .iterate = true },
     );
@@ -80,8 +80,12 @@ fn addLayoutCompilation(
     };
 }
 
-fn findParentTemplateName(path: []const u8, arena: std.mem.Allocator) !?[]const u8 {
-    const file = try std.fs.cwd().openFile(path, .{});
+fn findParentTemplateName(
+    project: *std.Build,
+    path: []const u8,
+    arena: std.mem.Allocator,
+) !?[]const u8 {
+    const file = try project.build_root.handle.openFile(path, .{});
     defer file.close();
 
     var buf_reader = std.io.bufferedReader(file.reader());
