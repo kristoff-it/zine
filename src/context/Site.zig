@@ -68,7 +68,7 @@ pub const Builtins = struct {
             \\Retuns an asset by name from inside the assets directory.
         ;
         pub const examples =
-            \\<img src="$site.asset('foo.png').bytes().base64().prefix('data:image/png;base64,')">
+            \\<img src="$site.asset('foo.png').link()">
         ;
         pub fn call(
             p: *Site,
