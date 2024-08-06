@@ -93,7 +93,13 @@ fn render(renderer: *AnsiRenderer, reader: anytype, writer: anytype) !void {
             .normal => switch (char) {
                 '\x1b' => renderer.state = .escape,
                 else => switch (renderer.g0_charset) {
-                    .ascii => try writer.writeByte(char),
+                    .ascii => {
+                        _ = try writer.write(switch (char) {
+                            '<' => "&lt;",
+                            '>' => "&gt;",
+                            else => &.{char},
+                        });
+                    },
                     .vt100_line_drawing => {
                         _ = try writer.write(switch (char) {
                             'j' => "┘",
