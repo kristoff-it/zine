@@ -3,7 +3,9 @@ const Page = @This();
 const std = @import("std");
 const ziggy = @import("ziggy");
 const scripty = @import("scripty");
+const supermd = @import("supermd");
 const utils = @import("utils.zig");
+const render = @import("../render.zig");
 const Signature = @import("docgen.zig").Signature;
 const DateTime = @import("DateTime.zig");
 const context = @import("../context.zig");
@@ -25,7 +27,6 @@ alternatives: []const Alternative = &.{},
 skip_subdirs: bool = false,
 translation_key: []const u8 = "",
 custom: ziggy.dynamic.Value = .null,
-content: []const u8 = "",
 _assets: *context.AssetExtern = &asset_undef,
 _pages: *context.PageExtern = &page_undef,
 
@@ -39,6 +40,35 @@ _meta: struct {
     word_count: u64 = 0,
     is_section: bool = false,
     translations: []const Translation = &.{},
+    src: []const u8 = "",
+    ast: ?supermd.Ast = null,
+
+    const Self = @This();
+    pub const ziggy_options = struct {
+        pub fn stringify(
+            value: Self,
+            opts: ziggy.serializer.StringifyOptions,
+            indent_level: usize,
+            depth: usize,
+            writer: anytype,
+        ) !void {
+            _ = value;
+            _ = opts;
+            _ = indent_level;
+            _ = depth;
+
+            try writer.writeAll("{}");
+        }
+
+        pub fn parse(
+            p: *ziggy.Parser,
+            first_tok: ziggy.Tokenizer.Token,
+        ) !Self {
+            try p.must(first_tok, .lb);
+            _ = try p.nextMust(.rb);
+            return .{};
+        }
+    };
 } = .{},
 
 pub const Translation = struct {
@@ -415,6 +445,7 @@ pub const Builtins = struct {
         }
     };
 
+    // TODO: delete this
     pub const permalink = struct {
         pub const signature: Signature = .{ .ret = .str };
         pub const description =
@@ -428,6 +459,76 @@ pub const Builtins = struct {
             _: *utils.SuperHTMLResource,
         ) !Value {
             return .{ .err = "deprecated, use `link`" };
+        }
+    };
+
+    pub const content = struct {
+        pub const signature: Signature = .{ .ret = .str };
+        pub const description =
+            \\Renders the full Markdown page to HTML
+        ;
+        pub const examples = "";
+        pub fn call(
+            p: *Page,
+            gpa: Allocator,
+            args: []const Value,
+            _: *utils.SuperHTMLResource,
+        ) !Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            var buf = std.ArrayList(u8).init(gpa);
+            const ast = p._meta.ast orelse return .{
+                .err = "only the main page can be rendered for now",
+            };
+            try render.html(gpa, ast, ast.md.root, "", buf.writer());
+            return .{ .string = try buf.toOwnedSlice() };
+        }
+    };
+    pub const contentSection = struct {
+        pub const signature: Signature = .{
+            .params = &.{.str},
+            .ret = .str,
+        };
+        pub const description =
+            \\Renders only the specified content section of a page.
+            \\A content section is a `#` heading defined to be a Block 
+            \\with an id attribute set.  
+            \\
+            \\This is how you can define a section in SuperMD:
+            \\ `# [Title]($block.id('section-id'))`
+        ;
+        pub const examples =
+            \\<div var="$page.contentSection('section-id')"></div>
+        ;
+        pub fn call(
+            p: *Page,
+            gpa: Allocator,
+            args: []const Value,
+            _: *utils.SuperHTMLResource,
+        ) !Value {
+            const bad_arg = .{
+                .err = "expected 1 string argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const block_id = switch (args[0]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            const ast = try supermd.Ast.init(gpa, p._meta.src);
+            var buf = std.ArrayList(u8).init(gpa);
+
+            const node = ast.sections.get(block_id) orelse {
+                return Value.errFmt(
+                    gpa,
+                    "content section '{s}' doesn't exist",
+                    .{block_id},
+                );
+            };
+
+            try render.html(gpa, ast, node, "", buf.writer());
+            return .{ .string = try buf.toOwnedSlice() };
         }
     };
 };

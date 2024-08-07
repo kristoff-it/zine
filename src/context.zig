@@ -10,6 +10,8 @@ const HostExtern = utils.HostExtern;
 pub const ScriptyParam = docgen.ScriptyParam;
 pub const Signature = docgen.Signature;
 
+pub const md = @import("context/markdown.zig");
+
 pub const Resources = utils.Resources;
 
 pub const AssetKindUnion = union(Asset.Kind) {
