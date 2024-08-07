@@ -3,10 +3,11 @@ const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 const options = @import("options");
 const ziggy = @import("ziggy");
-const super = @import("superhtml");
+const superhtml = @import("superhtml");
+const supermd = @import("supermd");
+
 const zine = @import("zine");
 const context = zine.context;
-const md = @import("markdown-renderer.zig");
 
 const log = std.log.scoped(.layout);
 pub const std_options: std.Options = .{
@@ -209,14 +210,14 @@ pub fn main() !void {
         },
     };
 
-    const page = md.render(
+    const page = loadPage(
         arena,
         md_path,
         md_rel_path,
         url_path_prefix,
         index_in_section,
         parent_section_path,
-        dep_writer.any(),
+        true,
     ) catch |err| {
         fatal("error while trying to parse {s}: {s}", .{
             md_rel_path,
@@ -253,7 +254,7 @@ pub fn main() !void {
 
     ctx.page._meta.translations = ti;
 
-    const SuperVM = super.VM(
+    const SuperVM = superhtml.VM(
         context.Template,
         context.Value,
         context.Resources,
@@ -339,6 +340,247 @@ pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
 
 pub fn oom() noreturn {
     fatal("out of memory", .{});
+}
+
+pub fn loadPage(
+    arena: std.mem.Allocator,
+    md_path: []const u8,
+    md_rel_path: []const u8,
+    url_path_prefix: []const u8,
+    index_in_section: ?usize,
+    parent_section_path: ?[]const u8,
+    is_root_page: bool,
+) !context.Page {
+    var time = std.time.Timer.start() catch unreachable;
+
+    defer log.debug(
+        "Rendering '{s}' took {}ms ({}ns)\n",
+        .{
+            md_path,
+            time.read() / std.time.ns_per_ms,
+            time.read(),
+        },
+    );
+
+    var is_section = false;
+    var md_asset_dir_path: []const u8 = undefined;
+    var md_asset_dir_rel_path: []const u8 = undefined;
+    if (std.mem.endsWith(u8, md_path, "index.md")) {
+        is_section = true;
+        md_asset_dir_path = md_path[0 .. md_path.len - "index.md".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - "index.md".len];
+    } else {
+        md_asset_dir_path = md_path[0 .. md_path.len - ".md".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - ".md".len];
+    }
+
+    const in_file = std.fs.cwd().openFile(md_path, .{}) catch |err| {
+        std.debug.print("Error while opening file: {s}\n", .{md_path});
+        return err;
+    };
+    defer in_file.close();
+
+    var buf_reader = std.io.bufferedReader(in_file.reader());
+    const r = buf_reader.reader();
+    const fm = try ziggy.frontmatter.Parser(context.Page).parse(arena, r, null);
+    var page = switch (fm) {
+        .success => |s| s.header,
+        else => unreachable,
+    };
+
+    const md_src = try r.readAllAlloc(arena, 1024 * 1024 * 10);
+    page._meta = .{
+        // TODO: unicode this
+        .word_count = @intCast(md_src.len / 6),
+        .is_section = std.mem.endsWith(u8, md_path, "/index.md"),
+        .md_rel_path = md_rel_path,
+        .url_path_prefix = url_path_prefix,
+        .index_in_section = index_in_section,
+        .parent_section_path = parent_section_path,
+    };
+
+    // Only root page gets analized
+    if (!is_root_page) return page;
+
+    const ast = try supermd.Ast.init(arena, md_src);
+    const fm_offset = std.mem.count(u8, fm.success.code, "\n") + 2;
+
+    if (ast.errors.len != 0) {
+        std.debug.print(
+            \\
+            \\---------- MARKDOWN SYNTAX ERROR ----------
+            \\
+            \\A syntax error was found in a content file.
+            \\
+            // \\It's strongly recommended to setup your editor to
+            // \\leverage the `supermd` CLI tool in order to obtain
+            // \\in-editor syntax checking and autoformatting.
+            // \\
+            // \\Download it from here:
+            // \\   https://github.com/kristoff-it/supermd
+            \\
+        , .{});
+
+        for (ast.errors) |err| {
+            const range = err.main;
+            const line = blk: {
+                var it = std.mem.splitScalar(u8, md_src, '\n');
+                for (1..range.start.row) |_| _ = it.next();
+                break :blk it.next().?;
+            };
+
+            const line_trim_left = std.mem.trimLeft(
+                u8,
+                line,
+                &std.ascii.whitespace,
+            );
+
+            const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
+
+            const start_trim_left = line.len - line_trim_left.len;
+            const caret_len = if (range.start.row == range.end.row)
+                range.end.col - range.start.col
+            else
+                line_trim.len - start_trim_left;
+            const caret_spaces_len = range.start.col - 1 - start_trim_left;
+
+            var buf: [1024]u8 = undefined;
+
+            const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
+                const h = buf[0 .. caret_len + caret_spaces_len];
+                @memset(h[0..caret_spaces_len], ' ');
+                @memset(h[caret_spaces_len..][0..caret_len], '^');
+                break :blk h;
+            } else "";
+
+            const msg = switch (err.kind) {
+                .scripty => |s| s.err,
+                else => "",
+            };
+
+            // std.debug.print("fm: {}\nerr: {s}\nrange start: {any}\nrange end: {any}", .{
+            //     fm_offset,
+            //     @tagName(err.kind),
+            //     err.main.start,
+            //     err.main.end,
+            // });
+
+            // Saturating subtraction because of a bug related to html comments
+            // in markdown.
+            const lines = range.end.row -| range.start.row;
+            const lines_fmt = if (lines == 0) "" else try std.fmt.allocPrint(
+                arena,
+                "(+{} lines)",
+                .{lines},
+            );
+
+            std.debug.print(
+                \\
+                \\[{s}] {s}
+                \\({s}) {s}:{}:{}: {s}
+                \\    {s}
+                \\    {s}
+                \\
+            , .{
+                @tagName(err.kind),          msg,
+                md_rel_path,                 md_path,
+                fm_offset + range.start.row, range.start.col,
+                lines_fmt,                   line_trim,
+                highlight,
+            });
+        }
+        std.process.exit(1);
+    }
+
+    var current: ?supermd.Node = ast.md.root.firstChild();
+    while (current) |n| : (current = n.next(ast.md.root)) {
+        const directive = n.getDirective() orelse continue;
+
+        switch (directive.kind) {
+            .block => {},
+            inline else => |val, tag| {
+                const res = switch (val.src.?) {
+                    .url => continue,
+                    .page => |ref| try asset_finder.find(arena, .{
+                        .ref = ref,
+                        .kind = .{ .page = md_asset_dir_rel_path },
+                    }),
+                    .site => |ref| try asset_finder.find(arena, .{
+                        .ref = ref,
+                        .kind = .site,
+                    }),
+                    .build => |ref| try asset_finder.find(arena, .{
+                        .ref = ref,
+                        .kind = .{ .build = null },
+                    }),
+                };
+
+                if (res == .err) {
+                    const range = n.range();
+                    const line = blk: {
+                        var it = std.mem.splitScalar(u8, md_src, '\n');
+                        for (1..range.start.row) |_| _ = it.next();
+                        break :blk it.next().?;
+                    };
+
+                    const line_trim_left = std.mem.trimLeft(
+                        u8,
+                        line,
+                        &std.ascii.whitespace,
+                    );
+
+                    const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
+
+                    const start_trim_left = line.len - line_trim_left.len;
+                    const caret_len = if (range.start.row == range.end.row)
+                        range.end.col - range.start.col
+                    else
+                        line_trim.len - start_trim_left;
+                    const caret_spaces_len = range.start.col - 1 - start_trim_left;
+
+                    var buf: [1024]u8 = undefined;
+
+                    const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
+                        const h = buf[0 .. caret_len + caret_spaces_len];
+                        @memset(h[0..caret_spaces_len], ' ');
+                        @memset(h[caret_spaces_len..][0..caret_len], '^');
+                        break :blk h;
+                    } else "";
+
+                    std.debug.print(
+                        \\
+                        \\---------- MARKDOWN MISSING ASSET ----------
+                        \\
+                        \\An asset referenced in a content file is missing. 
+                        \\
+                        \\
+                        \\[{s}] {s}
+                        \\({s}) {s}:{}:{}: 
+                        \\    {s}
+                        \\    {s}
+                        \\
+                        \\{s}
+                        \\
+                    , .{
+                        "missing_asset",             res.err,
+
+                        md_rel_path,                 md_path,
+                        fm_offset + range.start.row, range.start.col,
+                        line_trim,                   highlight,
+
+                        if (is_section) "" else 
+                        \\NOTE: assets for this page must be placed under a subdirectory that shares the same name with the corresponding markdown file!
+                        ,
+                    });
+                }
+                const url = try asset_collector.collect(arena, res.asset._meta);
+                @field(directive.kind, @tagName(tag)).src = .{ .url = url };
+            },
+        }
+    }
+    page._meta.ast = ast;
+
+    return page;
 }
 
 const PageFinder = struct {
@@ -502,18 +744,14 @@ const PageLoader = struct {
         };
 
         const page = try gpa.create(context.Page);
-        page.* = md.render(
+        page.* = loadPage(
             gpa,
             md_path,
             args.md_rel_path,
             args.url_path_prefix,
             args.index_in_section,
             args.parent_section_path,
-            // We don't pass a dep writer because we
-            // don't want to save assets for real as
-            // it will be done by the invocation of layout
-            // there that page gets analyzed directly.
-            null,
+            false,
         ) catch |err| {
             fatal("error while trying to parse {s}: {s}", .{
                 args.md_rel_path,
@@ -544,8 +782,15 @@ const AssetFinder = struct {
         gpa: Allocator,
         arg: context.AssetExtern.Args,
     ) !context.Value {
-        const f: *const AssetFinder = @fieldParentPtr("host_extern", he);
+        const f: *AssetFinder = @constCast(@fieldParentPtr("host_extern", he));
+        return f.find(gpa, arg);
+    }
 
+    fn find(
+        f: *AssetFinder,
+        gpa: Allocator,
+        arg: context.AssetExtern.Args,
+    ) !context.Value {
         const base_path = switch (arg.kind) {
             .site => f.assets_dir_path,
             .page => |p| try std.fs.path.join(gpa, &.{
@@ -600,6 +845,7 @@ const AssetFinder = struct {
             },
         };
 
+        log.debug("finder opening '{s}'", .{base_path});
         const dir = std.fs.cwd().openDir(base_path, .{}) catch {
             @panic("error while opening asset index dir");
         };
