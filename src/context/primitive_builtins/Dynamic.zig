@@ -2,9 +2,10 @@ const std = @import("std");
 const assert = std.debug.assert;
 const ziggy = @import("ziggy");
 const utils = @import("../utils.zig");
+const context = @import("../../context.zig");
 const DateTime = @import("../DateTime.zig");
 const Signature = @import("../docgen.zig").Signature;
-const Value = @import("../../context.zig").Value;
+const Value = context.Value;
 const Allocator = std.mem.Allocator;
 
 pub const get = struct {
@@ -20,7 +21,6 @@ pub const get = struct {
         dyn: ziggy.dynamic.Value,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) Value {
         _ = gpa;
         const bad_arg = .{ .err = "'get' wants two (string) arguments" };
@@ -70,7 +70,6 @@ pub const @"get!" = struct {
         dyn: ziggy.dynamic.Value,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) Value {
         _ = gpa;
         const bad_arg = .{ .err = "'get' wants one (string) argument" };
@@ -97,6 +96,7 @@ pub const @"get!" = struct {
                     };
                     return .{ .date = date };
                 },
+                .kv => return .{ .dynamic = value },
                 inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
             }
         }
@@ -118,7 +118,6 @@ pub const @"get?" = struct {
         dyn: ziggy.dynamic.Value,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) Value {
         _ = gpa;
         const bad_arg = .{ .err = "'get?' wants 1 string argument" };
@@ -138,10 +137,81 @@ pub const @"get?" = struct {
                 .bool => |b| return .{ .optional = .{ .bool = b } },
                 .integer => |i| return .{ .optional = .{ .int = i } },
                 .bytes => |s| return .{ .optional = .{ .string = s } },
+                .kv => return .{ .optional = .{ .dynamic = value } },
                 inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
             }
         }
 
         return .{ .optional = null };
+    }
+};
+pub const has = struct {
+    pub const signature: Signature = .{ .params = &.{.str}, .ret = .bool };
+    pub const description =
+        \\Returns true if the map contains the provided key.
+        \\
+    ;
+    pub const examples =
+        \\<div if="$page.custom.has('myValue')">Yep!</div>
+    ;
+    pub fn call(
+        dyn: ziggy.dynamic.Value,
+        gpa: Allocator,
+        args: []const Value,
+    ) Value {
+        _ = gpa;
+        const bad_arg = .{ .err = "'get?' wants 1 string argument" };
+        if (args.len != 1) return bad_arg;
+
+        const path = switch (args[0]) {
+            .string => |s| s,
+            else => return bad_arg,
+        };
+
+        if (dyn == .null) return .{ .optional = null };
+        if (dyn != .kv) return .{ .err = "has called on a non-map dynamic value" };
+
+        return .{
+            .bool = dyn.kv.fields.get(path) != null,
+        };
+    }
+};
+
+pub const iterate = struct {
+    pub const signature: Signature = .{
+        .parameters = &.{ .opt = .{.str} },
+        .ret = .dyn,
+    };
+    pub const description =
+        \\Iterates over key-value pairs of a Ziggy map.
+        \\
+        \\You can optionally pass a string that will be used to filter key names.
+    ;
+    pub const examples =
+        \\$page.custom.iterate()
+    ;
+    pub fn call(
+        dyn: ziggy.dynamic.Value,
+        gpa: Allocator,
+        args: []const Value,
+    ) Value {
+        _ = gpa;
+        const bad_arg = .{ .err = "expected 0 or 1 string arguments" };
+        if (args.len > 1) return bad_arg;
+
+        if (dyn != .kv) return .{
+            .err = "trying to iterate a non-map dynamic value",
+        };
+
+        const filter: ?[]const u8 = if (args.len == 0) null else switch (args[0]) {
+            .string => |s| s,
+            else => return bad_arg,
+        };
+
+        return .{
+            .iterator = .{
+                .map_it = context.MapIterator.init(dyn.kv.fields.iterator(), filter),
+            },
+        };
     }
 };

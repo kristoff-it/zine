@@ -8,7 +8,6 @@ pub fn directiveCall(
     gpa: Allocator,
     fn_name: []const u8,
     args: []const ctx.Value,
-    _: *void,
 ) !ctx.Value {
     switch (d.kind) {
         inline else => |*k, tag| {
@@ -143,7 +142,7 @@ pub const SrcBuiltins = struct {
                 return .{ .err = "field already set" };
             }
 
-            @field(self, "src") = .{ .page = page_asset };
+            @field(self, "src") = .{ .page_asset = page_asset };
             return .{ .directive = d };
         }
     };
@@ -174,7 +173,7 @@ pub const SrcBuiltins = struct {
                 return .{ .err = "field already set" };
             }
 
-            @field(self, "src") = .{ .site = site_asset };
+            @field(self, "src") = .{ .site_asset = site_asset };
             return .{ .directive = d };
         }
     };
@@ -204,7 +203,58 @@ pub const SrcBuiltins = struct {
                 return .{ .err = "field already set" };
             }
 
-            @field(self, "src") = .{ .build = build_asset };
+            @field(self, "src") = .{ .build_asset = build_asset };
+            return .{ .directive = d };
+        }
+    };
+
+    pub const page = struct {
+        pub const description =
+            \\Links to a page.
+            \\
+            \\The first argument is a page path, while the second optional 
+            \\argument is the locale code for mulitlingual websites. In 
+            \\mulitlingual websites, the locale code defaults to the same
+            \\locale of the current content file.
+            \\
+            \\The path is relative to the content directory and should exclude
+            \\the markdown suffix as Zine will automatically infer which file
+            \\naming convention is used by the target page. 
+            \\
+            \\For example, the value 'foo/bar' will be automatically
+            \\matched by Zine with either:
+            \\        - content/foo/bar.md
+            \\        - content/foo/bar/index.md
+        ;
+        pub fn call(
+            self: anytype,
+            d: *ctx.Directive,
+            _: Allocator,
+            args: []const ctx.Value,
+        ) !ctx.Value {
+            const bad_arg = .{ .err = "expected 1 or 2 string arguments" };
+            if (args.len < 1 or args.len > 2) return bad_arg;
+
+            const ref = switch (args[0]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            const code = if (args.len == 1) null else switch (args[1]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            if (self.src != null) {
+                return .{ .err = "field already set" };
+            }
+
+            @field(self, "src") = .{
+                .page = .{
+                    .ref = ref,
+                    .locale = code,
+                },
+            };
             return .{ .directive = d };
         }
     };

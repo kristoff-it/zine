@@ -36,7 +36,6 @@ pub const Builtins = struct {
             dt: DateTime,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             _ = gpa;
             const argument_error = .{ .err = "'gt' wants one (date) argument" };
@@ -63,7 +62,6 @@ pub const Builtins = struct {
             dt: DateTime,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             _ = gpa;
             const argument_error = .{ .err = "'lt' wants one (date) argument" };
@@ -90,7 +88,6 @@ pub const Builtins = struct {
             dt: DateTime,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             _ = gpa;
             const argument_error = .{ .err = "'eq' wants one (date) argument" };
@@ -119,7 +116,6 @@ pub const Builtins = struct {
             dt: DateTime,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             const argument_error = .{ .err = "'format' wants one (string) argument" };
             if (args.len != 1) return argument_error;
@@ -150,7 +146,6 @@ pub const Builtins = struct {
             dt: DateTime,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             const argument_error = .{ .err = "'formatHTTP' wants no argument" };
             if (args.len != 0) return argument_error;

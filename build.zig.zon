@@ -9,12 +9,10 @@
             .path = "supermd",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#f76f3509ced74a85d8103860cc31cdd121e08a63",
-            .hash = "122035c69f332a5a626c5fffb47efe6572ebd3566e405511e3f44914688db0951e0c",
+            .path = "../scripty",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#c9fe65c67ac9d4f1bf30e2f78d4a60bf42b0b26d",
-            .hash = "12206d96e7bb0e807def94910d0509252f2727b2096052eaf013842a4581a6531020",
+            .path = "../superhtml",
         },
         .ziggy = .{
             .url = "git+https://github.com/kristoff-it/ziggy#20c8088dbf4b22dc2f6e21d289cfb3dcc25c8cae",

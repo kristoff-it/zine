@@ -7,8 +7,9 @@ pub const Content = struct {
     block: Directive = .{ .kind = .{ .block = .{} } },
     image: Directive = .{ .kind = .{ .image = .{} } },
     video: Directive = .{ .kind = .{ .video = .{} } },
+    link: Directive = .{ .kind = .{ .link = .{} } },
 
-    pub const dot = scripty.defaultDot(Content, Value);
+    pub const dot = scripty.defaultDot(Content, Value, true);
     pub const Builtins = struct {};
 };
 
@@ -67,7 +68,7 @@ pub const Value = union(enum) {
         }
     }
 
-    pub const call = scripty.defaultCall(Value, void);
+    pub const call = scripty.defaultCall(Value);
 
     pub fn builtinsFor(
         comptime tag: @typeInfo(Value).Union.tag_type.?,
@@ -98,6 +99,7 @@ pub const Directive = struct {
         block: Block,
         image: Image,
         video: Video,
+        link: Link,
         // sound: struct {
         //     id: ?[]const u8 = null,
         //     attrs: ?[]const []const u8 = null,
@@ -132,7 +134,6 @@ pub const Directive = struct {
                 self: *Directive,
                 _: Allocator,
                 args: []const Value,
-                _: *void,
             ) !Value {
                 const bad_arg = .{
                     .err = "expected 1 string argument",
@@ -160,7 +161,6 @@ pub const Directive = struct {
                 self: *Directive,
                 gpa: Allocator,
                 args: []const Value,
-                _: *void,
             ) !Value {
                 const bad_arg = .{
                     .err = "expected 1 or more string arguments",
@@ -193,17 +193,16 @@ pub const Block = struct {
 pub const Src = union(enum) {
     // External link
     url: []const u8,
-    // Page asset
-    page: []const u8,
-    // Site asset
-    site: []const u8,
-    // Build asset
-    build: []const u8,
+    page: struct { ref: []const u8, locale: ?[]const u8 },
+    page_asset: []const u8,
+    site_asset: []const u8,
+    build_asset: []const u8,
 };
 pub const Image = struct {
     alt: ?[]const u8 = null,
     src: ?Src = null,
     caption: ?[]const u8 = null,
+    linked: ?bool = null,
 
     pub const mandatory = .{.src};
     pub const Builtins = struct {
@@ -254,5 +253,22 @@ pub const Video = struct {
         pub const asset = utils.SrcBuiltins.asset;
         pub const siteAsset = utils.SrcBuiltins.siteAsset;
         pub const buildAsset = utils.SrcBuiltins.buildAsset;
+    };
+};
+
+pub const Link = struct {
+    src: ?Src = null,
+    target: ?[]const u8 = null,
+
+    pub const mandatory = .{.src};
+    pub const Builtins = struct {
+        pub const url = utils.SrcBuiltins.url;
+        pub const asset = utils.SrcBuiltins.asset;
+        pub const siteAsset = utils.SrcBuiltins.siteAsset;
+        pub const buildAsset = utils.SrcBuiltins.buildAsset;
+        pub const page = utils.SrcBuiltins.page;
+        pub const target = utils.directiveBuiltin("target", .string,
+            \\Sets the target HTML attribute of this link. 
+        );
     };
 };

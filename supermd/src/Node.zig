@@ -99,6 +99,10 @@ pub fn listType(self: Node) ListType {
     };
 }
 
+pub fn listIsTight(n: Node) bool {
+    return 1 == c.cmark_node_get_list_tight(n.n);
+}
+
 pub fn parent(n: Node) ?Node {
     const ptr = c.cmark_node_parent(n.n) orelse return null;
     const res: Node = .{ .n = ptr };

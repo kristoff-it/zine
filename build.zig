@@ -100,42 +100,46 @@ pub const MultilingualSite = struct {
     ///   - `name`
     ///   - `install_path` (if set, unless `link`ing them is mutually exclusive)
     build_assets: []const BuildAsset = &.{},
-    /// A list of localized variants of this website.
+    /// A list of locales of this website.
     ///
     /// For each entry the following values must be unique:
-    ///   - `locale_code`
-    ///   - `output_prefix_override` (if set)
-    localized_variants: []const LocalizedVariant,
+    ///   - `code`
+    ///   - `output_prefix_override` (if set) + `host_url_override`
+    locales: []const Locale,
 
     /// Enables Zine's -Ddebug and -Dscope flags
     /// (only useful if you're developing Zine)
     debug: bool = false,
+};
 
-    pub const LocalizedVariant = struct {
-        /// Site title for this localized variant.
-        title: []const u8,
-        /// A language-NATION code, e.g. 'en-US'.
-        locale_code: []const u8,
-        /// Content dir for this localized variant.
-        content_dir_path: []const u8,
-        /// Set to a non-null value when deploying this variant from a dedicated
-        /// host (e.g. 'https://us.site.com', 'http://de.site.com').
-        ///
-        /// It must not contain a subpath.
-        host_url_override: ?[]const u8 = null,
-        /// |  output_ |     host_     |     resulting    |    resulting    |
-        /// |  prefix_ |      url_     |        url       |      path       |
-        /// | override |   override    |      prefix      |     prefix      |
-        /// | -------- | ------------- | ---------------- | --------------- |
-        /// |   null   |      null     | site.com/en-US/  | zig-out/en-US/  |
-        /// |   null   | "us.site.com" | us.site.com/     | zig-out/en-US/  |
-        /// |   "foo"  |      null     | site.com/foo/    | zig-out/foo/    |
-        /// |   "foo"  | "us.site.com" | us.site.com/foo/ | zig-out/foo/    |
-        /// |    ""    |      null     | site.com/        | zig-out/        |
-        ///
-        /// The last case is how you create a default localized variant.
-        output_prefix_override: ?[]const u8 = null,
-    };
+/// A localized variant of a multilingual website
+pub const Locale = struct {
+    /// A language-NATION code, e.g. 'en-US', used to identify each
+    /// individual localized variant of the website.
+    code: []const u8,
+    /// A name that identifies this locale, e.g. 'English'
+    name: []const u8,
+    /// Content dir for this locale,
+    content_dir_path: []const u8,
+    /// Site title for this locale.
+    site_title: []const u8,
+    /// Set to a non-null value when deploying this locale from a dedicated
+    /// host (e.g. 'https://us.site.com', 'http://de.site.com').
+    ///
+    /// It must not contain a subpath.
+    host_url_override: ?[]const u8 = null,
+    /// |  output_ |     host_     |     resulting    |    resulting    |
+    /// |  prefix_ |      url_     |        url       |      path       |
+    /// | override |   override    |      prefix      |     prefix      |
+    /// | -------- | ------------- | ---------------- | --------------- |
+    /// |   null   |      null     | site.com/en-US/  | zig-out/en-US/  |
+    /// |   null   | "us.site.com" | us.site.com/     | zig-out/en-US/  |
+    /// |   "foo"  |      null     | site.com/foo/    | zig-out/foo/    |
+    /// |   "foo"  | "us.site.com" | us.site.com/foo/ | zig-out/foo/    |
+    /// |    ""    |      null     | site.com/        | zig-out/        |
+    ///
+    /// The last case is how you create a default locale.
+    output_prefix_override: ?[]const u8 = null,
 };
 
 /// Defines a default Zine project:
@@ -229,7 +233,7 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
         multi.i18n_dir_path,
     }) catch unreachable;
 
-    for (multi.localized_variants) |v| {
+    for (multi.locales) |v| {
         if (v.host_url_override) |_| {
             @panic("TODO: a variant specifies a dedicated host but multihost support for the dev server has not been implemented yet.");
         }

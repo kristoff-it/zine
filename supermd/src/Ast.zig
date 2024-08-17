@@ -11,7 +11,7 @@ const Value = supermd.Value;
 const Content = supermd.Content;
 const Directive = supermd.Directive;
 const Allocator = std.mem.Allocator;
-const ScriptyVM = scripty.VM(Content, Value, void);
+const ScriptyVM = scripty.VM(Content, Value);
 
 md: CMarkAst,
 errors: []const Error,
@@ -86,12 +86,12 @@ const Parser = struct {
 
             const directive = try p.runScript(link, src) orelse break :block;
 
-            const hl = h.headingLevel();
-            if (hl == 1 and directive.kind == .block) {
+            if (directive.kind == .block) {
                 if (directive.id) |id| {
                     try p.sections.put(p.gpa, id, h);
                 }
             }
+            _ = try h.setDirective(p.gpa, directive);
         }
 
         try p.analyzeSiblings(link.nextSibling(), h);

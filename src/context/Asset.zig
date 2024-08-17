@@ -10,8 +10,12 @@ const context = @import("../context.zig");
 const Value = context.Value;
 const Allocator = std.mem.Allocator;
 
-_meta: context.AssetCollectorExtern.Args,
-_collector: *const context.AssetCollectorExtern = &.{},
+_meta: struct {
+    ref: []const u8,
+    // full path to the asset
+    path: []const u8,
+    kind: context.AssetKindUnion,
+},
 
 pub const Kind = enum {
     /// An asset inside of `assets_dir_path`
@@ -23,7 +27,7 @@ pub const Kind = enum {
 };
 
 pub const description = "Represents an asset.";
-pub const dot = scripty.defaultDot(Asset, Value);
+pub const dot = scripty.defaultDot(Asset, Value, false);
 pub const Builtins = struct {
     pub const link = struct {
         pub const signature: Signature = .{
@@ -49,7 +53,6 @@ pub const Builtins = struct {
             asset: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             const bad_arg = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
@@ -63,7 +66,13 @@ pub const Builtins = struct {
                 },
             }
 
-            return asset._collector.call(gpa, asset._meta);
+            const url = try context.assetCollect(
+                asset._meta.ref,
+                asset._meta.path,
+                asset._meta.kind,
+            );
+
+            return .{ .string = url };
         }
     };
     pub const size = struct {
@@ -80,7 +89,6 @@ pub const Builtins = struct {
             self: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -105,7 +113,6 @@ pub const Builtins = struct {
             self: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
@@ -130,7 +137,6 @@ pub const Builtins = struct {
             self: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 

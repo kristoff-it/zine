@@ -20,7 +20,6 @@ pub const eq = struct {
         num: i64,
         _: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         const argument_error = .{ .err = "'plus' wants one int argument" };
         if (args.len != 1) return argument_error;
@@ -49,7 +48,6 @@ pub const gt = struct {
         num: i64,
         _: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         const argument_error = .{ .err = "'gt' wants one int argument" };
         if (args.len != 1) return argument_error;
@@ -79,7 +77,6 @@ pub const plus = struct {
         num: i64,
         _: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         const argument_error = .{ .err = "'plus' wants one (int|float) argument" };
         if (args.len != 1) return argument_error;
@@ -109,7 +106,6 @@ pub const div = struct {
         num: i64,
         _: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         const argument_error = .{ .err = "'div' wants one (int|float) argument" };
         if (args.len != 1) return argument_error;
@@ -125,5 +121,38 @@ pub const div = struct {
             .float => @panic("TODO: div with float argument"),
             else => return argument_error,
         }
+    }
+};
+
+pub const byteSize = struct {
+    pub const signature: Signature = .{
+        .ret = .string,
+    };
+    pub const description =
+        \\Turns a raw number of bytes into a human readable string that
+        \\appropriately uses Kilo, Mega, Giga, etc.
+        \\
+    ;
+    pub const examples =
+        \\$page.asset('photo.jpg').size().byteSize()
+    ;
+    pub fn call(
+        num: i64,
+        gpa: Allocator,
+        args: []const Value,
+    ) !Value {
+        if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+        const size: usize = if (num > 0) @intCast(num) else return Value.errFmt(
+            gpa,
+            "cannot represent {} (a negative value) as a size",
+            .{num},
+        );
+
+        return .{
+            .string = try std.fmt.allocPrint(gpa, "{:.0}", .{
+                std.fmt.fmtIntSizeBin(size),
+            }),
+        };
     }
 };

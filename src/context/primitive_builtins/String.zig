@@ -19,7 +19,6 @@ pub const len = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         if (args.len != 0) return .{ .err = "expected 0 arguments" };
         return Value.from(gpa, str.len);
@@ -42,7 +41,6 @@ pub const contains = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         _ = gpa;
         const bad_arg = .{
@@ -75,7 +73,6 @@ pub const endsWith = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         _ = gpa;
         const bad_arg = .{
@@ -110,7 +107,6 @@ pub const eql = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         _ = gpa;
         const bad_arg = .{
@@ -123,6 +119,28 @@ pub const eql = struct {
         };
 
         return .{ .bool = std.mem.eql(u8, str, needle) };
+    }
+};
+
+pub const basename = struct {
+    pub const signature: Signature = .{
+        .ret = .str,
+    };
+    pub const description =
+        \\Returns the last component of a path.
+    ;
+    pub const examples =
+        \\$page.permalink().contains("/blog/")
+    ;
+    pub fn call(
+        str: []const u8,
+        gpa: Allocator,
+        args: []const Value,
+    ) !Value {
+        _ = gpa;
+        if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+        return .{ .string = std.fs.path.basename(str) };
     }
 };
 pub const suffix = struct {
@@ -141,7 +159,6 @@ pub const suffix = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
         var out = std.ArrayList(u8).init(gpa);
@@ -177,7 +194,6 @@ pub const fmt = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         if (args.len == 0) return .{ .err = "'fmt' wants at least one argument" };
         var out = std.ArrayList(u8).init(gpa);
@@ -227,7 +243,6 @@ pub const addPath = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         if (args.len == 0) return .{ .err = "'path' wants at least one argument" };
         var out = std.ArrayList(u8).init(gpa);
@@ -272,7 +287,6 @@ pub const syntaxHighlight = struct {
         str: []const u8,
         gpa: Allocator,
         args: []const Value,
-        _: *utils.SuperHTMLResource,
     ) !Value {
         if (args.len != 1) return .{ .err = "'syntaxHighlight' wants one argument" };
         var out = std.ArrayList(u8).init(gpa);
@@ -292,5 +306,33 @@ pub const syntaxHighlight = struct {
         };
 
         return .{ .string = try out.toOwnedSlice() };
+    }
+};
+
+pub const parseInt = struct {
+    pub const signature: Signature = .{
+        .ret = .int,
+    };
+    pub const description =
+        \\Parses an integer out of a string
+        \\
+    ;
+    pub const examples =
+        \\$page.custom.get!('not-a-num-for-some-reason').parseInt()
+    ;
+    pub fn call(
+        str: []const u8,
+        gpa: Allocator,
+        args: []const Value,
+    ) !Value {
+        if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+        const parsed = std.fmt.parseInt(i64, str, 10) catch |err| {
+            return Value.errFmt(gpa, "error parsing int from '{s}': {s}", .{
+                str, @errorName(err),
+            });
+        };
+
+        return .{ .int = parsed };
     }
 };
