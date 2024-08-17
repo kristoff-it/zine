@@ -643,13 +643,18 @@ fn loadPage(
             },
         }
         if (std.mem.endsWith(u8, md_rel_path, "/index.md")) {
-            const path = std.fs.path.dirname(path_to_hash) orelse "";
-            hash.update(path);
+            hash.update(std.fs.path.dirname(path_to_hash) orelse "");
         } else {
             hash.update(path_to_hash);
         }
 
         const ps_index_file_path = try std.fs.path.join(gpa, &.{
+            index_dir_path,
+            "ps",
+            try std.fmt.allocPrint(gpa, "{x}", .{hash.final()}),
+        });
+
+        log.debug("ps_index_file_path:'{s}' '{s}' '{s}'", .{
             index_dir_path,
             "ps",
             try std.fmt.allocPrint(gpa, "{x}", .{hash.final()}),
@@ -660,7 +665,7 @@ fn loadPage(
             std.math.maxInt(u32),
         ) catch @panic("i/o");
 
-        log.debug("dep: '{s}'", .{});
+        log.debug("dep: '{s}'", .{ps_index_file_path});
         dep_writer.print("{s} ", .{ps_index_file_path}) catch {
             std.debug.panic(
                 "error while writing to dep file file: '{s}'",
@@ -850,6 +855,60 @@ fn loadPage(
 
         switch (directive.kind) {
             .block => {},
+            .code => |code| {
+                const value = switch (code.src.?) {
+                    else => unreachable,
+                    .page_asset => |ref| try asset_finder.find(ref, .{
+                        .page = page,
+                    }),
+                    .site_asset => |ref| try asset_finder.find(ref, .site),
+                    .build_asset => |ref| try asset_finder.find(ref, .{
+                        .build = null,
+                    }),
+                };
+                if (value == .err) reportError(
+                    n,
+                    md_src,
+                    md_rel_path,
+                    md_path,
+                    fm_offset,
+                    is_section,
+                    value.err,
+                );
+
+                const src = std.fs.cwd().readFileAlloc(
+                    gpa,
+                    value.asset._meta.path,
+                    std.math.maxInt(u32),
+                ) catch @panic("i/o");
+
+                if (code.language) |lang| {
+                    var buf = std.ArrayList(u8).init(gpa);
+
+                    zine.highlight.highlightCode(
+                        gpa,
+                        lang,
+                        src,
+                        buf.writer(),
+                    ) catch |err| switch (err) {
+                        else => unreachable,
+                        error.InvalidLanguage => {
+                            reportError(
+                                n,
+                                md_src,
+                                md_rel_path,
+                                md_path,
+                                fm_offset,
+                                is_section,
+                                "Unknown Language",
+                            );
+                        },
+                    };
+                    directive.kind.code.src = .{ .url = buf.items };
+                } else {
+                    directive.kind.code.src = .{ .url = src };
+                }
+            },
             inline else => |val, tag| {
                 const res = switch (val.src.?) {
                     .url => continue,
@@ -891,64 +950,15 @@ fn loadPage(
                     }),
                 };
 
-                if (res == .err) {
-                    const range = n.range();
-                    const line = blk: {
-                        var it = std.mem.splitScalar(u8, md_src, '\n');
-                        for (1..range.start.row) |_| _ = it.next();
-                        break :blk it.next().?;
-                    };
-
-                    const line_trim_left = std.mem.trimLeft(
-                        u8,
-                        line,
-                        &std.ascii.whitespace,
-                    );
-
-                    const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
-
-                    const start_trim_left = line.len - line_trim_left.len;
-                    const caret_len = if (range.start.row == range.end.row)
-                        range.end.col - range.start.col
-                    else
-                        line_trim.len - start_trim_left;
-                    const caret_spaces_len = range.start.col - 1 - start_trim_left;
-
-                    var buf: [1024]u8 = undefined;
-
-                    const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
-                        const h = buf[0 .. caret_len + caret_spaces_len];
-                        @memset(h[0..caret_spaces_len], ' ');
-                        @memset(h[caret_spaces_len..][0..caret_len], '^');
-                        break :blk h;
-                    } else "";
-
-                    std.debug.print(
-                        \\
-                        \\---------- MARKDOWN MISSING ASSET ----------
-                        \\
-                        \\An asset referenced in a content file is missing. 
-                        \\
-                        \\
-                        \\[{s}] {s}
-                        \\({s}) {s}:{}:{}: 
-                        \\    {s}
-                        \\    {s}
-                        \\
-                        \\{s}
-                        \\
-                    , .{
-                        "missing_asset",             res.err,
-
-                        md_rel_path,                 md_path,
-                        fm_offset + range.start.row, range.start.col,
-                        line_trim,                   highlight,
-
-                        if (is_section) "" else 
-                        \\NOTE: assets for this page must be placed under a subdirectory that shares the same name with the corresponding markdown file!
-                        ,
-                    });
-                }
+                if (res == .err) reportError(
+                    n,
+                    md_src,
+                    md_rel_path,
+                    md_path,
+                    fm_offset,
+                    is_section,
+                    res.err,
+                );
 
                 switch (res) {
                     else => unreachable,
@@ -973,5 +983,73 @@ fn loadPage(
 
 pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
     std.debug.print(fmt, args);
+    std.process.exit(1);
+}
+
+fn reportError(
+    n: supermd.Node,
+    md_src: []const u8,
+    md_rel_path: []const u8,
+    md_path: []const u8,
+    fm_offset: usize,
+    is_section: bool,
+    err: []const u8,
+) noreturn {
+    const range = n.range();
+    const line = blk: {
+        var it = std.mem.splitScalar(u8, md_src, '\n');
+        for (1..range.start.row) |_| _ = it.next();
+        break :blk it.next().?;
+    };
+
+    const line_trim_left = std.mem.trimLeft(
+        u8,
+        line,
+        &std.ascii.whitespace,
+    );
+
+    const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
+
+    const start_trim_left = line.len - line_trim_left.len;
+    const caret_len = if (range.start.row == range.end.row)
+        range.end.col - range.start.col
+    else
+        line_trim.len - start_trim_left;
+    const caret_spaces_len = range.start.col - 1 - start_trim_left;
+
+    var buf: [1024]u8 = undefined;
+
+    const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
+        const h = buf[0 .. caret_len + caret_spaces_len];
+        @memset(h[0..caret_spaces_len], ' ');
+        @memset(h[caret_spaces_len..][0..caret_len], '^');
+        break :blk h;
+    } else "";
+
+    std.debug.print(
+        \\
+        \\---------- MARKDOWN MISSING ASSET ----------
+        \\
+        \\An asset referenced in a content file is missing. 
+        \\
+        \\
+        \\[{s}] {s}
+        \\({s}) {s}:{}:{}: 
+        \\    {s}
+        \\    {s}
+        \\
+        \\{s}
+        \\
+    , .{
+        "missing_asset",             err,
+
+        md_rel_path,                 md_path,
+        fm_offset + range.start.row, range.start.col,
+        line_trim,                   highlight,
+
+        if (is_section) "" else 
+        \\NOTE: assets for this page must be placed under a subdirectory that shares the same name with the corresponding markdown file!
+        ,
+    });
     std.process.exit(1);
 }

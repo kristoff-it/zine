@@ -1036,7 +1036,11 @@ const Section = struct {
                 if (!gop.found_existing) {
                     var hash = std.hash.Wyhash.init(1990);
                     if (locale_code) |lc| hash.update(lc);
-                    hash.update(p.content_sub_path);
+                    if (std.mem.eql(u8, p.md_name, "index.md")) {
+                        hash.update(std.fs.path.dirname(p.content_sub_path) orelse "");
+                    } else {
+                        hash.update(p.content_sub_path);
+                    }
                     const f = ps_index_dir.createFile(
                         project.fmt("{x}", .{hash.final()}),
                         .{},

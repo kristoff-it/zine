@@ -8,6 +8,7 @@ pub const Content = struct {
     image: Directive = .{ .kind = .{ .image = .{} } },
     video: Directive = .{ .kind = .{ .video = .{} } },
     link: Directive = .{ .kind = .{ .link = .{} } },
+    code: Directive = .{ .kind = .{ .code = .{} } },
 
     pub const dot = scripty.defaultDot(Content, Value, true);
     pub const Builtins = struct {};
@@ -100,6 +101,7 @@ pub const Directive = struct {
         image: Image,
         video: Video,
         link: Link,
+        code: Code,
         // sound: struct {
         //     id: ?[]const u8 = null,
         //     attrs: ?[]const []const u8 = null,
@@ -269,6 +271,22 @@ pub const Link = struct {
         pub const page = utils.SrcBuiltins.page;
         pub const target = utils.directiveBuiltin("target", .string,
             \\Sets the target HTML attribute of this link. 
+        );
+    };
+};
+
+pub const Code = struct {
+    src: ?Src = null,
+    language: ?[]const u8 = null,
+
+    pub const mandatory = .{.src};
+    pub const Builtins = struct {
+        pub const asset = utils.SrcBuiltins.asset;
+        pub const siteAsset = utils.SrcBuiltins.siteAsset;
+        pub const buildAsset = utils.SrcBuiltins.buildAsset;
+        pub const language = utils.directiveBuiltin("language", .string,
+            \\Sets the language of this code snippet, which is also used for
+            \\syntax highlighting.
         );
     };
 };

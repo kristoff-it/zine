@@ -303,6 +303,22 @@ fn renderDirective(
             },
             .exit => try w.print("</a>", .{}),
         },
+        .code => |code| switch (ev.dir) {
+            .enter => {
+                try w.print("<pre", .{});
+                if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
+                if (directive.attrs) |attrs| {
+                    if (code.language == null) try w.print(" class=\"", .{});
+                    for (attrs) |attr| try w.print("{s} ", .{attr});
+                }
+
+                try w.print("><code class=\"{?s}\">", .{code.language});
+
+                // In this case src.url contains the prerendered source code
+                try w.writeAll(code.src.?.url);
+            },
+            .exit => try w.print("</code></pre>", .{}),
+        },
     }
 }
 
