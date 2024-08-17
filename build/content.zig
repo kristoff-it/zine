@@ -188,7 +188,7 @@ fn scan(
                 project,
                 subpages_index_dir,
                 ps_index_dir,
-                "",
+                null,
                 debug,
                 s.content_dir_path,
                 s.output_path_prefix,
@@ -385,7 +385,7 @@ pub fn scanVariant(
     project: *std.Build,
     site_index_dir: std.fs.Dir,
     ps_index_dir: std.fs.Dir,
-    locale_code: []const u8,
+    locale_code: ?[]const u8,
     debug: bool,
     content_dir_path: []const u8,
     url_path_prefix: []const u8,
@@ -563,10 +563,13 @@ pub fn scanVariant(
         }
     }
 
-    const subpages_variant_index_dir = site_index_dir.makeOpenPath(
-        locale_code,
-        .{},
-    ) catch unreachable;
+    const subpages_variant_index_dir = if (locale_code) |lc|
+        site_index_dir.makeOpenPath(
+            lc,
+            .{},
+        ) catch unreachable
+    else
+        site_index_dir;
     var section_it = sections.iterator(0);
     while (section_it.next()) |s| {
         s.writeIndex(
@@ -962,7 +965,7 @@ const Section = struct {
         project: *std.Build,
         site_index_dir: std.fs.Dir,
         ps_index_dir: std.fs.Dir,
-        locale_code: []const u8,
+        locale_code: ?[]const u8,
     ) void {
         std.mem.sort(Page, s.pages.items, {}, Page.lessThan);
         const in_subdir = s.content_sub_path.len != 0;
@@ -1032,7 +1035,7 @@ const Section = struct {
                 ) catch unreachable;
                 if (!gop.found_existing) {
                     var hash = std.hash.Wyhash.init(1990);
-                    hash.update(locale_code);
+                    if (locale_code) |lc| hash.update(lc);
                     hash.update(p.content_sub_path);
                     const f = ps_index_dir.createFile(
                         project.fmt("{x}", .{hash.final()}),
