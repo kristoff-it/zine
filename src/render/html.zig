@@ -3,7 +3,7 @@ const supermd = @import("supermd");
 const hl = @import("../highlight.zig");
 const c = supermd.c;
 const highlightCode = hl.highlightCode;
-const HtmlSafe = hl.HtmlSafe;
+const HtmlSafe = @import("superhtml").HtmlSafe;
 const Ast = supermd.Ast;
 const Iter = Ast.Iter;
 

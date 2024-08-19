@@ -176,7 +176,9 @@ pub const Builtins = struct {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return .{
                 .iterator = .{
-                    .translation_it = context.TranslationIterator.init(p),
+                    .impl = .{
+                        .translation_it = context.TranslationIterator.init(p),
+                    },
                 },
             };
         }

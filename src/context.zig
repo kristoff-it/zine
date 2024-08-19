@@ -117,25 +117,29 @@ pub const Value = union(enum) {
         dynamic: ziggy.dynamic.Value,
     };
 
-    pub const Iterator = union(enum) {
-        string_it: SliceIterator([]const u8),
-        page_it: PageIterator,
-        translation_it: TranslationIterator,
-        alt_it: SliceIterator(Page.Alternative),
-        map_it: MapIterator,
+    pub const Iterator = struct {
+        up_idx: u32 = undefined,
+        up_tpl: *const anyopaque = undefined,
+        impl: union(enum) {
+            string_it: SliceIterator([]const u8),
+            page_it: PageIterator,
+            translation_it: TranslationIterator,
+            alt_it: SliceIterator(Page.Alternative),
+            map_it: MapIterator,
+        },
 
         pub fn len(self: Iterator) usize {
-            const l: usize = switch (self) {
+            const l: usize = switch (self.impl) {
                 inline else => |v| v.len(),
             };
 
             return l;
         }
-        pub fn next(self: *Iterator, gpa: Allocator) !?Optional {
-            switch (self.*) {
+        pub fn next(iter: *Iterator, gpa: Allocator) !?IterElement {
+            switch (iter.impl) {
                 inline else => |*v| {
                     const n = try v.next(gpa) orelse return null;
-                    const l = self.len();
+                    const l = iter.len();
 
                     const elem_type = switch (@typeInfo(@TypeOf(n))) {
                         .Pointer => |p| p.child,
@@ -147,13 +151,11 @@ pub const Value = union(enum) {
                     else
                         IterElement.IterValue.from(n.*);
                     return .{
-                        .iter_elem = .{
-                            .it = it,
-                            .idx = v.idx,
-                            .first = v.idx == 1,
-                            .last = v.idx == l,
-                            .len = self.len(),
-                        },
+                        .it = it,
+                        .idx = v.idx,
+                        .first = v.idx == 1,
+                        .last = v.idx == l,
+                        ._iter = iter,
                     };
                 },
             }
@@ -165,6 +167,8 @@ pub const Value = union(enum) {
             _ = self;
             return .{ .err = "field access on an iterator value" };
         }
+
+        pub const Builtins = struct {};
     };
 
     pub const IterElement = struct {
@@ -172,10 +176,7 @@ pub const Value = union(enum) {
         idx: usize,
         first: bool,
         last: bool,
-        len: usize,
-        // set by super as needed
-        _up_idx: u32 = 0,
-        _up_tpl: *const anyopaque = undefined,
+        _iter: *const Iterator,
 
         const IterValue = union(enum) {
             string: []const u8,
@@ -195,6 +196,42 @@ pub const Value = union(enum) {
         };
 
         pub const dot = scripty.defaultDot(IterElement, Value, false);
+        pub const Builtins = struct {
+            pub const up = struct {
+                pub const signature: Signature = .{ .ret = .dyn };
+                pub const description =
+                    \\In nested loops, accesses the upper `$loop`
+                    \\
+                ;
+                pub const examples =
+                    \\$loop.up().it
+                ;
+                pub const call = superhtml.utils.loopUpFunction(
+                    Value,
+                    superhtml.VM(Template, Value).Template,
+                );
+            };
+            pub const len = struct {
+                pub const signature: Signature = .{ .ret = .int };
+                pub const description =
+                    \\Returns the total number of elements in this loop.
+                    \\
+                ;
+                pub const examples =
+                    \\$loop.len()
+                ;
+
+                pub fn call(
+                    ite: IterElement,
+                    _: Allocator,
+                    args: []const Value,
+                ) !Value {
+                    const bad_arg = .{ .err = "expected 0 arguments" };
+                    if (args.len != 0) return bad_arg;
+                    return .{ .int = @intCast(ite._iter.len()) };
+                }
+            };
+        };
     };
 
     pub fn fromStringLiteral(s: []const u8) Value {
@@ -220,7 +257,13 @@ pub const Value = union(enum) {
             *const Site => .{ .site = v },
             *const Page => .{ .page = v },
             *const Page.Alternative => .{ .alternative = v },
-            []const Page.Alternative => .{ .iterator = .{ .alt_it = .{ .items = v } } },
+            []const Page.Alternative => .{
+                .iterator = .{
+                    .impl = .{
+                        .alt_it = .{ .items = v },
+                    },
+                },
+            },
             *const Build => .{ .build = v },
             Asset => .{ .asset = v },
             // IterElement => .{ .iteration_element = v },
@@ -253,7 +296,13 @@ pub const Value = union(enum) {
             ?Optional => .{ .optional = v orelse @panic("TODO: null optional reached Value.from") },
             ziggy.dynamic.Value => .{ .dynamic = v },
             MapKV => .{ .map_kv = v },
-            []const []const u8 => .{ .iterator = .{ .string_it = .{ .items = v } } },
+            []const []const u8 => .{
+                .iterator = .{
+                    .impl = .{
+                        .string_it = .{ .items = v },
+                    },
+                },
+            },
             else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),
         };
     }
@@ -281,29 +330,11 @@ pub const Value = union(enum) {
     }
 
     pub fn builtinsFor(comptime tag: @typeInfo(Value).Union.tag_type.?) type {
-        const IterElementBuiltins = struct {
-            pub const up = struct {
-                pub const signature: Signature = .{ .ret = .dyn };
-                pub const description =
-                    \\In nested loops, accesses the upper `$loop`
-                    \\
-                ;
-                pub const examples =
-                    \\$loop.up().it
-                ;
-                pub const call = superhtml.utils.loopUpFunction(
-                    Value,
-                    superhtml.VM(Template, Value).Template,
-                );
-            };
-        };
-
         return switch (tag) {
             .string => @import("context/primitive_builtins/String.zig"),
             .int => @import("context/primitive_builtins/Int.zig"),
             .bool => @import("context/primitive_builtins/Bool.zig"),
             .dynamic => @import("context/primitive_builtins/Dynamic.zig"),
-            .iterator_element => IterElementBuiltins,
             else => {
                 const f = std.meta.fieldInfo(Value, tag);
                 switch (@typeInfo(f.type)) {

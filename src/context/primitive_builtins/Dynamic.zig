@@ -210,7 +210,9 @@ pub const iterate = struct {
 
         return .{
             .iterator = .{
-                .map_it = context.MapIterator.init(dyn.kv.fields.iterator(), filter),
+                .impl = .{
+                    .map_it = context.MapIterator.init(dyn.kv.fields.iterator(), filter),
+                },
             },
         };
     }

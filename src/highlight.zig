@@ -1,6 +1,7 @@
 const std = @import("std");
 const syntax = @import("syntax");
 const treez = @import("treez");
+const HtmlSafe = @import("superhtml").HtmlSafe;
 
 const log = std.log.scoped(.highlight);
 
@@ -18,26 +19,6 @@ pub const DotsToSpaces = struct {
         for (self.bytes) |b| {
             switch (b) {
                 '.' => try out_stream.writeAll(" "),
-                else => try out_stream.writeByte(b),
-            }
-        }
-    }
-};
-pub const HtmlSafe = struct {
-    bytes: []const u8,
-
-    pub fn format(
-        self: HtmlSafe,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        out_stream: anytype,
-    ) !void {
-        _ = options;
-        _ = fmt;
-        for (self.bytes) |b| {
-            switch (b) {
-                '>' => try out_stream.writeAll("&gt;"),
-                '<' => try out_stream.writeAll("&lt;"),
                 else => try out_stream.writeByte(b),
             }
         }

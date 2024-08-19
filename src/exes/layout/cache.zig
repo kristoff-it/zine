@@ -339,21 +339,25 @@ const page_finder = struct {
 
                     return .{
                         .iterator = .{
-                            .page_it = context.PageIterator.init(
-                                page._meta.site,
-                                page._meta.md_asset_dir_rel_path,
-                                ps,
-                            ),
+                            .impl = .{
+                                .page_it = context.PageIterator.init(
+                                    page._meta.site,
+                                    page._meta.md_asset_dir_rel_path,
+                                    ps,
+                                ),
+                            },
                         },
                     };
                 }
                 return .{
                     .iterator = .{
-                        .page_it = context.PageIterator.init(
-                            page._meta.site,
-                            null,
-                            "",
-                        ),
+                        .impl = .{
+                            .page_it = context.PageIterator.init(
+                                page._meta.site,
+                                null,
+                                "",
+                            ),
+                        },
                     },
                 };
             },
