@@ -336,3 +336,71 @@ pub const parseInt = struct {
         return .{ .int = parsed };
     }
 };
+
+pub const splitN = struct {
+    pub const signature: Signature = .{
+        .parameters = &.{ .str, .int },
+        .ret = .str,
+    };
+    pub const description =
+        \\Splits the string using the first string argument as delimiter and then
+        \\returns the Nth substring (where N is the second argument).
+        \\
+        \\Indices start from 0.
+        \\
+    ;
+    pub const examples =
+        \\$page.author.splitN(" ", 1)
+    ;
+    pub fn call(
+        str: []const u8,
+        gpa: Allocator,
+        args: []const Value,
+    ) !Value {
+        _ = gpa;
+        if (args.len != 2) return .{ .err = "expected 2 (string, int) arguments" };
+
+        const split = switch (args[0]) {
+            .string => |s| s,
+            else => return .{ .err = "the first argument must be a string" },
+        };
+
+        const n: usize = switch (args[1]) {
+            .int => |i| if (i >= 0) @intCast(i) else return .{
+                .err = "the second argument must be non-negative",
+            },
+            else => return .{ .err = "the second argument must be an integer" },
+        };
+
+        var it = std.mem.splitSequence(u8, str, split);
+        const too_short: Value = .{ .err = "sequence ended too early" };
+        for (0..n) |_| _ = it.next() orelse return too_short;
+
+        const result = it.next() orelse return too_short;
+        return .{ .string = result };
+    }
+};
+pub const lower = struct {
+    pub const signature: Signature = .{
+        .ret = .str,
+    };
+    pub const description =
+        \\Returns a lowercase version of the target string.
+        \\
+    ;
+    pub const examples =
+        \\$page.title.lower()
+    ;
+    pub fn call(
+        str: []const u8,
+        gpa: Allocator,
+        args: []const Value,
+    ) !Value {
+        if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+        const l = try gpa.dupe(u8, str);
+        for (l) |*ch| ch.* = std.ascii.toLower(ch.*);
+
+        return .{ .string = l };
+    }
+};

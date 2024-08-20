@@ -4,6 +4,7 @@ const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
 const docgen = @import("context/docgen.zig");
 const Allocator = std.mem.Allocator;
+const Ctx = superhtml.utils.Ctx;
 
 pub const AssetKindUnion = union(Asset.Kind) {
     site,
@@ -68,6 +69,7 @@ pub const Value = union(enum) {
     template: *const Template,
     site: *const Site,
     page: *const Page,
+    ctx: Ctx(Value),
     alternative: *const Page.Alternative,
     build: *const Build,
     asset: Asset,
@@ -126,6 +128,7 @@ pub const Value = union(enum) {
             translation_it: TranslationIterator,
             alt_it: SliceIterator(Page.Alternative),
             map_it: MapIterator,
+            dynamic_it: SliceIterator(ziggy.dynamic.Value),
         },
 
         pub fn len(self: Iterator) usize {
@@ -183,6 +186,7 @@ pub const Value = union(enum) {
             page: *const Page,
             alternative: *const Page.Alternative,
             map_kv: MapKV,
+            dynamic: ziggy.dynamic.Value,
 
             pub fn from(v: anytype) IterValue {
                 return switch (@TypeOf(v)) {
@@ -190,6 +194,10 @@ pub const Value = union(enum) {
                     *const Page => .{ .page = v },
                     *const Page.Alternative => .{ .alternative = v },
                     MapKV => .{ .map_kv = v },
+                    ziggy.dynamic.Value => switch (v) {
+                        .bytes => |b| .{ .string = b },
+                        else => .{ .dynamic = v },
+                    },
                     else => @compileError("TODO: implement IterElement.IterValue.from for " ++ @typeName(@TypeOf(v))),
                 };
             }
@@ -265,6 +273,7 @@ pub const Value = union(enum) {
                 },
             },
             *const Build => .{ .build = v },
+            Ctx(Value) => .{ .ctx = v },
             Asset => .{ .asset = v },
             // IterElement => .{ .iteration_element = v },
             DateTime => .{ .date = v },
@@ -283,6 +292,7 @@ pub const Value = union(enum) {
                 .page => |p| .{ .page = p },
                 .alternative => |p| .{ .alternative = p },
                 .map_kv => |kv| .{ .map_kv = kv },
+                .dynamic => |d| .{ .dynamic = d },
             },
             Optional => switch (v) {
                 .iter_elem => |ie| .{ .iterator_element = ie },
@@ -534,6 +544,7 @@ pub const MapKV = struct {
                     .integer => |i| .{ .int = i },
                     .float => |f| .{ .float = f },
                     .bool => |b| .{ .bool = b },
+                    .array => |a| .{ .iterator = .{ .impl = .{ .dynamic_it = .{ .items = a } } } },
                     .null => @panic("TODO: implement support for Ziggy null values in scripty"),
                 };
             }

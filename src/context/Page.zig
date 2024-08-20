@@ -183,7 +183,7 @@ pub const Builtins = struct {
             };
         }
     };
-    pub const locale = struct {
+    pub const @"locale?" = struct {
         pub const signature: Signature = .{
             .params = &.{.str},
             .ret = .{ .opt = .Page },
@@ -195,7 +195,7 @@ pub const Builtins = struct {
             \\To be used in conjunction with an `if` attribute.
         ;
         pub const examples =
-            \\<div if="$page.locale('en-US')"><a href="$if.link()" var="$if.title"></a></div>
+            \\<div if="$page.locale?('en-US')"><a href="$if.link()" var="$if.title"></a></div>
         ;
         pub fn call(
             p: *const Page,
@@ -234,6 +234,59 @@ pub const Builtins = struct {
                     false,
                 ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
                 return .{ .optional = .{ .page = other } };
+            }
+        }
+    };
+
+    pub const @"locale!" = struct {
+        pub const signature: Signature = .{
+            .params = &.{.str},
+            .ret = .{ .opt = .Page },
+        };
+        pub const description =
+            \\Returns a reference to a localized variant of the target page.
+            \\
+        ;
+        pub const examples =
+            \\<div text="$page.locale!('en-US').title"></div>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            _ = gpa;
+
+            const bad_arg = .{
+                .err = "expected 1 string argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const code = switch (args[0]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            const other_site = context.siteGet(code) orelse return .{
+                .err = "unknown locale code",
+            };
+            if (p.translation_key) |tk| {
+                for (p._meta.key_variants) |*v| {
+                    if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
+                        const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
+                        return .{ .page = other };
+                    }
+                }
+                return .{ .err = "locale not found" };
+            } else {
+                const other = context.pageGet(
+                    other_site,
+                    p._meta.md_rel_path,
+                    null,
+                    null,
+                    false,
+                ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
+                return .{ .page = other };
             }
         }
     };

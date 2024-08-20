@@ -42,6 +42,13 @@ pub const get = struct {
                 .bool => |b| return .{ .bool = b },
                 .integer => |i| return .{ .int = i },
                 .bytes => |s| return .{ .string = s },
+                .array => |a| return .{
+                    .iterator = .{
+                        .impl = .{
+                            .dynamic_it = .{ .items = a },
+                        },
+                    },
+                },
                 .tag => |t| {
                     assert(std.mem.eql(u8, t.name, "date"));
                     const date = DateTime.init(t.bytes) catch {
@@ -70,8 +77,7 @@ pub const @"get!" = struct {
         dyn: ziggy.dynamic.Value,
         gpa: Allocator,
         args: []const Value,
-    ) Value {
-        _ = gpa;
+    ) !Value {
         const bad_arg = .{ .err = "'get' wants one (string) argument" };
         if (args.len != 1) return bad_arg;
 
@@ -82,13 +88,22 @@ pub const @"get!" = struct {
 
         if (dyn != .kv) return .{ .err = "get on a non-map dynamic value" };
 
+        const missing = try Value.errFmt(gpa, "missing value '{s}'", .{path});
+
         if (dyn.kv.fields.get(path)) |value| {
             switch (value) {
-                .null => return .{ .err = "missing value" },
+                .null => return missing,
                 .bool,
                 => |b| return .{ .bool = b },
                 .integer => |i| return .{ .int = i },
                 .bytes => |s| return .{ .string = s },
+                .array => |a| return .{
+                    .iterator = .{
+                        .impl = .{
+                            .dynamic_it = .{ .items = a },
+                        },
+                    },
+                },
                 .tag => |t| {
                     assert(std.mem.eql(u8, t.name, "date"));
                     const date = DateTime.init(t.bytes) catch {
@@ -101,7 +116,7 @@ pub const @"get!" = struct {
             }
         }
 
-        return .{ .err = "missing value" };
+        return missing;
     }
 };
 
@@ -138,6 +153,7 @@ pub const @"get?" = struct {
                 .integer => |i| return .{ .optional = .{ .int = i } },
                 .bytes => |s| return .{ .optional = .{ .string = s } },
                 .kv => return .{ .optional = .{ .dynamic = value } },
+
                 inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
             }
         }

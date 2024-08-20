@@ -444,19 +444,19 @@ pub fn scanVariant(
             const fm = switch (result) {
                 .success => |s| s.header,
                 .empty => {
-                    std.debug.print("WARNING: ignoring empty file '{s}{s}'\n", .{
+                    std.debug.panic("WARNING: ignoring empty file '{s}{s}'\n", .{
                         permalink, "index.md",
                     });
                     break :blk;
                 },
                 .framing_error => |line| {
-                    std.debug.print("ERROR: bad frontmatter framing in '{s}{s}' (line {})\n", .{
+                    std.debug.panic("ERROR: bad frontmatter framing in '{s}{s}' (line {})\n", .{
                         permalink, "index.md", line,
                     });
                     std.process.exit(1);
                 },
                 .ziggy_error => |diag| {
-                    std.debug.print("{s}{}", .{ permalink, diag });
+                    std.debug.panic("{s}{}", .{ permalink, diag });
                     std.process.exit(1);
                 },
             };
@@ -524,19 +524,19 @@ pub fn scanVariant(
                     const fm = switch (result) {
                         .success => |s| s.header,
                         .empty => {
-                            std.debug.print("WARNING: ignoring empty file '{s}.md'\n", .{
+                            std.debug.panic("WARNING: ignoring empty file '{s}.md'\n", .{
                                 permalink,
                             });
                             continue;
                         },
                         .framing_error => |line| {
-                            std.debug.print("ERROR: bad frontmatter framing in '{s}.md' (line {})\n", .{
+                            std.debug.panic("ERROR: bad frontmatter framing in '{s}.md' (line {})\n", .{
                                 permalink, line,
                             });
                             std.process.exit(1);
                         },
                         .ziggy_error => |diag| {
-                            std.debug.print("{}", .{diag});
+                            std.debug.panic("{}", .{diag});
                             std.process.exit(1);
                         },
                     };

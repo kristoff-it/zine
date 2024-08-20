@@ -311,8 +311,13 @@ const page_finder = struct {
             .subpages => |page| {
                 const path = page._meta.md_rel_path;
                 if (std.mem.endsWith(u8, path, "index.md")) {
+                    const prefix = switch (page._meta.site._meta.kind) {
+                        .simple => "",
+                        .multi => |m| m.code,
+                    };
                     const index_path = try std.fs.path.join(gpa, &.{
                         page_index_dir_path,
+                        prefix,
                         path[0 .. path.len - "index.md".len],
                         "s",
                     });
