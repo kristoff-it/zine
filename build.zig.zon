@@ -14,7 +14,8 @@
             .hash = "12208b4847f01646a500699fd7be87ce3d8e41a7f76c0d96bda38805636dbf120452",
         },
         .ziggy = .{
-            .path = "../ziggy",
+            .url = "git+https://github.com/kristoff-it/ziggy#c66f47bc632c66668d61fa06eda112b41d6e5130",
+            .hash = "1220115ff095a3c970cc90fce115294ba67d6fbc4927472dc856abc51e2a1a9364d7",
         },
         .mime = .{
             .url = "git+https://github.com/andrewrk/mime.git#0b676643886b1e2f19cf11b4e15b028768708342",
