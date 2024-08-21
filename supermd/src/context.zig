@@ -108,13 +108,21 @@ pub const Directive = struct {
         // },
     };
 
-    pub fn validate(gpa: Allocator, d: Directive) ?Value {
+    pub fn validate(d: Directive, gpa: Allocator) !?Value {
         switch (d.kind) {
             inline else => |v| {
-                for (v.mandatory) |m| {
+                inline for (@TypeOf(v).mandatory) |m| {
                     const f = @tagName(m);
                     if (@field(v, f) == null) {
-                        return Value.errFmt(gpa,
+                        return try Value.errFmt(gpa,
+                            \\mandatory field '{s}' is unset
+                        , .{f});
+                    }
+                }
+                inline for (@TypeOf(v).directive_mandatory) |dm| {
+                    const f = @tagName(dm);
+                    if (@field(d, f) == null) {
+                        return try Value.errFmt(gpa,
                             \\mandatory field '{s}' is unset
                         , .{f});
                     }
@@ -189,17 +197,10 @@ pub const Directive = struct {
 
 pub const Block = struct {
     pub const mandatory = .{};
+    pub const directive_mandatory = .{.id};
     pub const Builtins = struct {};
 };
 
-pub const Src = union(enum) {
-    // External link
-    url: []const u8,
-    page: struct { ref: []const u8, locale: ?[]const u8 },
-    page_asset: []const u8,
-    site_asset: []const u8,
-    build_asset: []const u8,
-};
 pub const Image = struct {
     alt: ?[]const u8 = null,
     src: ?Src = null,
@@ -207,6 +208,7 @@ pub const Image = struct {
     linked: ?bool = null,
 
     pub const mandatory = .{.src};
+    pub const directive_mandatory = .{};
     pub const Builtins = struct {
         pub const alt = utils.directiveBuiltin("alt", .string,
             \\An alternative description for this image that accessibility
@@ -214,6 +216,9 @@ pub const Image = struct {
         );
         pub const caption = utils.directiveBuiltin("caption", .string,
             \\A caption for this image.
+        );
+        pub const linked = utils.directiveBuiltin("linked", .bool,
+            \\Wraps the image in a link to itself.
         );
 
         pub const url = utils.SrcBuiltins.url;
@@ -232,6 +237,7 @@ pub const Video = struct {
     pip: ?bool = null,
 
     pub const mandatory = .{.src};
+    pub const directive_mandatory = .{};
     pub const Builtins = struct {
         pub const loop = utils.directiveBuiltin("loop", .bool,
             \\If true, the video will seek back to the start upon reaching the 
@@ -263,6 +269,7 @@ pub const Link = struct {
     target: ?[]const u8 = null,
 
     pub const mandatory = .{.src};
+    pub const directive_mandatory = .{};
     pub const Builtins = struct {
         pub const url = utils.SrcBuiltins.url;
         pub const asset = utils.SrcBuiltins.asset;
@@ -280,6 +287,7 @@ pub const Code = struct {
     language: ?[]const u8 = null,
 
     pub const mandatory = .{.src};
+    pub const directive_mandatory = .{};
     pub const Builtins = struct {
         pub const asset = utils.SrcBuiltins.asset;
         pub const siteAsset = utils.SrcBuiltins.siteAsset;
@@ -289,4 +297,13 @@ pub const Code = struct {
             \\syntax highlighting.
         );
     };
+};
+
+pub const Src = union(enum) {
+    // External link
+    url: []const u8,
+    page: struct { ref: []const u8, locale: ?[]const u8 },
+    page_asset: []const u8,
+    site_asset: []const u8,
+    build_asset: []const u8,
 };

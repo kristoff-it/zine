@@ -125,6 +125,7 @@ pub const Value = union(enum) {
         impl: union(enum) {
             string_it: SliceIterator([]const u8),
             page_it: PageIterator,
+            page_slice_it: SliceIterator(*const Page),
             translation_it: TranslationIterator,
             alt_it: SliceIterator(Page.Alternative),
             map_it: MapIterator,

@@ -140,6 +140,14 @@ const Parser = struct {
         switch (res.value) {
             .directive => |d| {
                 // NOTE: we're returning a pointer to the copy
+                if (try d.validate(p.gpa)) |err| {
+                    try p.addError(n.range(), .{
+                        .scripty = .{
+                            .span = .{ .start = 0, .end = @intCast(src.len) },
+                            .err = err.err,
+                        },
+                    });
+                }
                 return n.setDirective(p.gpa, d);
             },
             .err => |msg| {

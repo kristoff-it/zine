@@ -98,6 +98,27 @@ pub const description =
 pub const dot = scripty.defaultDot(Page, Value, false);
 pub const PassByRef = true;
 pub const Builtins = struct {
+    pub const isCurrent = struct {
+        pub const signature: Signature = .{ .ret = .bool };
+        pub const description =
+            \\Returns true if the page is the current page. To be used in 
+            \\conjunction with the various functions that give you references 
+            \\to other pages, like `$site.page()`, for example.
+        ;
+        pub const examples =
+            \\<div class="$site.page('foo').isCurrent().then('selected')"></div>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            return .{ .bool = p._meta.is_root };
+        }
+    };
+
     pub const asset = struct {
         pub const signature: Signature = .{
             .params = &.{.str},

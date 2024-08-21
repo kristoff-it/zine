@@ -159,6 +159,7 @@ pub const pages = struct {
             site._meta.content_dir_path,
             md_rel_path,
         });
+
         const gop = try pages.map.getOrPut(full_path);
         if (gop.found_existing) {
             return gop.value_ptr.*;
@@ -743,6 +744,7 @@ fn loadPage(
         .index_in_section = iis,
         .site = site,
         .src = md_src,
+        .is_root = is_root_page,
     };
 
     if (page.translation_key) |tk| {

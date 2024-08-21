@@ -204,6 +204,64 @@ pub const Builtins = struct {
             });
         }
     };
+    pub const pages = struct {
+        pub const signature: Signature = .{
+            .parameters = &.{ .many = .str },
+            .ret = .Page,
+        };
+        pub const description =
+            \\Same as `page`, but accepts a variable number of page references and 
+            \\loops over them in the provided order. All pages must exist.
+            \\
+            \\To be used in conjunction with a `loop` attribute.
+        ;
+        pub const examples =
+            \\<ul loop="$site.pages('a', 'b', 'c')"><li text="$loop.it.title"></li></ul>
+        ;
+        pub fn call(
+            site: *const Site,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            if (args.len == 0) return .{
+                .err = "expected at least 1 string argument",
+            };
+
+            const page_list = try gpa.alloc(*const context.Page, args.len);
+            errdefer gpa.free(page_list);
+            for (args, page_list) |a, *p| {
+                const ref = switch (a) {
+                    .string => |s| s,
+                    else => {
+                        gpa.free(page_list);
+                        return .{ .err = "argument is not a string" };
+                    },
+                };
+                const res = try context.pageFind(.{
+                    .ref = .{
+                        .path = ref,
+                        .site = site,
+                    },
+                });
+
+                switch (res) {
+                    .err => {
+                        gpa.free(page_list);
+                        return res;
+                    },
+                    .page => |_p| p.* = _p,
+                    else => unreachable,
+                }
+            }
+            return .{
+                .iterator = .{
+                    .impl = .{
+                        .page_slice_it = .{ .items = page_list },
+                    },
+                },
+            };
+        }
+    };
     pub const locale = struct {
         pub const signature: Signature = .{
             .parameters = &.{.str},

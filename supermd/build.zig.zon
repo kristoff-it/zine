@@ -7,8 +7,8 @@
             .hash = "122018a99dd8299e00d6b3279fc5fee9f93fd4c773db34f6390fcbed320cf4d652c1",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#55218735cd65125ddc57608e15311a3590e2989e",
-            .hash = "12201208a29f00a774540bb97568f5f49a163b6fac049c851f3bc439ebbcf0e7bf55",
+            .url = "git+https://github.com/kristoff-it/scripty#9ed452984a0d38eed3485bf2314553d5bffc17b0",
+            .hash = "122000048e34a01f4f57dcb17955df0a7c5bd57411c022916d8ea6f7e8c9c4a94c4d",
         },
     },
     .paths = .{"."},

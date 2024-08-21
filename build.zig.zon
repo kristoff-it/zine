@@ -6,12 +6,12 @@
             .path = "supermd",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#55218735cd65125ddc57608e15311a3590e2989e",
-            .hash = "12201208a29f00a774540bb97568f5f49a163b6fac049c851f3bc439ebbcf0e7bf55",
+            .url = "git+https://github.com/kristoff-it/scripty#9ed452984a0d38eed3485bf2314553d5bffc17b0",
+            .hash = "122000048e34a01f4f57dcb17955df0a7c5bd57411c022916d8ea6f7e8c9c4a94c4d",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#0f40571e85f35edf583914abff80df6a4573b114",
-            .hash = "12208b4847f01646a500699fd7be87ce3d8e41a7f76c0d96bda38805636dbf120452",
+            .url = "git+https://github.com/kristoff-it/superhtml#5cdf5a1dd81801f052ebc99281f482c450cbf448",
+            .hash = "1220d57b3010d361f02335974779d5d89ad9e1eee314bed55bc8276f844b517d4a66",
         },
         .ziggy = .{
             .url = "git+https://github.com/kristoff-it/ziggy#c66f47bc632c66668d61fa06eda112b41d6e5130",
