@@ -1,6 +1,7 @@
 const std = @import("std");
 const ctx = @import("../context.zig");
 const Allocator = std.mem.Allocator;
+const Signature = @import("../doctypes.zig").Signature;
 
 // Redirects calls from the outer Directive to inner Kinds
 pub fn directiveCall(
@@ -42,6 +43,18 @@ pub fn directiveBuiltin(
 ) type {
     return struct {
         pub const description = desc;
+        pub const signature: Signature = .{
+            .params = switch (tag) {
+                .content,
+                .directive,
+                => unreachable,
+                .string => &.{.str},
+                .bool => &.{.bool},
+                .err => &.{},
+                .int => &.{.int},
+            },
+            .ret = .anydirective,
+        };
         pub fn call(
             self: anytype,
             d: *ctx.Directive,
@@ -54,13 +67,20 @@ pub fn directiveBuiltin(
                 }),
             };
 
-            if (args.len != 1) return bad_arg;
+            const value = if (tag == .err) blk: {
+                if (args.len != 0) return .{
+                    .err = "expected 0 arguments",
+                };
+                break :blk true;
+            } else blk: {
+                if (args.len != 1) return bad_arg;
+
+                break :blk @field(args[0], @tagName(tag));
+            };
 
             if (std.meta.activeTag(args[0]) != tag) {
                 return bad_arg;
             }
-
-            const value = @field(args[0], @tagName(tag));
 
             if (@field(self, field_name) != null) {
                 return .{ .err = "field already set" };
@@ -74,13 +94,12 @@ pub fn directiveBuiltin(
 
 pub const SrcBuiltins = struct {
     pub const url = struct {
+        pub const signature: Signature = .{
+            .params = &.{.str},
+            .ret = .anydirective,
+        };
         pub const description =
-            \\Sets the source location of this image to an external URL.
-            \\
-            \\Use `asset`, `siteAsset`, and `buildAsset` to refer to local
-            \\assets.
-            \\
-            \\It is required to set the source location of an image.
+            \\Sets the source location of this directive to an external URL.
         ;
         pub fn call(
             self: anytype,
@@ -117,12 +136,12 @@ pub const SrcBuiltins = struct {
     };
 
     pub const asset = struct {
+        pub const signature: Signature = .{
+            .params = &.{.str},
+            .ret = .anydirective,
+        };
         pub const description =
-            \\Sets the source location of this image to a page asset.
-            \\
-            \\See also `url`, `siteAsset`, and `buildAsset`.
-            \\
-            \\It is required to set the source location of an image.
+            \\Sets the source location of this directive to a page asset.
         ;
         pub fn call(
             self: anytype,
@@ -148,12 +167,12 @@ pub const SrcBuiltins = struct {
     };
 
     pub const siteAsset = struct {
+        pub const signature: Signature = .{
+            .params = &.{.str},
+            .ret = .anydirective,
+        };
         pub const description =
-            \\Sets the source location of this image to a site asset.
-            \\
-            \\See also `url`, `asset`, and `buildAsset`.
-            \\
-            \\It is required to set the source location of an image.
+            \\Sets the source location of this directive to a site asset.
         ;
         pub fn call(
             self: anytype,
@@ -178,12 +197,12 @@ pub const SrcBuiltins = struct {
         }
     };
     pub const buildAsset = struct {
+        pub const signature: Signature = .{
+            .params = &.{.str},
+            .ret = .anydirective,
+        };
         pub const description =
-            \\Sets the source location of this image to a build asset.
-            \\
-            \\See also `url`, `asset`, and `siteAsset`.
-            \\
-            \\It is required to set the source location of an image.
+            \\Sets the source location of this directive to a build asset.
         ;
         pub fn call(
             self: anytype,
@@ -209,10 +228,14 @@ pub const SrcBuiltins = struct {
     };
 
     pub const page = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .str, .{ .Opt = .str } },
+            .ret = .anydirective,
+        };
         pub const description =
-            \\Links to a page.
+            \\Sets the source location of this directive to a page.
             \\
-            \\The first argument is a page path, while the second optional 
+            \\The first argument is a page path, while the second, optional 
             \\argument is the locale code for mulitlingual websites. In 
             \\mulitlingual websites, the locale code defaults to the same
             \\locale of the current content file.
@@ -223,8 +246,8 @@ pub const SrcBuiltins = struct {
             \\
             \\For example, the value 'foo/bar' will be automatically
             \\matched by Zine with either:
-            \\        - content/foo/bar.md
-            \\        - content/foo/bar/index.md
+            \\  - content/foo/bar.md
+            \\  - content/foo/bar/index.md
         ;
         pub fn call(
             self: anytype,

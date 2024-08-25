@@ -1,16 +1,32 @@
 const std = @import("std");
 const scripty = @import("scripty");
 const utils = @import("context/utils.zig");
+const Signature = @import("doctypes.zig").Signature;
 const Allocator = std.mem.Allocator;
 
 pub const Content = struct {
     block: Directive = .{ .kind = .{ .block = .{} } },
+    box: Directive = .{ .kind = .{ .box = .{} } },
+    heading: Directive = .{ .kind = .{ .heading = .{} } },
     image: Directive = .{ .kind = .{ .image = .{} } },
     video: Directive = .{ .kind = .{ .video = .{} } },
     link: Directive = .{ .kind = .{ .link = .{} } },
     code: Directive = .{ .kind = .{ .code = .{} } },
 
     pub const dot = scripty.defaultDot(Content, Value, true);
+    pub const description =
+        \\The Scripty global scope in SuperMD gives you access
+        \\to the various kind of rendering directives that can be
+        \\used in SuperMD files.
+    ;
+    pub const Fields = struct {
+        pub const block = Block.description;
+        pub const heading = Heading.description;
+        pub const image = Image.description;
+        pub const video = Video.description;
+        pub const link = Link.description;
+        pub const code = Code.description;
+    };
     pub const Builtins = struct {};
 };
 
@@ -44,7 +60,7 @@ pub const Value = union(enum) {
         return .{ .bool = b };
     }
 
-    pub fn from(gpa: Allocator, v: anytype) Value {
+    pub fn from(gpa: Allocator, v: anytype) !Value {
         _ = gpa;
         return switch (@TypeOf(v)) {
             *Content => .{ .content = v },
@@ -98,6 +114,8 @@ pub const Directive = struct {
 
     pub const Kind = union(enum) {
         block: Block,
+        box: Box,
+        heading: Heading,
         image: Image,
         video: Video,
         link: Link,
@@ -108,10 +126,15 @@ pub const Directive = struct {
         // },
     };
 
-    pub fn validate(d: Directive, gpa: Allocator) !?Value {
+    pub fn validate(d: *Directive, gpa: Allocator) !?Value {
         switch (d.kind) {
             inline else => |v| {
-                inline for (@TypeOf(v).mandatory) |m| {
+                const T = @TypeOf(v);
+                if (@hasDecl(T, "validate")) {
+                    return T.validate(gpa, d);
+                }
+
+                inline for (T.mandatory) |m| {
                     const f = @tagName(m);
                     if (@field(v, f) == null) {
                         return try Value.errFmt(gpa,
@@ -119,7 +142,7 @@ pub const Directive = struct {
                         , .{f});
                     }
                 }
-                inline for (@TypeOf(v).directive_mandatory) |dm| {
+                inline for (T.directive_mandatory) |dm| {
                     const f = @tagName(dm);
                     if (@field(d, f) == null) {
                         return try Value.errFmt(gpa,
@@ -134,8 +157,28 @@ pub const Directive = struct {
 
     pub const fallbackCall = utils.directiveCall;
     pub const PassByRef = true;
+    pub const description =
+        \\Each directive's functions will allow you to set the directive's 
+        \\internal fields accordingly using a "builder pattern" / "fluent interface".
+        \\
+        \\For example, in:
+        \\
+        \\```markdown
+        \\[]($image.asset('cat.jpg').id('meow'))
+        \\```
+        \\The call to `asset` returns a reference to the original
+        \\`$image` directive, which in turn then gets modified a 
+        \\second time by `id`.
+        \\
+        \\Different kinds of directives will have different functions 
+        \\but all will support the functions listed here.
+    ;
     pub const Builtins = struct {
         pub const id = struct {
+            pub const signature: Signature = .{
+                .params = &.{.str},
+                .ret = .anydirective,
+            };
             pub const description =
                 \\Sets the unique identifier field of this directive.
             ;
@@ -163,6 +206,10 @@ pub const Directive = struct {
             }
         };
         pub const attrs = struct {
+            pub const signature: Signature = .{
+                .params = &.{ .str, .{ .Many = .str } },
+                .ret = .anydirective,
+            };
             pub const description =
                 \\Appends to the attributes field of this Directive.
             ;
@@ -196,9 +243,56 @@ pub const Directive = struct {
 };
 
 pub const Block = struct {
+    end: ?bool = null,
+
+    pub const description =
+        \\A content block, used to define a portion of content
+        \\that can be rendered separately by a template. 
+    ;
+
+    pub fn validate(_: Allocator, d: *Directive) !?Value {
+        if (d.kind.block.end != null) {
+            if (d.id != null or d.attrs != null) {
+                return .{
+                    .err = "end block directive cannot have any other property set",
+                };
+            }
+        }
+        return null;
+    }
+    pub const Builtins = struct {
+        pub const end = utils.directiveBuiltin("end", .bool,
+            \\Calling this function makes this block directive 
+            \\terminate a previous block without opening a new
+            \\one.
+            \\
+            \\An end block directive cannot have any other 
+            \\property set.
+        );
+    };
+};
+
+pub const Heading = struct {
     pub const mandatory = .{};
-    pub const directive_mandatory = .{.id};
+    pub const directive_mandatory = .{};
     pub const Builtins = struct {};
+    pub const description =
+        \\Allows giving an id and attributes to a heading element.
+    ;
+};
+
+pub const Box = struct {
+    pub const mandatory = .{};
+    pub const directive_mandatory = .{.attrs};
+    pub const Builtins = struct {};
+    pub const description =
+        \\When placed at the beginning of a quote block, the quote block 
+        \\becomes a generic container for elements that can be styled as 
+        \\one wishes.
+        \\
+        \\Differently from Blocks, Boxes cannot be rendered independently 
+        \\and can be nested.
+    ;
 };
 
 pub const Image = struct {
@@ -209,6 +303,9 @@ pub const Image = struct {
 
     pub const mandatory = .{.src};
     pub const directive_mandatory = .{};
+    pub const description =
+        \\An embedded image.
+    ;
     pub const Builtins = struct {
         pub const alt = utils.directiveBuiltin("alt", .string,
             \\An alternative description for this image that accessibility
@@ -238,6 +335,9 @@ pub const Video = struct {
 
     pub const mandatory = .{.src};
     pub const directive_mandatory = .{};
+    pub const description =
+        \\An embedded video.
+    ;
     pub const Builtins = struct {
         pub const loop = utils.directiveBuiltin("loop", .bool,
             \\If true, the video will seek back to the start upon reaching the 
@@ -266,10 +366,28 @@ pub const Video = struct {
 
 pub const Link = struct {
     src: ?Src = null,
+    ref: ?[]const u8 = null,
     target: ?[]const u8 = null,
 
-    pub const mandatory = .{.src};
-    pub const directive_mandatory = .{};
+    pub const description =
+        \\A link.
+    ;
+    pub fn validate(_: Allocator, d: *Directive) !?Value {
+        const self = &d.kind.link;
+        if (self.ref != null) {
+            if (self.src == null) {
+                self.src = .self_page;
+            }
+        }
+
+        if (self.src == null) {
+            return .{
+                .err = "missing call to 'url', 'asset', 'siteAsset', 'buildAsset'or 'page'",
+            };
+        }
+        return null;
+    }
+
     pub const Builtins = struct {
         pub const url = utils.SrcBuiltins.url;
         pub const asset = utils.SrcBuiltins.asset;
@@ -279,6 +397,40 @@ pub const Link = struct {
         pub const target = utils.directiveBuiltin("target", .string,
             \\Sets the target HTML attribute of this link. 
         );
+
+        pub const ref = struct {
+            pub const signature: Signature = .{
+                .params = &.{.str},
+                .ret = .anydirective,
+            };
+            pub const description =
+                \\Deep-links to a specific section of either the current
+                \\page or a target page set with `page()`.
+            ;
+
+            pub fn call(
+                self: *Link,
+                d: *Directive,
+                _: Allocator,
+                args: []const Value,
+            ) !Value {
+                const bad_arg = .{ .err = "expected 1 string argument" };
+
+                if (args.len != 1) return bad_arg;
+
+                const str = switch (args[0]) {
+                    .string => |s| s,
+                    else => return bad_arg,
+                };
+
+                if (self.ref != null) {
+                    return .{ .err = "field already set" };
+                }
+
+                self.ref = str;
+                return .{ .directive = d };
+            }
+        };
     };
 };
 
@@ -288,6 +440,9 @@ pub const Code = struct {
 
     pub const mandatory = .{.src};
     pub const directive_mandatory = .{};
+    pub const description =
+        \\An embedded piece of code.
+    ;
     pub const Builtins = struct {
         pub const asset = utils.SrcBuiltins.asset;
         pub const siteAsset = utils.SrcBuiltins.siteAsset;
@@ -302,6 +457,7 @@ pub const Code = struct {
 pub const Src = union(enum) {
     // External link
     url: []const u8,
+    self_page,
     page: struct { ref: []const u8, locale: ?[]const u8 },
     page_asset: []const u8,
     site_asset: []const u8,

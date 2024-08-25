@@ -12,7 +12,7 @@ n: *c.cmark_node,
 //     c.cmark_node_free(n.n);
 // }
 
-pub const NodeType = enum(c_int) {
+pub const NodeType = enum(c_uint) {
     // Error
     NONE = c.CMARK_NODE_NONE,
 
@@ -45,6 +45,11 @@ pub const NodeType = enum(c_int) {
     // extensions load new node types at runtime
     _,
 };
+
+pub fn create(t: Node.NodeType) !Node {
+    const n = c.cmark_node_new(@intFromEnum(t)) orelse return error.OutOfMemory;
+    return .{ .n = n };
+}
 
 pub fn range(n: Node) Range {
     return .{
@@ -117,6 +122,10 @@ pub fn nextSibling(n: Node) ?Node {
     const ptr = c.cmark_node_next(n.n) orelse return null;
     return .{ .n = ptr };
 }
+pub fn prevSibling(n: Node) ?Node {
+    const ptr = c.cmark_node_previous(n.n) orelse return null;
+    return .{ .n = ptr };
+}
 
 // Lightweight iterator
 pub fn next(n: Node, stop: Node) ?Node {
@@ -133,9 +142,13 @@ pub fn setDirective(
     n: Node,
     gpa: std.mem.Allocator,
     data: *Directive,
+    copy: bool,
 ) !*Directive {
-    const ptr = try gpa.create(Directive);
-    ptr.* = data.*;
+    const ptr = if (copy) blk: {
+        const ptr = try gpa.create(Directive);
+        ptr.* = data.*;
+        break :blk ptr;
+    } else data;
 
     if (c.cmark_node_set_user_data(n.n, ptr) == 0) {
         return error.OutOfMemory;
@@ -156,4 +169,13 @@ pub fn replaceWithChild(n: Node) !void {
     //TODO: freeing the node requires copying the link src first
     // c.cmark_node_free(n.n);
     if (res == 0) return error.OutOfMemory;
+}
+
+pub fn prependChild(p: Node, new_child: Node) !void {
+    const code = c.cmark_node_prepend_child(p.n, new_child.n);
+    if (code == 0) return error.OutOfMemory;
+}
+
+pub fn unlink(n: Node) void {
+    c.cmark_node_unlink(n.n);
 }

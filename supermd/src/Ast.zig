@@ -2,7 +2,9 @@ const Ast = @This();
 
 const std = @import("std");
 const scripty = @import("scripty");
+const superhtml = @import("superhtml");
 const supermd = @import("root.zig");
+const html = superhtml.html;
 const c = supermd.c;
 const Node = @import("Node.zig");
 const Span = supermd.Span;
@@ -15,7 +17,7 @@ const ScriptyVM = scripty.VM(Content, Value);
 
 md: CMarkAst,
 errors: []const Error,
-sections: std.StringArrayHashMapUnmanaged(Node) = .{},
+blocks: std.StringArrayHashMapUnmanaged(Node) = .{},
 arena: std.heap.ArenaAllocator.State,
 
 pub const Error = struct {
@@ -24,11 +26,20 @@ pub const Error = struct {
 
     pub const Kind = union(enum) {
         html_is_forbidden,
-        block_outside_heading,
+        nested_block_directive,
+        block_must_not_have_text,
+
+        end_block_in_heading,
+        must_be_first_under_blockquote,
+        must_be_first_under_heading,
+        must_have_id,
+
         scripty: struct {
             span: Span,
             err: []const u8,
         },
+
+        html: html.Ast.Error,
     };
 };
 
@@ -61,7 +72,7 @@ pub fn init(gpa: Allocator, src: []const u8) !Ast {
     return .{
         .md = ast,
         .errors = try p.errors.toOwnedSlice(gpa),
-        .sections = p.sections,
+        .blocks = p.blocks,
         .arena = arena_impl.state,
     };
 }
@@ -69,29 +80,64 @@ pub fn init(gpa: Allocator, src: []const u8) !Ast {
 const Parser = struct {
     gpa: Allocator,
     errors: std.ArrayListUnmanaged(Error) = .{},
-    sections: std.StringArrayHashMapUnmanaged(Node) = .{},
+    blocks: std.StringArrayHashMapUnmanaged(Node) = .{},
     vm: ScriptyVM = .{},
 
     pub fn analyzeHeading(p: *Parser, h: Node) !void {
         const link = h.firstChild() orelse return;
 
-        block: {
-            if (link.nodeType() != .LINK) break :block;
-            if (link.nextSibling() != null) break :block;
-            const src = link.link() orelse break :block;
-            if (!std.mem.startsWith(u8, src, "$")) break :block;
+        blk: {
+            if (link.nodeType() != .LINK) break :blk;
+            const src = link.link() orelse break :blk;
+            if (!std.mem.startsWith(u8, src, "$")) break :blk;
 
-            // Heading has this structure:
-            // # [Title]($block.id('foo'))
+            const directive = try p.runScript(link, src) orelse break :blk;
+            switch (directive.kind) {
+                else => break :blk,
+                .box => {
+                    try p.addError(
+                        link.range(),
+                        .must_be_first_under_blockquote,
+                    );
+                    return;
+                },
+                .heading => {
+                    // if (link.nextSibling() != null) {
+                    //     try p.addError(link.range(), .must_wrap_entire_title);
+                    //     return;
+                    // }
+                    _ = try h.setDirective(p.gpa, directive, false);
+                },
+                .block => |blk| {
+                    if (blk.end != null) {
+                        try p.addError(link.range(), .end_block_in_heading);
+                        return;
+                    }
 
-            const directive = try p.runScript(link, src) orelse break :block;
+                    const id = directive.id orelse {
+                        try p.addError(link.range(), .must_have_id);
+                        return;
+                    };
 
-            if (directive.kind == .block) {
-                if (directive.id) |id| {
-                    try p.sections.put(p.gpa, id, h);
-                }
+                    try p.blocks.put(p.gpa, id, h);
+
+                    // Copies the directive.
+                    _ = try h.setDirective(p.gpa, directive, true);
+
+                    // We mutate the original one to a link to the
+                    // block, useful both for sticky headings and
+                    // for generally making it easier for users to
+                    // deep link the content.
+                    directive.id = null;
+                    directive.attrs = &.{};
+                    directive.kind = .{
+                        .link = .{
+                            .src = .{ .url = "" },
+                            .ref = id,
+                        },
+                    };
+                },
             }
-            _ = try h.setDirective(p.gpa, directive);
         }
 
         try p.analyzeSiblings(link.nextSibling(), h);
@@ -101,7 +147,31 @@ const Parser = struct {
         try p.analyzeSiblings(block.firstChild(), block);
     }
     pub fn analyzeCodeBlock(p: *Parser, block: Node) !void {
-        try p.analyzeSiblings(block.firstChild(), block);
+        const fence = block.fenceInfo() orelse return;
+        if (std.mem.startsWith(u8, fence, "=html")) {
+            const src = block.literal() orelse return;
+            const ast = try html.Ast.init(p.gpa, src, .html);
+            defer ast.deinit(p.gpa);
+            for (ast.errors) |err| {
+                const md_range = block.range();
+                const html_range = err.main_location.range(src);
+
+                try p.errors.append(p.gpa, .{
+                    .main = .{
+                        .start = .{
+                            .row = md_range.start.row + 1 + html_range.start.row,
+                            .col = 1 + html_range.start.col,
+                        },
+                        .end = .{
+                            .row = md_range.start.row + 1 + html_range.end.row,
+                            .col = 1 + html_range.end.col,
+                        },
+                    },
+                    .kind = .{ .html = err },
+                });
+            }
+        }
+        // try p.analyzeSiblings(block.firstChild(), block);
     }
     pub fn analyzeList(p: *Parser, block: Node) !void {
         try p.analyzeSiblings(block.firstChild(), block);
@@ -109,8 +179,30 @@ const Parser = struct {
     pub fn analyzeCustomBlock(p: *Parser, block: Node) !void {
         try p.analyzeSiblings(block.firstChild(), block);
     }
-    pub fn analyzeBlockQuote(p: *Parser, block: Node) !void {
-        try p.analyzeSiblings(block.firstChild(), block);
+    pub fn analyzeBlockQuote(p: *Parser, quote: Node) !void {
+        const para = quote.firstChild() orelse return;
+        const link = para.firstChild() orelse return;
+        const next = link.nextSibling();
+        blk: {
+            if (link.nodeType() != .LINK) break :blk;
+            const src = link.link() orelse break :blk;
+            if (!std.mem.startsWith(u8, src, "$")) break :blk;
+
+            const directive = try p.runScript(link, src) orelse break :blk;
+            switch (directive.kind) {
+                else => break :blk,
+                .box => {
+                    _ = try quote.setDirective(p.gpa, directive, false);
+
+                    link.unlink();
+                    const h1 = try Node.create(.HEADING);
+                    try h1.prependChild(link);
+                    try quote.prependChild(h1);
+                },
+            }
+        }
+
+        try p.analyzeSiblings(next, quote);
     }
     pub fn analyzeItem(p: *Parser, block: Node) !void {
         try p.analyzeSiblings(block.firstChild(), block);
@@ -123,8 +215,41 @@ const Parser = struct {
                 const src = n.link() orelse return;
                 if (!std.mem.startsWith(u8, src, "$")) return;
                 const directive = try p.runScript(n, src) orelse return;
-                if (directive.kind == .block) {
-                    try p.addError(n.range(), .block_outside_heading);
+                switch (directive.kind) {
+                    else => continue,
+                    .heading => {
+                        try p.addError(n.range(), .must_be_first_under_heading);
+                        return;
+                    },
+                    .block => {
+                        // A block directive must be the first element in a
+                        // markdown paragraph.
+                        if (n.prevSibling()) |prev| {
+                            _ = prev;
+                            try p.addError(n.range(), .nested_block_directive);
+                            return;
+                        }
+
+                        // Must not have text inside of it
+                        if (n.firstChild()) |child| {
+                            try p.addError(
+                                child.range(),
+                                .block_must_not_have_text,
+                            );
+                        }
+
+                        const parent = n.parent().?;
+                        if (parent.nodeType() != .PARAGRAPH) {
+                            try p.addError(n.range(), .nested_block_directive);
+                            return;
+                        }
+
+                        _ = try parent.setDirective(p.gpa, directive, false);
+
+                        if (directive.id) |id| {
+                            try p.blocks.put(p.gpa, id, parent);
+                        }
+                    },
                 }
             },
             else => continue,
@@ -148,7 +273,7 @@ const Parser = struct {
                         },
                     });
                 }
-                return n.setDirective(p.gpa, d);
+                return n.setDirective(p.gpa, d, true);
             },
             .err => |msg| {
                 try p.addError(n.range(), .{
@@ -338,7 +463,7 @@ pub fn format(
             },
         });
     }
-    var it = a.sections.iterator();
+    var it = a.blocks.iterator();
     while (it.next()) |kv| {
         const range = kv.value_ptr.range();
         try w.print("sections[{}:{}] = '{s}'\n", .{
