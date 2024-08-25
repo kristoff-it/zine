@@ -307,7 +307,7 @@ const page_finder = struct {
                     },
                 };
 
-                return .{ .optional = .{ .page = val } };
+                return context.Optional.init(gpa, val);
             },
             .subpages => |page| {
                 const path = page._meta.md_rel_path;
@@ -344,27 +344,23 @@ const page_finder = struct {
                     };
 
                     return .{
-                        .iterator = .{
-                            .impl = .{
-                                .page_it = context.PageIterator.init(
-                                    page._meta.site,
-                                    page._meta.md_asset_dir_rel_path,
-                                    ps,
-                                ),
-                            },
-                        },
+                        .iterator = try context.Iterator.init(gpa, .{
+                            .page_it = context.Iterator.PageIterator.init(
+                                page._meta.site,
+                                page._meta.md_asset_dir_rel_path,
+                                ps,
+                            ),
+                        }),
                     };
                 }
                 return .{
-                    .iterator = .{
-                        .impl = .{
-                            .page_it = context.PageIterator.init(
-                                page._meta.site,
-                                null,
-                                "",
-                            ),
-                        },
-                    },
+                    .iterator = try context.Iterator.init(gpa, .{
+                        .page_it = context.Iterator.PageIterator.init(
+                            page._meta.site,
+                            null,
+                            "",
+                        ),
+                    }),
                 };
             },
         }
@@ -543,7 +539,7 @@ const asset_collector = struct {
                     &.{},
                 );
                 break :blk std.fs.path.join(gpa, &.{
-                    page_link.string,
+                    page_link.string.value,
                     ref,
                 });
             },
@@ -842,19 +838,24 @@ fn loadPage(
                 .{lines},
             );
 
+            const tag_name = switch (err.kind) {
+                .html => |h| switch (h.tag) {
+                    inline else => |t| @tagName(t),
+                },
+                else => @tagName(err.kind),
+            };
             std.debug.print(
                 \\
                 \\[{s}] {s}
-                \\({s}) {s}:{}:{}: {s}
+                \\{s}:{}:{}: {s}
                 \\    {s}
                 \\    {s}
                 \\
             , .{
-                @tagName(err.kind),          msg,
-                md_rel_path,                 md_path,
-                fm_offset + range.start.row, range.start.col,
-                lines_fmt,                   line_trim,
-                highlight,
+                tag_name,        msg,
+                md_path,         fm_offset + range.start.row,
+                range.start.col, lines_fmt,
+                line_trim,       highlight,
             });
         }
         std.process.exit(1);
@@ -865,7 +866,7 @@ fn loadPage(
         const directive = n.getDirective() orelse continue;
 
         switch (directive.kind) {
-            .block => {},
+            .block, .heading, .box => {},
             .code => |code| {
                 const value = switch (code.src.?) {
                     else => unreachable,
@@ -892,6 +893,15 @@ fn loadPage(
                     value.asset._meta.path,
                     std.math.maxInt(u32),
                 ) catch @panic("i/o");
+
+                log.debug("dep: '{s}'", .{value.asset._meta.path});
+
+                dep_writer.print("{s} ", .{value.asset._meta.path}) catch {
+                    std.debug.panic(
+                        "error while writing to dep file file: '{s}'",
+                        .{value.asset._meta.path},
+                    );
+                };
 
                 if (code.language) |lang| {
                     var buf = std.ArrayList(u8).init(gpa);
@@ -923,6 +933,7 @@ fn loadPage(
             inline else => |val, tag| {
                 const res = switch (val.src.?) {
                     .url => continue,
+                    .self_page => context.String.init(""),
                     .page => |p| blk: {
                         const page_site = if (p.locale) |lc|
                             sites.get(lc) orelse @panic("TODO: report that a locale could not be found in a markdown link directive")
@@ -974,7 +985,7 @@ fn loadPage(
                 switch (res) {
                     else => unreachable,
                     .string => |s| {
-                        @field(directive.kind, @tagName(tag)).src = .{ .url = s };
+                        @field(directive.kind, @tagName(tag)).src = .{ .url = s.value };
                     },
                     .asset => |a| {
                         const url = try asset_collector.collect(

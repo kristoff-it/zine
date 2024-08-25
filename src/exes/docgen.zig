@@ -2,6 +2,13 @@ const std = @import("std");
 const zine = @import("zine");
 const context = zine.context;
 const Value = context.Value;
+const Template = context.Template;
+const Param = context.ScriptyParam;
+
+const ref: Reference = .{
+    .global = analyzeFields(Template),
+    .values = analyzeValues(),
+};
 
 pub fn main() !void {
     var gpa_impl: std.heap.GeneralPurposeAllocator(.{}) = .{};
@@ -26,126 +33,17 @@ pub fn main() !void {
 
     try w.writeAll(
         \\---
-        \\{
-        \\    .title = "Scripty Reference",
-        \\    .description = "",
-        \\    .author = "Loris Cro",
-        \\    .layout = "scripty-reference.shtml",
-        \\    .date = @date("2023-06-16T00:00:00"),
-        \\    .draft = false,
-        \\}
+        \\.title = "SuperHTML Scripty Reference",
+        \\.description = "",
+        \\.author = "Loris Cro",
+        \\.layout = "scripty-reference.shtml",
+        \\.date = @date("2023-06-16T00:00:00"),
+        \\.draft = false,
         \\---
         \\
     );
-
-    // Globals
-    {
-        try w.writeAll(
-            \\# Globals
-            \\
-        );
-
-        const globals = .{
-            .{ .name = "$site", .type_name = "Site", .desc = context.Site.description },
-            .{ .name = "$page", .type_name = "Page", .desc = context.Page.description },
-            .{
-                .name = "$loop",
-                .type_name = "?Loop",
-                .desc =
-                \\The iteration element in a loop, only available inside of elements with a `loop` attribute.
-                ,
-            },
-            .{
-                .name = "$if",
-                .type_name = "?V",
-                .desc =
-                \\The payload of an optional value, only available inside of elemens with an `if` attribute.
-                ,
-            },
-        };
-
-        inline for (globals) |g| {
-            try w.print(
-                \\## {s} : {s}
-                \\
-                \\{s}
-                \\
-            , .{ g.name, g.type_name, g.desc });
-        }
-    }
-
-    // Types
-    {
-        try w.writeAll(
-            \\# Types
-            \\
-        );
-        const types = .{
-            .{ .name = "Site", .t = context.Site, .builtins = Value.builtinsFor(.site) },
-            .{ .name = "Page", .t = context.Page, .builtins = Value.builtinsFor(.page) },
-            .{ .name = "Alternative", .t = context.Page.Alternative, .builtins = Value.builtinsFor(.alternative) },
-            .{ .name = "Translation", .t = context.Page.Translation, .builtins = Value.builtinsFor(.translation) },
-            .{ .name = "str", .builtins = Value.builtinsFor(.string) },
-            .{ .name = "date", .builtins = Value.builtinsFor(.date) },
-            .{ .name = "int", .builtins = Value.builtinsFor(.int) },
-            .{ .name = "bool", .builtins = Value.builtinsFor(.bool) },
-            .{ .name = "dyn", .builtins = Value.builtinsFor(.dynamic) },
-        };
-
-        inline for (types) |t| {
-            try w.print(
-                \\## {s}
-                \\
-            , .{t.name});
-            if (@hasField(@TypeOf(t), "t")) {
-                inline for (@typeInfo(t.t).Struct.fields) |f| {
-                    if (f.name[0] != '_') {
-                        try w.print("### {s} : {s}", .{ f.name, context.ScriptyParam.fromType(f.type).name(false) });
-
-                        if (f.default_value) |d| {
-                            const v: *const f.type = @alignCast(@ptrCast(d));
-                            switch (f.type) {
-                                []const u8 => try w.print(" = \"{s}\"", .{v.*}),
-                                []const []const u8 => try w.print(" = []", .{}),
-                                std.json.Value => try w.print(" = null", .{}),
-                                else => try w.print(" = {any}", .{v.*}),
-                            }
-                        }
-                        try w.writeAll(",\n  ");
-                    }
-                }
-            }
-
-            inline for (@typeInfo(t.builtins).Struct.decls) |d| {
-                try w.print("### {s}", .{d.name});
-                const decl = @field(t.builtins, d.name);
-                try printSignature(w, decl.signature);
-                try w.print(
-                    \\
-                    \\{s}
-                    \\
-                    \\Examples:
-                    \\```
-                    \\{s}
-                    \\``` 
-                    \\
-                , .{ decl.description, decl.examples });
-            }
-        }
-    }
+    try w.print("{}", .{ref});
     try buf_writer.flush();
-}
-
-fn printSignature(w: anytype, s: context.Signature) !void {
-    try w.writeAll("(");
-    for (s.params, 0..) |p, idx| {
-        try w.writeAll(p.name(true));
-        if (idx < s.params.len - 1) {
-            try w.writeAll(", ");
-        }
-    }
-    try w.writeAll(") -> ");
-    try w.writeAll(s.ret.name(false));
 }
 
 fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
@@ -155,4 +53,191 @@ fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
 
 fn oom() noreturn {
     fatal("out of memory", .{});
+}
+
+pub const Reference = struct {
+    global: []const Field,
+    values: []const Type,
+
+    pub const Field = struct {
+        name: []const u8,
+        type_name: Param,
+        description: []const u8,
+    };
+
+    pub const Type = struct {
+        name: Param,
+        description: []const u8,
+        fields: []const Field,
+        builtins: []const Builtin,
+    };
+
+    pub const Builtin = struct {
+        name: []const u8,
+        signature: context.Signature,
+        description: []const u8,
+        examples: []const u8,
+    };
+
+    pub fn format(
+        r: Reference,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        try out_stream.print("# [Global Scope]($block.id('global'))\n\n", .{});
+        for (r.global) |f| {
+            try out_stream.print(
+                \\## `${s}` : {s}
+                \\
+                \\{s}
+                \\
+                \\
+            , .{
+                f.name,
+                f.type_name.link(false),
+                f.description,
+            });
+        }
+
+        for (r.values[1..]) |v| {
+            try out_stream.print(
+                \\# [{s}]($block.id('{s}'))
+                \\
+                \\{s}
+                \\
+                \\
+            , .{ v.name.string(false), v.name.id(), v.description });
+
+            if (v.fields.len > 0)
+                try out_stream.print("## Fields\n\n", .{});
+
+            for (v.fields) |f| {
+                try out_stream.print(
+                    \\### `{s}` : {s}
+                    \\
+                    \\{s}
+                    \\
+                    \\
+                , .{ f.name, f.type_name.link(false), f.description });
+            }
+
+            if (v.builtins.len > 0)
+                try out_stream.print("## Functions\n\n", .{});
+
+            for (v.builtins) |b| {
+                try out_stream.print(
+                    \\### []($heading.id("{s}.{s}")) [`fn`]($link.ref("{s}.{s}")) {s} {s}
+                    \\
+                    \\{s}
+                    \\
+                    \\#### Examples
+                    \\
+                    \\```superhtml
+                    \\{s}
+                    \\```
+                    \\
+                , .{
+                    // Type.Function
+                    v.name.string(false),
+                    b.name,
+
+                    // Type.Function
+                    v.name.string(false),
+                    b.name,
+
+                    b.name,
+                    b.signature,
+                    b.description,
+                    b.examples,
+                });
+            }
+        }
+    }
+};
+
+pub fn analyzeValues() []const Reference.Type {
+    const info = @typeInfo(context.Value).Union;
+    var values: [info.fields.len]Reference.Type = undefined;
+    inline for (info.fields, &values) |f, *v| {
+        const t = getStructType(f.type) orelse {
+            std.debug.assert(f.type == []const u8);
+            v.* = .{
+                .name = .err,
+                .fields = &.{},
+                .builtins = &.{},
+                .description =
+                \\A Scripty error.
+                \\
+                \\In Scripty all errors are unrecoverable.
+                \\When available, you can use `?` variants 
+                \\of functions (e.g. `get?`) to obtain a null
+                \\value instead of an error. 
+                ,
+            };
+            continue;
+        };
+        v.* = analyzeType(t);
+    }
+    const out = values;
+    return &out;
+}
+pub fn analyzeType(T: type) Reference.Type {
+    const builtins = analyzeBuiltins(T);
+    const fields = analyzeFields(T);
+    return .{
+        .name = Param.fromType(T),
+        .description = T.description,
+        .fields = fields,
+        .builtins = builtins,
+    };
+}
+
+fn getStructType(T: type) ?type {
+    switch (@typeInfo(T)) {
+        .Struct => return T,
+        .Pointer => |p| switch (p.size) {
+            .One => return getStructType(p.child),
+            else => return null,
+        },
+        .Optional => |opt| return getStructType(opt.child),
+        else => return null,
+    }
+}
+
+fn analyzeBuiltins(T: type) []const Reference.Builtin {
+    const info = @typeInfo(T.Builtins).Struct;
+    var decls: [info.decls.len]Reference.Builtin = undefined;
+    inline for (info.decls, &decls) |decl, *b| {
+        const t = @field(T.Builtins, decl.name);
+        b.* = .{
+            .name = decl.name,
+            .signature = t.signature,
+            .description = t.description,
+            .examples = t.examples,
+        };
+    }
+    const out = decls;
+    return &out;
+}
+
+fn analyzeFields(T: type) []const Reference.Field {
+    const info = @typeInfo(T).Struct;
+    var reference_fields: [info.fields.len]Reference.Field = undefined;
+    var idx: usize = 0;
+    for (info.fields) |tf| {
+        if (!@hasDecl(T, "Fields")) continue;
+        if (tf.name[0] == '_') continue;
+        reference_fields[idx] = .{
+            .name = tf.name,
+            .description = @field(T.Fields, tf.name),
+            .type_name = Param.fromType(tf.type),
+        };
+        idx += 1;
+    }
+    const out = reference_fields[0..idx].*;
+    return &out;
 }

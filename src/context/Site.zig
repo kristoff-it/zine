@@ -5,8 +5,10 @@ const Allocator = std.mem.Allocator;
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
+const Signature = @import("doctypes.zig").Signature;
 const Value = context.Value;
-const Signature = @import("docgen.zig").Signature;
+const Bool = context.Bool;
+const String = context.String;
 
 host_url: []const u8,
 title: []const u8,
@@ -33,10 +35,18 @@ pub const description =
 
 pub const dot = scripty.defaultDot(Site, Value, false);
 pub const PassByRef = true;
+pub const Fields = struct {
+    pub const host_url =
+        \\The host URL, as defined in your `build.zig`.
+    ;
+    pub const title =
+        \\The website title, as defined in your `build.zig`.
+    ;
+};
 pub const Builtins = struct {
     pub const localeCode = struct {
         pub const signature: Signature = .{
-            .ret = .str,
+            .ret = .String,
         };
         pub const description =
             \\In a multilingual website, returns the locale of the current 
@@ -51,14 +61,13 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             _ = gpa;
-
             const bad_arg = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
 
             return switch (p._meta.kind) {
-                .multi => |l| .{ .string = l.code },
+                .multi => |l| String.init(l.code),
                 .simple => .{
                     .err = "only available in a multilingual website",
                 },
@@ -67,14 +76,14 @@ pub const Builtins = struct {
     };
     pub const localeName = struct {
         pub const signature: Signature = .{
-            .ret = .str,
+            .ret = .String,
         };
         pub const description =
             \\In a multilingual website, returns the locale name of the current 
             \\variant as defined in your `build.zig` file. 
         ;
         pub const examples =
-            \\<span var="$site.localeName()"></span>
+            \\<span text="$site.localeName()"></span>
         ;
         pub fn call(
             p: *const Site,
@@ -82,14 +91,13 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             _ = gpa;
-
             const bad_arg = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
 
             return switch (p._meta.kind) {
-                .multi => |l| .{ .string = l.name },
+                .multi => |l| String.init(l.name),
                 .simple => .{
                     .err = "only available in a multilingual website",
                 },
@@ -99,7 +107,7 @@ pub const Builtins = struct {
 
     pub const link = struct {
         pub const signature: Signature = .{
-            .ret = .str,
+            .ret = .String,
         };
         pub const description =
             \\Returns a link to the homepage of the website.
@@ -108,7 +116,7 @@ pub const Builtins = struct {
             \\multilingual website.
         ;
         pub const examples =
-            \\<a href="$site.link()" var="$site.title"></a>
+            \\<a href="$site.link()" text="$site.title"></a>
         ;
         pub fn call(
             p: *const Site,
@@ -126,13 +134,13 @@ pub const Builtins = struct {
                 "/",
             }) catch @panic("oom");
 
-            return .{ .string = url };
+            return String.init(url);
         }
     };
 
     pub const asset = struct {
         pub const signature: Signature = .{
-            .params = &.{.str},
+            .params = &.{.String},
             .ret = .Asset,
         };
         pub const description =
@@ -152,7 +160,7 @@ pub const Builtins = struct {
             if (args.len != 1) return bad_arg;
 
             const ref = switch (args[0]) {
-                .string => |s| s,
+                .string => |s| s.value,
                 else => return bad_arg,
             };
 
@@ -161,7 +169,7 @@ pub const Builtins = struct {
     };
     pub const page = struct {
         pub const signature: Signature = .{
-            .parameters = &.{.str},
+            .params = &.{.String},
             .ret = .Page,
         };
         pub const description =
@@ -192,7 +200,7 @@ pub const Builtins = struct {
             if (args.len != 1) return bad_arg;
 
             const ref = switch (args[0]) {
-                .string => |s| s,
+                .string => |s| s.value,
                 else => return bad_arg,
             };
 
@@ -206,7 +214,7 @@ pub const Builtins = struct {
     };
     pub const pages = struct {
         pub const signature: Signature = .{
-            .parameters = &.{ .many = .str },
+            .params = &.{.{ .Many = .String }},
             .ret = .Page,
         };
         pub const description =
@@ -231,7 +239,7 @@ pub const Builtins = struct {
             errdefer gpa.free(page_list);
             for (args, page_list) |a, *p| {
                 const ref = switch (a) {
-                    .string => |s| s,
+                    .string => |s| s.value,
                     else => {
                         gpa.free(page_list);
                         return .{ .err = "argument is not a string" };
@@ -254,17 +262,15 @@ pub const Builtins = struct {
                 }
             }
             return .{
-                .iterator = .{
-                    .impl = .{
-                        .page_slice_it = .{ .items = page_list },
-                    },
-                },
+                .iterator = try context.Iterator.init(gpa, .{
+                    .page_slice_it = .{ .items = page_list },
+                }),
             };
         }
     };
     pub const locale = struct {
         pub const signature: Signature = .{
-            .parameters = &.{.str},
+            .params = &.{.String},
             .ret = .Site,
         };
         pub const description =
@@ -286,7 +292,7 @@ pub const Builtins = struct {
             if (args.len != 1) return bad_arg;
 
             const code = switch (args[0]) {
-                .string => |s| s,
+                .string => |s| s.value,
                 else => return bad_arg,
             };
 

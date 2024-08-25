@@ -52,11 +52,12 @@ pub fn build(b: *std.Build) !void {
     // "BDFL version resolution" strategy
     const scripty = b.dependency("scripty", .{}).module("scripty");
 
-    const supermd = b.dependency("supermd", mode).module("supermd");
-    supermd.addImport("scripty", scripty);
-
     const superhtml = b.dependency("superhtml", mode).module("superhtml");
     superhtml.addImport("scripty", scripty);
+
+    const supermd = b.dependency("supermd", mode).module("supermd");
+    supermd.addImport("scripty", scripty);
+    supermd.addImport("superhtml", superhtml);
 
     const ziggy = b.dependency("ziggy", mode).module("ziggy");
     const zeit = b.dependency("zeit", mode).module("zeit");
@@ -99,16 +100,27 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(layout);
 
-    const docgen = b.addExecutable(.{
-        .name = "docgen",
+    const shtml_docgen = b.addExecutable(.{
+        .name = "shtml_docgen",
         .root_source_file = b.path("src/exes/docgen.zig"),
         .target = target,
         .optimize = .Debug,
     });
-    docgen.root_module.addImport("zine", zine);
-    docgen.root_module.addImport("zeit", zeit);
-    docgen.root_module.addImport("ziggy", ziggy);
-    b.installArtifact(docgen);
+    shtml_docgen.root_module.addImport("zine", zine);
+    shtml_docgen.root_module.addImport("zeit", zeit);
+    shtml_docgen.root_module.addImport("ziggy", ziggy);
+    b.installArtifact(shtml_docgen);
+
+    const smd_docgen = b.addExecutable(.{
+        .name = "smd_docgen",
+        .root_source_file = b.path("supermd/src/docgen.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+    smd_docgen.root_module.addImport("zeit", zeit);
+    smd_docgen.root_module.addImport("ziggy", ziggy);
+    smd_docgen.root_module.addImport("scripty", scripty);
+    b.installArtifact(smd_docgen);
 
     // const md_renderer = b.addExecutable(.{
     //     .name = "markdown-renderer",

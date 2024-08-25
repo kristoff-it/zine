@@ -12,33 +12,53 @@ const log = std.log.scoped(.layout);
 pub fn html(
     gpa: std.mem.Allocator,
     ast: Ast,
-    start_node: supermd.Node,
-    // render the heading element when 'start' is a section
-    heading: bool,
+    start: supermd.Node,
     // path to the file, used in error messages
     path: []const u8,
     w: anytype,
 ) !void {
     var it = Iter.init(ast.md.root);
-    const start = if (heading)
-        start_node
-    else
-        start_node.nextSibling() orelse start_node;
     it.reset(start, .enter);
+
+    const full_page = start.n == ast.md.root.n;
+
+    var open_div = false;
     var event: ?Iter.Event = .{ .node = start, .dir = .enter };
     while (event) |ev| : (event = it.next()) {
         const node = ev.node;
-        const node_lvl = node.headingLevel();
         const node_is_block = if (node.getDirective()) |d|
             d.kind == .block
         else
             false;
-        if (node_lvl > 0 and node_is_block and node.n != start_node.n) break;
+
+        if (!full_page and node_is_block and node.n != start.n) break;
         switch (node.nodeType()) {
             .DOCUMENT => {},
             .BLOCK_QUOTE => switch (ev.dir) {
-                .enter => try w.print("<blockquote>", .{}),
-                .exit => try w.print("</blockquote>", .{}),
+                .enter => {
+                    const d = node.getDirective() orelse {
+                        try w.print("<blockquote>", .{});
+                        continue;
+                    };
+
+                    try w.print("<div", .{});
+                    if (d.id) |id| try w.print(" id={s}", .{id});
+                    if (d.attrs) |attrs| {
+                        try w.print(" class=\"", .{});
+                        for (attrs) |attr| try w.print("{s} ", .{attr});
+                        try w.print("\"", .{});
+                    }
+
+                    try w.print(">", .{});
+                },
+                .exit => {
+                    if (node.getDirective() == null) {
+                        try w.print("</blockquote>", .{});
+                        continue;
+                    } else {
+                        try w.print("</div>", .{});
+                    }
+                },
             },
             .LIST => switch (ev.dir) {
                 .enter => try w.print("<{s}>", .{
@@ -69,22 +89,74 @@ pub fn html(
                         if (gp.listIsTight()) continue;
 
                 switch (ev.dir) {
-                    .enter => try w.print("<p>", .{}),
-                    .exit => try w.print("</p>", .{}),
+                    .enter => {
+                        if (node.getDirective()) |d| {
+                            if (open_div) {
+                                try w.print("</div>", .{});
+                            }
+                            open_div = true;
+                            try w.print("<div", .{});
+                            if (d.id) |id| try w.print(" id={s}", .{id});
+                            if (d.attrs) |attrs| {
+                                try w.print(" class=\"", .{});
+                                for (attrs) |attr| try w.print("{s} ", .{attr});
+                                try w.print("\"", .{});
+                            }
+
+                            try w.print(">", .{});
+                            event = it.next();
+                            event = it.next();
+                            if (node.firstChild().?.nextSibling() == null) {
+                                continue;
+                            }
+                        }
+
+                        try w.print("<p>", .{});
+                    },
+                    .exit => {
+                        if (node.getDirective() != null) {
+                            if (node.firstChild().?.nextSibling() == null) {
+                                continue;
+                            }
+                        }
+                        try w.print("</p>", .{});
+                    },
                 }
             },
             .HEADING => switch (ev.dir) {
                 .enter => {
-                    try w.print("<h{}", .{node.headingLevel()});
-                    if (node.getDirective()) |d| {
-                        try w.print(" id={s}", .{d.id.?});
-                        if (d.attrs) |attrs| {
-                            try w.print(" class=\"", .{});
-                            for (attrs) |attr| try w.print("{s} ", .{attr});
-                            try w.print("\"", .{});
-                        }
-                    }
-                    try w.print(">", .{});
+                    if (node.getDirective()) |d| switch (d.kind) {
+                        else => {},
+                        .heading => {
+                            try w.print("<h{}", .{node.headingLevel()});
+                            try w.print(" id={s}", .{d.id.?});
+                            if (d.attrs) |attrs| {
+                                try w.print(" class=\"", .{});
+                                for (attrs) |attr| try w.print("{s} ", .{attr});
+                                try w.print("\"", .{});
+                            }
+
+                            try w.print(">", .{});
+                            continue;
+                        },
+                        .block => {
+                            if (open_div) {
+                                try w.print("</div>", .{});
+                            }
+                            open_div = true;
+                            try w.print("<div", .{});
+                            try w.print(" id={s}", .{d.id.?});
+                            if (d.attrs) |attrs| {
+                                try w.print(" class=\"", .{});
+                                for (attrs) |attr| try w.print("{s} ", .{attr});
+                                try w.print("\"", .{});
+                            }
+
+                            try w.print(">", .{});
+                        },
+                    };
+
+                    try w.print("<h{}>", .{node.headingLevel()});
                 },
                 .exit => try w.print("</h{}>", .{node.headingLevel()}),
             },
@@ -233,6 +305,9 @@ pub fn html(
             },
         }
     }
+    if (open_div) {
+        try w.writeAll("</div>");
+    }
 }
 
 fn renderDirective(
@@ -246,7 +321,7 @@ fn renderDirective(
     const node = ev.node;
     const directive = node.getDirective() orelse return renderLink(ev, w);
     switch (directive.kind) {
-        .block => {},
+        .block, .heading, .box => {},
         .image => |img| switch (ev.dir) {
             .enter => {
                 if (img.caption != null) try w.print("<figure>", .{});
@@ -297,7 +372,11 @@ fn renderDirective(
                     for (attrs) |attr| try w.print("{s} ", .{attr});
                     try w.print("\"", .{});
                 }
-                try w.print(" href=\"{s}\"", .{lnk.src.?.url});
+
+                try w.print(" href=\"{s}", .{lnk.src.?.url});
+                if (lnk.ref) |r| try w.print("#{s}", .{r});
+                try w.print("\"", .{});
+
                 if (lnk.target) |t| try w.print(" target=\"{s}\"", .{t});
                 try w.print(">", .{});
             },

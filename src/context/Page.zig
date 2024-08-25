@@ -6,11 +6,14 @@ const scripty = @import("scripty");
 const supermd = @import("supermd");
 const utils = @import("utils.zig");
 const render = @import("../render.zig");
-const Signature = @import("docgen.zig").Signature;
+const Signature = @import("doctypes.zig").Signature;
 const DateTime = @import("DateTime.zig");
 const context = @import("../context.zig");
-const Value = context.Value;
 const Allocator = std.mem.Allocator;
+const Value = context.Value;
+const Optional = context.Optional;
+const Bool = context.Bool;
+const String = context.String;
 
 var asset_undef: context.AssetExtern = .{};
 var page_undef: context.PageExtern = .{};
@@ -79,31 +82,125 @@ pub const Translation = struct {
 };
 
 pub const Alternative = struct {
+    name: []const u8 = "",
     layout: []const u8,
     output: []const u8,
-    title: []const u8 = "",
     type: []const u8 = "",
 
     pub const dot = scripty.defaultDot(Alternative, Value, false);
-    pub const PassByRef = true;
+    // pub const PassByRef = true;
+
     pub const Builtins = struct {};
     pub const description =
         \\An alternative version of the current page. Title and type
         \\can be used when generating `<link rel="alternate">` elements.
     ;
+    pub const Fields = struct {
+        pub const layout =
+            \\The SuperHTML layout to use to generate this alternative version of the page.
+        ;
+        pub const output =
+            \\Output path where to to put the generated alternative.
+        ;
+        pub const name =
+            \\A name that can be used to fetch this alternative version
+            \\of the page.
+        ;
+        pub const @"type" =
+            \\A metadata field that can be used to set the content-type of this alternative version of the Page. 
+            \\
+            \\Useful for example to generate RSS links:
+            \\
+            \\```superhtml
+            \\<ctx alt="$page.alternative('rss')"
+            \\  <a href="$ctx.alt.link()" 
+            \\     type="$ctx.alt.type" 
+            \\     text="$ctx.alt.name"
+            \\  ></a>
+            \\</ctx>
+            \\```
+        ;
+    };
 };
-pub const description =
-    \\The current page.
-;
 pub const dot = scripty.defaultDot(Page, Value, false);
 pub const PassByRef = true;
+
+pub const description =
+    \\The page currently being rendered.
+;
+pub const Fields = struct {
+    pub const title =
+        \\Title of the page, 
+        \\as set in the SuperMD frontmatter.
+    ;
+    pub const description =
+        \\Description of the page, 
+        \\as set in the SuperMD frontmatter.
+    ;
+    pub const author =
+        \\Author of the page, 
+        \\as set in the SuperMD frontmatter.
+    ;
+    pub const date =
+        \\Publication date of the page, 
+        \\as set in the SuperMD frontmatter.
+        \\
+        \\Used to provide default ordering of pages.
+    ;
+    pub const layout =
+        \\SuperHTML layout used to render the page, 
+        \\as set in the SuperMD frontmatter.
+    ;
+    pub const draft =
+        \\When set to true the page will not be rendered in release mode, 
+        \\as set in the SuperMD frontmatter.
+    ;
+    pub const tags =
+        \\Tags associated with the page, 
+        \\as set in the SuperMD frontmatter.
+    ;
+    pub const aliases =
+        \\Aliases of the current page, 
+        \\as set in the SuperMD frontmatter.
+        \\
+        \\Aliases can be used to make the same page available
+        \\from different locations.
+        \\
+        \\Every entry in the list is an output location where the 
+        \\rendered page will be copied to.
+    ;
+    pub const alternatives =
+        \\Alternative versions of the page, 
+        \\as set in the SuperMD frontmatter.
+        \\
+        \\Alternatives are a good way of implementing RSS feeds, for example.
+    ;
+    pub const skip_subdirs =
+        \\Skips any other potential content present in the subdir of the page, 
+        \\as set in the SuperMD frontmatter.
+        \\
+        \\Can only be set to true on section pages (i.e. `index.md` pages).
+    ;
+    pub const translation_key =
+        \\Translation key used to map this page with corresponding localized variants, 
+        \\as set in the SuperMD frontmatter.
+        \\
+        \\See the docs on i18n for more info.
+    ;
+    pub const custom =
+        \\A Ziggy map where you can define custom properties for the page, 
+        \\as set in the SuperMD frontmatter.
+    ;
+};
 pub const Builtins = struct {
     pub const isCurrent = struct {
-        pub const signature: Signature = .{ .ret = .bool };
+        pub const signature: Signature = .{ .ret = .Bool };
         pub const description =
-            \\Returns true if the page is the current page. To be used in 
-            \\conjunction with the various functions that give you references 
-            \\to other pages, like `$site.page()`, for example.
+            \\Returns true if the target page is the one currently being 
+            \\rendered. 
+            \\
+            \\To be used in conjunction with the various functions that give 
+            \\you references to other pages, like `$site.page()`, for example.
         ;
         pub const examples =
             \\<div class="$site.page('foo').isCurrent().then('selected')"></div>
@@ -115,13 +212,13 @@ pub const Builtins = struct {
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{ .bool = p._meta.is_root };
+            return Bool.init(p._meta.is_root);
         }
     };
 
     pub const asset = struct {
         pub const signature: Signature = .{
-            .params = &.{.str},
+            .params = &.{.String},
             .ret = .Asset,
         };
         pub const description =
@@ -155,7 +252,7 @@ pub const Builtins = struct {
             if (args.len != 1) return bad_arg;
 
             const ref = switch (args[0]) {
-                .string => |s| s,
+                .string => |s| s.value,
                 else => return bad_arg,
             };
 
@@ -168,7 +265,7 @@ pub const Builtins = struct {
             \\Returns the Site that the page belongs to.
         ;
         pub const examples =
-            \\<div var="$page.site().localeName()"></div>
+            \\<div text="$page.site().localeName()"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -180,96 +277,18 @@ pub const Builtins = struct {
             return .{ .site = p._meta.site };
         }
     };
-    pub const locales = struct {
-        pub const signature: Signature = .{ .ret = .{ .many = .Page } };
-        pub const description =
-            \\Returns a list of localized variants of the current page.
-        ;
-        pub const examples =
-            \\<div loop="$page.locales()"><a href="$loop.it.link()" var="$loop.it.title"></a></div>
-        ;
-        pub fn call(
-            p: *const Page,
-            gpa: Allocator,
-            args: []const Value,
-        ) !Value {
-            _ = gpa;
-            if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{
-                .iterator = .{
-                    .impl = .{
-                        .translation_it = context.TranslationIterator.init(p),
-                    },
-                },
-            };
-        }
-    };
-    pub const @"locale?" = struct {
+
+    pub const locale = struct {
         pub const signature: Signature = .{
-            .params = &.{.str},
-            .ret = .{ .opt = .Page },
-        };
-        pub const description =
-            \\Returns a reference to a localized variant of the target page, if
-            \\present. Returns null otherwise.
-            \\
-            \\To be used in conjunction with an `if` attribute.
-        ;
-        pub const examples =
-            \\<div if="$page.locale?('en-US')"><a href="$if.link()" var="$if.title"></a></div>
-        ;
-        pub fn call(
-            p: *const Page,
-            gpa: Allocator,
-            args: []const Value,
-        ) !Value {
-            _ = gpa;
-
-            const bad_arg = .{
-                .err = "expected 1 string argument",
-            };
-            if (args.len != 1) return bad_arg;
-
-            const code = switch (args[0]) {
-                .string => |s| s,
-                else => return bad_arg,
-            };
-
-            const other_site = context.siteGet(code) orelse return .{
-                .err = "unknown locale code",
-            };
-            if (p.translation_key) |tk| {
-                for (p._meta.key_variants) |*v| {
-                    if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
-                        const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
-                        return .{ .optional = .{ .page = other } };
-                    }
-                }
-                return .{ .optional = null };
-            } else {
-                const other = context.pageGet(
-                    other_site,
-                    p._meta.md_rel_path,
-                    null,
-                    null,
-                    false,
-                ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
-                return .{ .optional = .{ .page = other } };
-            }
-        }
-    };
-
-    pub const @"locale!" = struct {
-        pub const signature: Signature = .{
-            .params = &.{.str},
-            .ret = .{ .opt = .Page },
+            .params = &.{.String},
+            .ret = .{ .Opt = .Page },
         };
         pub const description =
             \\Returns a reference to a localized variant of the target page.
             \\
         ;
         pub const examples =
-            \\<div text="$page.locale!('en-US').title"></div>
+            \\<div text="$page.locale('en-US').title"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -284,7 +303,7 @@ pub const Builtins = struct {
             if (args.len != 1) return bad_arg;
 
             const code = switch (args[0]) {
-                .string => |s| s,
+                .string => |s| s.value,
                 else => return bad_arg,
             };
 
@@ -306,13 +325,89 @@ pub const Builtins = struct {
                     null,
                     null,
                     false,
-                ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
+                ) catch @panic("Trying to access a non-existent localized variant of a page is an error for now, sorry! As a temporary workaround you can set a translation key for this page (and its localized variants). This limitation will be lifted in the future.");
                 return .{ .page = other };
             }
         }
     };
+
+    pub const @"locale?" = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .{ .Opt = .Page },
+        };
+        pub const description =
+            \\Returns a reference to a localized variant of the target page, if
+            \\present. Returns null otherwise.
+            \\
+            \\To be used in conjunction with an `if` attribute.
+        ;
+        pub const examples =
+            \\<div if="$page.locale?('en-US')"><a href="$if.link()" text="$if.title"></a></div>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg = .{
+                .err = "expected 1 string argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const code = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            const other_site = context.siteGet(code) orelse return .{
+                .err = "unknown locale code",
+            };
+            if (p.translation_key) |tk| {
+                for (p._meta.key_variants) |*v| {
+                    if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
+                        const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
+                        return Optional.init(gpa, other);
+                    }
+                }
+                return .{ .optional = null };
+            } else {
+                const other = context.pageGet(
+                    other_site,
+                    p._meta.md_rel_path,
+                    null,
+                    null,
+                    false,
+                ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
+                return Optional.init(gpa, other);
+            }
+        }
+    };
+
+    pub const locales = struct {
+        pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
+        pub const description =
+            \\Returns the list of localized variants of the current page.
+        ;
+        pub const examples =
+            \\<div loop="$page.locales()"><a href="$loop.it.link()" text="$loop.it.title"></a></div>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            return .{
+                .iterator = try context.Iterator.init(gpa, .{
+                    .translation_it = context.Iterator.TranslationIterator.init(p),
+                }),
+            };
+        }
+    };
+
     pub const wordCount = struct {
-        pub const signature: Signature = .{ .ret = .int };
+        pub const signature: Signature = .{ .ret = .Int };
         pub const description =
             \\Returns the word count of the page.
             \\
@@ -329,12 +424,12 @@ pub const Builtins = struct {
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{ .int = @intCast(self._meta.word_count) };
+            return .{ .int = .{ .value = @intCast(self._meta.word_count) } };
         }
     };
 
     pub const isSection = struct {
-        pub const signature: Signature = .{ .ret = .bool };
+        pub const signature: Signature = .{ .ret = .Bool };
         pub const description =
             \\Returns true if the current page defines a section (i.e. if 
             \\the current page is an 'index.md' page).
@@ -350,12 +445,12 @@ pub const Builtins = struct {
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{ .bool = self._meta.is_section };
+            return Bool.init(self._meta.is_section);
         }
     };
 
     pub const subpages = struct {
-        pub const signature: Signature = .{ .ret = .{ .many = .Page } };
+        pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
         pub const description =
             \\Returns a list of all the pages in this section. If the page is 
             \\not a section, returns an empty list.
@@ -364,7 +459,9 @@ pub const Builtins = struct {
             \\structure section in the official docs for more info.
         ;
         pub const examples =
-            \\<div loop="$page.subpages()"><span var="$loop.it.title"></span></div>
+            \\<div loop="$page.subpages()">
+            \\  <span text="$loop.it.title"></span>
+            \\</div>
         ;
         pub fn call(
             p: *const Page,
@@ -383,7 +480,7 @@ pub const Builtins = struct {
     };
 
     pub const nextPage = struct {
-        pub const signature: Signature = .{ .ret = .{ .opt = .Page } };
+        pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
         pub const description =
             \\Returns the next page in the same section, sorted by date. 
             \\
@@ -393,7 +490,7 @@ pub const Builtins = struct {
         ;
         pub const examples =
             \\<div if="$page.nextPage()">
-            \\  <span var="$if.title"></span>
+            \\  <span text="$if.title"></span>
             \\</div>
         ;
 
@@ -412,7 +509,7 @@ pub const Builtins = struct {
         }
     };
     pub const prevPage = struct {
-        pub const signature: Signature = .{ .ret = .{ .opt = .Page } };
+        pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
         pub const description =
             \\Tries to return the page before the target one (sorted by date), to be used with an `if` attribute.
         ;
@@ -438,7 +535,7 @@ pub const Builtins = struct {
     };
 
     pub const hasNext = struct {
-        pub const signature: Signature = .{ .ret = .bool };
+        pub const signature: Signature = .{ .ret = .Bool };
         pub const description =
             \\Returns true of the target page has another page after (sorted by date) 
         ;
@@ -448,9 +545,10 @@ pub const Builtins = struct {
 
         pub fn call(
             p: *const Page,
-            _: Allocator,
+            gpa: Allocator,
             args: []const Value,
         ) !Value {
+            _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             if (p._meta.index_in_section == null) return .{
@@ -458,11 +556,11 @@ pub const Builtins = struct {
             };
 
             const other = try context.pageFind(.{ .next = p });
-            return if (other.optional == null) .{ .bool = false } else .{ .bool = true };
+            return Bool.init(other.optional != null);
         }
     };
     pub const hasPrev = struct {
-        pub const signature: Signature = .{ .ret = .bool };
+        pub const signature: Signature = .{ .ret = .Bool };
         pub const description =
             \\Returns true of the target page has another page before (sorted by date) 
         ;
@@ -471,24 +569,25 @@ pub const Builtins = struct {
         ;
         pub fn call(
             p: *const Page,
-            _: Allocator,
+            gpa: Allocator,
             args: []const Value,
         ) !Value {
+            _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const idx = p._meta.index_in_section orelse return .{
                 .err = "unable to do prev on a page loaded by scripty, for now",
             };
 
-            if (idx == 0) return .{ .bool = false };
+            if (idx == 0) return Bool.False;
 
             const other = try context.pageFind(.{ .prev = p });
-            return if (other.optional == null) .{ .bool = false } else .{ .bool = true };
+            return Bool.init(other.optional != null);
         }
     };
 
     pub const link = struct {
-        pub const signature: Signature = .{ .ret = .str };
+        pub const signature: Signature = .{ .ret = .String };
         pub const description =
             \\Returns the URL of the target page.
         ;
@@ -516,13 +615,13 @@ pub const Builtins = struct {
                 "/",
             });
 
-            return .{ .string = result };
+            return String.init(result);
         }
     };
 
     // TODO: delete this
     pub const permalink = struct {
-        pub const signature: Signature = .{ .ret = .str };
+        pub const signature: Signature = .{ .ret = .String };
         pub const description =
             \\Deprecated, use `link()`
         ;
@@ -537,7 +636,7 @@ pub const Builtins = struct {
     };
 
     pub const content = struct {
-        pub const signature: Signature = .{ .ret = .str };
+        pub const signature: Signature = .{ .ret = .String };
         pub const description =
             \\Renders the full Markdown page to HTML
         ;
@@ -553,29 +652,24 @@ pub const Builtins = struct {
             const ast = p._meta.ast orelse return .{
                 .err = "only the main page can be rendered for now",
             };
-            try render.html(gpa, ast, ast.md.root, true, "", buf.writer());
-            return .{ .string = try buf.toOwnedSlice() };
+            try render.html(gpa, ast, ast.md.root, "", buf.writer());
+            return String.init(try buf.toOwnedSlice());
         }
     };
     pub const block = struct {
         pub const signature: Signature = .{
-            .params = &.{ .str, .{ .opt = .bool } },
-            .ret = .str,
+            .params = &.{.String},
+            .ret = .String,
         };
         pub const description =
-            \\Renders only the specified content block of a page.
-            \\A content blcok is a Markdown heading defined to be a `block` 
-            \\with an id attribute set.  
-            \\
-            \\A second optional boolean parameter defines if the heading itself
-            \\should be rendered or not (defaults to `true`).
+            \\Renders the specified content block of a page.
             \\
             \\Example:
             \\ `# [Title]($block.id('section-id'))`
         ;
         pub const examples =
-            \\<div var="$page.block('section-id')"></div>
-            \\<div var="$page.block('other-section', false)"></div>
+            \\<div html="$page.block('section-id')"></div>
+            \\<div html="$page.block('other-section')"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -583,17 +677,12 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             const bad_arg = .{
-                .err = "expected 1 string argument and an optional bool argument",
+                .err = "expected 1 string argument argument",
             };
-            if (args.len < 1 or args.len > 2) return bad_arg;
+            if (args.len != 1) return bad_arg;
 
             const block_id = switch (args[0]) {
-                .string => |s| s,
-                else => return bad_arg,
-            };
-
-            const heading = if (args.len == 1) true else switch (args[1]) {
-                .bool => |s| s,
+                .string => |s| s.value,
                 else => return bad_arg,
             };
 
@@ -602,28 +691,26 @@ pub const Builtins = struct {
             };
             var buf = std.ArrayList(u8).init(gpa);
 
-            const node = ast.sections.get(block_id) orelse {
+            const node = ast.blocks.get(block_id) orelse {
                 return Value.errFmt(
                     gpa,
                     "content section '{s}' doesn't exist, available sections are: {s}",
-                    .{ block_id, ast.sections.keys() },
+                    .{ block_id, ast.blocks.keys() },
                 );
             };
 
-            try render.html(gpa, ast, node, heading, "", buf.writer());
-            return .{ .string = try buf.toOwnedSlice() };
+            try render.html(gpa, ast, node, "", buf.writer());
+            return String.init(try buf.toOwnedSlice());
         }
     };
 
     pub const toc = struct {
-        pub const signature: Signature = .{
-            .ret = .str,
-        };
+        pub const signature: Signature = .{ .ret = .String };
         pub const description =
             \\Renders the table of content.
         ;
         pub const examples =
-            \\<div var="$page.toc()"></div>
+            \\<div html="$page.toc()"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -641,7 +728,7 @@ pub const Builtins = struct {
             var buf = std.ArrayList(u8).init(gpa);
             try render.htmlToc(ast, buf.writer());
 
-            return .{ .string = try buf.toOwnedSlice() };
+            return String.init(try buf.toOwnedSlice());
         }
     };
 };

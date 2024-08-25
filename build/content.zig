@@ -282,17 +282,22 @@ fn writeAssetIndex(
             \\
             \\
         ;
-        switch (asset.lp) {
-            .src_path, .cwd_relative => {
-                std.debug.print(msg, .{asset.name});
-                std.process.exit(1);
-            },
-            .generated, .dependency => {
-                run.addArg(asset.name);
-                run.addFileArg(asset.lp);
-                run.addArg(asset.install_path orelse "null");
-            },
-        }
+
+        _ = msg;
+        // switch (asset.lp) {
+        //     .src_path, .cwd_relative => {
+        //         std.debug.print(msg, .{asset.name});
+        //         std.process.exit(1);
+        //     },
+        //     .generated, .dependency => {
+        //         run.addArg(asset.name);
+        //         run.addFileArg(asset.lp);
+        //         run.addArg(asset.install_path orelse "null");
+        //     },
+        // }
+        run.addArg(asset.name);
+        run.addFileArg(asset.lp);
+        run.addArg(asset.install_path orelse "null");
     }
 
     index_step.dependOn(&run.step);
@@ -444,19 +449,19 @@ pub fn scanVariant(
             const fm = switch (result) {
                 .success => |s| s.header,
                 .empty => {
-                    std.debug.panic("WARNING: ignoring empty file '{s}{s}'\n", .{
+                    std.debug.print("WARNING: ignoring empty file '{s}{s}'\n", .{
                         permalink, "index.md",
                     });
                     break :blk;
                 },
                 .framing_error => |line| {
-                    std.debug.panic("ERROR: bad frontmatter framing in '{s}{s}' (line {})\n", .{
+                    std.debug.print("ERROR: bad frontmatter framing in '{s}{s}' (line {})\n", .{
                         permalink, "index.md", line,
                     });
                     std.process.exit(1);
                 },
                 .ziggy_error => |diag| {
-                    std.debug.panic("{s}{}", .{ permalink, diag });
+                    std.debug.print("{s}{}", .{ permalink, diag });
                     std.process.exit(1);
                 },
             };
@@ -524,19 +529,19 @@ pub fn scanVariant(
                     const fm = switch (result) {
                         .success => |s| s.header,
                         .empty => {
-                            std.debug.panic("WARNING: ignoring empty file '{s}.md'\n", .{
+                            std.debug.print("WARNING: ignoring empty file '{s}.md'\n", .{
                                 permalink,
                             });
                             continue;
                         },
                         .framing_error => |line| {
-                            std.debug.panic("ERROR: bad frontmatter framing in '{s}.md' (line {})\n", .{
+                            std.debug.print("ERROR: bad frontmatter framing in '{s}.md' (line {})\n", .{
                                 permalink, line,
                             });
                             std.process.exit(1);
                         },
                         .ziggy_error => |diag| {
-                            std.debug.panic("{}", .{diag});
+                            std.debug.print("{}", .{diag});
                             std.process.exit(1);
                         },
                     };

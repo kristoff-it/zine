@@ -339,20 +339,45 @@ fn defaultZineOptions(b: *std.Build, debug: bool) ZineOptions {
 
 pub fn scriptyReferenceDocs(
     project: *std.Build,
-    output_file_path: []const u8,
+    shtml_output_file_path: []const u8,
+    smd_output_file_path: []const u8,
 ) void {
     const zine_dep = project.dependencyFromBuildZig(
         zine,
         .{ .optimize = .Debug },
     );
 
-    const run_docgen = project.addRunArtifact(zine_dep.artifact("docgen"));
-    const reference_md = run_docgen.addOutputFileArg("scripty_reference.md");
+    const run_step = project.step(
+        "docgen",
+        "Regenerates Scripty reference docs",
+    );
 
-    const wf = project.addWriteFiles();
-    wf.addCopyFileToSource(reference_md, output_file_path);
+    {
+        const run_docgen = project.addRunArtifact(
+            zine_dep.artifact("shtml_docgen"),
+        );
 
-    const desc = project.fmt("Regenerates Scripty reference docs in '{s}'", .{output_file_path});
-    const run_step = project.step("docgen", desc);
-    run_step.dependOn(&wf.step);
+        const reference_md = run_docgen.addOutputFileArg(
+            "shtml_scripty_reference.md",
+        );
+
+        const wf = project.addWriteFiles();
+        wf.addCopyFileToSource(reference_md, shtml_output_file_path);
+
+        run_step.dependOn(&wf.step);
+    }
+    {
+        const run_docgen = project.addRunArtifact(
+            zine_dep.artifact("smd_docgen"),
+        );
+
+        const reference_md = run_docgen.addOutputFileArg(
+            "smd_scripty_reference.md",
+        );
+
+        const wf = project.addWriteFiles();
+        wf.addCopyFileToSource(reference_md, smd_output_file_path);
+
+        run_step.dependOn(&wf.step);
+    }
 }

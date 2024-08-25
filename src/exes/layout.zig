@@ -109,8 +109,8 @@ pub fn main() !void {
     };
 
     var locale_code: ?[]const u8 = null;
-    const i18n: ziggy.dynamic.Value = blk: {
-        if (std.mem.eql(u8, i18n_path, "null")) break :blk .null;
+    const i18n: ziggy.dynamic.Map(ziggy.dynamic.Value) = blk: {
+        if (std.mem.eql(u8, i18n_path, "null")) break :blk .{};
 
         locale_code = std.fs.path.stem(i18n_path);
         const bytes = readFile(build_root, i18n_path, arena) catch |err| {
@@ -124,7 +124,7 @@ pub fn main() !void {
             .path = i18n_path,
         };
 
-        break :blk ziggy.parseLeaky(ziggy.dynamic.Value, arena, bytes, .{
+        break :blk ziggy.parseLeaky(ziggy.dynamic.Map(ziggy.dynamic.Value), arena, bytes, .{
             .diagnostic = &diag,
         }) catch {
             std.debug.print("unable to load i18n file:\n{s}\n\n", .{

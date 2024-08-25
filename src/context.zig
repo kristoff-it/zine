@@ -1,8 +1,10 @@
+const context = @This();
+
 const std = @import("std");
 const scripty = @import("scripty");
 const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
-const docgen = @import("context/docgen.zig");
+const doctypes = @import("context/doctypes.zig");
 const Allocator = std.mem.Allocator;
 const Ctx = superhtml.utils.Ctx;
 
@@ -53,8 +55,8 @@ pub var siteGet: *const fn (
 
 pub var allSites: *const fn () []const Site = undefined;
 
-pub const ScriptyParam = docgen.ScriptyParam;
-pub const Signature = docgen.Signature;
+pub const ScriptyParam = doctypes.ScriptyParam;
+pub const Signature = doctypes.Signature;
 
 pub const md = @import("context/markdown.zig");
 
@@ -64,26 +66,38 @@ pub const Page = @import("context/Page.zig");
 pub const Build = @import("context/Build.zig");
 pub const Asset = @import("context/Asset.zig");
 pub const DateTime = @import("context/DateTime.zig");
+pub const String = @import("context/String.zig");
+pub const Bool = @import("context/Bool.zig");
+pub const Int = @import("context/Int.zig");
+pub const Float = @import("context/Float.zig");
+pub const Map = @import("context/Map.zig");
+// pub const Slice = @import("context/Slice.zig");
+pub const Optional = @import("context/Optional.zig");
+pub const Iterator = @import("context/Iterator.zig");
 
 pub const Value = union(enum) {
     template: *const Template,
     site: *const Site,
     page: *const Page,
     ctx: Ctx(Value),
-    alternative: *const Page.Alternative,
+    alternative: Page.Alternative,
     build: *const Build,
     asset: Asset,
-    dynamic: ziggy.dynamic.Value,
-    iterator: Iterator,
-    iterator_element: IterElement,
-    map_kv: MapKV,
-    optional: ?Optional,
-    string: []const u8,
+    map: Map,
+    // slice: Slice,
+    optional: ?*const context.Optional,
+    string: String,
     date: DateTime,
-    bool: bool,
-    int: i64,
-    float: f64,
+    bool: context.Bool,
+    int: Int,
+    float: Float,
+    iterator: *context.Iterator,
+    map_kv: Map.KV,
     err: []const u8,
+
+    pub const Bool = context.Bool;
+    pub const Optional = context.Optional;
+    pub const Iterator = context.Iterator;
 
     pub fn errFmt(gpa: Allocator, comptime fmt: []const u8, args: anytype) !Value {
         const err_msg = try std.fmt.allocPrint(gpa, fmt, args);
@@ -108,496 +122,113 @@ pub const Value = union(enum) {
         w.print("\n", .{}) catch return error.ErrIO;
     }
 
-    pub const call = scripty.defaultCall(Value);
-
-    pub const Optional = union(enum) {
-        iter_elem: IterElement,
-        page: *const Page,
-        bool: bool,
-        int: i64,
-        string: []const u8,
-        dynamic: ziggy.dynamic.Value,
-    };
-
-    pub const Iterator = struct {
-        up_idx: u32 = undefined,
-        up_tpl: *const anyopaque = undefined,
-        impl: union(enum) {
-            string_it: SliceIterator([]const u8),
-            page_it: PageIterator,
-            page_slice_it: SliceIterator(*const Page),
-            translation_it: TranslationIterator,
-            alt_it: SliceIterator(Page.Alternative),
-            map_it: MapIterator,
-            dynamic_it: SliceIterator(ziggy.dynamic.Value),
-        },
-
-        pub fn len(self: Iterator) usize {
-            const l: usize = switch (self.impl) {
-                inline else => |v| v.len(),
-            };
-
-            return l;
-        }
-        pub fn next(iter: *Iterator, gpa: Allocator) !?IterElement {
-            switch (iter.impl) {
-                inline else => |*v| {
-                    const n = try v.next(gpa) orelse return null;
-                    const l = iter.len();
-
-                    const elem_type = switch (@typeInfo(@TypeOf(n))) {
-                        .Pointer => |p| p.child,
-                        else => @TypeOf(n),
-                    };
-                    const by_ref = @typeInfo(elem_type) == .Struct and @hasDecl(elem_type, "PassByRef") and elem_type.PassByRef;
-                    const it = if (by_ref)
-                        IterElement.IterValue.from(n)
-                    else
-                        IterElement.IterValue.from(n.*);
-                    return .{
-                        .it = it,
-                        .idx = v.idx,
-                        .first = v.idx == 1,
-                        .last = v.idx == l,
-                        ._iter = iter,
-                    };
-                },
-            }
-        }
-
-        pub fn dot(self: Iterator, gpa: Allocator, path: []const u8) Value {
-            _ = path;
-            _ = gpa;
-            _ = self;
-            return .{ .err = "field access on an iterator value" };
-        }
-
-        pub const Builtins = struct {};
-    };
-
-    pub const IterElement = struct {
-        it: IterValue,
-        idx: usize,
-        first: bool,
-        last: bool,
-        _iter: *const Iterator,
-
-        const IterValue = union(enum) {
-            string: []const u8,
-            page: *const Page,
-            alternative: *const Page.Alternative,
-            map_kv: MapKV,
-            dynamic: ziggy.dynamic.Value,
-
-            pub fn from(v: anytype) IterValue {
-                return switch (@TypeOf(v)) {
-                    []const u8 => .{ .string = v },
-                    *const Page => .{ .page = v },
-                    *const Page.Alternative => .{ .alternative = v },
-                    MapKV => .{ .map_kv = v },
-                    ziggy.dynamic.Value => switch (v) {
-                        .bytes => |b| .{ .string = b },
-                        else => .{ .dynamic = v },
-                    },
-                    else => @compileError("TODO: implement IterElement.IterValue.from for " ++ @typeName(@TypeOf(v))),
-                };
-            }
-        };
-
-        pub const dot = scripty.defaultDot(IterElement, Value, false);
-        pub const Builtins = struct {
-            pub const up = struct {
-                pub const signature: Signature = .{ .ret = .dyn };
-                pub const description =
-                    \\In nested loops, accesses the upper `$loop`
-                    \\
-                ;
-                pub const examples =
-                    \\$loop.up().it
-                ;
-                pub const call = superhtml.utils.loopUpFunction(
-                    Value,
-                    superhtml.VM(Template, Value).Template,
-                );
-            };
-            pub const len = struct {
-                pub const signature: Signature = .{ .ret = .int };
-                pub const description =
-                    \\Returns the total number of elements in this loop.
-                    \\
-                ;
-                pub const examples =
-                    \\$loop.len()
-                ;
-
-                pub fn call(
-                    ite: IterElement,
-                    _: Allocator,
-                    args: []const Value,
-                ) !Value {
-                    const bad_arg = .{ .err = "expected 0 arguments" };
-                    if (args.len != 0) return bad_arg;
-                    return .{ .int = @intCast(ite._iter.len()) };
-                }
-            };
-        };
-    };
-
     pub fn fromStringLiteral(s: []const u8) Value {
-        return .{ .string = s };
+        return .{ .string = .{ .value = s } };
     }
 
     pub fn fromNumberLiteral(bytes: []const u8) Value {
         const num = std.fmt.parseInt(i64, bytes, 10) catch {
             return .{ .err = "error parsing numeric literal" };
         };
-        return .{ .int = num };
+        return .{ .int = .{ .value = num } };
     }
 
     pub fn fromBooleanLiteral(b: bool) Value {
-        return .{ .bool = b };
+        return .{ .bool = .{ .value = b } };
     }
 
-    pub fn from(gpa: Allocator, v: anytype) Value {
-        _ = gpa;
+    pub fn fromZiggy(gpa: Allocator, value: ziggy.dynamic.Value) !Value {
+        switch (value) {
+            .null => return .{ .optional = null },
+            .bool => |b| return .{ .bool = .{ .value = b } },
+            .integer => |i| return .{ .int = .{ .value = i } },
+            .bytes => |s| return .{ .string = .{ .value = s } },
+            .array => |a| return .{
+                .iterator = try context.Iterator.init(gpa, .{
+                    .dynamic_it = .{ .items = a },
+                }),
+            },
+            .tag => |t| {
+                std.debug.assert(std.mem.eql(u8, t.name, "date"));
+                const date = DateTime.init(t.bytes) catch {
+                    return .{ .err = "error parsing date" };
+                };
+                return Value.from(gpa, date);
+            },
+            .kv => |kv| return .{ .map = .{ .value = kv } },
+            inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+        }
+    }
+
+    pub fn from(gpa: Allocator, v: anytype) !Value {
         return switch (@TypeOf(v)) {
             *Template => .{ .template = v },
             *const Template => .{ .template = v },
             *const Site => .{ .site = v },
-            *const Page => .{ .page = v },
-            *const Page.Alternative => .{ .alternative = v },
-            []const Page.Alternative => .{
-                .iterator = .{
-                    .impl = .{
-                        .alt_it = .{ .items = v },
-                    },
-                },
-            },
+            *const Page, *Page => .{ .page = v },
+            Page.Alternative => .{ .alternative = v },
             *const Build => .{ .build = v },
             Ctx(Value) => .{ .ctx = v },
             Asset => .{ .asset = v },
-            // IterElement => .{ .iteration_element = v },
             DateTime => .{ .date = v },
-            []const u8 => .{ .string = v },
-            ?[]const u8 => .{
-                .optional = .{
-                    .string = v orelse @panic("TODO: null optional reached Value.from"),
-                },
-            },
-            bool => .{ .bool = v },
-            i64, usize => .{ .int = @intCast(v) },
-            ?Value => if (v) |o| o else .{ .err = "trying to access nil value" },
-            *Value => v.*,
-            IterElement.IterValue => switch (v) {
-                .string => |s| .{ .string = s },
-                .page => |p| .{ .page = p },
-                .alternative => |p| .{ .alternative = p },
-                .map_kv => |kv| .{ .map_kv = kv },
-                .dynamic => |d| .{ .dynamic = d },
-            },
-            Optional => switch (v) {
-                .iter_elem => |ie| .{ .iterator_element = ie },
-                .page => |p| .{ .page = p },
-                .bool => |b| .{ .bool = b },
-                .string => |s| .{ .string = s },
-                .int => |i| .{ .int = i },
-                .dynamic => |d| .{ .dynamic = d },
+            []const u8, []u8 => .{ .string = .{ .value = v } },
+            bool => .{ .bool = .{ .value = v } },
+            i64, usize => .{ .int = .{ .value = @intCast(v) } },
+            ziggy.dynamic.Value => try fromZiggy(gpa, v),
+            Map.ZiggyMap => .{ .map = .{ .value = v } },
+            Map.KV => .{ .map_kv = v },
+            *const context.Optional => .{ .optional = v },
+            ?*const context.Optional => if (v) |opt| .{ .optional = opt } else context.Optional.Null,
+            ?[]const u8 => if (v) |opt|
+                try context.Optional.init(gpa, opt)
+            else
+                context.Optional.Null,
+            ?Value => if (v) |opt|
+                try context.Optional.init(gpa, opt)
+            else
+                context.Optional.Null,
+            Value => v,
+            ?*context.Iterator => if (v) |opt|
+                try context.Optional.init(gpa, opt)
+            else
+                context.Optional.Null,
+            *context.Iterator => .{ .iterator = v },
+            []const []const u8 => .{
+                .iterator = try context.Iterator.init(gpa, .{
+                    .string_it = .{ .items = v },
+                }),
             },
 
-            ?Optional => .{ .optional = v orelse @panic("TODO: null optional reached Value.from") },
-            ziggy.dynamic.Value => .{ .dynamic = v },
-            MapKV => .{ .map_kv = v },
-            []const []const u8 => .{
-                .iterator = .{
-                    .impl = .{
-                        .string_it = .{ .items = v },
-                    },
-                },
+            []const Page.Alternative => .{
+                .iterator = try context.Iterator.init(gpa, .{
+                    .alt_it = .{ .items = v },
+                }),
             },
             else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),
         };
     }
+
+    pub const call = scripty.defaultCall(Value);
     pub fn dot(
         self: *Value,
         gpa: Allocator,
         path: []const u8,
     ) error{OutOfMemory}!Value {
         switch (self.*) {
-            .map_kv,
+            // .map_kv,
             .string,
             .bool,
             .int,
             .float,
             .err,
             .date,
+            .optional,
             => return .{ .err = "field access on primitive value" },
-            .dynamic => return .{ .err = "field access on dynamic value" },
-            .optional => return .{ .err = "field access on optional value" },
+            // .optional => return .{ .err = "field access on optional value" },
             .asset => return .{ .err = "field access on asset value" },
             // .iteration_element => return
-            .iterator_element => |*v| return v.dot(gpa, path),
+            // .iterator_element => |*v| return v.dot(gpa, path),
             inline else => |v| return v.dot(gpa, path),
         }
-    }
-
-    pub fn builtinsFor(comptime tag: @typeInfo(Value).Union.tag_type.?) type {
-        return switch (tag) {
-            .string => @import("context/primitive_builtins/String.zig"),
-            .int => @import("context/primitive_builtins/Int.zig"),
-            .bool => @import("context/primitive_builtins/Bool.zig"),
-            .dynamic => @import("context/primitive_builtins/Dynamic.zig"),
-            else => {
-                const f = std.meta.fieldInfo(Value, tag);
-                switch (@typeInfo(f.type)) {
-                    .Pointer => |ptr| {
-                        if (@typeInfo(ptr.child) == .Struct) {
-                            return @field(ptr.child, "Builtins");
-                        }
-                    },
-                    .Struct => {
-                        return @field(f.type, "Builtins");
-                    },
-                    else => {},
-                }
-
-                return struct {};
-            },
-        };
-    }
-};
-
-pub fn SliceIterator(comptime Element: type) type {
-    return struct {
-        items: []const Element,
-        idx: usize = 0,
-
-        pub fn len(self: @This()) usize {
-            return self.items.len;
-        }
-        pub fn index(self: @This()) usize {
-            return self.items.idx;
-        }
-
-        pub fn next(self: *@This(), gpa: Allocator) !?*const Element {
-            _ = gpa;
-            if (self.idx == self.items.len) return null;
-            const result: ?*Element = @constCast(&self.items[self.idx]);
-            self.idx += 1;
-            return result;
-        }
-    };
-}
-
-pub const PageIterator = struct {
-    idx: usize = 0,
-
-    _site: *const Site,
-    _parent_section_path: ?[]const u8,
-    _list: std.mem.TokenIterator(u8, .scalar),
-    _len: usize,
-
-    pub fn init(
-        site: *const Site,
-        parent_section_path: ?[]const u8,
-        src: []const u8,
-    ) PageIterator {
-        return .{
-            ._site = site,
-            ._parent_section_path = parent_section_path,
-            ._list = std.mem.tokenizeScalar(u8, src, '\n'),
-            ._len = std.mem.count(u8, src, "\n"),
-        };
-    }
-
-    pub fn len(it: PageIterator) usize {
-        return it._len;
-    }
-    pub fn index(it: PageIterator) usize {
-        return it.idx;
-    }
-
-    pub fn next(it: *PageIterator, gpa: Allocator) !?*const Page {
-        _ = gpa;
-
-        const next_page = it._list.next() orelse return null;
-        defer it.idx += 1;
-
-        const page = pageGet(
-            it._site,
-            next_page,
-            it._parent_section_path,
-            it.idx,
-            false,
-        ) catch |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            error.PageLoad => @panic("TODO: report page load errors"),
-        };
-
-        return page;
-
-        // const value = it._page_loader.call(gpa, .{
-        //     .index_in_section = it.idx,
-        //     .parent_section_path = it._parent_section_path,
-        //     .url_path_prefix = it._url_path_prefix,
-        //     .md_rel_path = next_page,
-        //     // TODO: give iterators the ability to error out
-        // }) catch @panic("error while fetching next page");
-
-        // return value.page;
-    }
-};
-
-pub const TranslationIterator = struct {
-    idx: usize = 0,
-    _page: *const Page,
-    _len: usize,
-
-    pub fn init(
-        page: *const Page,
-    ) TranslationIterator {
-        return .{
-            ._page = page,
-
-            ._len = if (page.translation_key == null)
-                allSites().len
-            else
-                page._meta.key_variants.len,
-        };
-    }
-
-    pub fn len(it: TranslationIterator) usize {
-        return it._len;
-    }
-    pub fn index(it: TranslationIterator) usize {
-        return it.idx;
-    }
-
-    pub fn next(it: *TranslationIterator, gpa: Allocator) !?*const Page {
-        _ = gpa;
-        if (it.idx >= it._len) return null;
-
-        defer it.idx += 1;
-
-        const t: Page.Translation = if (it._page.translation_key == null) .{
-            .site = &allSites()[it.idx],
-            .md_rel_path = it._page._meta.md_rel_path,
-        } else it._page._meta.key_variants[it.idx];
-
-        const page = pageGet(
-            t.site,
-            t.md_rel_path,
-            null,
-            null,
-            false,
-        ) catch |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            error.PageLoad => @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore."),
-        };
-
-        return page;
-    }
-};
-
-pub const MapKV = struct {
-    _key: []const u8,
-    _value: ziggy.dynamic.Value,
-
-    // pub const dot = scripty.defaultDot(MapKV, Value);
-    pub const PassByRef = true;
-    pub const Builtins = struct {
-        pub const key = struct {
-            pub const signature: Signature = .{ .ret = .str };
-            pub const description =
-                \\Returns the key of a key-value pair.
-            ;
-            pub const examples =
-                \\$loop.it.key()
-            ;
-            pub fn call(
-                kv: MapKV,
-                _: Allocator,
-                args: []const Value,
-            ) !Value {
-                const bad_arg = .{ .err = "expected 0 arguments" };
-                if (args.len != 0) return bad_arg;
-                return .{ .string = kv._key };
-            }
-        };
-        pub const value = struct {
-            pub const signature: Signature = .{ .ret = .dyn };
-            pub const description =
-                \\Returns the value of a key-value pair.
-            ;
-            pub const examples =
-                \\$loop.it.value()
-            ;
-            pub fn call(
-                kv: MapKV,
-                _: Allocator,
-                args: []const Value,
-            ) !Value {
-                const bad_arg = .{ .err = "expected 0 arguments" };
-                if (args.len != 0) return bad_arg;
-                return switch (kv._value) {
-                    .kv => .{ .dynamic = kv._value },
-                    .bytes => |b| .{ .string = b },
-                    .tag => |t| .{ .string = t.bytes },
-                    .integer => |i| .{ .int = i },
-                    .float => |f| .{ .float = f },
-                    .bool => |b| .{ .bool = b },
-                    .array => |a| .{ .iterator = .{ .impl = .{ .dynamic_it = .{ .items = a } } } },
-                    .null => @panic("TODO: implement support for Ziggy null values in scripty"),
-                };
-            }
-        };
-    };
-};
-pub const MapIterator = struct {
-    idx: usize = 0,
-    _it: std.StringArrayHashMap(ziggy.dynamic.Value).Iterator,
-    _len: usize,
-    _filter: ?[]const u8 = null,
-
-    pub fn init(
-        it: std.StringArrayHashMap(ziggy.dynamic.Value).Iterator,
-        filter: ?[]const u8,
-    ) MapIterator {
-        const f = filter orelse return .{ ._it = it, ._len = it.len };
-        var filter_it = it;
-        var count: usize = 0;
-        while (filter_it.next()) |elem| {
-            if (std.mem.indexOf(u8, elem.key_ptr.*, f) != null) count += 1;
-        }
-        return .{ ._it = it, ._len = count, ._filter = f };
-    }
-
-    pub fn len(it: MapIterator) usize {
-        return it._len;
-    }
-    pub fn index(it: MapIterator) usize {
-        return it.idx;
-    }
-
-    pub fn next(it: *MapIterator, _: Allocator) !?MapKV {
-        if (it.idx >= it._len) return null;
-
-        while (it._it.next()) |elem| {
-            const f = it._filter orelse {
-                it.idx += 1;
-                return .{
-                    ._key = elem.key_ptr.*,
-                    ._value = elem.value_ptr.*,
-                };
-            };
-            if (std.mem.indexOf(u8, elem.key_ptr.*, f) != null) {
-                it.idx += 1;
-                return .{
-                    ._key = elem.key_ptr.*,
-                    ._value = elem.value_ptr.*,
-                };
-            }
-        }
-
-        unreachable;
     }
 };
