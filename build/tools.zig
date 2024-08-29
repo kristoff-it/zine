@@ -49,22 +49,32 @@ pub fn build(b: *std.Build) !void {
     update_assets.root_module.addImport("options", options);
     b.installArtifact(update_assets);
 
-    const super = b.dependency("superhtml", mode);
-    const scripty = super.builder.dependency("scripty", .{});
-    const ziggy = b.dependency("ziggy", mode);
-    const zeit = b.dependency("zeit", mode);
+    // "BDFL version resolution" strategy
+    const scripty = b.dependency("scripty", .{}).module("scripty");
+
+    const superhtml = b.dependency("superhtml", mode).module("superhtml");
+    superhtml.addImport("scripty", scripty);
+
+    const supermd = b.dependency("supermd", mode).module("supermd");
+    supermd.addImport("scripty", scripty);
+    supermd.addImport("superhtml", superhtml);
+
+    const ziggy = b.dependency("ziggy", mode).module("ziggy");
+    const zeit = b.dependency("zeit", mode).module("zeit");
     const syntax = b.dependency("flow-syntax", mode);
     const ts = syntax.builder.dependency("tree-sitter", mode);
+    const treez = ts.module("treez");
 
     const zine = b.addModule("zine", .{
         .root_source_file = b.path("src/root.zig"),
     });
-    zine.addImport("ziggy", ziggy.module("ziggy"));
-    zine.addImport("zeit", zeit.module("zeit"));
+    zine.addImport("ziggy", ziggy);
+    zine.addImport("scripty", scripty);
+    zine.addImport("supermd", supermd);
+    zine.addImport("superhtml", superhtml);
+    zine.addImport("zeit", zeit);
     zine.addImport("syntax", syntax.module("syntax"));
-    zine.addImport("scripty", scripty.module("scripty"));
-    zine.addImport("treez", ts.module("treez"));
-    zine.addImport("superhtml", super.module("superhtml"));
+    zine.addImport("treez", treez);
 
     setupServer(b, options, target, optimize);
 
@@ -77,32 +87,40 @@ pub fn build(b: *std.Build) !void {
 
     });
 
-    const gfm = b.dependency("gfm", mode);
-    layout.root_module.addImport("zine", zine);
     layout.root_module.addImport("options", options);
-    layout.root_module.addImport("superhtml", super.module("superhtml"));
-    layout.root_module.addImport("scripty", scripty.module("scripty"));
-    layout.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    layout.root_module.addImport("zeit", zeit.module("zeit"));
+    layout.root_module.addImport("zine", zine);
+    layout.root_module.addImport("ziggy", ziggy);
+    layout.root_module.addImport("scripty", scripty);
+    layout.root_module.addImport("supermd", supermd);
+    layout.root_module.addImport("superhtml", superhtml);
+    layout.root_module.addImport("zeit", zeit);
     layout.root_module.addImport("syntax", syntax.module("syntax"));
-    layout.root_module.addImport("treez", ts.module("treez"));
+    layout.root_module.addImport("treez", treez);
     layout.linkLibrary(ts.artifact("tree-sitter"));
-    layout.linkLibrary(gfm.artifact("cmark-gfm"));
-    layout.linkLibrary(gfm.artifact("cmark-gfm-extensions"));
-    layout.linkLibC();
 
     b.installArtifact(layout);
 
-    const docgen = b.addExecutable(.{
-        .name = "docgen",
+    const shtml_docgen = b.addExecutable(.{
+        .name = "shtml_docgen",
         .root_source_file = b.path("src/exes/docgen.zig"),
         .target = target,
         .optimize = .Debug,
     });
-    docgen.root_module.addImport("zine", zine);
-    docgen.root_module.addImport("zeit", zeit.module("zeit"));
-    docgen.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    b.installArtifact(docgen);
+    shtml_docgen.root_module.addImport("zine", zine);
+    shtml_docgen.root_module.addImport("zeit", zeit);
+    shtml_docgen.root_module.addImport("ziggy", ziggy);
+    b.installArtifact(shtml_docgen);
+
+    const smd_docgen = b.addExecutable(.{
+        .name = "smd_docgen",
+        .root_source_file = b.path("supermd/src/docgen.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+    smd_docgen.root_module.addImport("zeit", zeit);
+    smd_docgen.root_module.addImport("ziggy", ziggy);
+    smd_docgen.root_module.addImport("scripty", scripty);
+    b.installArtifact(smd_docgen);
 
     // const md_renderer = b.addExecutable(.{
     //     .name = "markdown-renderer",

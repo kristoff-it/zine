@@ -280,6 +280,7 @@ fn serve(s: *Server, listen_port: u16) !void {
                 if (err != error.HttpConnectionClosing) {
                     log.debug("connection error: {s}\n", .{@errorName(err)});
                 }
+                became_websocket = true;
                 continue :accept;
             };
 

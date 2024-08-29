@@ -2,9 +2,21 @@
     .name = "zine",
     .version = "0.0.0",
     .dependencies = .{
-        .gfm = .{
-            .url = "git+https://github.com/kristoff-it/cmark-gfm.git#b7034624e7da6857a26e4720cd7fde26d5bc715c",
-            .hash = "122018a99dd8299e00d6b3279fc5fee9f93fd4c773db34f6390fcbed320cf4d652c1",
+        .supermd = .{
+            .url = "git+https://github.com/kristoff-it/supermd#125305aa31ef41e9ad9c3fcd5e72ec9219c5206a",
+            .hash = "1220998444347b7a7f9535b12f00ceb87bd33499185ad0eabf4f3c10182715e50bb2",
+        },
+        .scripty = .{
+            .url = "git+https://github.com/kristoff-it/scripty#df8c11380f9e9bec34809f2242fb116d27cf39d6",
+            .hash = "122014e78d7c69d93595993b3231f3141368e22634b332b0b91a2fb73a8570f147a5",
+        },
+        .superhtml = .{
+            .url = "git+https://github.com/kristoff-it/superhtml#85a2c6116cc17a00bb7ecdd3e2d6ae84fa5530c4",
+            .hash = "1220dacd73752dd1a1950bbc8866036f8e06c69eb404cd033b04e2fad85d8cb115f1",
+        },
+        .ziggy = .{
+            .url = "git+https://github.com/kristoff-it/ziggy#c66f47bc632c66668d61fa06eda112b41d6e5130",
+            .hash = "1220115ff095a3c970cc90fce115294ba67d6fbc4927472dc856abc51e2a1a9364d7",
         },
         .mime = .{
             .url = "git+https://github.com/andrewrk/mime.git#0b676643886b1e2f19cf11b4e15b028768708342",
@@ -13,17 +25,6 @@
         .ws = .{
             .url = "git+https://github.com/karlseguin/websocket.zig.git#c77f87d0e6548865636eb9781106a8be72e5755a",
             .hash = "12208720b772330f309cfb48957f4152ee0930b716837d0c1d07fee2dea2f4dc712e",
-        },
-        .frontmatter = .{
-            .path = "frontmatter",
-        },
-        .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#c9fe65c67ac9d4f1bf30e2f78d4a60bf42b0b26d",
-            .hash = "12206d96e7bb0e807def94910d0509252f2727b2096052eaf013842a4581a6531020",
-        },
-        .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy#20c8088dbf4b22dc2f6e21d289cfb3dcc25c8cae",
-            .hash = "12206a0d6884ef31e3d4e47d5c9c6c4121b0a891258d6072ad7f5bac826803d29d36",
         },
         .zeit = .{
             .url = "git+https://github.com/rockorager/zeit#02b347da743098f1bf8a88e590d38011b188ab51",

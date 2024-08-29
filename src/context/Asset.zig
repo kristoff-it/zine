@@ -4,14 +4,19 @@ const std = @import("std");
 const _ziggy = @import("ziggy");
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
-const log = utils.log;
-const Signature = @import("docgen.zig").Signature;
 const context = @import("../context.zig");
-const Value = context.Value;
+const log = utils.log;
+const Signature = @import("doctypes.zig").Signature;
 const Allocator = std.mem.Allocator;
+const Value = context.Value;
+const Int = context.Int;
 
-_meta: context.AssetCollectorExtern.Args,
-_collector: *const context.AssetCollectorExtern = &.{},
+_meta: struct {
+    ref: []const u8,
+    // full path to the asset
+    path: []const u8,
+    kind: context.AssetKindUnion,
+},
 
 pub const Kind = enum {
     /// An asset inside of `assets_dir_path`
@@ -23,12 +28,10 @@ pub const Kind = enum {
 };
 
 pub const description = "Represents an asset.";
-pub const dot = scripty.defaultDot(Asset, Value);
+pub const dot = scripty.defaultDot(Asset, Value, false);
 pub const Builtins = struct {
     pub const link = struct {
-        pub const signature: Signature = .{
-            .ret = .str,
-        };
+        pub const signature: Signature = .{ .ret = .String };
         pub const description =
             \\Returns a link to the asset.
             \\
@@ -49,7 +52,6 @@ pub const Builtins = struct {
             asset: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             const bad_arg = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
@@ -63,24 +65,27 @@ pub const Builtins = struct {
                 },
             }
 
-            return asset._collector.call(gpa, asset._meta);
+            const url = try context.assetCollect(
+                asset._meta.ref,
+                asset._meta.path,
+                asset._meta.kind,
+            );
+
+            return Value.from(gpa, url);
         }
     };
     pub const size = struct {
-        pub const signature: Signature = .{
-            .ret = .str,
-        };
+        pub const signature: Signature = .{ .ret = .String };
         pub const description =
             \\Returns the size of an asset file in bytes.
         ;
         pub const examples =
-            \\<div var="$site.asset('foo.json').size()"></div>
+            \\<div text="$site.asset('foo.json').size()"></div>
         ;
         pub fn call(
             self: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -88,49 +93,43 @@ pub const Builtins = struct {
             const stat = std.fs.cwd().statFile(self._meta.path) catch {
                 return .{ .err = "i/o error while reading asset file" };
             };
-            return .{ .int = @intCast(stat.size) };
+            return Int.init(@intCast(stat.size));
         }
     };
     pub const bytes = struct {
-        pub const signature: Signature = .{
-            .ret = .str,
-        };
+        pub const signature: Signature = .{ .ret = .String };
         pub const description =
             \\Returns the raw contents of an asset.
         ;
         pub const examples =
-            \\<div var="$page.assets.file('foo.json').bytes()"></div>
+            \\<div text="$page.assets.file('foo.json').bytes()"></div>
         ;
         pub fn call(
             self: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const data = std.fs.cwd().readFileAlloc(gpa, self._meta.path, std.math.maxInt(u32)) catch {
                 return .{ .err = "i/o error while reading asset file" };
             };
-            return .{ .string = data };
+            return Value.from(gpa, data);
         }
     };
 
     pub const ziggy = struct {
-        pub const signature: Signature = .{
-            .ret = .dyn,
-        };
+        pub const signature: Signature = .{ .ret = .any };
         pub const description =
             \\Tries to parse the asset as a Ziggy document.
         ;
         pub const examples =
-            \\<div var="$page.assets.file('foo.ziggy').ziggy().get('bar')"></div>
+            \\<div text="$page.assets.file('foo.ziggy').ziggy().get('bar')"></div>
         ;
         pub fn call(
             self: Asset,
             gpa: Allocator,
             args: []const Value,
-            _: *utils.SuperHTMLResource,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
@@ -157,7 +156,7 @@ pub const Builtins = struct {
                 return .{ .err = buf.items };
             };
 
-            return .{ .dynamic = parsed };
+            return Value.fromZiggy(gpa, parsed);
         }
     };
 };
