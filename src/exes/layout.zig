@@ -236,6 +236,17 @@ pub fn main() !void {
             log.debug("loading template = '{s}'", .{template_path});
             const template_html = readFile(build_root, template_path, arena) catch |ioerr| {
                 super_vm.reportResourceFetchError(@errorName(ioerr));
+                std.debug.print(
+                    \\
+                    \\NOTE: Zine expects templates to be placed under a
+                    \\      'templates/' subdirectory in your layouts
+                    \\      directory.
+                    \\
+                    \\Zine tried to find the template here:
+                    \\'{s}'
+                    \\
+                    \\
+                , .{template_path});
                 std.process.exit(1);
             };
 
