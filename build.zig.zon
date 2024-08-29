@@ -3,13 +3,16 @@
     .version = "0.0.0",
     .dependencies = .{
         .supermd = .{
-            .path = "supermd",
+            .url = "git+https://github.com/kristoff-it/supermd#125305aa31ef41e9ad9c3fcd5e72ec9219c5206a",
+            .hash = "1220998444347b7a7f9535b12f00ceb87bd33499185ad0eabf4f3c10182715e50bb2",
         },
         .scripty = .{
-            .path = "../scripty",
+            .url = "git+https://github.com/kristoff-it/scripty#df8c11380f9e9bec34809f2242fb116d27cf39d6",
+            .hash = "122014e78d7c69d93595993b3231f3141368e22634b332b0b91a2fb73a8570f147a5",
         },
         .superhtml = .{
-            .path = "../superhtml",
+            .url = "git+https://github.com/kristoff-it/superhtml#85a2c6116cc17a00bb7ecdd3e2d6ae84fa5530c4",
+            .hash = "1220dacd73752dd1a1950bbc8866036f8e06c69eb404cd033b04e2fad85d8cb115f1",
         },
         .ziggy = .{
             .url = "git+https://github.com/kristoff-it/ziggy#c66f47bc632c66668d61fa06eda112b41d6e5130",
