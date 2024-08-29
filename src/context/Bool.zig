@@ -33,7 +33,7 @@ pub const Builtins = struct {
             \\If the boolean is `true`, returns the first argument.
             \\Otherwise, returns the second argument.
             \\
-            \\Omitting the second argument defaults to an empty string.
+            \\The second argument defaults to an empty string.
             \\
         ;
         pub const examples =

@@ -28,7 +28,7 @@ struct Frontmatter {
     alternatives: ?[Alternative],
     ///Ignore other markdown files in this directory and 
     ///any sub-directory. Can only be meaningfully set to 
-    ///true for 'index.md' pages.
+    ///true for 'index.smd' pages.
     skip_subdirs: ?bool,
     ///User-defined properties that you can then reference 
     ///in templates. 

@@ -164,13 +164,11 @@ pub const Builtins = struct {
 
     pub const iterate = struct {
         pub const signature: Signature = .{
-            .params = &.{.{ .Opt = .String }},
+            .params = &.{},
             .ret = .{ .Many = .KV },
         };
         pub const description =
             \\Iterates over key-value pairs of a Ziggy map.
-            \\
-            \\You can optionally pass a string that will be used to filter key names.
         ;
         pub const examples =
             \\$page.custom.iterate()
@@ -180,10 +178,41 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 0 or 1 string argument" };
-            if (args.len > 1) return bad_arg;
+            const bad_arg = .{ .err = "expected 0 arguments" };
+            if (args.len != 0) return bad_arg;
 
-            const filter: ?[]const u8 = if (args.len == 0) null else switch (args[0]) {
+            return .{
+                .iterator = try context.Iterator.init(gpa, .{
+                    .map_it = context.Iterator.MapIterator.init(
+                        map.value.fields.iterator(),
+                        null,
+                    ),
+                }),
+            };
+        }
+    };
+
+    pub const iterPattern = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .{ .Many = .KV },
+        };
+        pub const description =
+            \\Iterates over key-value pairs of a Ziggy map where the key
+            \\matches the given pattern.
+        ;
+        pub const examples =
+            \\$page.custom.iterPattern("user-")
+        ;
+        pub fn call(
+            map: Map,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg = .{ .err = "expected 1 string argument" };
+            if (args.len != 1) return bad_arg;
+
+            const filter: []const u8 = switch (args[0]) {
                 .string => |s| s.value,
                 else => return bad_arg,
             };

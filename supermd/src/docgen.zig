@@ -91,7 +91,7 @@ pub const Reference = struct {
         _ = fmt;
         _ = options;
 
-        try out_stream.print("# [Global Scope]($block.id('global'))\n\n", .{});
+        try out_stream.print("# [Global Scope]($section.id('global'))\n\n", .{});
         for (r.global) |f| {
             try out_stream.print(
                 \\## `${s}` : {s}
@@ -114,7 +114,7 @@ pub const Reference = struct {
 
 fn printType(out_stream: anytype, v: Reference.Type) !void {
     try out_stream.print(
-        \\# [{s}]($block.id('{s}'))
+        \\# [{s}]($section.id('{s}'))
         \\
         \\{s}
         \\
@@ -221,6 +221,7 @@ fn getStructType(T: type) ?type {
 fn analyzeBuiltins(T: type) []const Reference.Builtin {
     const info = @typeInfo(T.Builtins).Struct;
     var decls: [info.decls.len]Reference.Builtin = undefined;
+    @setEvalBranchQuota(10000);
     inline for (info.decls, &decls) |decl, *b| {
         const t = @field(T.Builtins, decl.name);
         b.* = .{

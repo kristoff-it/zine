@@ -358,7 +358,7 @@ pub fn scriptyReferenceDocs(
         );
 
         const reference_md = run_docgen.addOutputFileArg(
-            "shtml_scripty_reference.md",
+            "shtml_scripty_reference.smd",
         );
 
         const wf = project.addWriteFiles();
@@ -372,7 +372,7 @@ pub fn scriptyReferenceDocs(
         );
 
         const reference_md = run_docgen.addOutputFileArg(
-            "smd_scripty_reference.md",
+            "smd_scripty_reference.smd",
         );
 
         const wf = project.addWriteFiles();

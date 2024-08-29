@@ -160,24 +160,24 @@ pub const pages = struct {
             md_rel_path,
         });
 
-        const gop = try pages.map.getOrPut(full_path);
-        if (gop.found_existing) {
-            return gop.value_ptr.*;
-        }
+        return pages.map.get(full_path) orelse {
+            const p = loadPage(
+                site,
+                md_rel_path,
+                parent_section_path,
+                index_in_section,
+                is_root_page,
+            ) catch |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+                else => {
+                    return error.PageLoad;
+                },
+            };
 
-        gop.value_ptr.* = loadPage(
-            site,
-            md_rel_path,
-            parent_section_path,
-            index_in_section,
-            is_root_page,
-        ) catch |err| switch (err) {
-            error.OutOfMemory => return error.OutOfMemory,
-            else => return error.PageLoad,
+            if (is_root_page) pages.root = p;
+            try pages.map.put(full_path, p);
+            return p;
         };
-
-        if (is_root_page) pages.root = gop.value_ptr.*;
-        return gop.value_ptr.*;
     }
 };
 
@@ -200,19 +200,19 @@ const page_finder = struct {
         switch (search) {
             .ref => |ref| {
                 // `foo/bar` can be one of:
-                //  - foo/bar.md
-                //  - foo/bar/index.md
+                //  - foo/bar.smd
+                //  - foo/bar/index.smd
 
                 var md_path = try std.fs.path.join(gpa, &.{
                     ref.site._meta.content_dir_path,
                     ref.path,
-                    "index.md",
+                    "index.smd",
                 });
 
                 std.fs.cwd().access(md_path, .{}) catch {
-                    const end = md_path.len - "/index.md".len + ".md".len;
+                    const end = md_path.len - "/index.smd".len + ".smd".len;
                     md_path = md_path[0..end];
-                    md_path[md_path.len - 3 .. end][0..3].* = ".md".*;
+                    md_path[md_path.len - 4 .. end][0..4].* = ".smd".*;
 
                     std.fs.cwd().access(md_path, .{}) catch {
                         return context.Value.errFmt(gpa, "unable to find '{s}'", .{
@@ -235,6 +235,8 @@ const page_finder = struct {
                         .err = "error loading page",
                     },
                 };
+
+                log.debug("found page = {*}", .{val});
 
                 return .{ .page = val };
             },
@@ -311,7 +313,7 @@ const page_finder = struct {
             },
             .subpages => |page| {
                 const path = page._meta.md_rel_path;
-                if (std.mem.endsWith(u8, path, "index.md")) {
+                if (std.mem.endsWith(u8, path, "index.smd")) {
                     const prefix = switch (page._meta.site._meta.kind) {
                         .simple => "",
                         .multi => |m| m.code,
@@ -319,7 +321,7 @@ const page_finder = struct {
                     const index_path = try std.fs.path.join(gpa, &.{
                         page_index_dir_path,
                         prefix,
-                        path[0 .. path.len - "index.md".len],
+                        path[0 .. path.len - "index.smd".len],
                         "s",
                     });
 
@@ -608,13 +610,13 @@ fn loadPage(
     var is_section = false;
     var md_asset_dir_path: []const u8 = undefined;
     var md_asset_dir_rel_path: []const u8 = undefined;
-    if (std.mem.endsWith(u8, md_path, "index.md")) {
+    if (std.mem.endsWith(u8, md_path, "index.smd")) {
         is_section = true;
-        md_asset_dir_path = md_path[0 .. md_path.len - "index.md".len];
-        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - "index.md".len];
+        md_asset_dir_path = md_path[0 .. md_path.len - "index.smd".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - "index.smd".len];
     } else {
-        md_asset_dir_path = md_path[0 .. md_path.len - ".md".len];
-        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - ".md".len];
+        md_asset_dir_path = md_path[0 .. md_path.len - ".smd".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - ".smd".len];
     }
 
     const in_file = std.fs.cwd().openFile(md_path, .{}) catch |err| {
@@ -638,7 +640,7 @@ fn loadPage(
     const md_src = try r.readAllAlloc(gpa, 1024 * 1024 * 10);
 
     const psp: ?[]const u8 = parent_section_path orelse blk: {
-        if (std.mem.eql(u8, md_rel_path, "index.md")) break :blk null;
+        if (std.mem.eql(u8, md_rel_path, "index.smd")) break :blk null;
 
         const path_to_hash = std.fs.path.dirname(md_rel_path) orelse "";
         var hash = std.hash.Wyhash.init(1990);
@@ -648,7 +650,7 @@ fn loadPage(
                 hash.update(ml.code);
             },
         }
-        if (std.mem.endsWith(u8, md_rel_path, "/index.md")) {
+        if (std.mem.endsWith(u8, md_rel_path, "/index.smd")) {
             hash.update(std.fs.path.dirname(path_to_hash) orelse "");
         } else {
             hash.update(path_to_hash);
@@ -731,7 +733,7 @@ fn loadPage(
     page._meta = .{
         // TODO: unicode this
         .word_count = @intCast(md_src.len / 6),
-        .is_section = std.mem.endsWith(u8, md_path, "/index.md"),
+        .is_section = std.mem.endsWith(u8, md_path, "/index.smd"),
         .md_path = md_path,
         .md_rel_path = md_rel_path,
         .md_asset_dir_path = md_asset_dir_path,
@@ -762,12 +764,14 @@ fn loadPage(
         }
         page._meta.key_variants = tks.items;
     }
+    const fm_offset = std.mem.count(u8, fm.success.code, "\n") + 2;
+    const ast = try supermd.Ast.init(gpa, md_src);
+    page._meta.ast = ast;
 
     // Only root page gets analized
-    if (!is_root_page) return page;
-
-    const ast = try supermd.Ast.init(gpa, md_src);
-    const fm_offset = std.mem.count(u8, fm.success.code, "\n") + 2;
+    if (!is_root_page) {
+        return page;
+    }
 
     if (ast.errors.len != 0) {
         std.debug.print(
@@ -866,7 +870,7 @@ fn loadPage(
         const directive = n.getDirective() orelse continue;
 
         switch (directive.kind) {
-            .block, .heading, .box => {},
+            .section, .block, .heading => {},
             .code => |code| {
                 const value = switch (code.src.?) {
                     else => unreachable,
@@ -936,14 +940,63 @@ fn loadPage(
                     .self_page => context.String.init(""),
                     .page => |p| blk: {
                         const page_site = if (p.locale) |lc|
-                            sites.get(lc) orelse @panic("TODO: report that a locale could not be found in a markdown link directive")
+                            sites.get(lc) orelse reportError(
+                                n,
+                                md_src,
+                                md_rel_path,
+                                md_path,
+                                fm_offset,
+                                is_section,
+                                try std.fmt.allocPrint(
+                                    gpa,
+                                    "could not find locale '{s}'",
+                                    .{lc},
+                                ),
+                            )
                         else
                             site;
+
+                        const ref = switch (p.kind) {
+                            .absolute => p.ref,
+                            .sub => sub: {
+                                if (!is_section) reportError(
+                                    n,
+                                    md_src,
+                                    md_rel_path,
+                                    md_path,
+                                    fm_offset,
+                                    is_section,
+                                    "the homepage has no siblings",
+                                );
+
+                                const end = md_rel_path.len - "index.smd".len;
+                                break :sub try std.fs.path.join(gpa, &.{
+                                    md_rel_path[0..end],
+                                    p.ref,
+                                });
+                            },
+                            .sibling => sibl: {
+                                const ps_base = psp orelse reportError(
+                                    n,
+                                    md_src,
+                                    md_rel_path,
+                                    md_path,
+                                    fm_offset,
+                                    is_section,
+                                    "the homepage has no siblings",
+                                );
+
+                                break :sibl try std.fs.path.join(gpa, &.{
+                                    ps_base,
+                                    p.ref,
+                                });
+                            },
+                        };
 
                         const res = try page_finder.find(.{
                             .ref = .{
                                 .site = page_site,
-                                .path = p.ref,
+                                .path = ref,
                             },
                         });
 
@@ -951,6 +1004,25 @@ fn loadPage(
                             else => unreachable,
                             .err => break :blk res,
                             .page => |pp| {
+                                if (@hasField(@TypeOf(val), "ref")) ref: {
+                                    const hash = val.ref orelse break :ref;
+                                    if (!pp._meta.ast.?.ids.contains(hash)) {
+                                        reportError(
+                                            n,
+                                            md_src,
+                                            md_rel_path,
+                                            md_path,
+                                            fm_offset,
+                                            is_section,
+                                            try std.fmt.allocPrint(
+                                                gpa,
+                                                "'{s}' is not a valid content id for '{s}', available ids are: {s}",
+                                                .{ hash, ref, pp._meta.ast.?.ids.keys() },
+                                            ),
+                                        );
+                                    }
+                                }
+
                                 if (page_site == site) {
                                     break :blk try context.Page.Builtins.link.call(
                                         pp,
@@ -999,7 +1071,6 @@ fn loadPage(
             },
         }
     }
-    page._meta.ast = ast;
     return page;
 }
 

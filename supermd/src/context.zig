@@ -1,12 +1,13 @@
 const std = @import("std");
 const scripty = @import("scripty");
 const utils = @import("context/utils.zig");
+const Node = @import("Node.zig");
 const Signature = @import("doctypes.zig").Signature;
 const Allocator = std.mem.Allocator;
 
 pub const Content = struct {
+    section: Directive = .{ .kind = .{ .section = .{} } },
     block: Directive = .{ .kind = .{ .block = .{} } },
-    box: Directive = .{ .kind = .{ .box = .{} } },
     heading: Directive = .{ .kind = .{ .heading = .{} } },
     image: Directive = .{ .kind = .{ .image = .{} } },
     video: Directive = .{ .kind = .{ .video = .{} } },
@@ -20,6 +21,7 @@ pub const Content = struct {
         \\used in SuperMD files.
     ;
     pub const Fields = struct {
+        pub const section = Section.description;
         pub const block = Block.description;
         pub const heading = Heading.description;
         pub const image = Image.description;
@@ -113,8 +115,8 @@ pub const Directive = struct {
     kind: Kind,
 
     pub const Kind = union(enum) {
+        section: Section,
         block: Block,
-        box: Box,
         heading: Heading,
         image: Image,
         video: Video,
@@ -126,12 +128,12 @@ pub const Directive = struct {
         // },
     };
 
-    pub fn validate(d: *Directive, gpa: Allocator) !?Value {
+    pub fn validate(d: *Directive, gpa: Allocator, ctx: Node) !?Value {
         switch (d.kind) {
             inline else => |v| {
                 const T = @TypeOf(v);
                 if (@hasDecl(T, "validate")) {
-                    return T.validate(gpa, d);
+                    return T.validate(gpa, d, ctx);
                 }
 
                 inline for (T.mandatory) |m| {
@@ -242,57 +244,147 @@ pub const Directive = struct {
     };
 };
 
-pub const Block = struct {
+pub const Section = struct {
     end: ?bool = null,
 
     pub const description =
-        \\A content block, used to define a portion of content
-        \\that can be rendered separately by a template. 
+        \\A content section, used to define a portion of content
+        \\that can be rendered individually by a template. 
     ;
 
-    pub fn validate(_: Allocator, d: *Directive) !?Value {
-        if (d.kind.block.end != null) {
+    pub fn validate(gpa: Allocator, d: *Directive, ctx: Node) !?Value {
+        const parent = ctx.parent().?;
+
+        // A section must be placed either:
+        switch (parent.nodeType()) {
+            // - at the top level without any embedded text
+            .DOCUMENT => if (ctx.firstChild() != null) return .{
+                .err = "top-level section definitions cannot embed any text",
+            },
+            // - In a heading not embedded in other blocks
+            .HEADING => {
+                if (parent.parent()) |gp| {
+                    if (gp.nodeType() != .DOCUMENT) {
+                        return try Value.errFmt(
+                            gpa,
+                            "heading section under '{s}'. heading sections cannot be emdedded in other markdown block elements. did you mean to use `$block`?",
+                            .{@tagName(gp.nodeType())},
+                        );
+                    }
+                }
+            },
+            else => return .{
+                .err = "sections must be top level elements or be embedded in headings",
+            },
+        }
+
+        // End sections additionally cannot have any other property set
+        if (d.kind.section.end != null) {
             if (d.id != null or d.attrs != null) {
                 return .{
-                    .err = "end block directive cannot have any other property set",
+                    .err = "end section directive cannot have any other property set",
                 };
             }
         }
         return null;
     }
     pub const Builtins = struct {
-        pub const end = utils.directiveBuiltin("end", .bool,
-            \\Calling this function makes this block directive 
-            \\terminate a previous block without opening a new
-            \\one.
-            \\
-            \\An end block directive cannot have any other 
-            \\property set.
-        );
+        // pub const end = utils.directiveBuiltin("end", .bool,
+        //     \\Calling this function makes this section directive
+        //     \\terminate a previous section without opening a new
+        //     \\one.
+        //     \\
+        //     \\An end section directive cannot have any other
+        //     \\property set.
+        // );
     };
 };
 
 pub const Heading = struct {
-    pub const mandatory = .{};
-    pub const directive_mandatory = .{};
     pub const Builtins = struct {};
     pub const description =
         \\Allows giving an id and attributes to a heading element.
     ;
+
+    pub fn validate(_: Allocator, _: *Directive, ctx: Node) !?Value {
+        const parent = ctx.parent().?;
+
+        // A heading directive must be placed directly under a md heading
+        switch (parent.nodeType()) {
+            .HEADING => {},
+            else => return .{
+                .err = "heading directives must be placed under markdown heading elements",
+            },
+        }
+
+        return null;
+    }
 };
 
-pub const Box = struct {
-    pub const mandatory = .{};
-    pub const directive_mandatory = .{.attrs};
+pub const Block = struct {
     pub const Builtins = struct {};
     pub const description =
-        \\When placed at the beginning of a quote block, the quote block 
-        \\becomes a generic container for elements that can be styled as 
+        \\When placed at the beginning of a Markdown quote block, the quote 
+        \\block becomes a generic container for elements that can be styled as 
         \\one wishes.
         \\
-        \\Differently from Blocks, Boxes cannot be rendered independently 
+        \\SuperHTML will automatically give the class `block` when rendering 
+        \\Block directives.
+        \\
+        \\Syntax Example:
+        \\```markdown
+        \\>[]($block.attr('note'))
+        \\>This is now a block note.
+        \\>Lorem ipsum.
+        \\```
+        \\Differently from Sections, Blocks cannot be rendered independently 
         \\and can be nested.
+        \\
+        \\A block can optionally wrap a Markdown heading element. In this case  
+        \\the generated Block will be rendered with two separate sub-containers: 
+        \\one for the block title and one for the body.
+        \\
+        \\Syntax Example:
+        \\```markdown
+        \\>### [Warning]($block.attr('warning'))
+        \\>This is now a block note.
+        \\>Lorem ipsum.
+        \\```
     ;
+
+    pub fn validate(gpa: Allocator, _: *Directive, ctx: Node) !?Value {
+        const parent = ctx.parent().?;
+
+        // A block directive must be placed either:
+        switch (parent.nodeType()) {
+            // - directly under a md quote block without any wrapped text
+            //   (given how md works, it will be wrapped in a paragraph in
+            //   this case)
+            .PARAGRAPH => switch (parent.parent().?.nodeType()) {
+                else => {},
+                .BLOCK_QUOTE => if (ctx.firstChild() != null) return .{
+                    .err = "block definitions directly under a quote block cannot embed any text. wrap it in a heading to define a heading block.",
+                } else return null,
+            },
+
+            // - inside of a md heading element which in turn is under a block
+            //   quote
+            .HEADING => {
+                if (parent.parent().?.nodeType() != .BLOCK_QUOTE) {
+                    return .{
+                        .err = "heading blocks must be embedded under quote blocks",
+                    };
+                } else return null;
+            },
+            else => {},
+        }
+
+        return try Value.errFmt(
+            gpa,
+            "block directive under '{s}'. block directives must be placed under markdown quote blocks",
+            .{@tagName(parent.nodeType())},
+        );
+    }
 };
 
 pub const Image = struct {
@@ -367,12 +459,12 @@ pub const Video = struct {
 pub const Link = struct {
     src: ?Src = null,
     ref: ?[]const u8 = null,
-    target: ?[]const u8 = null,
+    new: ?bool = null,
 
     pub const description =
         \\A link.
     ;
-    pub fn validate(_: Allocator, d: *Directive) !?Value {
+    pub fn validate(_: Allocator, d: *Directive, _: Node) !?Value {
         const self = &d.kind.link;
         if (self.ref != null) {
             if (self.src == null) {
@@ -380,11 +472,10 @@ pub const Link = struct {
             }
         }
 
-        if (self.src == null) {
-            return .{
-                .err = "missing call to 'url', 'asset', 'siteAsset', 'buildAsset'or 'page'",
-            };
-        }
+        if (self.src == null) return .{
+            .err = "missing call to 'url', 'asset', 'siteAsset', 'buildAsset', 'page', 'sibling' or 'sub'",
+        };
+
         return null;
     }
 
@@ -394,8 +485,11 @@ pub const Link = struct {
         pub const siteAsset = utils.SrcBuiltins.siteAsset;
         pub const buildAsset = utils.SrcBuiltins.buildAsset;
         pub const page = utils.SrcBuiltins.page;
-        pub const target = utils.directiveBuiltin("target", .string,
-            \\Sets the target HTML attribute of this link. 
+        pub const sibling = utils.SrcBuiltins.sibling;
+        pub const sub = utils.SrcBuiltins.sub;
+        pub const new = utils.directiveBuiltin("new", .bool,
+            \\When `true` it asks readers to open the link in a new window or 
+            \\tab.
         );
 
         pub const ref = struct {
@@ -458,7 +552,15 @@ pub const Src = union(enum) {
     // External link
     url: []const u8,
     self_page,
-    page: struct { ref: []const u8, locale: ?[]const u8 },
+    page: struct {
+        kind: enum {
+            absolute,
+            sub,
+            sibling,
+        },
+        ref: []const u8,
+        locale: ?[]const u8 = null,
+    },
     page_asset: []const u8,
     site_asset: []const u8,
     build_asset: []const u8,

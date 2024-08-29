@@ -39,13 +39,13 @@ pub fn render(
     var is_section = false;
     var md_asset_dir_path: []const u8 = undefined;
     var md_asset_dir_rel_path: []const u8 = undefined;
-    if (std.mem.endsWith(u8, md_path, "index.md")) {
+    if (std.mem.endsWith(u8, md_path, "index.smd")) {
         is_section = true;
-        md_asset_dir_path = md_path[0 .. md_path.len - "index.md".len];
-        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - "index.md".len];
+        md_asset_dir_path = md_path[0 .. md_path.len - "index.smd".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - "index.smd".len];
     } else {
-        md_asset_dir_path = md_path[0 .. md_path.len - ".md".len];
-        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - ".md".len];
+        md_asset_dir_path = md_path[0 .. md_path.len - ".smd".len];
+        md_asset_dir_rel_path = md_rel_path[0 .. md_rel_path.len - ".smd".len];
     }
 
     const in_file = std.fs.cwd().openFile(md_path, .{}) catch |err| {
@@ -66,7 +66,7 @@ pub fn render(
     page._meta = .{
         // TODO: unicode this
         .word_count = @intCast(md_src.len / 6),
-        .is_section = std.mem.endsWith(u8, md_path, "/index.md"),
+        .is_section = std.mem.endsWith(u8, md_path, "/index.smd"),
         .md_rel_path = md_rel_path,
         .url_path_prefix = url_path_prefix,
         .index_in_section = index_in_section,

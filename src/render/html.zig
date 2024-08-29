@@ -26,12 +26,12 @@ pub fn html(
     var event: ?Iter.Event = .{ .node = start, .dir = .enter };
     while (event) |ev| : (event = it.next()) {
         const node = ev.node;
-        const node_is_block = if (node.getDirective()) |d|
-            d.kind == .block
+        const node_is_section = if (node.getDirective()) |d|
+            d.kind == .section
         else
             false;
 
-        if (!full_page and node_is_block and node.n != start.n) break;
+        if (!full_page and node_is_section and node.n != start.n) break;
         switch (node.nodeType()) {
             .DOCUMENT => {},
             .BLOCK_QUOTE => switch (ev.dir) {
@@ -43,13 +43,11 @@ pub fn html(
 
                     try w.print("<div", .{});
                     if (d.id) |id| try w.print(" id={s}", .{id});
+                    try w.print(" class=\"block", .{});
                     if (d.attrs) |attrs| {
-                        try w.print(" class=\"", .{});
-                        for (attrs) |attr| try w.print("{s} ", .{attr});
-                        try w.print("\"", .{});
+                        for (attrs) |attr| try w.print(" {s}", .{attr});
                     }
-
-                    try w.print(">", .{});
+                    try w.print("\">", .{});
                 },
                 .exit => {
                     if (node.getDirective() == null) {
@@ -139,7 +137,7 @@ pub fn html(
                             try w.print(">", .{});
                             continue;
                         },
-                        .block => {
+                        .section => {
                             if (open_div) {
                                 try w.print("</div>", .{});
                             }
@@ -207,28 +205,28 @@ pub fn html(
                 .enter => try w.print("<strong>", .{}),
                 .exit => try w.print("</strong>", .{}),
             },
-            .LINK => try renderDirective(gpa, ast, ev, w),
-            .IMAGE => switch (ev.dir) {
-                .enter => {
-                    const url = node.link() orelse "";
-                    const title = node.title();
-                    if (title) |t| {
-                        try w.print(
-                            "<figure data-title=\"{s}\"><img src=\"{s}\" alt=\"",
-                            .{ t, url },
-                        );
-                    } else {
-                        try w.print("<img src=\"{s}\" alt=\"", .{url});
-                    }
-                },
-                .exit => {
-                    if (node.title()) |t| {
-                        try w.print("\" title=\"{s}\"></figure>", .{t});
-                    } else {
-                        try w.print("\">", .{});
-                    }
-                },
-            },
+            .LINK, .IMAGE => try renderDirective(gpa, ast, ev, w),
+            // .IMAGE => switch (ev.dir) {
+            //     .enter => {
+            //         const url = node.link() orelse "";
+            //         const title = node.title();
+            //         if (title) |t| {
+            //             try w.print(
+            //                 "<figure data-title=\"{s}\"><img src=\"{s}\" alt=\"",
+            //                 .{ t, url },
+            //             );
+            //         } else {
+            //             try w.print("<img src=\"{s}\" alt=\"", .{url});
+            //         }
+            //     },
+            //     .exit => {
+            //         if (node.title()) |t| {
+            //             try w.print("\" title=\"{s}\"></figure>", .{t});
+            //         } else {
+            //             try w.print("\">", .{});
+            //         }
+            //     },
+            // },
 
             .CODE_BLOCK => switch (ev.dir) {
                 .exit => {},
@@ -321,7 +319,7 @@ fn renderDirective(
     const node = ev.node;
     const directive = node.getDirective() orelse return renderLink(ev, w);
     switch (directive.kind) {
-        .block, .heading, .box => {},
+        .section, .block, .heading => {},
         .image => |img| switch (ev.dir) {
             .enter => {
                 if (img.caption != null) try w.print("<figure>", .{});
@@ -377,7 +375,7 @@ fn renderDirective(
                 if (lnk.ref) |r| try w.print("#{s}", .{r});
                 try w.print("\"", .{});
 
-                if (lnk.target) |t| try w.print(" target=\"{s}\"", .{t});
+                if (lnk.new) |n| if (n) try w.print(" target=\"_blank\"", .{});
                 try w.print(">", .{});
             },
             .exit => try w.print("</a>", .{}),
@@ -482,7 +480,7 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
             .HEADING => switch (ev.dir) {
                 .enter => {
                     const dir = node.getDirective() orelse continue;
-                    if (dir.kind == .block) {
+                    if (dir.kind == .section) {
                         if (dir.id) |id| {
                             try w.print("<a href=\"#{s}\">", .{id});
                         }
@@ -490,7 +488,7 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
                 },
                 .exit => {
                     const dir = node.getDirective() orelse continue;
-                    if (dir.kind == .block) {
+                    if (dir.kind == .section) {
                         if (dir.id != null) {
                             try w.print("</a>", .{});
                         }
@@ -529,18 +527,3 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
         }
     }
 }
-
-// ## Foo
-// ### bar
-
-// <ul>
-//   <li>
-//     <ul>
-//       <li> foo
-//          <ul>
-//            <li> bar </li>
-//          </ul>
-//       </li>
-//     </ul>
-//   </li>
-// </ul>

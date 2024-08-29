@@ -179,7 +179,7 @@ pub const Fields = struct {
         \\Skips any other potential content present in the subdir of the page, 
         \\as set in the SuperMD frontmatter.
         \\
-        \\Can only be set to true on section pages (i.e. `index.md` pages).
+        \\Can only be set to true on section pages (i.e. `index.smd` pages).
     ;
     pub const translation_key =
         \\Translation key used to map this page with corresponding localized variants, 
@@ -227,12 +227,12 @@ pub const Builtins = struct {
             \\Assets for a non-section page must be placed under a subdirectory 
             \\that shares the same name with the corresponding markdown file.
             \\
-            \\(as a reminder sections are defined by pages named `index.md`)
+            \\(as a reminder sections are defined by pages named `index.smd`)
             \\
-            \\| section? |      page path      | asset directory |
-            \\|----------|---------------------|-----------------|
-            \\|   yes    |  blog/foo/index.md  |    blog/foo/    |
-            \\|   no     |  blog/bar.md        |    blog/bar/    |
+            \\| section? |     page path      | asset directory |
+            \\|----------|--------------------|-----------------|
+            \\|   yes    | blog/foo/index.smd |    blog/foo/    |
+            \\|   no     | blog/bar.smd       |    blog/bar/    |
         ;
         pub const examples =
             \\<img src="$page.asset('foo.png').link(false)">
@@ -432,7 +432,7 @@ pub const Builtins = struct {
         pub const signature: Signature = .{ .ret = .Bool };
         pub const description =
             \\Returns true if the current page defines a section (i.e. if 
-            \\the current page is an 'index.md' page).
+            \\the current page is an 'index.smd' page).
             \\
         ;
         pub const examples =
@@ -455,7 +455,7 @@ pub const Builtins = struct {
             \\Returns a list of all the pages in this section. If the page is 
             \\not a section, returns an empty list.
             \\
-            \\Sections are defined by `index.md` files, see the content 
+            \\Sections are defined by `index.smd` files, see the content 
             \\structure section in the official docs for more info.
         ;
         pub const examples =
@@ -602,8 +602,8 @@ pub const Builtins = struct {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             const p = self._meta.md_rel_path;
             const path = switch (self._meta.is_section) {
-                true => p[0 .. p.len - "index.md".len],
-                false => p[0 .. p.len - ".md".len],
+                true => p[0 .. p.len - "index.smd".len],
+                false => p[0 .. p.len - ".smd".len],
             };
 
             // TODO: support host url overrides
@@ -656,20 +656,17 @@ pub const Builtins = struct {
             return String.init(try buf.toOwnedSlice());
         }
     };
-    pub const block = struct {
+    pub const contentSection = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
             .ret = .String,
         };
         pub const description =
-            \\Renders the specified content block of a page.
-            \\
-            \\Example:
-            \\ `# [Title]($block.id('section-id'))`
+            \\Renders the specified [content section]($link.page('docs/supermd/scripty').ref('Section')) of a page.
         ;
         pub const examples =
-            \\<div html="$page.block('section-id')"></div>
-            \\<div html="$page.block('other-section')"></div>
+            \\<div html="$page.contentSection('section-id')"></div>
+            \\<div html="$page.contentSection('other-section')"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -681,7 +678,7 @@ pub const Builtins = struct {
             };
             if (args.len != 1) return bad_arg;
 
-            const block_id = switch (args[0]) {
+            const section_id = switch (args[0]) {
                 .string => |s| s.value,
                 else => return bad_arg,
             };
@@ -691,13 +688,24 @@ pub const Builtins = struct {
             };
             var buf = std.ArrayList(u8).init(gpa);
 
-            const node = ast.blocks.get(block_id) orelse {
+            const node = ast.ids.get(section_id) orelse {
                 return Value.errFmt(
                     gpa,
-                    "content section '{s}' doesn't exist, available sections are: {s}",
-                    .{ block_id, ast.blocks.keys() },
+                    "content section '{s}' doesn't exist",
+                    .{section_id},
                 );
             };
+
+            switch (node.getDirective().?.kind) {
+                .section => {},
+                else => {
+                    return Value.errFmt(
+                        gpa,
+                        "id '{s}' exists but is not a section",
+                        .{section_id},
+                    );
+                },
+            }
 
             try render.html(gpa, ast, node, "", buf.writer());
             return String.init(try buf.toOwnedSlice());

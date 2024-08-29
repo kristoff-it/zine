@@ -30,8 +30,8 @@ pub const Signature = struct {
 pub const ScriptyParam = union(enum) {
     Content,
     anydirective,
+    Section,
     Block,
-    Box,
     Heading,
     Link,
     Image,
@@ -51,7 +51,7 @@ pub const ScriptyParam = union(enum) {
         const fe = std.meta.stringToEnum(std.meta.FieldEnum(T), fs).?;
         return switch (fe) {
             .block => .Block,
-            .box => .Box,
+            .section => .Section,
             .heading => .Heading,
             .image => .Image,
             .video => .Video,
@@ -64,8 +64,8 @@ pub const ScriptyParam = union(enum) {
         return switch (t) {
             context.Content => .Content,
             context.Directive => .anydirective,
+            context.Section => .Section,
             context.Block => .Block,
-            context.Box => .Box,
             context.Heading => .Heading,
             context.Link => .Link,
             context.Image => .Image,
@@ -141,7 +141,7 @@ pub const ScriptyParam = union(enum) {
             },
             .Opt => |o| switch (o) {
                 inline else => |oo| return comptime std.fmt.comptimePrint(
-                    \\?[{0s}]($link.ref("{0s}"))
+                    \\?{s}
                 , .{@tagName(oo)}),
             },
             .str,

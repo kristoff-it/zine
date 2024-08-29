@@ -10,6 +10,8 @@ const Value = context.Value;
 const Bool = context.Bool;
 const String = context.String;
 
+const log = std.log.scoped(.scripty);
+
 host_url: []const u8,
 title: []const u8,
 _meta: struct {
@@ -181,8 +183,8 @@ pub const Builtins = struct {
             \\
             \\For example, the value 'foo/bar' will be automatically
             \\matched by Zine with either:
-            \\        - content/foo/bar.md
-            \\        - content/foo/bar/index.md
+            \\ - content/foo/bar.smd
+            \\ - content/foo/bar/index.smd
         ;
         pub const examples =
             \\<a href="$site.page('downloads').link()">Downloads</a>
@@ -204,18 +206,21 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            return context.pageFind(.{
+            const res = try context.pageFind(.{
                 .ref = .{
                     .path = ref,
                     .site = site,
                 },
             });
+
+            log.debug("res = {*}", .{res.page});
+            return res;
         }
     };
     pub const pages = struct {
         pub const signature: Signature = .{
-            .params = &.{.{ .Many = .String }},
-            .ret = .Page,
+            .params = &.{ .String, .{ .Many = .String } },
+            .ret = .{ .Many = .Page },
         };
         pub const description =
             \\Same as `page`, but accepts a variable number of page references and 

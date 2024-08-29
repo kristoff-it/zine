@@ -88,7 +88,7 @@ pub const Reference = struct {
         _ = fmt;
         _ = options;
 
-        try out_stream.print("# [Global Scope]($block.id('global'))\n\n", .{});
+        try out_stream.print("# [Global Scope]($section.id('global'))\n\n", .{});
         for (r.global) |f| {
             try out_stream.print(
                 \\## `${s}` : {s}
@@ -105,7 +105,7 @@ pub const Reference = struct {
 
         for (r.values[1..]) |v| {
             try out_stream.print(
-                \\# [{s}]($block.id('{s}'))
+                \\# [{s}]($section.id('{s}'))
                 \\
                 \\{s}
                 \\

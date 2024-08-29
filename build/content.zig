@@ -437,12 +437,12 @@ pub fn scanVariant(
             }
         }
 
-        if (dir_entry.dir.openFile("index.md", .{})) |file| blk: {
+        if (dir_entry.dir.openFile("index.smd", .{})) |file| blk: {
             defer file.close();
 
             var buf_reader = std.io.bufferedReader(file.reader());
             const r = buf_reader.reader();
-            const result = FrontParser.parse(project.allocator, r, "index.md") catch @panic("TODO: report frontmatter parser error");
+            const result = FrontParser.parse(project.allocator, r, "index.smd") catch @panic("TODO: report frontmatter parser error");
 
             const permalink = project.pathJoin(&.{ "/", url_path_prefix, dir_entry.path, "/" });
 
@@ -450,13 +450,13 @@ pub fn scanVariant(
                 .success => |s| s.header,
                 .empty => {
                     std.debug.print("WARNING: ignoring empty file '{s}{s}'\n", .{
-                        permalink, "index.md",
+                        permalink, "index.smd",
                     });
                     break :blk;
                 },
                 .framing_error => |line| {
                     std.debug.print("ERROR: bad frontmatter framing in '{s}{s}' (line {})\n", .{
-                        permalink, "index.md", line,
+                        permalink, "index.smd", line,
                     });
                     std.process.exit(1);
                 },
@@ -475,14 +475,14 @@ pub fn scanVariant(
                 current_section.* = .{ .content_sub_path = content_sub_path };
                 parent_section.pages.append(project.allocator, .{
                     .content_sub_path = content_sub_path,
-                    .md_name = "index.md",
+                    .md_name = "index.smd",
                     .fm = fm,
                     .subpages = current_section,
                 }) catch unreachable;
             } else {
                 root_index = .{
                     .content_sub_path = project.dupe(dir_entry.path),
-                    .md_name = "index.md",
+                    .md_name = "index.smd",
                     .fm = fm,
 
                     .subpages = root_section,
@@ -493,7 +493,7 @@ pub fn scanVariant(
         } else |index_md_err| {
             if (index_md_err != error.FileNotFound) {
                 std.debug.print(
-                    "Unable to access `index.md` in {s}\n",
+                    "Unable to access `index.smd` in {s}\n",
                     .{content_dir_path},
                 );
                 std.process.exit(1);
@@ -504,8 +504,8 @@ pub fn scanVariant(
         while (it.next() catch unreachable) |entry| {
             switch (entry.kind) {
                 else => continue,
-                .file => if (std.mem.endsWith(u8, entry.name, ".md")) {
-                    if (std.mem.eql(u8, entry.name, "index.md")) continue;
+                .file => if (std.mem.endsWith(u8, entry.name, ".smd")) {
+                    if (std.mem.eql(u8, entry.name, "index.smd")) continue;
                     const file = dir_entry.dir.openFile(entry.name, .{}) catch {
                         std.debug.print(
                             "Error while reading {s} in /{s}\n",
@@ -522,20 +522,20 @@ pub fn scanVariant(
                         "/",
                         url_path_prefix,
                         dir_entry.path,
-                        entry.name[0 .. entry.name.len - 3],
+                        entry.name[0 .. entry.name.len - ".smd".len],
                     });
 
                     const result = FrontParser.parse(project.allocator, r, entry.name) catch @panic("TODO: report frontmatter parse error");
                     const fm = switch (result) {
                         .success => |s| s.header,
                         .empty => {
-                            std.debug.print("WARNING: ignoring empty file '{s}.md'\n", .{
+                            std.debug.print("WARNING: ignoring empty file '{s}.smd'\n", .{
                                 permalink,
                             });
                             continue;
                         },
                         .framing_error => |line| {
-                            std.debug.print("ERROR: bad frontmatter framing in '{s}.md' (line {})\n", .{
+                            std.debug.print("ERROR: bad frontmatter framing in '{s}.smd' (line {})\n", .{
                                 permalink, line,
                             });
                             std.process.exit(1);
@@ -637,7 +637,7 @@ pub fn addAllSteps(
             layouts_dir_path,
             assets_dir_path,
             "",
-            "index.md",
+            "index.smd",
             "index.html",
             idx.fm.layout,
             idx.fm.aliases,
@@ -683,7 +683,7 @@ pub fn addAllSteps(
     var section_it = sections.constIterator(0);
     while (section_it.next()) |s| {
         for (s.pages.items, 0..) |p, idx| {
-            const out_basename = p.md_name[0 .. p.md_name.len - 3];
+            const out_basename = p.md_name[0 .. p.md_name.len - ".smd".len];
             const out_path = if (std.mem.eql(u8, out_basename, "index"))
                 project.pathJoin(&.{ p.content_sub_path, "index.html" })
             else
@@ -761,7 +761,7 @@ fn addMarkdownRenderStep(
     permalink: []const u8,
 ) RenderResult {
     const in_path = project.pathJoin(&.{ content_dir_path, content_sub_path, md_basename });
-    const out_basename = md_basename[0 .. md_basename.len - 3];
+    const out_basename = md_basename[0 .. md_basename.len - ".smd".len];
 
     const render_step = project.addRunArtifact(renderer);
     // assets_in_dir_path
@@ -1041,7 +1041,7 @@ const Section = struct {
                 if (!gop.found_existing) {
                     var hash = std.hash.Wyhash.init(1990);
                     if (locale_code) |lc| hash.update(lc);
-                    if (std.mem.eql(u8, p.md_name, "index.md")) {
+                    if (std.mem.eql(u8, p.md_name, "index.smd")) {
                         hash.update(std.fs.path.dirname(p.content_sub_path) orelse "");
                     } else {
                         hash.update(p.content_sub_path);

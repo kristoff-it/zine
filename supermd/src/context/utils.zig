@@ -246,8 +246,8 @@ pub const SrcBuiltins = struct {
             \\
             \\For example, the value 'foo/bar' will be automatically
             \\matched by Zine with either:
-            \\  - content/foo/bar.md
-            \\  - content/foo/bar/index.md
+            \\  - content/foo/bar.smd
+            \\  - content/foo/bar/index.smd
         ;
         pub fn call(
             self: anytype,
@@ -274,6 +274,99 @@ pub const SrcBuiltins = struct {
 
             @field(self, "src") = .{
                 .page = .{
+                    .kind = .absolute,
+                    .ref = ref,
+                    .locale = code,
+                },
+            };
+            return .{ .directive = d };
+        }
+    };
+    pub const sub = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .str, .{ .Opt = .str } },
+            .ret = .anydirective,
+        };
+        pub const description =
+            \\Same as `page()`, but the reference is relative to the current 
+            \\page.
+            \\
+            \\Only works on Section pages (i.e. pages with a `index.smd`
+            \\filename).
+        ;
+        pub fn call(
+            self: anytype,
+            d: *ctx.Directive,
+            _: Allocator,
+            args: []const ctx.Value,
+        ) !ctx.Value {
+            const bad_arg = .{ .err = "expected 1 or 2 string arguments" };
+            if (args.len < 1 or args.len > 2) return bad_arg;
+
+            const ref = switch (args[0]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            const code = if (args.len == 1) null else switch (args[1]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            if (self.src != null) {
+                return .{ .err = "field already set" };
+            }
+
+            @field(self, "src") = .{
+                .page = .{
+                    .kind = .sub,
+                    .ref = ref,
+                    .locale = code,
+                },
+            };
+            return .{ .directive = d };
+        }
+    };
+
+    pub const sibling = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .str, .{ .Opt = .str } },
+            .ret = .anydirective,
+        };
+        pub const description =
+            \\Same as `page()`, but the reference is relative to the section
+            \\the current page belongs to.
+            \\
+            \\># [NOTE]($block)
+            \\>While section pages define a section, *as pages* they don't
+            \\>belong to the section they define.
+        ;
+        pub fn call(
+            self: anytype,
+            d: *ctx.Directive,
+            _: Allocator,
+            args: []const ctx.Value,
+        ) !ctx.Value {
+            const bad_arg = .{ .err = "expected 1 or 2 string arguments" };
+            if (args.len < 1 or args.len > 2) return bad_arg;
+
+            const ref = switch (args[0]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            const code = if (args.len == 1) null else switch (args[1]) {
+                .string => |s| s,
+                else => return bad_arg,
+            };
+
+            if (self.src != null) {
+                return .{ .err = "field already set" };
+            }
+
+            @field(self, "src") = .{
+                .page = .{
+                    .kind = .sibling,
                     .ref = ref,
                     .locale = code,
                 },
