@@ -368,7 +368,7 @@ pub fn scriptyReferenceDocs(
     }
     {
         const run_docgen = project.addRunArtifact(
-            zine_dep.artifact("smd_docgen"),
+            zine_dep.builder.dependency("supermd", .{}).artifact("docgen"),
         );
 
         const reference_md = run_docgen.addOutputFileArg(

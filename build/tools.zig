@@ -111,32 +111,6 @@ pub fn build(b: *std.Build) !void {
     shtml_docgen.root_module.addImport("ziggy", ziggy);
     b.installArtifact(shtml_docgen);
 
-    const smd_docgen = b.addExecutable(.{
-        .name = "smd_docgen",
-        .root_source_file = b.path("supermd/src/docgen.zig"),
-        .target = target,
-        .optimize = .Debug,
-    });
-    smd_docgen.root_module.addImport("zeit", zeit);
-    smd_docgen.root_module.addImport("ziggy", ziggy);
-    smd_docgen.root_module.addImport("scripty", scripty);
-    b.installArtifact(smd_docgen);
-
-    // const md_renderer = b.addExecutable(.{
-    //     .name = "markdown-renderer",
-    //     .root_source_file = b.path("src/exes/markdown-renderer.zig"),
-    //     .target = b.resolveTargetQuery(.{}),
-    //     .optimize = optimize,
-    // });
-
-    // md_renderer.root_module.addImport("zine", zine);
-    // md_renderer.root_module.addImport("ziggy", ziggy.module("ziggy"));
-    // md_renderer.root_module.addImport("zeit", zeit.module("zeit"));
-    // md_renderer.root_module.addImport("syntax", syntax.module("syntax"));
-    // md_renderer.root_module.addImport("treez", ts.module("treez"));
-
-    // b.installArtifact(md_renderer);
-
     if (b.option(
         bool,
         "fuzz",
