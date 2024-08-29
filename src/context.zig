@@ -188,10 +188,9 @@ pub const Value = union(enum) {
             else
                 context.Optional.Null,
             Value => v,
-            ?*context.Iterator => if (v) |opt|
-                try context.Optional.init(gpa, opt)
-            else
-                context.Optional.Null,
+            ?*context.Iterator => if (v) |opt| .{
+                .iterator = opt,
+            } else context.Optional.Null,
             *context.Iterator => .{ .iterator = v },
             []const []const u8 => .{
                 .iterator = try context.Iterator.init(gpa, .{
