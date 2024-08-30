@@ -331,6 +331,7 @@ fn renderDirective(
                     for (attrs) |attr| try w.print("{s} ", .{attr});
                     try w.print("\"", .{});
                 }
+                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
                 try w.print(" src=\"{s}\"", .{img.src.?.url});
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
                 try w.print(">", .{});
@@ -354,6 +355,7 @@ fn renderDirective(
                     for (attrs) |attr| try w.print("{s} ", .{attr});
                     try w.print("\"", .{});
                 }
+                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
                 if (vid.loop) |val| if (val) try w.print(" loop", .{});
                 if (vid.autoplay) |val| if (val) try w.print(" autoplay", .{});
                 if (vid.muted) |val| if (val) try w.print(" muted", .{});
@@ -382,6 +384,7 @@ fn renderDirective(
                     try w.print("\"", .{});
                 }
 
+                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
                 try w.print(" href=\"{s}", .{lnk.src.?.url});
                 if (lnk.ref) |r| try w.print("#{s}", .{r});
                 try w.print("\"", .{});
@@ -402,6 +405,7 @@ fn renderDirective(
                     for (attrs) |attr| try w.print("{s} ", .{attr});
                 }
 
+                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
                 try w.print("><code class=\"{?s}\">", .{code.language});
 
                 // In this case src.url contains the prerendered source code
