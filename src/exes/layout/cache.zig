@@ -507,7 +507,7 @@ const asset_collector = struct {
         };
 
         const maybe_page_rel_path = switch (kind) {
-            .page => |p| p._meta.md_rel_path,
+            .page => |p| p._meta.md_asset_dir_rel_path,
             else => "",
         };
 
