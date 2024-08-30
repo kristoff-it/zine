@@ -56,7 +56,7 @@ pub fn next(iter: *Iterator, gpa: Allocator) !bool {
             iter.it = try Value.from(gpa, item orelse return false);
             iter.idx += 1;
             iter.first = iter.idx == 1;
-            iter.last = iter.idx == iter.len - 1;
+            iter.last = iter.idx == iter.len;
             return true;
         },
     }
