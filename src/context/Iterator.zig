@@ -157,7 +157,7 @@ fn SliceIterator(comptime Element: type) type {
         pub fn next(self: *@This(), gpa: Allocator) !?Element {
             _ = gpa;
             if (self.idx == self.items.len) return null;
-            self.idx += 1;
+            defer self.idx += 1;
             return self.items[self.idx];
         }
     };
