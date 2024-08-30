@@ -126,7 +126,7 @@ pub const Builtins = struct {
             };
 
             if (map.value.fields.get(path)) |value| {
-                return Value.fromZiggy(gpa, value);
+                return Optional.init(gpa, value);
             }
 
             return Optional.Null;

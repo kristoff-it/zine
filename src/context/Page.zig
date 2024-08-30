@@ -29,7 +29,7 @@ aliases: []const []const u8 = &.{},
 alternatives: []const Alternative = &.{},
 skip_subdirs: bool = false,
 translation_key: ?[]const u8 = null,
-custom: ziggy.dynamic.Value = .null,
+custom: ziggy.dynamic.Value = .{ .kv = .{} },
 
 _meta: struct {
     site: *const context.Site = undefined,

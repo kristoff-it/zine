@@ -3,15 +3,15 @@
     .version = "0.0.0",
     .dependencies = .{
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#8d6390cc3fe84135050b485e582affc579eaa549",
-            .hash = "12203eaf39f0cad5f151817ab4ab117f5e6d6e2e6317a6dc0da229996375acbfdbe7",
+            .url = "git+https://github.com/kristoff-it/supermd#50a76de16fa2942e9d1d00100661d17b4ce3cc5a",
+            .hash = "1220929ddb502ff2616b1621ad7ff93a36c772a0961507437726186c33582233923c",
         },
         .scripty = .{
             .url = "git+https://github.com/kristoff-it/scripty#df8c11380f9e9bec34809f2242fb116d27cf39d6",
             .hash = "122014e78d7c69d93595993b3231f3141368e22634b332b0b91a2fb73a8570f147a5",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#d57b196b69f93844f5bdfe63ae735b60b71b0e19",
+            .url = "git+https://github.com/kristoff-it/superhtml#15e2efb525338d15aab57dc5fda7a3badbd3ed5b",
             .hash = "12205fb978583b0c0d6915a2763b01b7f9eaa7ffbea4afa1a68e80191622be09ea15",
         },
         .ziggy = .{

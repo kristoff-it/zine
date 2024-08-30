@@ -322,7 +322,8 @@ fn renderDirective(
         .section, .block, .heading => {},
         .image => |img| switch (ev.dir) {
             .enter => {
-                if (img.caption != null) try w.print("<figure>", .{});
+                const caption = node.firstChild();
+                if (caption != null) try w.print("<figure>", .{});
                 try w.print("<img", .{});
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                 if (directive.attrs) |attrs| {
@@ -333,15 +334,19 @@ fn renderDirective(
                 try w.print(" src=\"{s}\"", .{img.src.?.url});
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
                 try w.print(">", .{});
-                if (img.caption) |caption| try w.print(
-                    "\n<figcaption>{s}</figcaption>\n</figure>",
-                    .{caption},
-                );
+                if (caption != null) try w.print("\n<figcaption>", .{});
             },
-            .exit => {},
+            .exit => {
+                const caption = node.firstChild();
+                if (caption != null) {
+                    try w.print("</figcaption></figure>", .{});
+                }
+            },
         },
         .video => |vid| switch (ev.dir) {
             .enter => {
+                const caption = node.firstChild();
+                if (caption != null) try w.print("<figure>", .{});
                 try w.print("<video", .{});
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                 if (directive.attrs) |attrs| {
@@ -358,8 +363,14 @@ fn renderDirective(
                 };
                 const src = vid.src.?.url;
                 try w.print(">\n<source src=\"{s}\">\n</video>", .{src});
+                if (caption != null) try w.print("\n<figcaption>", .{});
             },
-            .exit => {},
+            .exit => {
+                const caption = node.firstChild();
+                if (caption != null) {
+                    try w.print("</figcaption></figure>", .{});
+                }
+            },
         },
         .link => |lnk| switch (ev.dir) {
             .enter => {
@@ -382,6 +393,8 @@ fn renderDirective(
         },
         .code => |code| switch (ev.dir) {
             .enter => {
+                const caption = node.firstChild();
+                if (caption != null) try w.print("<figure>", .{});
                 try w.print("<pre", .{});
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                 if (directive.attrs) |attrs| {
@@ -393,8 +406,15 @@ fn renderDirective(
 
                 // In this case src.url contains the prerendered source code
                 try w.writeAll(code.src.?.url);
+                try w.print("</code></pre>", .{});
+                if (caption != null) try w.print("\n<figcaption>", .{});
             },
-            .exit => try w.print("</code></pre>", .{}),
+            .exit => {
+                const caption = node.firstChild();
+                if (caption != null) {
+                    try w.print("</figcaption></figure>", .{});
+                }
+            },
         },
     }
 }

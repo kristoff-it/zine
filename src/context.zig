@@ -178,19 +178,22 @@ pub const Value = union(enum) {
             Map.ZiggyMap => .{ .map = .{ .value = v } },
             Map.KV => .{ .map_kv = v },
             *const context.Optional => .{ .optional = v },
-            ?*const context.Optional => if (v) |opt| .{ .optional = opt } else context.Optional.Null,
+            ?*const context.Optional => if (v) |opt|
+                opt.value
+            else
+                .{ .err = "$if is not set" },
             ?[]const u8 => if (v) |opt|
                 try context.Optional.init(gpa, opt)
             else
                 context.Optional.Null,
+            Value => v,
             ?Value => if (v) |opt|
                 try context.Optional.init(gpa, opt)
             else
                 context.Optional.Null,
-            Value => v,
             ?*context.Iterator => if (v) |opt| .{
                 .iterator = opt,
-            } else context.Optional.Null,
+            } else .{ .err = "$loop is not set" },
             *context.Iterator => .{ .iterator = v },
             []const []const u8 => .{
                 .iterator = try context.Iterator.init(gpa, .{
