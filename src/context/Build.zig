@@ -16,7 +16,7 @@ changed: context.DateTime,
 
 pub fn init() Build {
     return .{
-        .date = context.DateTime.initNow(),
+        .changed = context.DateTime.initNow(),
     };
 }
 
