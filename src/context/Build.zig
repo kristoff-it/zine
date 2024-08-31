@@ -31,7 +31,7 @@ pub const Fields = struct {
         \\
         \\># [Note]($block.attrs('note'))
         \\>Using this function will not add a dependency on the current time
-        \\>for the page. 
+        \\>for the page, hence the name `changed`. 
     ;
 };
 
