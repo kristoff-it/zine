@@ -26,7 +26,7 @@ pub const description =
 ;
 
 pub const Fields = struct {
-    pub const date =
+    pub const changed =
         \\Returns the current datetime when the build is taking place.
         \\
         \\># [Note]($block.attrs('note'))
