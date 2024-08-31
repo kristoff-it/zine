@@ -12,11 +12,30 @@ const uninitialized = utils.uninitialized;
 pub const dot = scripty.defaultDot(Build, Value, false);
 pub const PassByRef = true;
 
+date: context.DateTime,
+
+pub fn init() Build {
+    return .{
+        .date = context.DateTime.initNow(),
+    };
+}
+
 pub const description =
     \\Gives you access to build-time assets and other build related info.
-    \\When inside of a git repository it also gives git-related metadata.
+    // \\When inside of a git repository it also gives git-related metadata.
 ;
-pub const Fields = struct {};
+
+pub const Fields = struct {
+    pub const date =
+        \\Returns the current datetime when the build is taking place.
+        \\
+        \\># [Warning]($block.attrs('warning'))
+        \\>Using this function will not add a dependency on the current time
+        \\>for the page. In other words, the page will only be rebuilt
+        \\>if any other of its data dependencies causes it to be rebuilt.
+    ;
+};
+
 pub const Builtins = struct {
     pub const asset = struct {
         pub const signature: Signature = .{
@@ -47,36 +66,4 @@ pub const Builtins = struct {
             return context.assetFind(ref, .{ .build = null });
         }
     };
-    // pub const date = struct {
-    //     pub const signature: Signature = .{
-    //         .params = &.{},
-    //         .ret = .Date,
-    //     };
-    //     pub const description =
-    //         \\Retuns a build-time asset (i.e. an asset generated through your 'build.zig' file) by name.
-    //     ;
-    //     pub const examples =
-    //         \\<div var="$build.asset('foo').bytes()"></div>
-    //     ;
-    //     pub fn call(
-    //         b: *Build,
-    //         gpa: Allocator,
-    //         args: []const Value,
-    //     ) !Value {
-    //         const bad_arg = .{
-    //             .err = "expected 1 string argument",
-    //         };
-    //         if (args.len != 1) return bad_arg;
-
-    //         const ref = switch (args[0]) {
-    //             .string => |s| s,
-    //             else => return bad_arg,
-    //         };
-
-    //         return b._assets.call(gpa, .{
-    //             .kind = .build,
-    //             .ref = ref,
-    //         });
-    //     }
-    // };
 };

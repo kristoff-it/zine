@@ -15,7 +15,7 @@ const Ctx = superhtml.utils.Ctx;
 
 site: *const Site,
 page: *const Page,
-build: Build = .{},
+build: Build,
 i18n: Map.ZiggyMap,
 
 // Globals specific to SuperHTML

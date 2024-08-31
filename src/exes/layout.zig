@@ -188,6 +188,7 @@ pub fn main() !void {
         .site = site,
         .page = page,
         .i18n = i18n,
+        .build = context.Build.init(),
     };
 
     const SuperVM = superhtml.VM(

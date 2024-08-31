@@ -11,18 +11,18 @@ const Value = context.Value;
 const String = context.String;
 const Bool = context.Bool;
 
-_dt: zeit.Time,
-// Use inst() to access this field
 _inst: zeit.Instant,
-_string_repr: []const u8,
 
 pub fn init(iso8601: []const u8) !DateTime {
     const date = try zeit.Time.fromISO8601(iso8601);
     return .{
-        ._string_repr = iso8601,
-        ._dt = date,
         ._inst = date.instant(),
     };
+}
+
+pub fn initNow() DateTime {
+    const date = zeit.instant(.{}) catch unreachable;
+    return .{ ._inst = date };
 }
 
 pub const description =
@@ -174,14 +174,18 @@ pub const Builtins = struct {
             const dse = zeit.daysSinceEpoch(dt._inst.unixTimestamp());
             const weekday = zeit.weekdayFromDays(dse);
 
+            const zdt = dt._inst.time();
             const formatted_date = try std.fmt.allocPrint(
                 gpa,
-                "{s}, {:0>2} {s} {} 00:00:00 +0000",
+                "{s}, {:0>2} {s} {} {:0>2}:{:0>2}:{:0>2} +0000",
                 .{
                     weekday.shortName(),
-                    dt._dt.day,
-                    dt._dt.month.shortName(),
-                    dt._dt.year,
+                    zdt.day,
+                    zdt.month.shortName(),
+                    zdt.year,
+                    zdt.hour,
+                    zdt.minute,
+                    zdt.second,
                 },
             );
 
@@ -190,19 +194,20 @@ pub const Builtins = struct {
     };
 };
 pub const ziggy_options = struct {
-    pub fn stringify(
-        value: DateTime,
-        opts: ziggy.serializer.StringifyOptions,
-        indent_level: usize,
-        depth: usize,
-        writer: anytype,
-    ) !void {
-        _ = opts;
-        _ = indent_level;
-        _ = depth;
+    //     pub fn stringify(
+    //         value: DateTime,
+    //         opts: ziggy.serializer.StringifyOptions,
+    //         indent_level: usize,
+    //         depth: usize,
+    //         writer: anytype,
+    //     ) !void {
+    //         _ = opts;
+    //         _ = indent_level;
+    //         _ = depth;
+    //         std.debug.panic("still used!", .{});
 
-        try writer.print("@date(\"{}\")", .{std.zig.fmtEscapes(value._string_repr)});
-    }
+    //         try writer.print("@date(\"{}\")", .{std.zig.fmtEscapes(value._string_repr)});
+    //     }
 
     pub fn parse(
         p: *ziggy.Parser,
@@ -260,24 +265,27 @@ pub fn lessThan(self: DateTime, rhs: DateTime) bool {
 
 const DateFormats = struct {
     pub fn @"January 02, 2006"(dt: DateTime, gpa: Allocator) ![]const u8 {
+        const zdt = dt._inst.time();
         return try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
-            dt._dt.month.name(),
-            dt._dt.day,
-            dt._dt.year,
+            zdt.month.name(),
+            zdt.day,
+            zdt.year,
         });
     }
     pub fn @"06-Jan-02"(dt: DateTime, gpa: Allocator) ![]const u8 {
+        const zdt = dt._inst.time();
         return try std.fmt.allocPrint(gpa, "{:0>2}-{s}-{:0>2}", .{
-            dt._dt.day,
-            dt._dt.month.shortName(),
-            @mod(dt._dt.year, 100),
+            zdt.day,
+            zdt.month.shortName(),
+            @mod(zdt.year, 100),
         });
     }
     pub fn @"2006/01/02"(dt: DateTime, gpa: Allocator) ![]const u8 {
+        const zdt = dt._inst.time();
         return try std.fmt.allocPrint(gpa, "{}/{:0>2}/{:0>2}", .{
-            dt._dt.year,
-            @intFromEnum(dt._dt.month),
-            dt._dt.day,
+            zdt.year,
+            @intFromEnum(zdt.month),
+            zdt.day,
         });
     }
 };
