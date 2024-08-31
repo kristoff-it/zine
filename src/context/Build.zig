@@ -12,7 +12,7 @@ const uninitialized = utils.uninitialized;
 pub const dot = scripty.defaultDot(Build, Value, false);
 pub const PassByRef = true;
 
-date: context.DateTime,
+changed: context.DateTime,
 
 pub fn init() Build {
     return .{
@@ -29,10 +29,9 @@ pub const Fields = struct {
     pub const date =
         \\Returns the current datetime when the build is taking place.
         \\
-        \\># [Warning]($block.attrs('warning'))
+        \\># [Note]($block.attrs('note'))
         \\>Using this function will not add a dependency on the current time
-        \\>for the page. In other words, the page will only be rebuilt
-        \\>if any other of its data dependencies causes it to be rebuilt.
+        \\>for the page. 
     ;
 };
 
