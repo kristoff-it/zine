@@ -265,7 +265,7 @@ pub const Builtins = struct {
             \\Returns the Site that the page belongs to.
         ;
         pub const examples =
-            \\<div text="$page.site().localeName()"></div>
+            \\<div :text="$page.site().localeName()"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -343,7 +343,9 @@ pub const Builtins = struct {
             \\To be used in conjunction with an `if` attribute.
         ;
         pub const examples =
-            \\<div if="$page.locale?('en-US')"><a href="$if.link()" text="$if.title"></a></div>
+            \\<div :if="$page.locale?('en-US')">
+            \\  <a href="$if.link()" :text="$if.title"></a>
+            \\</div>
         ;
         pub fn call(
             p: *const Page,
@@ -415,7 +417,7 @@ pub const Builtins = struct {
             \\counts all characters and divides the result by 5.
         ;
         pub const examples =
-            \\<div loop="$page.wordCount()"></div>
+            \\<div :loop="$page.wordCount()"></div>
         ;
         pub fn call(
             self: *const Page,
@@ -459,8 +461,8 @@ pub const Builtins = struct {
             \\structure section in the official docs for more info.
         ;
         pub const examples =
-            \\<div loop="$page.subpages()">
-            \\  <span text="$loop.it.title"></span>
+            \\<div :loop="$page.subpages()">
+            \\  <span :text="$loop.it.title"></span>
             \\</div>
         ;
         pub fn call(
@@ -489,8 +491,8 @@ pub const Builtins = struct {
             \\within the `if` block.
         ;
         pub const examples =
-            \\<div if="$page.nextPage()">
-            \\  <span text="$if.title"></span>
+            \\<div :if="$page.nextPage()">
+            \\  <span :text="$if.title"></span>
             \\</div>
         ;
 
@@ -665,8 +667,8 @@ pub const Builtins = struct {
             \\Renders the specified [content section]($link.page('docs/supermd/scripty').ref('Section')) of a page.
         ;
         pub const examples =
-            \\<div html="$page.contentSection('section-id')"></div>
-            \\<div html="$page.contentSection('other-section')"></div>
+            \\<div :html="$page.contentSection('section-id')"></div>
+            \\<div :html="$page.contentSection('other-section')"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -712,6 +714,58 @@ pub const Builtins = struct {
         }
     };
 
+    // pub const contentSections = struct {
+    //     pub const signature: Signature = .{
+    //         .params = &.{},
+    //         .ret = .{ .Many = .ContentSection },
+    //     };
+    //     pub const description =
+    //         \\Returns a list of sections for the current page.
+    //         \\
+    //         \\A page that doesn't define any section will have a default
+    //         \\section for the whole document with a null id.
+    //     ;
+    //     pub const examples =
+    //         \\<div :html="$page.contentSections()"></div>
+    //     ;
+    //     pub fn call(
+    //         p: *const Page,
+    //         gpa: Allocator,
+    //         args: []const Value,
+    //     ) !Value {
+    //         const bad_arg = .{
+    //             .err = "expected 1 string argument argument",
+    //         };
+    //         if (args.len != 1) return bad_arg;
+
+    //         const ast = p._meta.ast.?;
+
+    //         var buf = std.ArrayList(u8).init(gpa);
+
+    //         const node = ast.ids.get(section_id) orelse {
+    //             return Value.errFmt(
+    //                 gpa,
+    //                 "content section '{s}' doesn't exist",
+    //                 .{section_id},
+    //             );
+    //         };
+
+    //         switch (node.getDirective().?.kind) {
+    //             .section => {},
+    //             else => {
+    //                 return Value.errFmt(
+    //                     gpa,
+    //                     "id '{s}' exists but is not a section",
+    //                     .{section_id},
+    //                 );
+    //             },
+    //         }
+
+    //         try render.html(gpa, ast, node, "", buf.writer());
+    //         return String.init(try buf.toOwnedSlice());
+    //     }
+    // };
+
     pub const toc = struct {
         pub const signature: Signature = .{ .ret = .String };
         pub const description =
@@ -740,3 +794,38 @@ pub const Builtins = struct {
         }
     };
 };
+
+// pub const ContentSection = struct {
+//  id: ?[]const u8,
+
+//  pub const Builtins = struct {
+
+//     pub const html = struct {
+//         pub const signature: Signature = .{ .ret = .String };
+//         pub const description =
+//             \\Renders the section.
+//         ;
+//         pub const examples =
+//             \\<div html="$page.toc()"></div>
+//         ;
+//         pub fn call(
+//             p: *const Page,
+//             gpa: Allocator,
+//             args: []const Value,
+//         ) !Value {
+//             const bad_arg = .{
+//                 .err = "expected 0 arguments",
+//             };
+//             if (args.len != 0) return bad_arg;
+
+//             const ast = p._meta.ast orelse return .{
+//                 .err = "only the main page can be rendered for now",
+//             };
+//             var buf = std.ArrayList(u8).init(gpa);
+//             try render.htmlToc(ast, buf.writer());
+
+//             return String.init(try buf.toOwnedSlice());
+//         }
+//     };
+//  };
+// };

@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#ce196ec14ecb90e394d6c92bdbd34793c241c161",
-            .hash = "122061d87d552730b7bbf4e519823abdb922baa89f9703a251062557c1f07003b431",
+            .url = "git+https://github.com/kristoff-it/supermd#e854870f969ba5570d2d1d346c9270ead3359cd8",
+            .hash = "1220627a6a69df3df924226f571494b72e3b76e8591c9e461ac0109fa5e3fe3c3a95",
         },
         .scripty = .{
             .url = "git+https://github.com/kristoff-it/scripty#df8c11380f9e9bec34809f2242fb116d27cf39d6",
