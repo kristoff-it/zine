@@ -12,11 +12,11 @@ const uninitialized = utils.uninitialized;
 pub const dot = scripty.defaultDot(Build, Value, false);
 pub const PassByRef = true;
 
-changed: context.DateTime,
+generated: context.DateTime,
 
 pub fn init() Build {
     return .{
-        .changed = context.DateTime.initNow(),
+        .generated = context.DateTime.initNow(),
     };
 }
 
@@ -26,12 +26,15 @@ pub const description =
 ;
 
 pub const Fields = struct {
-    pub const changed =
-        \\Returns the current datetime when the build is taking place.
+    pub const generated =
+        \\Returns the current date when the build is taking place.
         \\
         \\># [Note]($block.attrs('note'))
         \\>Using this function will not add a dependency on the current time
-        \\>for the page, hence the name `changed`. 
+        \\>for the page, hence the name `generated`. 
+        \\>
+        \\>To get the best results, use in conjunction with caching as otherwise
+        \\>the page will be regenerated anew every single time.
     ;
 };
 
