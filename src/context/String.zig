@@ -183,6 +183,45 @@ pub const Builtins = struct {
             return Value.from(gpa, try out.toOwnedSlice());
         }
     };
+    pub const prefix = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .String, .{ .Many = .String } },
+            .ret = .String,
+        };
+        pub const description =
+            \\Concatenates strings together (left-to-right) and
+            \\prepends them to the receiver string.
+        ;
+        pub const examples =
+            \\$page.title.prefix("Foo","Bar", "Baz")
+        ;
+        pub fn call(
+            str: String,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg: Value = .{
+                .err = "expected at least 1 string argument",
+            };
+            if (args.len == 0) return bad_arg;
+
+            var out = std.ArrayList(u8).init(gpa);
+            errdefer out.deinit();
+
+            for (args) |a| {
+                const fx = switch (a) {
+                    .string => |s| s.value,
+                    else => return bad_arg,
+                };
+
+                try out.appendSlice(fx);
+            }
+
+            try out.appendSlice(str.value);
+
+            return Value.from(gpa, try out.toOwnedSlice());
+        }
+    };
     pub const fmt = struct {
         pub const signature: Signature = .{
             .params = &.{ .String, .{ .Many = .String } },
