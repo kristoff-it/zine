@@ -81,6 +81,7 @@ pub const Value = union(enum) {
     page: *const Page,
     ctx: Ctx(Value),
     alternative: Page.Alternative,
+    content_section: Page.ContentSection,
     build: *const Build,
     asset: Asset,
     map: Map,
@@ -167,6 +168,7 @@ pub const Value = union(enum) {
             *const Site => .{ .site = v },
             *const Page, *Page => .{ .page = v },
             Page.Alternative => .{ .alternative = v },
+            Page.ContentSection => .{ .content_section = v },
             *const Build => .{ .build = v },
             Ctx(Value) => .{ .ctx = v },
             Asset => .{ .asset = v },
@@ -204,6 +206,11 @@ pub const Value = union(enum) {
             []const Page.Alternative => .{
                 .iterator = try context.Iterator.init(gpa, .{
                     .alt_it = .{ .items = v },
+                }),
+            },
+            []Page.ContentSection => .{
+                .iterator = try context.Iterator.init(gpa, .{
+                    .content_it = .{ .items = v },
                 }),
             },
             else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),

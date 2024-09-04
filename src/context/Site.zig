@@ -213,7 +213,6 @@ pub const Builtins = struct {
                 },
             });
 
-            log.debug("res = {*}", .{res.page});
             return res;
         }
     };

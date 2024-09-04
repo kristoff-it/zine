@@ -398,19 +398,23 @@ fn renderDirective(
             .enter => {
                 const caption = node.firstChild();
                 if (caption != null) try w.print("<figure>", .{});
-                try w.print("<pre", .{});
-                if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
-                if (directive.attrs) |attrs| {
-                    if (code.language == null) try w.print(" class=\"", .{});
-                    for (attrs) |attr| try w.print("{s} ", .{attr});
+                if (std.mem.eql(u8, code.language orelse "", "=html")) {
+                    try w.writeAll(code.src.?.url);
+                } else {
+                    try w.print("<pre", .{});
+                    if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
+                    if (directive.attrs) |attrs| {
+                        if (code.language == null) try w.print(" class=\"", .{});
+                        for (attrs) |attr| try w.print("{s} ", .{attr});
+                    }
+
+                    if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
+                    try w.print("><code class=\"{?s}\">", .{code.language});
+
+                    // In this case src.url contains the prerendered source code
+                    try w.writeAll(code.src.?.url);
+                    try w.print("</code></pre>", .{});
                 }
-
-                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
-                try w.print("><code class=\"{?s}\">", .{code.language});
-
-                // In this case src.url contains the prerendered source code
-                try w.writeAll(code.src.?.url);
-                try w.print("</code></pre>", .{});
                 if (caption != null) try w.print("\n<figcaption>", .{});
             },
             .exit => {
@@ -445,15 +449,6 @@ pub fn htmlToc(ast: Ast, w: anytype) !void {
     var node: ?supermd.Node = ast.md.root.firstChild();
     while (node) |n| : (node = n.nextSibling()) {
         if (n.nodeType() != .HEADING) continue;
-
-        // skip blocks with no heading text
-        if (n.getDirective()) |d| {
-            if (d.kind == .block) {
-                const link = n.firstChild().?;
-                if (link.firstChild() == null) continue;
-            }
-        }
-
         defer first_item = false;
 
         const new_lvl = n.headingLevel();
@@ -504,18 +499,16 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
             .HEADING => switch (ev.dir) {
                 .enter => {
                     const dir = node.getDirective() orelse continue;
-                    if (dir.kind == .section) {
-                        if (dir.id) |id| {
-                            try w.print("<a href=\"#{s}\">", .{id});
-                        }
+                    if (dir.id) |id| {
+                        std.debug.assert(id.len > 0);
+                        std.debug.assert(std.mem.trim(u8, id, "\t\n\r ").len > 0);
+                        try w.print("<a href=\"#{s}\">", .{id});
                     }
                 },
                 .exit => {
                     const dir = node.getDirective() orelse continue;
-                    if (dir.kind == .section) {
-                        if (dir.id != null) {
-                            try w.print("</a>", .{});
-                        }
+                    if (dir.id != null) {
+                        try w.print("</a>", .{});
                     }
                 },
             },

@@ -6,7 +6,8 @@ const hl = @import("../highlight.zig");
 const utils = @import("utils.zig");
 const log = utils.log;
 const Signature = @import("doctypes.zig").Signature;
-const Value = @import("../context.zig").Value;
+const context = @import("../context.zig");
+const Value = context.Value;
 
 value: []const u8,
 
@@ -343,6 +344,33 @@ pub const Builtins = struct {
             };
 
             return Value.from(gpa, parsed);
+        }
+    };
+
+    pub const parseDate = struct {
+        pub const signature: Signature = .{ .ret = .Date };
+        pub const description =
+            \\Parses a Date out of a string.
+        ;
+        pub const examples =
+            \\$page.custom.get('foo').parseDate()
+        ;
+        pub fn call(
+            str: String,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            const dt = context.DateTime.init(str.value) catch |err| {
+                return Value.errFmt(
+                    gpa,
+                    "unable to parse '{s}' as date: '{s}'",
+                    .{ str.value, @errorName(err) },
+                );
+            };
+
+            return Value.from(gpa, dt);
         }
     };
 

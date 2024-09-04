@@ -39,11 +39,16 @@ pub fn main() !void {
         };
         log.debug("asset install path: '{s}'", .{install_path});
 
-        for (name) |c| if (c == std.fs.path.sep) {
-            fatal("TODO: support complex asset names", .{});
-        };
+        // for (name) |c| if (c == std.fs.path.sep) {
+        //     fatal("TODO: support complex asset names", .{});
+        // };
 
-        const file = try asset_index_dir.createFile(name, .{
+        const hash = std.hash.Wyhash.hash(1990, name);
+        var hash_buf: [32]u8 = undefined;
+        const entry_name = std.fmt.bufPrint(&hash_buf, "{x}", .{
+            hash,
+        }) catch unreachable;
+        const file = try asset_index_dir.createFile(entry_name, .{
             .read = true,
             .truncate = false,
         });

@@ -55,11 +55,12 @@ pub fn build(b: *std.Build) !void {
     const superhtml = b.dependency("superhtml", mode).module("superhtml");
     superhtml.addImport("scripty", scripty);
 
+    const ziggy = b.dependency("ziggy", mode).module("ziggy");
     const supermd = b.dependency("supermd", mode).module("supermd");
     supermd.addImport("scripty", scripty);
     supermd.addImport("superhtml", superhtml);
+    supermd.addImport("ziggy", ziggy);
 
-    const ziggy = b.dependency("ziggy", mode).module("ziggy");
     const zeit = b.dependency("zeit", mode).module("zeit");
     const syntax = b.dependency("flow-syntax", mode);
     const ts = syntax.builder.dependency("tree-sitter", mode);

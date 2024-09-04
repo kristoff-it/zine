@@ -398,9 +398,14 @@ const asset_finder = struct {
             .page => |p| p._meta.md_asset_dir_path,
             // separate workflow that doesn't return a base path
             .build => {
+                const hash = std.hash.Wyhash.hash(1990, ref);
+                var buf: [32]u8 = undefined;
+                const entry_name = std.fmt.bufPrint(&buf, "{x}", .{
+                    hash,
+                }) catch unreachable;
                 const full_path = try std.fs.path.join(gpa, &.{
                     asset_finder.build_index_dir_path,
-                    ref,
+                    entry_name,
                 });
 
                 const paths = std.fs.cwd().readFileAlloc(
@@ -445,7 +450,9 @@ const asset_finder = struct {
 
         log.debug("finder opening '{s}'", .{base_path});
         const dir = std.fs.cwd().openDir(base_path, .{}) catch {
-            @panic("error while opening asset index dir");
+            return context.Value.errFmt(gpa, "unable to open asset directory '{s}'", .{
+                base_path,
+            });
         };
 
         dir.access(ref, .{}) catch |err| {
@@ -907,32 +914,38 @@ fn loadPage(
                     );
                 };
 
-                if (code.language) |lang| {
-                    var buf = std.ArrayList(u8).init(gpa);
-
-                    zine.highlight.highlightCode(
-                        gpa,
-                        lang,
-                        src,
-                        buf.writer(),
-                    ) catch |err| switch (err) {
-                        else => unreachable,
-                        error.InvalidLanguage => {
-                            reportError(
-                                n,
-                                md_src,
-                                md_rel_path,
-                                md_path,
-                                fm_offset,
-                                is_section,
-                                "Unknown Language",
-                            );
-                        },
-                    };
-                    directive.kind.code.src = .{ .url = buf.items };
-                } else {
+                const lang = code.language orelse {
                     directive.kind.code.src = .{ .url = src };
+                    continue;
+                };
+
+                if (std.mem.eql(u8, lang, "=html")) {
+                    directive.kind.code.src = .{ .url = src };
+                    continue;
                 }
+
+                var buf = std.ArrayList(u8).init(gpa);
+
+                zine.highlight.highlightCode(
+                    gpa,
+                    lang,
+                    src,
+                    buf.writer(),
+                ) catch |err| switch (err) {
+                    else => unreachable,
+                    error.InvalidLanguage => {
+                        reportError(
+                            n,
+                            md_src,
+                            md_rel_path,
+                            md_path,
+                            fm_offset,
+                            is_section,
+                            "Unknown Language",
+                        );
+                    },
+                };
+                directive.kind.code.src = .{ .url = buf.items };
             },
             inline else => |val, tag| {
                 const res = switch (val.src.?) {

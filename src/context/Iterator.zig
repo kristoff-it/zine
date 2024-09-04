@@ -29,6 +29,7 @@ pub const Impl = union(enum) {
     page_slice_it: SliceIterator(*const Page),
     translation_it: TranslationIterator,
     alt_it: SliceIterator(Page.Alternative),
+    content_it: SliceIterator(Page.ContentSection),
     map_it: MapIterator,
     dynamic_it: SliceIterator(ziggy.dynamic.Value),
 

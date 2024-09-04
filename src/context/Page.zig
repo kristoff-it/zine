@@ -714,57 +714,50 @@ pub const Builtins = struct {
         }
     };
 
-    // pub const contentSections = struct {
-    //     pub const signature: Signature = .{
-    //         .params = &.{},
-    //         .ret = .{ .Many = .ContentSection },
-    //     };
-    //     pub const description =
-    //         \\Returns a list of sections for the current page.
-    //         \\
-    //         \\A page that doesn't define any section will have a default
-    //         \\section for the whole document with a null id.
-    //     ;
-    //     pub const examples =
-    //         \\<div :html="$page.contentSections()"></div>
-    //     ;
-    //     pub fn call(
-    //         p: *const Page,
-    //         gpa: Allocator,
-    //         args: []const Value,
-    //     ) !Value {
-    //         const bad_arg = .{
-    //             .err = "expected 1 string argument argument",
-    //         };
-    //         if (args.len != 1) return bad_arg;
+    pub const contentSections = struct {
+        pub const signature: Signature = .{
+            .params = &.{},
+            .ret = .{ .Many = .ContentSection },
+        };
+        pub const description =
+            \\Returns a list of sections for the current page.
+            \\
+            \\A page that doesn't define any section will have
+            \\a default section for the whole document with a 
+            \\null id.
+        ;
+        pub const examples =
+            \\<div :html="$page.contentSections()"></div>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
 
-    //         const ast = p._meta.ast.?;
+            const ast = p._meta.ast.?;
 
-    //         var buf = std.ArrayList(u8).init(gpa);
+            var sections = std.ArrayList(ContentSection).init(gpa);
+            var it = ast.ids.iterator();
+            while (it.next()) |kv| {
+                const d = kv.value_ptr.getDirective().?;
+                if (d.kind == .section) {
+                    try sections.append(.{
+                        .id = d.id orelse "",
+                        .data = d.data,
+                        ._node = kv.value_ptr.*,
+                        ._ast = ast,
+                    });
+                }
+            }
 
-    //         const node = ast.ids.get(section_id) orelse {
-    //             return Value.errFmt(
-    //                 gpa,
-    //                 "content section '{s}' doesn't exist",
-    //                 .{section_id},
-    //             );
-    //         };
-
-    //         switch (node.getDirective().?.kind) {
-    //             .section => {},
-    //             else => {
-    //                 return Value.errFmt(
-    //                     gpa,
-    //                     "id '{s}' exists but is not a section",
-    //                     .{section_id},
-    //                 );
-    //             },
-    //         }
-
-    //         try render.html(gpa, ast, node, "", buf.writer());
-    //         return String.init(try buf.toOwnedSlice());
-    //     }
-    // };
+            return Value.from(gpa, try sections.toOwnedSlice());
+        }
+    };
 
     pub const toc = struct {
         pub const signature: Signature = .{ .ret = .String };
@@ -795,37 +788,54 @@ pub const Builtins = struct {
     };
 };
 
-// pub const ContentSection = struct {
-//  id: ?[]const u8,
+pub const ContentSection = struct {
+    id: []const u8,
+    data: supermd.Directive.Data = .{},
+    _node: supermd.Node,
+    _ast: supermd.Ast,
 
-//  pub const Builtins = struct {
+    pub const dot = scripty.defaultDot(ContentSection, Value, false);
+    pub const description =
+        \\A content section from a page.
+    ;
+    pub const Fields = struct {
+        pub const id =
+            \\The id of the current section.
+        ;
+        pub const data =
+            \\A Ziggy Map that contains data key-value pairs set in SuperMD
+        ;
+    };
+    pub const Builtins = struct {
+        pub const html = struct {
+            pub const signature: Signature = .{ .ret = .String };
+            pub const description =
+                \\Renders the section.
+            ;
+            pub const examples =
+                \\<div html="$page.c()"></div>
+            ;
+            pub fn call(
+                cs: ContentSection,
+                gpa: Allocator,
+                args: []const Value,
+            ) !Value {
+                const bad_arg = .{
+                    .err = "expected 0 arguments",
+                };
+                if (args.len != 0) return bad_arg;
 
-//     pub const html = struct {
-//         pub const signature: Signature = .{ .ret = .String };
-//         pub const description =
-//             \\Renders the section.
-//         ;
-//         pub const examples =
-//             \\<div html="$page.toc()"></div>
-//         ;
-//         pub fn call(
-//             p: *const Page,
-//             gpa: Allocator,
-//             args: []const Value,
-//         ) !Value {
-//             const bad_arg = .{
-//                 .err = "expected 0 arguments",
-//             };
-//             if (args.len != 0) return bad_arg;
+                var buf = std.ArrayList(u8).init(gpa);
 
-//             const ast = p._meta.ast orelse return .{
-//                 .err = "only the main page can be rendered for now",
-//             };
-//             var buf = std.ArrayList(u8).init(gpa);
-//             try render.htmlToc(ast, buf.writer());
-
-//             return String.init(try buf.toOwnedSlice());
-//         }
-//     };
-//  };
-// };
+                try render.html(
+                    gpa,
+                    cs._ast,
+                    cs._node,
+                    "",
+                    buf.writer(),
+                );
+                return String.init(try buf.toOwnedSlice());
+            }
+        };
+    };
+};

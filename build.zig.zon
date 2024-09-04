@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#e854870f969ba5570d2d1d346c9270ead3359cd8",
-            .hash = "1220627a6a69df3df924226f571494b72e3b76e8591c9e461ac0109fa5e3fe3c3a95",
+            .url = "git+https://github.com/kristoff-it/supermd#a14aa7cfe06cbba598aff96cd6589088c6c50cf7",
+            .hash = "1220e52e6d8e64a687c7806baf7d070d70740ca152c1cf24417f28fc8a94d249176d",
         },
         .scripty = .{
             .url = "git+https://github.com/kristoff-it/scripty#df8c11380f9e9bec34809f2242fb116d27cf39d6",
@@ -31,8 +31,8 @@
             .hash = "1220755ea2a5aa6bb3713437aaafefd44812169fe43f1da755c3ee6101b85940f441",
         },
         .@"flow-syntax" = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#26b99478af9a1f09e0af8fd77fbdbe44e2015da4",
-            .hash = "1220f993fa053a2a76355906e74e1559f770fd612b303c8b4a1bafa116ab157b5efa",
+            .url = "git+https://github.com/neurocyte/flow-syntax#bd5240d58c5a07932a797e2beb076f70053bb8e9",
+            .hash = "1220080c92e732f48d518043b7a5b09788a00493dece06c9c87e5e6bb6fed96d651a",
         },
         .@"zig-afl-kit" = .{
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#f003bfe714f2964c90939fdc940d5993190a66ec",
