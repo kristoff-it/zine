@@ -430,6 +430,36 @@ pub const Builtins = struct {
         }
     };
 
+    pub const parentSection = struct {
+        pub const signature: Signature = .{ .ret = .Page };
+        pub const description =
+            \\Returns the parent section of a page. 
+            \\
+            \\It's always an error to call this function on the site's main 
+            \\index page as it doesn't have a parent section.
+        ;
+        pub const examples =
+            \\$page.parentSection()
+        ;
+        pub fn call(
+            self: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            _ = gpa;
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            const p = self._meta.parent_section_path orelse return .{
+                .err = "root index page has no parent path",
+            };
+            return context.pageFind(.{
+                .ref = .{
+                    .path = p,
+                    .site = self._meta.site,
+                },
+            });
+        }
+    };
+
     pub const isSection = struct {
         pub const signature: Signature = .{ .ret = .Bool };
         pub const description =
