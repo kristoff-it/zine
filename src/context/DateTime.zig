@@ -124,32 +124,38 @@ pub const Builtins = struct {
         pub const description =
             \\Formats a datetime according to the specified format string.
             \\
+            \\Zine uses Go-style format strings, which are all variations based
+            \\on a "magic date":
+            \\
+            \\- `Mon Jan 2 15:04:05 MST 2006`
+            \\
+            \\By tweaking its components you can specify various formatting styles.
         ;
         pub const examples =
             \\$page.date.format("January 02, 2006")
             \\$page.date.format("06-Jan-02")
             \\$page.date.format("2006/01/02")
+            \\$page.date.format("2006/01/02 15:04 MST")
         ;
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const argument_error = .{ .err = "'format' wants one (string) argument" };
+            const argument_error = .{ .err = "expected 1 string argument" };
             if (args.len != 1) return argument_error;
-            const string = switch (args[0]) {
+
+            const fmt_string = switch (args[0]) {
                 .string => |s| s.value,
                 else => return argument_error,
             };
-            inline for (@typeInfo(DateFormats).Struct.decls) |decl| {
-                if (std.mem.eql(u8, decl.name, string)) {
-                    return String.init(
-                        try @call(.auto, @field(DateFormats, decl.name), .{ dt, gpa }),
-                    );
-                }
-            } else {
-                return .{ .err = "unsupported date format" };
-            }
+
+            var buf = std.ArrayList(u8).init(gpa);
+            errdefer buf.deinit();
+
+            dt._inst.time().gofmt(buf.writer(), fmt_string) catch return error.OutOfMemory;
+
+            return String.init(try buf.toOwnedSlice());
         }
     };
 
@@ -262,30 +268,3 @@ pub const ziggy_options = struct {
 pub fn lessThan(self: DateTime, rhs: DateTime) bool {
     return self._inst.timestamp < rhs._inst.timestamp;
 }
-
-const DateFormats = struct {
-    pub fn @"January 02, 2006"(dt: DateTime, gpa: Allocator) ![]const u8 {
-        const zdt = dt._inst.time();
-        return try std.fmt.allocPrint(gpa, "{s} {:0>2}, {}", .{
-            zdt.month.name(),
-            zdt.day,
-            zdt.year,
-        });
-    }
-    pub fn @"06-Jan-02"(dt: DateTime, gpa: Allocator) ![]const u8 {
-        const zdt = dt._inst.time();
-        return try std.fmt.allocPrint(gpa, "{:0>2}-{s}-{:0>2}", .{
-            zdt.day,
-            zdt.month.shortName(),
-            @mod(zdt.year, 100),
-        });
-    }
-    pub fn @"2006/01/02"(dt: DateTime, gpa: Allocator) ![]const u8 {
-        const zdt = dt._inst.time();
-        return try std.fmt.allocPrint(gpa, "{}/{:0>2}/{:0>2}", .{
-            zdt.year,
-            @intFromEnum(zdt.month),
-            zdt.day,
-        });
-    }
-};
