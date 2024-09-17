@@ -324,6 +324,10 @@ fn renderDirective(
             .enter => {
                 const caption = node.firstChild();
                 if (caption != null) try w.print("<figure>", .{});
+                if (img.linked) |l| if (l) try w.print("<a href=\"{s}\">", .{
+                    img.src.?.url,
+                });
+
                 try w.print("<img", .{});
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                 if (directive.attrs) |attrs| {
@@ -335,6 +339,7 @@ fn renderDirective(
                 try w.print(" src=\"{s}\"", .{img.src.?.url});
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
                 try w.print(">", .{});
+                if (img.linked) |l| if (l) try w.print("</a>", .{});
                 if (caption != null) try w.print("\n<figcaption>", .{});
             },
             .exit => {
