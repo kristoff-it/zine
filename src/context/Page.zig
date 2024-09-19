@@ -837,13 +837,91 @@ pub const ContentSection = struct {
         ;
     };
     pub const Builtins = struct {
+        pub const heading = struct {
+            pub const signature: Signature = .{ .ret = .String };
+            pub const description =
+                \\If the section starts with a heading element,
+                \\this function returns the heading as simple text.           
+            ;
+            pub const examples =
+                \\<div html="$loop.it.heading()"></div>
+            ;
+            pub fn call(
+                cs: ContentSection,
+                gpa: Allocator,
+                args: []const Value,
+            ) !Value {
+                const bad_arg = .{
+                    .err = "expected 0 arguments",
+                };
+                if (args.len != 0) return bad_arg;
+
+                const err = Value.errFmt(gpa, "section '{s}' has no heading", .{
+                    cs.id,
+                });
+
+                if (cs._node.nodeType() != .HEADING) {
+                    return err;
+                }
+
+                // const link_node = cs._node.firstChild() orelse {
+                //     return err;
+                // };
+
+                // const text_node = link_node.firstChild() orelse {
+                //     return err;
+                // };
+
+                // const text = text_node.literal() orelse {
+                //     return err;
+                // };
+
+                const text = try cs._node.renderPlaintext();
+
+                return String.init(text);
+            }
+        };
+        pub const @"heading?" = struct {
+            pub const signature: Signature = .{ .ret = .{ .Opt = .String } };
+            pub const description =
+                \\If the section starts with a heading element,
+                \\this function returns the heading as simple text.           
+            ;
+            pub const examples =
+                \\<div html="$loop.it.heading()"></div>
+            ;
+            pub fn call(
+                cs: ContentSection,
+                gpa: Allocator,
+                args: []const Value,
+            ) !Value {
+                const bad_arg = .{
+                    .err = "expected 0 arguments",
+                };
+                if (args.len != 0) return bad_arg;
+
+                if (cs._node.nodeType() != .HEADING) {
+                    return Optional.Null;
+                }
+
+                const link_node = cs._node.firstChild() orelse {
+                    return Optional.Null;
+                };
+
+                const text = link_node.literal() orelse {
+                    return Optional.Null;
+                };
+
+                return Optional.init(gpa, String.init(text));
+            }
+        };
         pub const html = struct {
             pub const signature: Signature = .{ .ret = .String };
             pub const description =
                 \\Renders the section.
             ;
             pub const examples =
-                \\<div html="$page.c()"></div>
+                \\<div html="$loop.it.html()"></div>
             ;
             pub fn call(
                 cs: ContentSection,
