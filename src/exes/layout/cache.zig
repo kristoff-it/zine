@@ -657,7 +657,7 @@ fn loadPage(
                 hash.update(ml.code);
             },
         }
-        if (std.mem.endsWith(u8, md_rel_path, "/index.smd")) {
+        if (std.mem.endsWith(u8, md_rel_path, std.fs.path.sep_str ++ "index.smd")) {
             hash.update(std.fs.path.dirname(path_to_hash) orelse "");
         } else {
             hash.update(path_to_hash);
