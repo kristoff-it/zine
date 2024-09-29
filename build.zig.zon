@@ -31,8 +31,8 @@
             .hash = "1220aeb0bd83285a72d784dbabfb400c6b75b3b38f37ca3fa386a52df63f3da7cecc",
         },
         .@"flow-syntax" = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#bd5240d58c5a07932a797e2beb076f70053bb8e9",
-            .hash = "1220080c92e732f48d518043b7a5b09788a00493dece06c9c87e5e6bb6fed96d651a",
+            .url = "git+https://github.com/neurocyte/flow-syntax#d5b5da509350ef946b33cfb5c04ede68e288545b",
+            .hash = "122074a1a0a073213ae65d3f09863d6cb0622e1dbacf6a85e09a343e306c9da44c3b",
         },
         .@"zig-afl-kit" = .{
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#f003bfe714f2964c90939fdc940d5993190a66ec",
