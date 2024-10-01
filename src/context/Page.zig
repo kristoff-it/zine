@@ -795,7 +795,7 @@ pub const Builtins = struct {
             \\Renders the table of content.
         ;
         pub const examples =
-            \\<div html="$page.toc()"></div>
+            \\<div :html="$page.toc()"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -844,7 +844,7 @@ pub const ContentSection = struct {
                 \\this function returns the heading as simple text.           
             ;
             pub const examples =
-                \\<div html="$loop.it.heading()"></div>
+                \\<div :html="$loop.it.heading()"></div>
             ;
             pub fn call(
                 cs: ContentSection,
@@ -888,7 +888,7 @@ pub const ContentSection = struct {
                 \\this function returns the heading as simple text.           
             ;
             pub const examples =
-                \\<div html="$loop.it.heading()"></div>
+                \\<div :html="$loop.it.heading()"></div>
             ;
             pub fn call(
                 cs: ContentSection,
@@ -921,7 +921,7 @@ pub const ContentSection = struct {
                 \\Renders the section.
             ;
             pub const examples =
-                \\<div html="$loop.it.html()"></div>
+                \\<div :html="$loop.it.html()"></div>
             ;
             pub fn call(
                 cs: ContentSection,
