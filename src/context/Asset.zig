@@ -80,7 +80,7 @@ pub const Builtins = struct {
             \\Returns the size of an asset file in bytes.
         ;
         pub const examples =
-            \\<div text="$site.asset('foo.json').size()"></div>
+            \\<div :text="$site.asset('foo.json').size()"></div>
         ;
         pub fn call(
             self: Asset,
@@ -102,7 +102,7 @@ pub const Builtins = struct {
             \\Returns the raw contents of an asset.
         ;
         pub const examples =
-            \\<div text="$page.assets.file('foo.json').bytes()"></div>
+            \\<div :text="$page.assets.file('foo.json').bytes()"></div>
         ;
         pub fn call(
             self: Asset,
@@ -124,7 +124,7 @@ pub const Builtins = struct {
             \\Tries to parse the asset as a Ziggy document.
         ;
         pub const examples =
-            \\<div text="$page.assets.file('foo.ziggy').ziggy().get('bar')"></div>
+            \\<div :text="$page.assets.file('foo.ziggy').ziggy().get('bar')"></div>
         ;
         pub fn call(
             self: Asset,

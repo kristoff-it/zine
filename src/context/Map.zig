@@ -109,7 +109,7 @@ pub const Builtins = struct {
         ;
         pub const examples =
             \\<div :if="$page.custom.get?('myValue')">
-            \\  <span text="$if"></span>
+            \\  <span :text="$if"></span>
             \\</div>
         ;
         pub fn call(

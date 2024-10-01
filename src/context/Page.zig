@@ -115,7 +115,7 @@ pub const Alternative = struct {
             \\<ctx alt="$page.alternative('rss')"
             \\  <a href="$ctx.alt.link()" 
             \\     type="$ctx.alt.type" 
-            \\     text="$ctx.alt.name"
+            \\     :text="$ctx.alt.name"
             \\  ></a>
             \\</ctx>
             \\```
@@ -288,7 +288,7 @@ pub const Builtins = struct {
             \\
         ;
         pub const examples =
-            \\<div text="$page.locale('en-US').title"></div>
+            \\<div :text="$page.locale('en-US').title"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -392,7 +392,7 @@ pub const Builtins = struct {
             \\Returns the list of localized variants of the current page.
         ;
         pub const examples =
-            \\<div :loop="$page.locales()"><a href="$loop.it.link()" text="$loop.it.title"></a></div>
+            \\<div :loop="$page.locales()"><a href="$loop.it.link()" :text="$loop.it.title"></a></div>
         ;
         pub fn call(
             p: *const Page,
