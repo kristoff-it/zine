@@ -392,7 +392,7 @@ pub const Builtins = struct {
             \\Returns the list of localized variants of the current page.
         ;
         pub const examples =
-            \\<div loop="$page.locales()"><a href="$loop.it.link()" text="$loop.it.title"></a></div>
+            \\<div :loop="$page.locales()"><a href="$loop.it.link()" text="$loop.it.title"></a></div>
         ;
         pub fn call(
             p: *const Page,

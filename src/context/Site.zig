@@ -228,7 +228,7 @@ pub const Builtins = struct {
             \\To be used in conjunction with a `loop` attribute.
         ;
         pub const examples =
-            \\<ul loop="$site.pages('a', 'b', 'c')"><li text="$loop.it.title"></li></ul>
+            \\<ul :loop="$site.pages('a', 'b', 'c')"><li text="$loop.it.title"></li></ul>
         ;
         pub fn call(
             site: *const Site,
