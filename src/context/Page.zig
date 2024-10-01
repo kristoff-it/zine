@@ -546,7 +546,7 @@ pub const Builtins = struct {
             \\Tries to return the page before the target one (sorted by date), to be used with an `if` attribute.
         ;
         pub const examples =
-            \\<div if="$page.prevPage()"></div>
+            \\<div :if="$page.prevPage()"></div>
         ;
 
         pub fn call(
