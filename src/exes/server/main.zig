@@ -41,6 +41,11 @@ const Server = struct {
             @panic("TODO: check if '..' is fine");
         }
 
+        if (std.mem.indexOfScalar(u8, path, '%')) |_| {
+            const buffer = try arena.dupe(u8, path);
+            path = std.Uri.percentDecodeInPlace(buffer);
+        }
+
         if (std.mem.endsWith(u8, path, "/")) {
             path = try std.fmt.allocPrint(arena, "{s}{s}", .{
                 path,
