@@ -112,7 +112,7 @@ pub const @"get?" = struct {
         \\
     ;
     pub const examples =
-        \\<div if="$page.custom.get?('myValue')"><span var="$if"></span></div>
+        \\<div :if="$page.custom.get?('myValue')"><span var="$if"></span></div>
     ;
     pub fn call(
         dyn: ziggy.dynamic.Value,

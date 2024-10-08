@@ -328,7 +328,7 @@ pub const Builtins = struct {
         pub const examples =
             \\<pre>
             \\  <code class="ziggy" 
-            \\        html="$page.custom.get('sample').syntaxHighLight('ziggy')"
+            \\        :html="$page.custom.get('sample').syntaxHighLight('ziggy')"
             \\  ></code>
             \\</pre>
         ;

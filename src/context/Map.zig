@@ -108,8 +108,8 @@ pub const Builtins = struct {
             \\
         ;
         pub const examples =
-            \\<div if="$page.custom.get?('myValue')">
-            \\  <span text="$if"></span>
+            \\<div :if="$page.custom.get?('myValue')">
+            \\  <span :text="$if"></span>
             \\</div>
         ;
         pub fn call(
@@ -142,7 +142,7 @@ pub const Builtins = struct {
             \\
         ;
         pub const examples =
-            \\<div if="$page.custom.has('myValue')">Yep!</div>
+            \\<div :if="$page.custom.has('myValue')">Yep!</div>
         ;
         pub fn call(
             map: Map,

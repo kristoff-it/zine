@@ -115,7 +115,7 @@ pub const Alternative = struct {
             \\<ctx alt="$page.alternative('rss')"
             \\  <a href="$ctx.alt.link()" 
             \\     type="$ctx.alt.type" 
-            \\     text="$ctx.alt.name"
+            \\     :text="$ctx.alt.name"
             \\  ></a>
             \\</ctx>
             \\```
@@ -288,7 +288,7 @@ pub const Builtins = struct {
             \\
         ;
         pub const examples =
-            \\<div text="$page.locale('en-US').title"></div>
+            \\<div :text="$page.locale('en-US').title"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -392,7 +392,7 @@ pub const Builtins = struct {
             \\Returns the list of localized variants of the current page.
         ;
         pub const examples =
-            \\<div loop="$page.locales()"><a href="$loop.it.link()" text="$loop.it.title"></a></div>
+            \\<div :loop="$page.locales()"><a href="$loop.it.link()" :text="$loop.it.title"></a></div>
         ;
         pub fn call(
             p: *const Page,
@@ -546,7 +546,7 @@ pub const Builtins = struct {
             \\Tries to return the page before the target one (sorted by date), to be used with an `if` attribute.
         ;
         pub const examples =
-            \\<div if="$page.prevPage()"></div>
+            \\<div :if="$page.prevPage()"></div>
         ;
 
         pub fn call(
@@ -795,7 +795,7 @@ pub const Builtins = struct {
             \\Renders the table of content.
         ;
         pub const examples =
-            \\<div html="$page.toc()"></div>
+            \\<div :html="$page.toc()"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -844,7 +844,7 @@ pub const ContentSection = struct {
                 \\this function returns the heading as simple text.           
             ;
             pub const examples =
-                \\<div html="$loop.it.heading()"></div>
+                \\<div :html="$loop.it.heading()"></div>
             ;
             pub fn call(
                 cs: ContentSection,
@@ -888,7 +888,7 @@ pub const ContentSection = struct {
                 \\this function returns the heading as simple text.           
             ;
             pub const examples =
-                \\<div html="$loop.it.heading()"></div>
+                \\<div :html="$loop.it.heading()"></div>
             ;
             pub fn call(
                 cs: ContentSection,
@@ -921,7 +921,7 @@ pub const ContentSection = struct {
                 \\Renders the section.
             ;
             pub const examples =
-                \\<div html="$loop.it.html()"></div>
+                \\<div :html="$loop.it.html()"></div>
             ;
             pub fn call(
                 cs: ContentSection,

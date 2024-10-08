@@ -85,7 +85,7 @@ pub const Builtins = struct {
             \\variant as defined in your `build.zig` file. 
         ;
         pub const examples =
-            \\<span text="$site.localeName()"></span>
+            \\<span :text="$site.localeName()"></span>
         ;
         pub fn call(
             p: *const Site,
@@ -118,7 +118,7 @@ pub const Builtins = struct {
             \\multilingual website.
         ;
         pub const examples =
-            \\<a href="$site.link()" text="$site.title"></a>
+            \\<a href="$site.link()" :text="$site.title"></a>
         ;
         pub fn call(
             p: *const Site,
@@ -228,7 +228,7 @@ pub const Builtins = struct {
             \\To be used in conjunction with a `loop` attribute.
         ;
         pub const examples =
-            \\<ul loop="$site.pages('a', 'b', 'c')"><li text="$loop.it.title"></li></ul>
+            \\<ul :loop="$site.pages('a', 'b', 'c')"><li :text="$loop.it.title"></li></ul>
         ;
         pub fn call(
             site: *const Site,

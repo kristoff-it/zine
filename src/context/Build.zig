@@ -48,7 +48,7 @@ pub const Builtins = struct {
             \\Retuns a build-time asset (i.e. an asset generated through your 'build.zig' file) by name.
         ;
         pub const examples =
-            \\<div text="$build.asset('foo').bytes()"></div>
+            \\<div :text="$build.asset('foo').bytes()"></div>
         ;
         pub fn call(
             _: *const Build,
