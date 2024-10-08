@@ -9,6 +9,7 @@ const Signature = @import("doctypes.zig").Signature;
 const Value = context.Value;
 const Bool = context.Bool;
 const String = context.String;
+const Array = context.Array;
 
 const log = std.log.scoped(.scripty);
 
@@ -239,8 +240,9 @@ pub const Builtins = struct {
                 .err = "expected at least 1 string argument",
             };
 
-            const page_list = try gpa.alloc(*const context.Page, args.len);
+            const page_list = try gpa.alloc(Value, args.len);
             errdefer gpa.free(page_list);
+
             for (args, page_list) |a, *p| {
                 const ref = switch (a) {
                     .string => |s| s.value,
@@ -261,15 +263,11 @@ pub const Builtins = struct {
                         gpa.free(page_list);
                         return res;
                     },
-                    .page => |_p| p.* = _p,
+                    .page => |_p| p.* = .{ .page = _p },
                     else => unreachable,
                 }
             }
-            return .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .page_slice_it = .{ .items = page_list },
-                }),
-            };
+            return Array.init(gpa, Value, page_list);
         }
     };
     pub const locale = struct {

@@ -13,6 +13,7 @@ const Template = context.Template;
 const Site = context.Site;
 const Page = context.Page;
 const Map = context.Map;
+const Array = context.Array;
 
 it: Value = undefined,
 idx: usize = 0,
@@ -24,14 +25,12 @@ _superhtml_context: superhtml.utils.IteratorContext(Value, Template) = .{},
 _impl: Impl,
 
 pub const Impl = union(enum) {
-    string_it: SliceIterator([]const u8),
     page_it: PageIterator,
-    page_slice_it: SliceIterator(*const Page),
+    // page_slice_it: SliceIterator(*const Page),
     translation_it: TranslationIterator,
-    alt_it: SliceIterator(Page.Alternative),
-    content_it: SliceIterator(Page.ContentSection),
     map_it: MapIterator,
-    dynamic_it: SliceIterator(ziggy.dynamic.Value),
+    // dynamic_it: SliceIterator(ziggy.dynamic.Value),
+    value_it: SliceIterator(Value),
 
     pub fn len(impl: Impl) usize {
         switch (impl) {
@@ -61,6 +60,12 @@ pub fn next(iter: *Iterator, gpa: Allocator) !bool {
             return true;
         },
     }
+}
+
+pub fn fromArray(gpa: Allocator, arr: Array) !*Iterator {
+    return init(gpa, .{
+        .value_it = .{ .items = arr._items },
+    });
 }
 
 pub const dot = scripty.defaultDot(Iterator, Value, false);

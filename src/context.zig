@@ -74,6 +74,7 @@ pub const Map = @import("context/Map.zig");
 // pub const Slice = @import("context/Slice.zig");
 pub const Optional = @import("context/Optional.zig");
 pub const Iterator = @import("context/Iterator.zig");
+pub const Array = @import("context/Array.zig");
 
 pub const Value = union(enum) {
     template: *const Template,
@@ -93,6 +94,7 @@ pub const Value = union(enum) {
     int: Int,
     float: Float,
     iterator: *context.Iterator,
+    array: Array,
     map_kv: Map.KV,
     err: []const u8,
 
@@ -145,9 +147,10 @@ pub const Value = union(enum) {
             .integer => |i| return .{ .int = .{ .value = i } },
             .bytes => |s| return .{ .string = .{ .value = s } },
             .array => |a| return .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .dynamic_it = .{ .items = a },
-                }),
+                .iterator = try Value.Iterator.fromArray(
+                    gpa,
+                    (try Array.init(gpa, ziggy.dynamic.Value, a)).array,
+                ),
             },
             .tag => |t| {
                 std.debug.assert(std.mem.eql(u8, t.name, "date"));
@@ -197,22 +200,16 @@ pub const Value = union(enum) {
                 .iterator = opt,
             } else .{ .err = "$loop is not set" },
             *context.Iterator => .{ .iterator = v },
-            []const []const u8 => .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .string_it = .{ .items = v },
-                }),
-            },
+            []const []const u8 => try Array.init(gpa, []const u8, v),
 
-            []const Page.Alternative => .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .alt_it = .{ .items = v },
-                }),
-            },
-            []Page.ContentSection => .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .content_it = .{ .items = v },
-                }),
-            },
+            // .{
+            //     .iterator = try context.Iterator.init(gpa, .{
+            //         .string_it = .{ .items = v },
+            //     }),
+            // },
+
+            []const Page.Alternative => try Array.init(gpa, Page.Alternative, v),
+            []Page.ContentSection => try Array.init(gpa, Page.ContentSection, v),
             else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),
         };
     }
