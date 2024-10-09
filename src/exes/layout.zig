@@ -7,6 +7,7 @@ const superhtml = @import("superhtml");
 const cache = @import("layout/cache.zig");
 const zine = @import("zine");
 const context = zine.context;
+const DepWriter = @import("layout/DepWriter.zig");
 
 const log = std.log.scoped(.layout);
 pub const std_options: std.Options = .{
@@ -103,8 +104,8 @@ pub fn main() !void {
     };
 
     var dep_buf_writer = std.io.bufferedWriter(dep_file.writer());
-    const dep_writer = dep_buf_writer.writer();
-    dep_writer.print("target: ", .{}) catch |err| {
+    const dep_writer = DepWriter.init(dep_buf_writer.writer().any());
+    dep_writer.writeTarget("target") catch |err| {
         fatal("error writing to the dep file: {s}", .{@errorName(err)});
     };
 
@@ -167,7 +168,7 @@ pub fn main() !void {
         index_dir_path,
         output_path_prefix,
         locales,
-        dep_writer.any(),
+        dep_writer,
         asset_list_writer.any(),
     );
 
@@ -256,13 +257,12 @@ pub fn main() !void {
                 template_html,
                 std.mem.endsWith(u8, template_name, ".xml"),
             );
-            try dep_writer.print("{s} ", .{template_path});
+            try dep_writer.writePrereq(template_path);
         },
     };
 
     try out_buf_writer.flush();
     try asset_list_buf_writer.flush();
-    try dep_writer.writeAll("\n");
     try dep_buf_writer.flush();
 }
 
