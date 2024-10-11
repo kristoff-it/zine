@@ -36,6 +36,7 @@ pub const ScriptyParam = union(enum) {
     Alternative,
     ContentSection,
     Iterator,
+    Array,
     String,
     Int,
     Float,
@@ -83,6 +84,7 @@ pub const ScriptyParam = union(enum) {
             context.DateTime => .Date,
             context.Map, context.Map.ZiggyMap => .{ .Map = .any },
             context.Map.KV => .KV,
+            context.Array => .Array,
             context.Iterator => .Iterator,
             ?*context.Iterator => .{ .Opt = .Iterator },
             []const context.Page.Alternative => .{ .Many = .Alternative },
@@ -123,8 +125,11 @@ pub const ScriptyParam = union(enum) {
                 inline else => |mm| {
                     const dots = if (is_fn_param) "..." else "";
                     return std.fmt.comptimePrint(
-                        \\[[{0s}]($link.ref("{0s}")){1s}]
-                    , .{ @tagName(mm), dots });
+                        \\[[{0s}]($link.ref("{0s}")){1s}]{2s}
+                    , .{
+                        @tagName(mm), dots, if (is_fn_param or mm == .any) "" else 
+                        \\ *(see also [[any]]($link.ref("Array")))*   
+                    });
                 },
             },
             .Opt => |o| switch (o) {

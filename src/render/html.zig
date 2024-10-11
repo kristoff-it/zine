@@ -7,7 +7,7 @@ const HtmlSafe = @import("superhtml").HtmlSafe;
 const Ast = supermd.Ast;
 const Iter = Ast.Iter;
 
-const log = std.log.scoped(.layout);
+const log = std.log.scoped(.render);
 
 pub fn html(
     gpa: std.mem.Allocator,

@@ -181,14 +181,8 @@ pub const Builtins = struct {
             const bad_arg = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
 
-            return .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .map_it = context.Iterator.MapIterator.init(
-                        map.value.fields.iterator(),
-                        null,
-                    ),
-                }),
-            };
+            const kvs = try keyValueArray(gpa, map, null);
+            return context.Array.init(gpa, Value, kvs) catch unreachable;
         }
     };
 
@@ -217,14 +211,8 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            return .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .map_it = context.Iterator.MapIterator.init(
-                        map.value.fields.iterator(),
-                        filter,
-                    ),
-                }),
-            };
+            const kvs = try keyValueArray(gpa, map, filter);
+            return context.Array.init(gpa, Value, kvs) catch unreachable;
         }
     };
 };
@@ -241,3 +229,36 @@ pub const KV = struct {
     };
     pub const Builtins = struct {};
 };
+
+fn keyValueArray(gpa: Allocator, map: Map, filter: ?[]const u8) ![]const Value {
+    if (filter) |f| {
+        var buf = std.ArrayList(Value).init(gpa);
+        var it = map.value.fields.iterator();
+
+        while (it.next()) |next| {
+            if (std.mem.indexOf(u8, next.key_ptr.*, f) != null) {
+                try buf.append(.{
+                    .map_kv = .{
+                        .key = next.key_ptr.*,
+                        .value = next.value_ptr.*,
+                    },
+                });
+            }
+        }
+        return buf.toOwnedSlice();
+    } else {
+        // no filter
+        const kvs = try gpa.alloc(Value, map.value.fields.count());
+        var it = map.value.fields.iterator();
+        for (kvs) |*kv| {
+            const next = it.next() orelse unreachable;
+            kv.* = .{
+                .map_kv = .{
+                    .key = next.key_ptr.*,
+                    .value = next.value_ptr.*,
+                },
+            };
+        }
+        return kvs;
+    }
+}
