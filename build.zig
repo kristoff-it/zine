@@ -158,11 +158,17 @@ pub fn website(b: *std.Build, site: Site) void {
     // Setup debug flags if the user enabled Zine debug.
     const opts = zine.defaultZineOptions(b, site.debug);
 
+    const include_drafts = b.option(
+        bool,
+        "include-drafts",
+        "Include drafts in output",
+    ) orelse false;
+
     const website_step = b.step(
         "website",
         "Builds the website",
     );
-    zine.addWebsite(b, opts, website_step, site);
+    zine.addWebsite(b, opts, website_step, site, include_drafts);
 
     // Invoking the default step also builds the website
     b.getInstallStep().dependOn(website_step);
@@ -206,11 +212,17 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
     // Setup debug flags if the user enabled Zine debug.
     const opts = zine.defaultZineOptions(b, multi.debug);
 
+    const include_drafts = b.option(
+        bool,
+        "include-drafts",
+        "Include drafts in output",
+    ) orelse false;
+
     const website_step = b.step(
         "website",
         "Builds the website",
     );
-    zine.addMultilingualWebsite(b, website_step, multi, opts);
+    zine.addMultilingualWebsite(b, website_step, multi, opts, include_drafts);
 
     // Invoking the default step also builds the website
     b.getInstallStep().dependOn(website_step);
@@ -253,12 +265,14 @@ pub fn addWebsite(
     opts: ZineOptions,
     step: *std.Build.Step,
     site: Site,
+    include_drafts: bool,
 ) void {
     @import("build/content.zig").addWebsiteImpl(
         b,
         opts,
         step,
         .{ .site = site },
+        include_drafts,
     );
 }
 pub fn addMultilingualWebsite(
@@ -266,12 +280,14 @@ pub fn addMultilingualWebsite(
     step: *std.Build.Step,
     multi: MultilingualSite,
     opts: ZineOptions,
+    include_drafts: bool,
 ) void {
     @import("build/content.zig").addWebsiteImpl(
         b,
         opts,
         step,
         .{ .multilingual = multi },
+        include_drafts,
     );
 }
 
