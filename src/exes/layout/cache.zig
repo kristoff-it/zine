@@ -4,6 +4,7 @@ const ziggy = @import("ziggy");
 const zine = @import("zine");
 const context = zine.context;
 const Allocator = std.mem.Allocator;
+const DepWriter = @import("DepWriter.zig");
 
 const log = std.log.scoped(.layout_cache);
 
@@ -19,7 +20,7 @@ pub fn initAll(
     _index_dir_path: []const u8,
     output_path_prefix: []const u8,
     locales: []const Locale,
-    _dep_writer: std.io.AnyWriter,
+    _dep_writer: DepWriter,
     asset_list_writer: std.io.AnyWriter,
 ) error{OutOfMemory}!void {
     gpa = _gpa;
@@ -61,7 +62,7 @@ pub fn initAll(
 }
 
 var gpa: Allocator = undefined;
-var dep_writer: std.io.AnyWriter = undefined;
+var dep_writer: DepWriter = undefined;
 var index_dir_path: []const u8 = undefined;
 
 pub const sites = struct {
@@ -266,7 +267,7 @@ const page_finder = struct {
 
                 log.debug("dep: '{s}'", .{index_path});
 
-                dep_writer.print("{s} ", .{index_path}) catch {
+                dep_writer.writePrereq(index_path) catch {
                     std.debug.panic(
                         "error while writing to dep file file: '{s}'",
                         .{index_path},
@@ -327,7 +328,7 @@ const page_finder = struct {
 
                     log.debug("dep: '{s}'", .{index_path});
 
-                    dep_writer.print("{s} ", .{index_path}) catch {
+                    dep_writer.writePrereq(index_path) catch {
                         std.debug.panic(
                             "error while writing to dep file file: '{s}'",
                             .{index_path},
@@ -426,7 +427,7 @@ const asset_finder = struct {
                 };
 
                 log.debug("dep: '{s}'", .{full_path});
-                dep_writer.print("{s} ", .{full_path}) catch {
+                dep_writer.writePrereq(full_path) catch {
                     std.debug.panic(
                         "error while writing to dep file file: '{s}'",
                         .{ref},
@@ -473,7 +474,7 @@ const asset_finder = struct {
         });
 
         log.debug("dep: '{s}'", .{full_path});
-        dep_writer.print("{s} ", .{full_path}) catch {
+        dep_writer.writePrereq(full_path) catch {
             std.debug.panic(
                 "error while writing to dep file file: '{s}'",
                 .{ref},
@@ -686,7 +687,7 @@ fn loadPage(
         ) catch @panic("i/o");
 
         log.debug("dep: '{s}'", .{ps_index_file_path});
-        dep_writer.print("{s} ", .{ps_index_file_path}) catch {
+        dep_writer.writePrereq(ps_index_file_path) catch {
             std.debug.panic(
                 "error while writing to dep file file: '{s}'",
                 .{ps_index_file_path},
@@ -715,7 +716,7 @@ fn loadPage(
         ) catch @panic("i/o");
 
         log.debug("dep: '{s}'", .{ps_file_path});
-        dep_writer.print("{s} ", .{ps_file_path}) catch {
+        dep_writer.writePrereq(ps_file_path) catch {
             std.debug.panic(
                 "error while writing to dep file file: '{s}'",
                 .{ps_file_path},
@@ -912,7 +913,7 @@ fn loadPage(
 
                 log.debug("dep: '{s}'", .{value.asset._meta.path});
 
-                dep_writer.print("{s} ", .{value.asset._meta.path}) catch {
+                dep_writer.writePrereq(value.asset._meta.path) catch {
                     std.debug.panic(
                         "error while writing to dep file file: '{s}'",
                         .{value.asset._meta.path},
