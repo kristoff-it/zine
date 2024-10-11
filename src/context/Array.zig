@@ -61,7 +61,7 @@ pub const Builtins = struct {
     pub const slice = struct {
         pub const signature: Signature = .{
             .params = &.{ .Int, .{ .Opt = .Int } },
-            .ret = .Array,
+            .ret = .{ .Many = .any },
         };
         pub const description =
             \\Slices an array from the first value (inclusive) to the
@@ -133,7 +133,7 @@ pub const Builtins = struct {
     pub const at = struct {
         pub const signature: Signature = .{
             .params = &.{.Int},
-            .ret = .Value,
+            .ret = .any,
         };
         pub const description =
             \\Returns the value at the provided index. 

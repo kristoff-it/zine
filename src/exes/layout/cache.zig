@@ -345,25 +345,30 @@ const page_finder = struct {
                         );
                     };
 
-                    return .{
-                        .iterator = try context.Iterator.init(gpa, .{
-                            .page_it = context.Iterator.PageIterator.init(
-                                page._meta.site,
-                                page._meta.md_asset_dir_rel_path,
-                                ps,
-                            ),
-                        }),
-                    };
-                }
-                return .{
-                    .iterator = try context.Iterator.init(gpa, .{
-                        .page_it = context.Iterator.PageIterator.init(
+                    const total_subpages = std.mem.count(u8, ps, "\n");
+                    var it = std.mem.tokenizeScalar(u8, ps, '\n');
+
+                    const subpages = try gpa.alloc(context.Value, total_subpages);
+
+                    for (subpages, 0..) |*sp, idx| {
+                        const next_page_path = it.next() orelse unreachable;
+                        const next_page = context.pageGet(
                             page._meta.site,
-                            null,
-                            "",
-                        ),
-                    }),
-                };
+                            next_page_path,
+                            page._meta.md_asset_dir_rel_path,
+                            idx,
+                            false,
+                        ) catch |err| switch (err) {
+                            error.OutOfMemory => return error.OutOfMemory,
+                            error.PageLoad => @panic("TODO: report page load errors"),
+                        };
+
+                        sp.* = .{ .page = next_page };
+                    }
+
+                    return context.Array.init(gpa, context.Value, subpages);
+                }
+                return context.Array.init(gpa, context.Value, &.{});
             },
         }
     }
@@ -606,7 +611,7 @@ fn loadPage(
     });
 
     defer log.debug(
-        "Rendering '{s}' took {}ms ({}ns)\n",
+        "Analyzing '{s}' took {}ms ({}ns)\n",
         .{
             md_path,
             time.read() / std.time.ns_per_ms,

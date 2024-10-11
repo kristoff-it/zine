@@ -400,11 +400,48 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{
-                .iterator = try context.Iterator.init(gpa, .{
-                    .translation_it = context.Iterator.TranslationIterator.init(p),
-                }),
-            };
+
+            // if (true) return .{
+            //     .iterator = try context.Iterator.init(gpa, .{
+            //         .translation_it = context.Iterator.TranslationIterator.init(p),
+            //     }),
+            // };
+
+            const all_sites = context.allSites();
+
+            // Because of a limitation of how indexing works, we
+            // assume that all translations will be present if there is no
+            // translation_key specified.
+            const total_variants = if (p.translation_key == null)
+                all_sites.len
+            else
+                p._meta.key_variants.len;
+
+            const localized_pages = try gpa.alloc(Value, total_variants);
+
+            var last_page = p;
+            for (localized_pages, 0..) |*lp, idx| {
+                const t: Page.Translation = if (p.translation_key == null) .{
+                    .site = &all_sites[idx],
+                    .md_rel_path = last_page._meta.md_rel_path,
+                } else last_page._meta.key_variants[idx];
+
+                const found_page = context.pageGet(
+                    t.site,
+                    t.md_rel_path,
+                    null,
+                    null,
+                    false,
+                ) catch |err| switch (err) {
+                    error.OutOfMemory => return error.OutOfMemory,
+                    error.PageLoad => @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore."),
+                };
+
+                lp.* = .{ .page = found_page };
+                last_page = found_page;
+            }
+
+            return context.Array.init(gpa, Value, localized_pages) catch unreachable;
         }
     };
 
@@ -502,12 +539,6 @@ pub const Builtins = struct {
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return context.pageFind(.{ .subpages = p });
-            // return self._pages.call(gpa, .{
-            //     .md_rel_path = p,
-            //     .url_path_prefix = self._meta.site._meta.url_path_prefix,
-            //     .parent_section_path = p[0 .. p.len - "index.md".len],
-            //     .kind = .subpages,
-            // });
         }
     };
 
@@ -681,9 +712,12 @@ pub const Builtins = struct {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             var buf = std.ArrayList(u8).init(gpa);
-            const ast = p._meta.ast orelse return .{
-                .err = "only the main page can be rendered for now",
+            const ast = p._meta.ast orelse unreachable;
+
+            if (!p._meta.is_root) return .{
+                .err = "only the main page can be rendered for now, sorry!",
             };
+
             try render.html(gpa, ast, ast.md.root, "", buf.writer());
             return String.init(try buf.toOwnedSlice());
         }
