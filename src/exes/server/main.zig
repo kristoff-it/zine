@@ -222,8 +222,9 @@ pub fn main() !void {
     };
     const rebuild_step_name = args[4];
     const debug = std.mem.eql(u8, args[5], "Debug");
+    const include_drafts = std.mem.eql(u8, args[6], "true");
 
-    const input_dirs = args[6..];
+    const input_dirs = args[7..];
 
     // ensure the path exists. without this, an empty website that
     // doesn't generate a zig-out/ will cause the server to error out
@@ -240,6 +241,7 @@ pub fn main() !void {
         input_dirs,
         rebuild_step_name,
         debug,
+        include_drafts,
     );
 
     var server: Server = .{

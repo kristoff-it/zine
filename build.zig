@@ -188,6 +188,7 @@ pub fn website(b: *std.Build, site: Site) void {
         .website_step = website_step,
         .host = "localhost",
         .port = port,
+        .include_drafts = include_drafts,
         .input_dirs = &.{
             site.layouts_dir_path,
             site.content_dir_path,
@@ -295,6 +296,7 @@ pub const DevelopmentServerOptions = struct {
     website_step: *std.Build.Step,
     host: []const u8,
     port: u16 = 1990,
+    include_drafts: bool = false,
     input_dirs: []const []const u8,
 };
 pub fn addDevelopmentServer(
@@ -315,9 +317,10 @@ pub fn addDevelopmentServer(
     run_server.addArg(b.fmt("{d}", .{server_opts.port})); // #3
     run_server.addArg(server_opts.website_step.name); // #4
     run_server.addArg(@tagName(zine_opts.optimize)); // #5
+    run_server.addArg(b.fmt("{}", .{server_opts.include_drafts})); // #6
 
     for (server_opts.input_dirs) |dir| {
-        run_server.addArg(dir); // #6..
+        run_server.addArg(dir); // #7..
     }
 
     if (server_opts.website_step.id != .top_level) {

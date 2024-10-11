@@ -19,6 +19,7 @@ zig_exe: []const u8,
 out_dir_path: []const u8,
 website_step_name: []const u8,
 debug: bool,
+include_drafts: bool,
 watcher: Watcher,
 
 clients_lock: std.Thread.Mutex = .{},
@@ -31,6 +32,7 @@ pub fn init(
     in_dir_paths: []const []const u8,
     website_step_name: []const u8,
     debug: bool,
+    include_drafts: bool,
 ) !Reloader {
     const ws_server = try ws.Server.init(gpa, .{});
 
@@ -41,6 +43,7 @@ pub fn init(
         .ws_server = ws_server,
         .website_step_name = website_step_name,
         .debug = debug,
+        .include_drafts = include_drafts,
         .watcher = try Watcher.init(gpa, out_dir_path, in_dir_paths),
     };
 }
@@ -52,15 +55,26 @@ pub fn listen(self: *Reloader) !void {
 pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     _ = name;
     _ = path;
-    const args: []const []const u8 = if (self.debug) &.{
-        self.zig_exe,
-        "build",
-        self.website_step_name,
-        "-Ddebug",
-    } else &.{
-        self.zig_exe,
-        "build",
-        self.website_step_name,
+    const args: []const []const u8 = blk: {
+        var args_count: usize = 3;
+        var all_args: [5][]const u8 = .{
+            self.zig_exe,
+            "build",
+            self.website_step_name,
+            "",
+            "",
+        };
+
+        if (self.include_drafts) {
+            all_args[args_count] = "-Dinclude-drafts";
+            args_count += 1;
+        }
+        if (self.debug) {
+            all_args[args_count] = "-Ddebug";
+            args_count += 1;
+        }
+
+        break :blk all_args[0..args_count];
     };
     log.debug("re-building! args: {s}", .{args});
 
