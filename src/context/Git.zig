@@ -4,30 +4,34 @@ const std = @import("std");
 const scripty = @import("scripty");
 const context = @import("../context.zig");
 const DateTime = context.DateTime;
+const String = context.String;
+const Optional = context.Optional;
+const Bool = context.Bool;
 const Value = context.Value;
 
 pub const dot = scripty.defaultDot(Git, Value, false);
 
 _in_repo: bool,
 
-current_commit: ?struct {
-    hash: []const u8,
-    date: DateTime,
-    message: []const u8,
-    author: struct {
-        name: []const u8,
-        email: []const u8,
-    },
-},
-current_tag: ?[]const u8,
-current_branch: ?[]const u8,
+commit_hash: []const u8,
+commit_date: DateTime,
+commit_message: []const u8,
+author_name: []const u8,
+author_email: []const u8,
+
+tag: ?[]const u8,
+branch: ?[]const u8,
 
 pub fn init() Git {
     return .{
         ._in_repo = false,
-        .current_commit = null,
-        .current_tag = null,
-        .current_branch = null,
+        .commit_hash = "",
+        .commit_date = DateTime.initNow(),
+        .commit_message = "",
+        .author_name = "",
+        .author_email = "",
+        .tag = null,
+        .branch = null,
     };
 }
 
