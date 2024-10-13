@@ -70,6 +70,23 @@ pub const Builtins = struct {
             return context.assetFind(ref, .{ .build = null });
         }
     };
+
+    pub const git = struct {
+        pub const signature: Signature = .{ .ret = .Git };
+        pub const description =
+            \\Returns git-related metadata if you are inside a git repository.
+        ;
+        pub const examples =
+            \\<div :text="$build.git"></div>
+        ;
+        pub fn call(
+            build: *const Build,
+            _: Allocator,
+            _: []const Value,
+        ) Value {
+            return build.git();
+        }
+    };
 };
 
 pub fn git(build: Build) Value {
