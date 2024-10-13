@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
+const Git = @import("./Git.zig");
 const Value = context.Value;
 const Signature = @import("doctypes.zig").Signature;
 const uninitialized = utils.uninitialized;
@@ -13,10 +14,12 @@ pub const dot = scripty.defaultDot(Build, Value, false);
 pub const PassByRef = true;
 
 generated: context.DateTime,
+_git: Git,
 
 pub fn init() Build {
     return .{
         .generated = context.DateTime.initNow(),
+        ._git = Git.init(),
     };
 }
 
@@ -69,3 +72,7 @@ pub const Builtins = struct {
         }
     };
 };
+
+pub fn git(build: Build) Value {
+    return if (build._git._in_repo) .{ .git = build._git } else .{ .err = "Not in a git repository" };
+}
