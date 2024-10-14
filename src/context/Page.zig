@@ -777,6 +777,39 @@ pub const Builtins = struct {
             return String.init(try buf.toOwnedSlice());
         }
     };
+    pub const hasSection = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .String,
+        };
+        pub const description =
+            \\Returns true if the page contains a content-section with the given id
+        ;
+        pub const examples =
+            \\<div :html="$page.hasSection('section-id')"></div>
+            \\<div :html="$page.hasSection('other-section')"></div>
+        ;
+        pub fn call(
+            p: *const Page,
+            _: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg = .{
+                .err = "expected 1 string argument argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const section_id = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            const ast = p._meta.ast orelse return .{
+                .err = "only the main page can be rendered for now",
+            };
+            return Bool.init(ast.ids.get(section_id) != null);
+        }
+    };
 
     pub const contentSections = struct {
         pub const signature: Signature = .{
