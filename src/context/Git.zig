@@ -12,38 +12,65 @@ const Value = context.Value;
 
 pub const dot = scripty.defaultDot(Git, Value, false);
 
-_in_repo: bool,
+pub const gitCommitHashLen = 40;
 
-commit_hash: []const u8,
-commit_date: DateTime,
-commit_message: []const u8,
-author_name: []const u8,
-author_email: []const u8,
+_in_repo: bool = false,
 
-@"tag?": ?[]const u8,
-@"branch?": ?[]const u8,
+commit_hash: []const u8 = undefined,
+commit_date: DateTime = undefined,
+commit_message: []const u8 = undefined,
+author_name: []const u8 = undefined,
+author_email: []const u8 = undefined,
+
+@"tag?": ?[]const u8 = null,
+@"branch?": ?[]const u8 = null,
 
 pub fn init() Git {
-    return .{
-        ._in_repo = isRepo(),
-        .commit_hash = "TestHash",
-        .commit_date = DateTime.initNow(),
-        .commit_message = "TestCommit",
-        .author_name = "Marlon",
-        .author_email = "@mail",
-        .@"tag?" = "tag",
-        .@"branch?" = "branch",
+    var self = Git{};
+    const git_dir = std.fs.cwd().openDir(".git", .{}) catch {
+        return self;
     };
+    self._in_repo = true;
+
+    // TODO: Handle errors
+    const head = readHead(git_dir) catch unreachable;
+    switch (head) {
+        .commit_hash => |hash| self.commit_hash = hash,
+        .branch => |branch| {
+            self.@"branch?" = branch;
+            self.commit_hash = readCommitOfBranch(git_dir, branch) catch "Error reading commit of branch";
+        },
+    }
+
+    // TODO: Get the rest of the metadata
+    self.commit_date = DateTime.initNow();
+    self.commit_message = "NoMessage";
+    self.author_name = "NoName";
+    self.author_email = "NoEmail";
+    self.@"tag?" = "NoTag";
+
+    return self;
 }
 
-fn isRepo() bool {
-    std.fs.cwd().access(".git", .{}) catch {
-        return false;
-    };
-    return true;
+fn readHead(git_dir: std.fs.Dir) !union(enum) { commit_hash: []const u8, branch: []const u8 } {
+    const pa = std.heap.page_allocator;
+    var head_file = try git_dir.openFile("HEAD", .{});
+    defer head_file.close();
+    const buf = try head_file.readToEndAlloc(pa, 4096);
+
+    if (std.mem.startsWith(u8, buf, "ref:")) {
+        return .{ .branch = buf[16 .. buf.len - 1] };
+    } else {
+        return .{ .commit_hash = buf[0 .. buf.len - 1] };
+    }
 }
 
-fn readHead() ![]const u8 {}
+// TODO: support branches with slashes
+fn readCommitOfBranch(git_dir: std.fs.Dir, branch: []const u8) []const u8 {
+    const pa = std.heap.page_allocator;
+    const rel_path = try std.fs.path.join(pa, &.{ "refs", "heads", branch });
+    return try git_dir.readFileAlloc(pa, rel_path, gitCommitHashLen * 100);
+}
 
 pub const description =
     \\Information about the current git repository.
