@@ -25,7 +25,7 @@ author_email: []const u8,
 
 pub fn init() Git {
     return .{
-        ._in_repo = true,
+        ._in_repo = isRepo(),
         .commit_hash = "TestHash",
         .commit_date = DateTime.initNow(),
         .commit_message = "TestCommit",
@@ -34,6 +34,13 @@ pub fn init() Git {
         .@"tag?" = "tag",
         .@"branch?" = "branch",
     };
+}
+
+fn isRepo() bool {
+    std.fs.cwd().access(".git", .{}) catch {
+        return false;
+    };
+    return true;
 }
 
 fn readHead() ![]const u8 {}
