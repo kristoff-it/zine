@@ -44,12 +44,8 @@ pub fn init() Git {
 
     self.@"tag?" = getTagForCommitHash(git_dir, self.commit_hash) catch |err| @errorName(err);
 
-    // TODO: Get the rest of the metadata
-    self.commit_date = DateTime.initNow();
-    self.commit_message = "NoMessage";
-    self.author_name = "NoName";
-    self.author_email = "NoEmail";
-
+    self.setAdditionalMetadata(git_dir);
+    // self.setAdditionalMetadataWithCli();
     return self;
 }
 
@@ -93,6 +89,78 @@ fn getTagForCommitHash(git_dir: std.fs.Dir, commit_hash: []const u8) !?[]const u
         }
     }
     return null;
+}
+
+fn setAdditionalMetadata(git: *Git, git_dir: std.fs.Dir) void {
+    const pa = std.heap.page_allocator;
+
+    const commit_path = std.fs.path.join(pa, &.{ "objects", git.commit_hash[0..2], git.commit_hash[2..] }) catch |err| {
+        git.commit_message = @errorName(err);
+
+        git.commit_date = DateTime.initNow();
+        git.author_name = "Name";
+        git.author_email = "Email";
+        return;
+    };
+    defer pa.free(commit_path);
+
+    // NOTE: This could fail because of packed objects
+    // TODO: Support packed objects
+    const content = git_dir.openFile(commit_path, .{}) catch |err| {
+        git.commit_message = @errorName(err);
+
+        git.commit_date = DateTime.initNow();
+        git.author_name = "Name";
+        git.author_email = "Email";
+        return;
+    };
+    var decompressed = std.compress.zlib.decompressor(content.reader());
+    const reader = decompressed.reader();
+    const data = reader.readAllAlloc(pa, 100000) catch |err| {
+        git.commit_message = @errorName(err);
+
+        git.commit_date = DateTime.initNow();
+        git.author_name = "Name";
+        git.author_email = "Email";
+        return;
+    };
+
+    var attributes = std.mem.splitScalar(u8, data, '\n');
+
+    _ = attributes.next(); // tree hash
+    _ = attributes.next(); // parent commit hash
+    _ = attributes.next(); // author
+
+    if (attributes.next()) |committer| {
+        // TODO: Rename these variables
+        const @"<_index" = std.mem.indexOfScalar(u8, committer, '<').?;
+        const @">_index" = std.mem.indexOfScalar(u8, committer, '>').?;
+
+        git.author_name = committer[10 .. @"<_index" - 1];
+        git.author_email = committer[@"<_index" + 1 .. @">_index"];
+        const unix_time = std.fmt.parseInt(i64, committer[@">_index" + 2 .. committer.len - 6], 10) catch 1728946766;
+        git.commit_date = DateTime.initUnix(unix_time) catch DateTime.initNow();
+    }
+
+    _ = attributes.next(); // empty line
+    git.commit_message = attributes.rest();
+}
+
+fn setAdditionalMetadataWithCli(git: *Git) void {
+    const pa = std.heap.page_allocator;
+    const proc = std.process.Child.run(.{
+        .allocator = pa,
+        .argv = &.{ "git", "show", "--no-patch", "--format=%an|%ae|%ad" },
+    }) catch |err| {
+        git.commit_message = @errorName(err);
+        return;
+    };
+    pa.free(proc.stderr);
+
+    git.commit_message = proc.stdout;
+    git.commit_date = DateTime.initNow();
+    git.author_name = "Name";
+    git.author_email = "Email";
 }
 
 pub const description =
