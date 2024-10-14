@@ -38,16 +38,17 @@ pub fn init() Git {
         .commit_hash => |hash| self.commit_hash = hash,
         .branch => |branch| {
             self.@"branch?" = branch;
-            self.commit_hash = readCommitOfBranch(git_dir, branch) catch "Error reading commit of branch";
+            self.commit_hash = readCommitOfBranch(git_dir, branch) catch |err| @errorName(err);
         },
     }
+
+    self.@"tag?" = getTagForCommitHash(git_dir, self.commit_hash) catch |err| @errorName(err);
 
     // TODO: Get the rest of the metadata
     self.commit_date = DateTime.initNow();
     self.commit_message = "NoMessage";
     self.author_name = "NoName";
     self.author_email = "NoEmail";
-    self.@"tag?" = "NoTag";
 
     return self;
 }
@@ -66,10 +67,32 @@ fn readHead(git_dir: std.fs.Dir) !union(enum) { commit_hash: []const u8, branch:
 }
 
 // TODO: support branches with slashes
-fn readCommitOfBranch(git_dir: std.fs.Dir, branch: []const u8) []const u8 {
+fn readCommitOfBranch(git_dir: std.fs.Dir, branch: []const u8) ![]const u8 {
     const pa = std.heap.page_allocator;
     const rel_path = try std.fs.path.join(pa, &.{ "refs", "heads", branch });
-    return try git_dir.readFileAlloc(pa, rel_path, gitCommitHashLen * 100);
+    defer pa.free(rel_path);
+    const content = try git_dir.readFileAlloc(pa, rel_path, gitCommitHashLen + 1);
+    return content[0..gitCommitHashLen];
+}
+
+fn getTagForCommitHash(git_dir: std.fs.Dir, commit_hash: []const u8) !?[]const u8 {
+    const pa = std.heap.page_allocator;
+    const rel_path = try std.fs.path.join(pa, &.{ "refs", "tags" });
+    defer pa.free(rel_path);
+
+    var tags = try git_dir.openDir(rel_path, .{ .iterate = true });
+    defer tags.close();
+
+    var iter = tags.iterate();
+    while (try iter.next()) |tag| {
+        const content = try tags.readFileAlloc(pa, tag.name, gitCommitHashLen + 1);
+        const tag_hash = content[0..gitCommitHashLen];
+        // NOTE: This could maybe be optimized
+        if (std.mem.eql(u8, tag_hash, commit_hash)) {
+            return try pa.dupe(u8, tag.name);
+        }
+    }
+    return null;
 }
 
 pub const description =
