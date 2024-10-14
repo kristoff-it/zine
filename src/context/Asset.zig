@@ -117,6 +117,36 @@ pub const Builtins = struct {
             return Value.from(gpa, data);
         }
     };
+    pub const sriHash = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const description =
+            \\Returns the Base64-encoded SHA384 hash of an asset, prefixed with `sha384-`, for use with Subresource Integrity.
+        ;
+        pub const examples =
+            \\<script src="$site.asset('foo.js').link()" integrity="$site.asset('foo.js').sriHash()"></script>
+        ;
+        pub fn call(
+            self: Asset,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            const data = std.fs.cwd().readFileAlloc(gpa, self._meta.path, std.math.maxInt(u32)) catch {
+                return .{ .err = "i/o error while reading asset file" };
+            };
+
+            const sha384 = std.crypto.hash.sha2.Sha384;
+            var hashedData: [sha384.digest_length]u8 = undefined;
+            sha384.hash(data, &hashedData, .{});
+
+            const base64 = std.base64.standard.Encoder;
+            const base64DataBuffer = try gpa.alloc(u8, base64.calcSize(hashedData.len));
+            const base64Data = base64.encode(base64DataBuffer, &hashedData);
+
+            return Value.from(gpa, try std.mem.concat(gpa, u8, &[_][]const u8{ "sha384-", base64Data }));
+        }
+    };
 
     pub const ziggy = struct {
         pub const signature: Signature = .{ .ret = .any };
