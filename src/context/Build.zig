@@ -15,16 +15,16 @@ pub const PassByRef = true;
 generated: context.DateTime,
 _git: context.Git,
 
-pub fn init() Build {
+pub fn init(arena: Allocator) Build {
     return .{
         .generated = context.DateTime.initNow(),
-        ._git = context.Git.init(),
+        ._git = context.Git.init(arena),
     };
 }
 
 pub const description =
     \\Gives you access to build-time assets and other build related info.
-    // \\When inside of a git repository it also gives git-related metadata.
+    \\When inside of a git repository it also gives git-related metadata.
 ;
 
 pub const Fields = struct {
@@ -75,6 +75,8 @@ pub const Builtins = struct {
         pub const signature: Signature = .{ .ret = .Git };
         pub const description =
             \\Returns git-related metadata if you are inside a git repository.
+            \\If you are not or the parsing failes, it will return an error.
+            \\Packed object are not supported, commit anything to get the metadata.
         ;
         pub const examples =
             \\<div :text="$build.git"></div>
