@@ -113,8 +113,15 @@ fn setAdditionalMetadata(git: *Git, arena: Allocator, git_dir: std.fs.Dir) !void
 
         git.author_name = committer[10 .. @"<_index" - 1];
         git.author_email = committer[@"<_index" + 1 .. @">_index"];
+
         const unix_time = try std.fmt.parseInt(i64, committer[@">_index" + 2 .. committer.len - 6], 10);
-        git.commit_date = try DateTime.initUnix(unix_time);
+        const offset_hour = try std.fmt.parseInt(i64, committer[committer.len - 4 .. committer.len - 2], 10);
+        const offset = switch (committer[committer.len - 5]) {
+            '-' => -offset_hour,
+            '+' => offset_hour,
+            else => unreachable,
+        };
+        git.commit_date = try DateTime.initUnix(unix_time + offset * 3600);
     }
 
     _ = attributes.next(); // empty line
