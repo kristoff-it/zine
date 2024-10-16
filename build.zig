@@ -158,11 +158,17 @@ pub fn website(b: *std.Build, site: Site) void {
     // Setup debug flags if the user enabled Zine debug.
     const opts = zine.defaultZineOptions(b, site.debug);
 
+    const include_drafts = b.option(
+        bool,
+        "include-drafts",
+        "Include drafts in output",
+    ) orelse false;
+
     const website_step = b.step(
         "website",
         "Builds the website",
     );
-    zine.addWebsite(b, opts, website_step, site);
+    zine.addWebsite(b, opts, website_step, site, include_drafts);
 
     // Invoking the default step also builds the website
     b.getInstallStep().dependOn(website_step);
@@ -182,6 +188,7 @@ pub fn website(b: *std.Build, site: Site) void {
         .website_step = website_step,
         .host = "localhost",
         .port = port,
+        .include_drafts = include_drafts,
         .input_dirs = &.{
             site.layouts_dir_path,
             site.content_dir_path,
@@ -206,11 +213,17 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
     // Setup debug flags if the user enabled Zine debug.
     const opts = zine.defaultZineOptions(b, multi.debug);
 
+    const include_drafts = b.option(
+        bool,
+        "include-drafts",
+        "Include drafts in output",
+    ) orelse false;
+
     const website_step = b.step(
         "website",
         "Builds the website",
     );
-    zine.addMultilingualWebsite(b, website_step, multi, opts);
+    zine.addMultilingualWebsite(b, website_step, multi, opts, include_drafts);
 
     // Invoking the default step also builds the website
     b.getInstallStep().dependOn(website_step);
@@ -253,12 +266,14 @@ pub fn addWebsite(
     opts: ZineOptions,
     step: *std.Build.Step,
     site: Site,
+    include_drafts: bool,
 ) void {
     @import("build/content.zig").addWebsiteImpl(
         b,
         opts,
         step,
         .{ .site = site },
+        include_drafts,
     );
 }
 pub fn addMultilingualWebsite(
@@ -266,12 +281,14 @@ pub fn addMultilingualWebsite(
     step: *std.Build.Step,
     multi: MultilingualSite,
     opts: ZineOptions,
+    include_drafts: bool,
 ) void {
     @import("build/content.zig").addWebsiteImpl(
         b,
         opts,
         step,
         .{ .multilingual = multi },
+        include_drafts,
     );
 }
 
@@ -279,6 +296,7 @@ pub const DevelopmentServerOptions = struct {
     website_step: *std.Build.Step,
     host: []const u8,
     port: u16 = 1990,
+    include_drafts: bool = false,
     input_dirs: []const []const u8,
 };
 pub fn addDevelopmentServer(
@@ -299,9 +317,10 @@ pub fn addDevelopmentServer(
     run_server.addArg(b.fmt("{d}", .{server_opts.port})); // #3
     run_server.addArg(server_opts.website_step.name); // #4
     run_server.addArg(@tagName(zine_opts.optimize)); // #5
+    run_server.addArg(b.fmt("{}", .{server_opts.include_drafts})); // #6
 
     for (server_opts.input_dirs) |dir| {
-        run_server.addArg(dir); // #6..
+        run_server.addArg(dir); // #7..
     }
 
     if (server_opts.website_step.id != .top_level) {

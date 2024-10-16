@@ -21,6 +21,7 @@ pub fn addWebsiteImpl(
     opts: zine.ZineOptions,
     step: *std.Build.Step,
     web: AddWebsiteOptions,
+    include_drafts: bool,
 ) void {
     const zine_dep = project.dependencyFromBuildZig(zine, .{
         .optimize = opts.optimize,
@@ -28,7 +29,7 @@ pub fn addWebsiteImpl(
     });
 
     // Scan the content folder
-    scan(project, step, opts.optimize == .Debug, zine_dep, web);
+    scan(project, step, opts.optimize == .Debug, zine_dep, web, include_drafts);
 }
 
 fn scan(
@@ -37,6 +38,7 @@ fn scan(
     debug: bool,
     zine_dep: *std.Build.Dependency,
     website: AddWebsiteOptions,
+    include_drafts: bool,
 ) void {
     const index_dir_path = project.pathJoin(&.{
         project.cache_root.path orelse ".",
@@ -112,6 +114,7 @@ fn scan(
                     debug,
                     v.content_dir_path,
                     url_path_prefix,
+                    include_drafts,
                 );
                 sv.output_path_prefix = output_path_prefix;
                 sv.url_path_prefix = url_path_prefix;
@@ -192,6 +195,7 @@ fn scan(
                 debug,
                 s.content_dir_path,
                 s.output_path_prefix,
+                include_drafts,
             );
 
             addAllSteps(
@@ -394,6 +398,7 @@ pub fn scanVariant(
     debug: bool,
     content_dir_path: []const u8,
     url_path_prefix: []const u8,
+    include_drafts: bool,
 ) ScannedVariant {
     var t = std.time.Timer.start() catch unreachable;
     defer if (debug) std.debug.print(
@@ -466,7 +471,7 @@ pub fn scanVariant(
                 },
             };
 
-            if (fm.draft) break :blk;
+            if (!include_drafts and fm.draft) break :blk;
 
             // This is going to be null only for 'content/index.md'
             if (dir_entry.parent_section) |parent_section| {
@@ -546,7 +551,7 @@ pub fn scanVariant(
                         },
                     };
 
-                    if (fm.draft) continue;
+                    if (!include_drafts and fm.draft) continue;
 
                     current_section.pages.append(project.allocator, .{
                         .content_sub_path = project.dupe(dir_entry.path),
