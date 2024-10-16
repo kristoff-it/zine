@@ -4,6 +4,8 @@ const templating = @import("templating.zig");
 const context = @import("../src/context.zig");
 const zine = @import("../build.zig");
 
+const log = std.log.scoped(.scan);
+
 const FrontParser = ziggy.frontmatter.Parser(context.Page);
 const TranslationKeyIndex = std.StringArrayHashMap(TKEntry);
 const TKEntry = std.ArrayListUnmanaged(Key);
@@ -417,29 +419,30 @@ pub fn scanVariant(
     const Entry = struct {
         dir: std.fs.Dir,
         path: []const u8,
-        parent_section: ?*Section,
+        parent_section: *Section,
     };
-
-    var dir_stack = std.ArrayList(Entry).init(project.allocator);
-    dir_stack.append(.{
-        .dir = content_dir,
-        .path = "",
-        .parent_section = null,
-    }) catch unreachable;
 
     var sections: SectionList = .{};
     const root_section = sections.addOne(project.allocator) catch unreachable;
     root_section.* = .{ .content_sub_path = "" };
 
+    log.debug("root section = {*}", .{root_section});
+
+    var dir_stack = std.ArrayList(Entry).init(project.allocator);
+    dir_stack.append(.{
+        .dir = content_dir,
+        .path = "",
+        .parent_section = root_section,
+    }) catch unreachable;
+
     var root_index: ?Section.Page = null;
-    var current_section = root_section;
-    while (dir_stack.popOrNull()) |dir_entry| {
+    while (dir_stack.popOrNull()) |de| {
+        var dir_entry = de;
+        log.debug("scanning dir '{s}'", .{dir_entry.path});
         defer {
             var d = dir_entry.dir;
             d.close();
-            if (dir_entry.parent_section) |p| {
-                current_section = p;
-            }
+            log.debug("pop dir '{s}'", .{dir_entry.path});
         }
 
         if (dir_entry.dir.openFile("index.smd", .{})) |file| blk: {
@@ -473,25 +476,37 @@ pub fn scanVariant(
 
             if (!include_drafts and fm.draft) break :blk;
 
-            // This is going to be null only for 'content/index.md'
-            if (dir_entry.parent_section) |parent_section| {
+            // This is false only for `/index.smd`.
+            if (dir_entry.path.len > 0) {
                 const content_sub_path = project.dupe(dir_entry.path);
-                current_section = sections.addOne(project.allocator) catch unreachable;
-                current_section.* = .{ .content_sub_path = content_sub_path };
-                parent_section.pages.append(project.allocator, .{
+                const new_section = sections.addOne(project.allocator) catch unreachable;
+                new_section.* = .{ .content_sub_path = content_sub_path };
+                dir_entry.parent_section.pages.append(project.allocator, .{
                     .content_sub_path = content_sub_path,
                     .md_name = "index.smd",
                     .fm = fm,
-                    .subpages = current_section,
+                    .subpages = new_section,
                 }) catch unreachable;
+
+                log.debug("file: index.md ({s}) old parent_section = {*} new subsection = {*}", .{
+                    dir_entry.path,
+                    dir_entry.parent_section,
+                    new_section,
+                });
+
+                dir_entry.parent_section = new_section;
             } else {
+                std.debug.assert(dir_entry.parent_section == root_section);
                 root_index = .{
                     .content_sub_path = project.dupe(dir_entry.path),
                     .md_name = "index.smd",
                     .fm = fm,
 
-                    .subpages = root_section,
+                    .subpages = dir_entry.parent_section,
                 };
+                log.debug("root index file: parent_section = {*}", .{
+                    root_section,
+                });
             }
 
             if (fm.skip_subdirs) continue;
@@ -553,11 +568,15 @@ pub fn scanVariant(
 
                     if (!include_drafts and fm.draft) continue;
 
-                    current_section.pages.append(project.allocator, .{
+                    dir_entry.parent_section.pages.append(project.allocator, .{
                         .content_sub_path = project.dupe(dir_entry.path),
                         .md_name = project.dupe(entry.name),
                         .fm = fm,
                     }) catch unreachable;
+
+                    log.debug("file: '{s}' ({s}) parent_section = {*}", .{
+                        entry.name, dir_entry.path, dir_entry.parent_section,
+                    });
                 },
                 .directory => {
                     dir_stack.append(.{
@@ -566,8 +585,13 @@ pub fn scanVariant(
                             .{ .iterate = true },
                         ) catch unreachable,
                         .path = project.pathJoin(&.{ dir_entry.path, entry.name }),
-                        .parent_section = current_section,
+                        .parent_section = dir_entry.parent_section,
                     }) catch unreachable;
+                    log.debug("push dir '{s}' ({s}), section: {*}", .{
+                        entry.name,
+                        dir_entry.path,
+                        dir_entry.parent_section,
+                    });
                 },
             }
         }
