@@ -24,8 +24,8 @@ commit_message: []const u8 = undefined,
 author_name: []const u8 = undefined,
 author_email: []const u8 = undefined,
 
-@"tag?": ?[]const u8 = null,
-@"branch?": ?[]const u8 = null,
+_tag: ?[]const u8 = null,
+_branch: ?[]const u8 = null,
 
 pub fn init(arena: Allocator) Git {
     var git = Git{};
@@ -39,12 +39,12 @@ pub fn init(arena: Allocator) Git {
     switch (head) {
         .commit_hash => |hash| git.commit_hash = hash,
         .branch => |branch| {
-            git.@"branch?" = branch;
+            git._branch = branch;
             git.commit_hash = readCommitOfBranch(arena, git_dir, branch) catch return Git{};
         },
     }
 
-    git.@"tag?" = getTagForCommitHash(arena, git_dir, git.commit_hash) catch return Git{};
+    git._tag = getTagForCommitHash(arena, git_dir, git.commit_hash) catch return Git{};
 
     git.setAdditionalMetadata(arena, git_dir) catch return Git{};
     return git;
@@ -148,12 +148,82 @@ pub const Fields = struct {
     pub const author_email =
         \\The email of the author of the current commit.
     ;
-    pub const @"tag?" =
-        \\The current tag, if any.
-    ;
-    pub const @"branch?" =
-        \\The current branch, if any.
-    ;
 };
 
-pub const Builtins = struct {};
+pub const Builtins = struct {
+    pub const tag = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const description =
+            \\Returns the tag of the current commit.
+            \\If the current commit does not have a tag, an error is returned.
+        ;
+        pub const examples =
+            \\<div :text="$build.git().tag()"></div>
+            \\<div :if="$build.git?()"><span :text="$if.tag()"></span></div>
+        ;
+        pub fn call(
+            git: Git,
+            gpa: Allocator,
+            _: []const Value,
+        ) !Value {
+            return if (git._tag) |_tag| Value.from(gpa, _tag) else .{ .err = "No tag for this commit" };
+        }
+    };
+
+    pub const @"tag?" = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const description =
+            \\Returns the tag of the current commit.
+            \\If the current commit does not have a tag, null is returned.
+        ;
+        pub const examples =
+            \\<div :if="$build.git().tag?()"><span :text="$if"></span></div>
+            \\<div :if="$build.git?()"><span :if="$if.tag?()"><span :text="$if"></span></span></div>
+        ;
+        pub fn call(
+            git: Git,
+            gpa: Allocator,
+            _: []const Value,
+        ) !Value {
+            return if (git._tag) |_tag| Optional.init(gpa, _tag) else Optional.Null;
+        }
+    };
+
+    pub const branch = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const description =
+            \\Returns the branch of the current commit.
+            \\If the current commit does not have a branch, an error is returned.
+        ;
+        pub const examples =
+            \\<div :text="$build.git().branch()"></div>
+            \\<div :if="$build.git?()"><span :text="$if.branch()"></span></div>
+        ;
+        pub fn call(
+            git: Git,
+            gpa: Allocator,
+            _: []const Value,
+        ) !Value {
+            return if (git._branch) |_branch| Value.from(gpa, _branch) else .{ .err = "No branch for this commit" };
+        }
+    };
+
+    pub const @"branch?" = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const description =
+            \\Returns the branch of the current commit.
+            \\If the current commit does not have a branch, null is returned.
+        ;
+        pub const examples =
+            \\<div :if="$build.git().branch?()"><span :text="$if"></span></div>
+            \\<div :if="$build.git?()"><span :if="$if.branch?()"><span :text="$if"></span></span></div>
+        ;
+        pub fn call(
+            git: Git,
+            gpa: Allocator,
+            _: []const Value,
+        ) !Value {
+            return if (git._branch) |_branch| Optional.init(gpa, _branch) else Optional.Null;
+        }
+    };
+};
