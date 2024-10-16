@@ -542,6 +542,35 @@ pub const Builtins = struct {
         }
     };
 
+    pub const subpagesAlphabetic = struct {
+        pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
+        pub const description =
+            \\Same as `subpages`, but returns the pages in alphabetic order by
+            \\comparing their titles. 
+        ;
+        pub const examples =
+            \\<div :loop="$page.subpagesAlphabetic()">
+            \\  <span :text="$loop.it.title"></span>
+            \\</div>
+        ;
+        pub fn call(
+            p: *const Page,
+            _: Allocator,
+            args: []const Value,
+        ) !Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            const pages = try context.pageFind(.{ .subpages = p });
+
+            std.mem.sort(Value, @constCast(pages.array._items), {}, struct {
+                fn alphaLessThan(_: void, lhs: Value, rhs: Value) bool {
+                    return std.mem.lessThan(u8, lhs.page.title, rhs.page.title);
+                }
+            }.alphaLessThan);
+
+            return pages;
+        }
+    };
+
     pub const nextPage = struct {
         pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
         pub const description =
