@@ -164,8 +164,13 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: []const Value,
+            args: []const Value,
         ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
             return if (git._tag) |_tag| Value.from(gpa, _tag) else .{ .err = "No tag for this commit" };
         }
     };
@@ -183,8 +188,13 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: []const Value,
+            args: []const Value,
         ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
             return if (git._tag) |_tag| Optional.init(gpa, _tag) else Optional.Null;
         }
     };
@@ -202,8 +212,13 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: []const Value,
+            args: []const Value,
         ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
             return if (git._branch) |_branch| Value.from(gpa, _branch) else .{ .err = "No branch for this commit" };
         }
     };
@@ -221,8 +236,13 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: []const Value,
+            args: []const Value,
         ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
             return if (git._branch) |_branch| Optional.init(gpa, _branch) else Optional.Null;
         }
     };

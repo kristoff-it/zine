@@ -85,8 +85,13 @@ pub const Builtins = struct {
         pub fn call(
             build: *const Build,
             _: Allocator,
-            _: []const Value,
+            args: []const Value,
         ) Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
             return if (build._git._in_repo) .{ .git = build._git } else .{ .err = "Not in a git repository" };
         }
     };
@@ -104,8 +109,13 @@ pub const Builtins = struct {
         pub fn call(
             build: *const Build,
             gpa: Allocator,
-            _: []const Value,
+            args: []const Value,
         ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
             return if (build._git._in_repo) Optional.init(gpa, build._git) else Optional.Null;
         }
     };
