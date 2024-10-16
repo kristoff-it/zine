@@ -6,6 +6,7 @@ const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
 const Value = context.Value;
+const Optional = context.Optional;
 const Signature = @import("doctypes.zig").Signature;
 const uninitialized = utils.uninitialized;
 
@@ -79,18 +80,33 @@ pub const Builtins = struct {
             \\Packed object are not supported, commit anything to get the metadata.
         ;
         pub const examples =
-            \\<div :text="$build.git"></div>
+            \\<div :text="$build.git()..."></div>
         ;
         pub fn call(
             build: *const Build,
             _: Allocator,
             _: []const Value,
         ) Value {
-            return build.git();
+            return if (build._git._in_repo) .{ .git = build._git } else .{ .err = "Not in a git repository" };
+        }
+    };
+
+    pub const @"git?" = struct {
+        pub const signature: Signature = .{ .ret = .Git };
+        pub const description =
+            \\Returns git-related metadata if you are inside a git repository.
+            \\If you are not or the parsing failes, it will return null.
+            \\Packed object are not supported, commit anything to get the metadata.
+        ;
+        pub const examples =
+            \\<div :if="$build.git?()">...</div>
+        ;
+        pub fn call(
+            build: *const Build,
+            gpa: Allocator,
+            _: []const Value,
+        ) !Value {
+            return if (build._git._in_repo) Optional.init(gpa, build._git) else Optional.Null;
         }
     };
 };
-
-pub fn git(build: Build) Value {
-    return if (build._git._in_repo) .{ .git = build._git } else .{ .err = "Not in a git repository" };
-}
