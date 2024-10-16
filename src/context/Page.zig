@@ -777,7 +777,7 @@ pub const Builtins = struct {
             return String.init(try buf.toOwnedSlice());
         }
     };
-    pub const hasSection = struct {
+    pub const hasContentSection = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
             .ret = .String,
@@ -786,8 +786,8 @@ pub const Builtins = struct {
             \\Returns true if the page contains a content-section with the given id
         ;
         pub const examples =
-            \\<div :html="$page.hasSection('section-id')"></div>
-            \\<div :html="$page.hasSection('other-section')"></div>
+            \\<div :html="$page.hasContentSection('section-id')"></div>
+            \\<div :html="$page.hasContentSection('other-section')"></div>
         ;
         pub fn call(
             p: *const Page,
