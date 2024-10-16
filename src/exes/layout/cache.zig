@@ -883,7 +883,7 @@ fn loadPage(
         const directive = n.getDirective() orelse continue;
 
         switch (directive.kind) {
-            .section, .block, .heading => {},
+            .section, .block, .heading, .text => {},
             .code => |code| {
                 const value = switch (code.src.?) {
                     else => unreachable,

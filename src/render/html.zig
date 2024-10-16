@@ -320,6 +320,22 @@ fn renderDirective(
     const directive = node.getDirective() orelse return renderLink(ev, w);
     switch (directive.kind) {
         .section, .block, .heading => {},
+        .text => switch (ev.dir) {
+            .enter => {
+                try w.print("<span", .{});
+                if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
+                if (directive.attrs) |attrs| {
+                    try w.print(" class=\"", .{});
+                    for (attrs) |attr| try w.print("{s} ", .{attr});
+                    try w.print("\"", .{});
+                }
+                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
+                try w.print(">", .{});
+            },
+            .exit => {
+                try w.print("</span>", .{});
+            },
+        },
         .image => |img| switch (ev.dir) {
             .enter => {
                 const caption = node.firstChild();
