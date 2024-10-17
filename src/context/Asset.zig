@@ -137,14 +137,14 @@ pub const Builtins = struct {
             };
 
             const sha384 = std.crypto.hash.sha2.Sha384;
-            var hashedData: [sha384.digest_length]u8 = undefined;
-            sha384.hash(data, &hashedData, .{});
+            var hashed_data: [std.crypto.hash.sha2.Sha384.digest_length]u8 = undefined;
+            sha384.hash(data, &hashed_data, .{});
 
             const base64 = std.base64.standard.Encoder;
-            const base64DataBuffer = try gpa.alloc(u8, base64.calcSize(hashedData.len));
-            const base64Data = base64.encode(base64DataBuffer, &hashedData);
+            var hashed_encoded_data: [base64.calcSize(hashed_data.len)]u8 = undefined;
+            _ = base64.encode(&hashed_encoded_data, &hashed_data);
 
-            return Value.from(gpa, try std.mem.concat(gpa, u8, &[_][]const u8{ "sha384-", base64Data }));
+            return Value.from(gpa, @as([]u8, "sha384-" ++ hashed_encoded_data));
         }
     };
 
