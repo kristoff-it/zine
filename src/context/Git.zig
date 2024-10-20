@@ -63,11 +63,17 @@ fn readHead(arena: Allocator, git_dir: std.fs.Dir) !union(enum) { commit_hash: [
 }
 
 fn readCommitOfBranch(arena: Allocator, git_dir: std.fs.Dir, branch: []const u8) ![]const u8 {
-    if (builtin.os.tag == .windows) {
-        try std.mem.replaceScalar(u8, branch, "/", "\\");
-    }
-    const rel_path = try std.fs.path.join(arena, &.{ "refs", "heads", branch });
+    const rel_path = switch (builtin.os.tag) {
+        .windows => win: {
+            const duped_branch = try arena.dupe(u8, branch);
+            defer arena.free(duped_branch);
+            std.mem.replaceScalar(u8, duped_branch, '/', '\\');
+            break :win try std.fs.path.join(arena, &.{ "refs", "heads", duped_branch });
+        },
+        else => try std.fs.path.join(arena, &.{ "refs", "heads", branch }),
+    };
     defer arena.free(rel_path);
+
     const content = try git_dir.readFileAlloc(arena, rel_path, gitCommitHashLen + 1);
     return content[0..gitCommitHashLen];
 }
