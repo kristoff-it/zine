@@ -4,7 +4,13 @@ const templating = @import("templating.zig");
 const context = @import("../src/context.zig");
 const zine = @import("../build.zig");
 
-const log = std.log.scoped(.scan);
+const log = struct {
+    const l = std.log.scoped(.scan);
+
+    pub fn debug(comptime fmt: []const u8, args: anytype) void {
+        if (false) l.debug(fmt, args);
+    }
+};
 
 const FrontParser = ziggy.frontmatter.Parser(context.Page);
 const TranslationKeyIndex = std.StringArrayHashMap(TKEntry);
