@@ -64,6 +64,7 @@ pub const Template = @import("context/Template.zig");
 pub const Site = @import("context/Site.zig");
 pub const Page = @import("context/Page.zig");
 pub const Build = @import("context/Build.zig");
+pub const Git = @import("context/Git.zig");
 pub const Asset = @import("context/Asset.zig");
 pub const DateTime = @import("context/DateTime.zig");
 pub const String = @import("context/String.zig");
@@ -84,6 +85,7 @@ pub const Value = union(enum) {
     alternative: Page.Alternative,
     content_section: Page.ContentSection,
     build: *const Build,
+    git: Git,
     asset: Asset,
     map: Map,
     // slice: Slice,
@@ -173,6 +175,7 @@ pub const Value = union(enum) {
             Page.Alternative => .{ .alternative = v },
             Page.ContentSection => .{ .content_section = v },
             *const Build => .{ .build = v },
+            Git => .{ .git = v },
             Ctx(Value) => .{ .ctx = v },
             Asset => .{ .asset = v },
             DateTime => .{ .date = v },

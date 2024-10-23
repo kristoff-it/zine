@@ -6,6 +6,7 @@ const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
 const Value = context.Value;
+const Optional = context.Optional;
 const Signature = @import("doctypes.zig").Signature;
 const uninitialized = utils.uninitialized;
 
@@ -13,16 +14,18 @@ pub const dot = scripty.defaultDot(Build, Value, false);
 pub const PassByRef = true;
 
 generated: context.DateTime,
+_git: context.Git,
 
-pub fn init() Build {
+pub fn init(arena: Allocator) Build {
     return .{
         .generated = context.DateTime.initNow(),
+        ._git = context.Git.init(arena),
     };
 }
 
 pub const description =
     \\Gives you access to build-time assets and other build related info.
-    // \\When inside of a git repository it also gives git-related metadata.
+    \\When inside of a git repository it also gives git-related metadata.
 ;
 
 pub const Fields = struct {
@@ -66,6 +69,54 @@ pub const Builtins = struct {
             };
 
             return context.assetFind(ref, .{ .build = null });
+        }
+    };
+
+    pub const git = struct {
+        pub const signature: Signature = .{ .ret = .Git };
+        pub const description =
+            \\Returns git-related metadata if you are inside a git repository.
+            \\If you are not or the parsing failes, it will return an error.
+            \\Packed object are not supported, commit anything to get the metadata.
+        ;
+        pub const examples =
+            \\<div :text="$build.git()..."></div>
+        ;
+        pub fn call(
+            build: *const Build,
+            _: Allocator,
+            args: []const Value,
+        ) Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
+            return if (build._git._in_repo) .{ .git = build._git } else .{ .err = "Not in a git repository" };
+        }
+    };
+
+    pub const @"git?" = struct {
+        pub const signature: Signature = .{ .ret = .Git };
+        pub const description =
+            \\Returns git-related metadata if you are inside a git repository.
+            \\If you are not or the parsing failes, it will return null.
+            \\Packed object are not supported, commit anything to get the metadata.
+        ;
+        pub const examples =
+            \\<div :if="$build.git?()">...</div>
+        ;
+        pub fn call(
+            build: *const Build,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
+            return if (build._git._in_repo) Optional.init(gpa, build._git) else Optional.Null;
         }
     };
 };

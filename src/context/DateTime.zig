@@ -20,6 +20,13 @@ pub fn init(iso8601: []const u8) !DateTime {
     };
 }
 
+pub fn initUnix(timestamp: i64) !DateTime {
+    const date = try zeit.instant(.{
+        .source = .{ .unix_timestamp = timestamp },
+    });
+    return .{ ._inst = date };
+}
+
 pub fn initNow() DateTime {
     const date = zeit.instant(.{}) catch unreachable;
     return .{ ._inst = date };
