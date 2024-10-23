@@ -4,6 +4,8 @@ const templating = @import("templating.zig");
 const context = @import("../src/context.zig");
 const zine = @import("../build.zig");
 
+const join = @import("../src/root.zig").join;
+
 const log = struct {
     const l = std.log.scoped(.scan);
 
@@ -48,10 +50,10 @@ fn scan(
     website: AddWebsiteOptions,
     include_drafts: bool,
 ) void {
-    const index_dir_path = project.pathJoin(&.{
+    const index_dir_path = join(project.allocator, &.{
         project.cache_root.path orelse ".",
         "zine",
-    });
+    }) catch unreachable;
     const index_dir = project.cache_root.handle.makeOpenPath(
         "zine",
         .{},
@@ -100,10 +102,10 @@ fn scan(
                 const url_path_prefix = v.output_prefix_override orelse
                     if (v.host_url_override != null) "" else v.code;
 
-                const i18n_file_path = project.pathJoin(&.{
+                const i18n_file_path = join(project.allocator, &.{
                     ml.i18n_dir_path,
                     project.fmt("{s}.ziggy", .{v.code}),
-                });
+                }) catch unreachable;
 
                 installStaticAssets(
                     project,
@@ -246,10 +248,10 @@ fn indexTranslation(
 
     gop.value_ptr.append(project.allocator, .{
         .code = code,
-        .md_rel_path = project.pathJoin(&.{
+        .md_rel_path = join(project.allocator, &.{
             p.content_sub_path,
             p.md_name,
-        }),
+        }) catch unreachable,
     }) catch unreachable;
 }
 
@@ -284,7 +286,7 @@ fn writeAssetIndex(
     const indexer = zine_dep.artifact("index-assets");
     const run = project.addRunArtifact(indexer);
 
-    run.addArg(project.pathJoin(&.{ index_dir_path, "a" }));
+    run.addArg(join(project.allocator, &.{ index_dir_path, "a" }) catch unreachable);
     for (build_assets) |asset| {
         const msg =
             \\build.zig error: build asset '{s}': only LazyPaths from generated files (eg from a Run step) or from dependencies are allowed
@@ -328,10 +330,10 @@ fn installStaticAssets(
         const install_path = if (output_path_prefix.len == 0)
             sa
         else
-            project.pathJoin(&.{ output_path_prefix, sa });
+            join(project.allocator, &.{ output_path_prefix, sa }) catch unreachable;
 
         const install = project.addInstallFile(
-            project.path(project.pathJoin(&.{ assets_dir_path, sa })),
+            project.path(join(project.allocator, &.{ assets_dir_path, sa }) catch unreachable),
             install_path,
         );
         step.dependOn(&install.step);
@@ -349,7 +351,7 @@ fn installStaticAssets(
         const install_path = if (output_path_prefix.len == 0)
             rel_install_path
         else
-            project.pathJoin(&.{ output_path_prefix, rel_install_path });
+            join(project.allocator, &.{ output_path_prefix, rel_install_path }) catch unreachable;
 
         const install = project.addInstallFile(asset.lp, install_path);
         step.dependOn(&install.step);
@@ -458,7 +460,7 @@ pub fn scanVariant(
             const r = buf_reader.reader();
             const result = FrontParser.parse(project.allocator, r, "index.smd") catch @panic("TODO: report frontmatter parser error");
 
-            const permalink = project.pathJoin(&.{ "/", url_path_prefix, dir_entry.path, "/" });
+            const permalink = join(project.allocator, &.{ "/", url_path_prefix, dir_entry.path, "/" }) catch unreachable;
 
             const fm = switch (result) {
                 .success => |s| s.header,
@@ -544,12 +546,12 @@ pub fn scanVariant(
                     var buf_reader = std.io.bufferedReader(file.reader());
                     const r = buf_reader.reader();
 
-                    const permalink = project.pathJoin(&.{
+                    const permalink = join(project.allocator, &.{
                         "/",
                         url_path_prefix,
                         dir_entry.path,
                         entry.name[0 .. entry.name.len - ".smd".len],
-                    });
+                    }) catch unreachable;
 
                     const result = FrontParser.parse(project.allocator, r, entry.name) catch @panic("TODO: report frontmatter parse error");
                     const fm = switch (result) {
@@ -590,7 +592,7 @@ pub fn scanVariant(
                             entry.name,
                             .{ .iterate = true },
                         ) catch unreachable,
-                        .path = project.pathJoin(&.{ dir_entry.path, entry.name }),
+                        .path = join(project.allocator, &.{ dir_entry.path, entry.name }) catch unreachable,
                         .parent_section = dir_entry.parent_section,
                     }) catch unreachable;
                     log.debug("push dir '{s}' ({s}), section: {*}", .{
@@ -720,9 +722,9 @@ pub fn addAllSteps(
         for (s.pages.items, 0..) |p, idx| {
             const out_basename = p.md_name[0 .. p.md_name.len - ".smd".len];
             const out_path = if (std.mem.eql(u8, out_basename, "index"))
-                project.pathJoin(&.{ p.content_sub_path, "index.html" })
+                join(project.allocator, &.{ p.content_sub_path, "index.html" }) catch unreachable
             else
-                project.pathJoin(&.{ p.content_sub_path, out_basename, "index.html" });
+                join(project.allocator, &.{ p.content_sub_path, out_basename, "index.html" }) catch unreachable;
 
             addLayoutStep(
                 project,
@@ -795,12 +797,12 @@ fn addMarkdownRenderStep(
     output_path_prefix: []const u8,
     permalink: []const u8,
 ) RenderResult {
-    const in_path = project.pathJoin(&.{ content_dir_path, content_sub_path, md_basename });
+    const in_path = join(project.allocator & .{ content_dir_path, content_sub_path, md_basename }) catch unreachable;
     const out_basename = md_basename[0 .. md_basename.len - ".smd".len];
 
     const render_step = project.addRunArtifact(renderer);
     // assets_in_dir_path
-    render_step.addDirectoryArg(project.path(project.pathJoin(&.{ content_dir_path, content_sub_path })));
+    render_step.addDirectoryArg(project.path(join(project.allocator & .{ content_dir_path, content_sub_path }) catch unreachable));
     // assets_dep_path
     _ = render_step.addDepFileOutputArg("_zine_assets.d");
     // assets_out_dir_path
@@ -817,13 +819,13 @@ fn addMarkdownRenderStep(
     const install_subpath = if (std.mem.eql(u8, out_basename, "index"))
         content_sub_path
     else
-        project.pathJoin(&.{ content_sub_path, out_basename });
+        join(project.allocator, &.{ content_sub_path, out_basename }) catch unreachable;
 
     // install all referenced files as assets (only images are detected for now)
     const install_assets = project.addInstallDirectory(.{
         .source_dir = assets_dir,
         .install_dir = .prefix,
-        .install_subdir = project.pathJoin(&.{ output_path_prefix, install_subpath }),
+        .install_subdir = join(project.allocator, &.{ output_path_prefix, install_subpath }) catch unreachable,
         .exclude_extensions = &.{ "_zine_assets.d", "_zine_meta.ziggy", "_zine_rendered.html" },
     });
 
@@ -860,7 +862,7 @@ fn addLayoutStep(
     name: ?[]const u8,
     locales: ?std.Build.LazyPath,
 ) void {
-    const layout_path = project.pathJoin(&.{ layouts_dir_path, layout_name });
+    const layout_path = join(project.allocator, &.{ layouts_dir_path, layout_name }) catch unreachable;
     project.build_root.handle.access(layout_path, .{}) catch |err| {
         std.debug.print("Unable to find the layout '{s}' used by '{s}/{s}/{s}'\n. Please create it before running `zig build` again.\nError: {s}\n,", .{
             layout_path,
@@ -875,7 +877,7 @@ fn addLayoutStep(
     const md_name = if (content_sub_path.len == 0)
         md_basename
     else
-        project.pathJoin(&.{ content_sub_path, md_basename });
+        join(project.allocator, &.{ content_sub_path, md_basename }) catch unreachable;
 
     const layout_step = project.addRunArtifact(layout);
     // layouts start running after all content has been processed
@@ -900,7 +902,7 @@ fn addLayoutStep(
     layout_step.addArg(layout_name);
 
     // #7
-    layout_step.addArg(project.pathJoin(&.{ layouts_dir_path, "templates" }));
+    layout_step.addArg(join(project.allocator, &.{ layouts_dir_path, "templates" }) catch unreachable);
 
     // #8
     _ = layout_step.addDepFileOutputArg("templates.d");
@@ -936,7 +938,7 @@ fn addLayoutStep(
     layout_step.addArg(content_dir_path);
 
     // #16
-    const md_path = project.pathJoin(&.{ content_dir_path, content_sub_path, md_basename });
+    const md_path = join(project.allocator, &.{ content_dir_path, content_sub_path, md_basename }) catch unreachable;
     layout_step.addFileArg(project.path(md_path));
 
     // #1
@@ -965,14 +967,14 @@ fn addLayoutStep(
     // ------------
     const target_output = project.addInstallFile(
         final_html,
-        project.pathJoin(&.{ output_path_prefix, out_path }),
+        join(project.allocator, &.{ output_path_prefix, out_path }) catch unreachable,
     );
     step.dependOn(&target_output.step);
 
     for (aliases) |a| {
         const alias = project.addInstallFile(
             final_html,
-            project.pathJoin(&.{ output_path_prefix, a }),
+            join(project.allocator, &.{ output_path_prefix, a }) catch unreachable,
         );
         step.dependOn(&alias.step);
     }
@@ -1033,7 +1035,7 @@ const Section = struct {
 
             for (s.pages.items) |p| {
                 w.print("{s}\n", .{
-                    project.pathJoin(&.{ p.content_sub_path, p.md_name }),
+                    join(project.allocator, &.{ p.content_sub_path, p.md_name }) catch unreachable,
                 }) catch unreachable;
             }
             section_file.writeAll(buf.items) catch unreachable;
@@ -1045,15 +1047,15 @@ const Section = struct {
             for (s.pages.items, 0..) |p, idx| {
                 defer buf.clearRetainingCapacity();
 
-                const next = if (idx < s.pages.items.len - 1) project.pathJoin(&.{
+                const next = if (idx < s.pages.items.len - 1) join(project.allocator, &.{
                     s.pages.items[idx + 1].content_sub_path,
                     s.pages.items[idx + 1].md_name,
-                }) else "";
+                }) catch unreachable else "";
 
-                const current = project.pathJoin(&.{
+                const current = join(project.allocator, &.{
                     p.content_sub_path,
                     p.md_name,
-                });
+                }) catch unreachable;
                 w.print("{s}\n{s}\n", .{ current, next }) catch unreachable;
 
                 const page_file = section_dir.createFile(
@@ -1085,10 +1087,10 @@ const Section = struct {
                         project.fmt("{x}", .{hash.final()}),
                         .{},
                     ) catch unreachable;
-                    f.writeAll(project.pathJoin(&.{
+                    f.writeAll(join(project.allocator, &.{
                         s.content_sub_path,
                         "s",
-                    })) catch unreachable;
+                    }) catch unreachable) catch unreachable;
                 }
             }
         }
