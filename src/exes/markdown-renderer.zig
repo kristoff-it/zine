@@ -4,6 +4,7 @@ const scripty = @import("scripty");
 const ziggy = @import("ziggy");
 const zine = @import("zine");
 const supermd = @import("supermd");
+const join = @import("../root.zig").join;
 const context = zine.context;
 const hl = zine.highlight;
 const highlightCode = hl.highlightCode;
@@ -89,7 +90,7 @@ pub fn render(
                 .url => {},
                 .page => |link| {
                     const asset_path =
-                        try std.fs.path.join(arena, &.{
+                        try join(arena, &.{
                         md_asset_dir_path,
                         link,
                     });

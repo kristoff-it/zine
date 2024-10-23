@@ -9,6 +9,7 @@ const render = @import("../render.zig");
 const Signature = @import("doctypes.zig").Signature;
 const DateTime = @import("DateTime.zig");
 const context = @import("../context.zig");
+const join = @import("../root.zig").join;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Optional = context.Optional;
@@ -698,9 +699,7 @@ pub const Builtins = struct {
                 false => p[0 .. p.len - ".smd".len],
             };
 
-            // TODO: support host url overrides
-
-            const result = try std.fs.path.join(gpa, &.{
+            const result = try join(gpa, &.{
                 "/",
                 self._meta.site._meta.url_path_prefix,
                 path,
