@@ -5,6 +5,7 @@ const options = @import("options");
 const ziggy = @import("ziggy");
 const superhtml = @import("superhtml");
 const cache = @import("layout/cache.zig");
+const join = @import("../root.zig").join;
 const zine = @import("zine");
 const context = zine.context;
 const DepWriter = @import("layout/DepWriter.zig");
@@ -229,7 +230,7 @@ pub fn main() !void {
         error.WantSnippet => @panic("TODO: looad snippet"),
         error.WantTemplate => {
             const template_name = super_vm.wantedTemplateName();
-            const template_path = try std.fs.path.join(arena, &.{
+            const template_path = try join(arena, &.{
                 build_root_path,
                 templates_dir_path,
                 template_name,

@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
+const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
 const Value = context.Value;
 const Bool = context.Bool;
@@ -131,7 +132,7 @@ pub const Builtins = struct {
             };
             if (args.len != 0) return bad_arg;
 
-            const url = std.fs.path.join(gpa, &.{
+            const url = join(gpa, &.{
                 "/",
                 p._meta.url_path_prefix,
                 "/",

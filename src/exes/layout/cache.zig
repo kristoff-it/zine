@@ -2,6 +2,7 @@ const std = @import("std");
 const supermd = @import("supermd");
 const ziggy = @import("ziggy");
 const zine = @import("zine");
+const join = zine.join;
 const context = zine.context;
 const Allocator = std.mem.Allocator;
 const DepWriter = @import("DepWriter.zig");
@@ -156,7 +157,7 @@ pub const pages = struct {
         index_in_section: ?usize,
         is_root_page: bool,
     ) error{ OutOfMemory, PageLoad }!*context.Page {
-        const full_path = try std.fs.path.join(gpa, &.{
+        const full_path = try join(gpa, &.{
             site._meta.content_dir_path,
             md_rel_path,
         });
@@ -187,7 +188,7 @@ const page_finder = struct {
 
     fn init(build_root_path: []const u8) error{OutOfMemory}!void {
         _ = build_root_path;
-        page_finder.page_index_dir_path = try std.fs.path.join(
+        page_finder.page_index_dir_path = try join(
             gpa,
             &.{
                 // build_root_path,
@@ -204,7 +205,7 @@ const page_finder = struct {
                 //  - foo/bar.smd
                 //  - foo/bar/index.smd
 
-                var md_path = try std.fs.path.join(gpa, &.{
+                var md_path = try join(gpa, &.{
                     ref.site._meta.content_dir_path,
                     ref.path,
                     "index.smd",
@@ -258,7 +259,7 @@ const page_finder = struct {
                     .simple => "",
                     .multi => |m| m.code,
                 };
-                const index_path = try std.fs.path.join(gpa, &.{
+                const index_path = try join(gpa, &.{
                     page_index_dir_path,
                     prefix,
                     page._meta.parent_section_path.?,
@@ -319,7 +320,7 @@ const page_finder = struct {
                         .simple => "",
                         .multi => |m| m.code,
                     };
-                    const index_path = try std.fs.path.join(gpa, &.{
+                    const index_path = try join(gpa, &.{
                         page_index_dir_path,
                         prefix,
                         path[0 .. path.len - "index.smd".len],
@@ -385,11 +386,11 @@ const asset_finder = struct {
         build_root_path: []const u8,
         _assets_dir_path: []const u8,
     ) error{OutOfMemory}!void {
-        asset_finder.assets_dir_path = try std.fs.path.join(gpa, &.{
+        asset_finder.assets_dir_path = try join(gpa, &.{
             build_root_path,
             _assets_dir_path,
         });
-        asset_finder.build_index_dir_path = try std.fs.path.join(
+        asset_finder.build_index_dir_path = try join(
             gpa,
             &.{ index_dir_path, "a" },
         );
@@ -409,7 +410,7 @@ const asset_finder = struct {
                 const entry_name = std.fmt.bufPrint(&buf, "{x}", .{
                     hash,
                 }) catch unreachable;
-                const full_path = try std.fs.path.join(gpa, &.{
+                const full_path = try join(gpa, &.{
                     asset_finder.build_index_dir_path,
                     entry_name,
                 });
@@ -468,7 +469,7 @@ const asset_finder = struct {
             });
         };
 
-        const full_path = try std.fs.path.join(gpa, &.{
+        const full_path = try join(gpa, &.{
             base_path,
             ref,
         });
@@ -524,7 +525,7 @@ const asset_collector = struct {
             else => "",
         };
 
-        const install_path = try std.fs.path.join(gpa, &.{
+        const install_path = try join(gpa, &.{
             asset_collector.output_path_prefix,
             maybe_page_rel_path,
             install_rel_path,
@@ -553,19 +554,19 @@ const asset_collector = struct {
                     gpa,
                     &.{},
                 );
-                break :blk std.fs.path.join(gpa, &.{
+                break :blk join(gpa, &.{
                     page_link.string.value,
                     ref,
                 });
             },
             // Links to site assets are absolute
-            .site => try std.fs.path.join(gpa, &.{
+            .site => try join(gpa, &.{
                 "/",
                 asset_collector.url_path_prefix,
                 ref,
             }),
             // Links to build assets are absolute
-            .build => |bip| try std.fs.path.join(gpa, &.{
+            .build => |bip| try join(gpa, &.{
                 "/",
                 asset_collector.url_path_prefix,
                 bip.?,
@@ -606,7 +607,7 @@ fn loadPage(
     });
     var time = std.time.Timer.start() catch unreachable;
 
-    const md_path = try std.fs.path.join(gpa, &.{
+    const md_path = try join(gpa, &.{
         site._meta.content_dir_path,
         md_rel_path,
     });
@@ -669,7 +670,7 @@ fn loadPage(
             hash.update(path_to_hash);
         }
 
-        const ps_index_file_path = try std.fs.path.join(gpa, &.{
+        const ps_index_file_path = try join(gpa, &.{
             index_dir_path,
             "ps",
             try std.fmt.allocPrint(gpa, "{x}", .{hash.final()}),
@@ -699,7 +700,7 @@ fn loadPage(
     const iis: ?usize = index_in_section orelse blk: {
         const ps_path = psp orelse break :blk null;
 
-        const ps_file_path = try std.fs.path.join(gpa, &.{
+        const ps_file_path = try join(gpa, &.{
             index_dir_path,
             "s",
 
@@ -759,7 +760,7 @@ fn loadPage(
     };
 
     if (page.translation_key) |tk| {
-        const tk_index_path = try std.fs.path.join(gpa, &.{ index_dir_path, "tk", tk });
+        const tk_index_path = try join(gpa, &.{ index_dir_path, "tk", tk });
         const tk_index = try std.fs.cwd().readFileAlloc(
             gpa,
             tk_index_path,
@@ -989,7 +990,7 @@ fn loadPage(
                                 );
 
                                 const end = md_rel_path.len - "index.smd".len;
-                                break :sub try std.fs.path.join(gpa, &.{
+                                break :sub try join(gpa, &.{
                                     md_rel_path[0..end],
                                     p.ref,
                                 });
@@ -1005,7 +1006,7 @@ fn loadPage(
                                     "the homepage has no siblings",
                                 );
 
-                                break :sibl try std.fs.path.join(gpa, &.{
+                                break :sibl try join(gpa, &.{
                                     ps_base,
                                     p.ref,
                                 });
