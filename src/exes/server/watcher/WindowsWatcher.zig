@@ -184,10 +184,10 @@ pub fn listen(
                 else => log.debug("Unknown Action ({s}) {s}/{s}", args),
             }
 
-            switch (entry.kind) {
-                .input => reloader.onInputChange(entry.dir_path, filename),
-                .output => reloader.onOutputChange(entry.dir_path, filename),
-            }
+            // switch (entry.kind) {
+            //     .input => reloader.onInputChange(entry.dir_path, filename),
+            //     .output => reloader.onOutputChange(entry.dir_path, filename),
+            // }
         }
 
         // Re-queue the directory entry
