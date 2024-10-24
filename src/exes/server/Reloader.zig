@@ -85,6 +85,7 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
         log.err("unable to run zig build: {s}", .{@errorName(err)});
         return;
     };
+
     defer {
         self.gpa.free(result.stdout);
         self.gpa.free(result.stderr);
