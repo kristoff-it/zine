@@ -166,6 +166,7 @@ pub fn listen(
             .buf = self.read_buffer[entry.buf_idx..][0..ReadBufferEntrySize],
         };
         var path_buf: [windows.MAX_PATH]u8 = undefined;
+        var must_rebuild = false;
         while (info_iter.next()) |info| {
             const filename: []const u8 = blk: {
                 const n = try std.unicode.utf16LeToUtf8(
@@ -185,10 +186,10 @@ pub fn listen(
                 else => log.debug("Unknown Action ({s}) {s}/{s}", args),
             }
 
-            // switch (entry.kind) {
-            //     .input => reloader.onInputChange(entry.dir_path, filename),
-            //     .output => reloader.onOutputChange(entry.dir_path, filename),
-            // }
+            switch (entry.kind) {
+                .input => must_rebuild = true,
+                .output => reloader.onOutputChange(entry.dir_path, filename),
+            }
         }
 
         // Re-queue the directory entry
@@ -204,6 +205,10 @@ pub fn listen(
         ) == 0) {
             log.err("ReadDirectoryChanges error: {s}", .{@tagName(windows.kernel32.GetLastError())});
             return Error.QueueFailed;
+        }
+
+        if (must_rebuild) {
+            reloader.onInputChange(entry.dir_path, "");
         }
     }
 }
