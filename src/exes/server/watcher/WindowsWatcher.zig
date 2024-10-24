@@ -137,6 +137,7 @@ pub fn listen(
     reloader: *Reloader,
 ) !void {
     _ = gpa;
+    _ = reloader;
 
     var dont_care: struct {
         bytes_transferred: windows.DWORD = undefined,
