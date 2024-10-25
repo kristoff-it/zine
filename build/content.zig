@@ -68,6 +68,8 @@ fn scan(
     // parent section index
     const ps_index_dir = index_dir.makeOpenPath("ps", .{}) catch unreachable;
 
+    collectGitInfo(project, index_dir, project.build_root.path.?);
+
     const assets_updater = zine_dep.artifact("update-assets");
     const update_assets = project.addRunArtifact(assets_updater);
     update_assets.addArg(project.install_path);
@@ -1104,4 +1106,27 @@ pub fn ensureDir(project: *std.Build, path: []const u8) void {
         });
         std.process.exit(1);
     };
+}
+
+const Git = @import("Git.zig");
+fn collectGitInfo(project: *std.Build, dir: std.fs.Dir, path: []const u8) void {
+    const g = Git.init(project.allocator, path) catch |err| {
+        std.debug.print("error while collecting git info: {s}", .{
+            @errorName(err),
+        });
+        std.process.exit(1);
+    };
+
+    const f = dir.createFile("git.ziggy", .{}) catch |err| {
+        std.debug.print("error while creating .zig-cache/zine/git.ziggy: {s}", .{
+            @errorName(err),
+        });
+        std.process.exit(1);
+    };
+    defer f.close();
+
+    var buf = std.ArrayList(u8).init(project.allocator);
+    ziggy.stringify(g, .{}, buf.writer()) catch unreachable;
+
+    f.writeAll(buf.items) catch unreachable;
 }

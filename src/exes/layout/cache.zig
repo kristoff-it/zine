@@ -5,7 +5,7 @@ const zine = @import("zine");
 const join = zine.join;
 const context = zine.context;
 const Allocator = std.mem.Allocator;
-const DepWriter = @import("DepWriter.zig");
+const DepWriter = zine.DepWriter;
 
 const log = std.log.scoped(.layout_cache);
 

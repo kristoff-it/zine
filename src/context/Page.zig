@@ -710,6 +710,54 @@ pub const Builtins = struct {
         }
     };
 
+    pub const linkRef = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const description =
+            \\Returns the URL of the target page.
+        ;
+        pub const examples =
+            \\$page.link()
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg = .{
+                .err = "expected 1 string argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const elem_id = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            const ast = p._meta.ast.?;
+            if (!ast.ids.contains(elem_id)) return Value.errFmt(
+                gpa,
+                "cannot find id ='{s}' in the content page",
+                .{elem_id},
+            );
+
+            const relp = p._meta.md_rel_path;
+            const path = switch (p._meta.is_section) {
+                true => relp[0 .. relp.len - "index.smd".len],
+                false => relp[0 .. relp.len - ".smd".len],
+            };
+
+            const fragment = try std.fmt.allocPrint(gpa, "#{s}", .{elem_id});
+            const result = try join(gpa, &.{
+                "/",
+                p._meta.site._meta.url_path_prefix,
+                path,
+                fragment,
+            });
+
+            return String.init(result);
+        }
+    };
+
     // TODO: delete this
     pub const permalink = struct {
         pub const signature: Signature = .{ .ret = .String };
@@ -768,7 +816,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             const bad_arg = .{
-                .err = "expected 1 string argument argument",
+                .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
 

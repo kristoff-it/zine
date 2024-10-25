@@ -1,5 +1,4 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 const options = @import("options");
 const ziggy = @import("ziggy");
@@ -8,7 +7,7 @@ const cache = @import("layout/cache.zig");
 const join = @import("../root.zig").join;
 const zine = @import("zine");
 const context = zine.context;
-const DepWriter = @import("layout/DepWriter.zig");
+const Allocator = std.mem.Allocator;
 
 const log = std.log.scoped(.layout);
 pub const std_options: std.Options = .{
@@ -105,7 +104,7 @@ pub fn main() !void {
     };
 
     var dep_buf_writer = std.io.bufferedWriter(dep_file.writer());
-    const dep_writer = DepWriter.init(dep_buf_writer.writer().any());
+    const dep_writer = zine.DepWriter.init(dep_buf_writer.writer().any());
     dep_writer.writeTarget("target") catch |err| {
         fatal("error writing to the dep file: {s}", .{@errorName(err)});
     };
@@ -186,11 +185,33 @@ pub fn main() !void {
         true,
     );
 
+    var diag: ziggy.Diagnostic = .{
+        .path = locales_path,
+    };
+
+    const index_dir = std.fs.cwd().openDir(index_dir_path, .{}) catch |err| {
+        fatal("error while opening the index dir:\n{s}\n{s}\n", .{
+            index_dir_path,
+            @errorName(err),
+        });
+    };
+
+    const git_data_path = try join(arena, &.{
+        index_dir_path, "git.ziggy",
+    });
+    const git_data = try readFile(index_dir, "git.ziggy", arena);
+
+    const git = ziggy.parseLeaky(context.Git, arena, git_data, .{
+        .diagnostic = &diag,
+    }) catch {
+        std.debug.panic("unable to load git info:\n{s}\n\n", .{diag});
+    };
+
     var ctx: context.Template = .{
         .site = site,
         .page = page,
         .i18n = i18n,
-        .build = context.Build.init(arena),
+        .build = context.Build.init(dep_writer, git_data_path, git),
     };
 
     const SuperVM = superhtml.VM(
