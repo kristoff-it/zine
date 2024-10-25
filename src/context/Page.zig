@@ -713,10 +713,18 @@ pub const Builtins = struct {
     pub const linkRef = struct {
         pub const signature: Signature = .{ .ret = .String };
         pub const description =
-            \\Returns the URL of the target page.
+            \\Returns the URL of the target page, allowing you 
+            \\to specify a fragment id to deep-link to a specific
+            \\element of the content page.
+            \\
+            \\The id will be checked by Zine and an error will be  
+            \\reported if it does not exist.
+            \\
+            \\See the SuperMD reference documentation to learn how to give
+            \\ids to elements.
         ;
         pub const examples =
-            \\$page.link()
+            \\$page.linkRef('foo')
         ;
         pub fn call(
             p: *const Page,
