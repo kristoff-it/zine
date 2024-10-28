@@ -759,6 +759,8 @@ fn loadPage(
         .is_root = is_root_page,
     };
 
+    for (page.alternatives) |*alt| @constCast(alt)._prefix = site._meta.url_path_prefix;
+
     if (page.translation_key) |tk| {
         const tk_index_path = try join(gpa, &.{ index_dir_path, "tk", tk });
         const tk_index = try std.fs.cwd().readFileAlloc(
@@ -957,7 +959,33 @@ fn loadPage(
             inline else => |val, tag| {
                 const res = switch (val.src.?) {
                     .url => continue,
-                    .self_page => context.String.init(""),
+                    .self_page => blk: {
+                        if (@hasField(@TypeOf(val), "alternative")) {
+                            if (val.alternative) |alt_name| {
+                                for (page.alternatives) |alt| {
+                                    if (std.mem.eql(u8, alt.name, alt_name)) {
+                                        const abs = try join(gpa, &.{
+                                            "/",
+                                            site._meta.url_path_prefix,
+                                            alt.output,
+                                            "/",
+                                        });
+                                        break :blk context.String.init(abs);
+                                    }
+                                } else reportError(
+                                    n,
+                                    md_src,
+                                    md_rel_path,
+                                    md_path,
+                                    fm_offset,
+                                    is_section,
+                                    "the page has no alternative with this name",
+                                );
+                            }
+                        }
+                        break :blk context.String.init("");
+                    },
+
                     .page => |p| blk: {
                         const page_site = if (p.locale) |lc|
                             sites.get(lc) orelse reportError(
@@ -1039,6 +1067,30 @@ fn loadPage(
                                                 "'{s}' is not a valid content id for '{s}', available ids are: {s}",
                                                 .{ hash, ref, pp._meta.ast.?.ids.keys() },
                                             ),
+                                        );
+                                    }
+                                }
+
+                                if (@hasField(@TypeOf(val), "alternative")) {
+                                    if (val.alternative) |alt_name| {
+                                        for (pp.alternatives) |alt| {
+                                            if (std.mem.eql(u8, alt.name, alt_name)) {
+                                                const abs = try join(gpa, &.{
+                                                    "/",
+                                                    pp._meta.site._meta.url_path_prefix,
+                                                    alt.output,
+                                                    "/",
+                                                });
+                                                break :blk context.String.init(abs);
+                                            }
+                                        } else reportError(
+                                            n,
+                                            md_src,
+                                            md_rel_path,
+                                            md_path,
+                                            fm_offset,
+                                            is_section,
+                                            "the page has no alternative with this name",
                                         );
                                     }
                                 }

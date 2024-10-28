@@ -83,15 +83,15 @@ pub const Translation = struct {
 };
 
 pub const Alternative = struct {
-    name: []const u8 = "",
+    name: []const u8,
     layout: []const u8,
     output: []const u8,
     type: []const u8 = "",
+    _prefix: []const u8 = "",
 
     pub const dot = scripty.defaultDot(Alternative, Value, false);
     // pub const PassByRef = true;
 
-    pub const Builtins = struct {};
     pub const description =
         \\An alternative version of the current page. Title and type
         \\can be used when generating `<link rel="alternate">` elements.
@@ -113,7 +113,7 @@ pub const Alternative = struct {
             \\Useful for example to generate RSS links:
             \\
             \\```superhtml
-            \\<ctx alt="$page.alternative('rss')"
+            \\<ctx alt="$page.alternative('rss')">
             \\  <a href="$ctx.alt.link()" 
             \\     type="$ctx.alt.type" 
             \\     :text="$ctx.alt.name"
@@ -121,6 +121,33 @@ pub const Alternative = struct {
             \\</ctx>
             \\```
         ;
+    };
+    pub const Builtins = struct {
+        pub const link = struct {
+            pub const signature: Signature = .{ .ret = .String };
+            pub const description =
+                \\Returns the URL of the target alternative.
+            ;
+            pub const examples =
+                \\$page.alternative("rss").link()
+            ;
+            pub fn call(
+                alt: Alternative,
+                gpa: Allocator,
+                args: []const Value,
+            ) !Value {
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+                const result = try join(gpa, &.{
+                    "/",
+                    alt._prefix,
+                    alt.output,
+                    "/",
+                });
+
+                return String.init(result);
+            }
+        };
     };
 };
 pub const dot = scripty.defaultDot(Page, Value, false);
@@ -711,7 +738,10 @@ pub const Builtins = struct {
     };
 
     pub const linkRef = struct {
-        pub const signature: Signature = .{ .ret = .String };
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .String,
+        };
         pub const description =
             \\Returns the URL of the target page, allowing you 
             \\to specify a fragment id to deep-link to a specific
@@ -766,19 +796,45 @@ pub const Builtins = struct {
         }
     };
 
-    // TODO: delete this
-    pub const permalink = struct {
-        pub const signature: Signature = .{ .ret = .String };
+    pub const alternative = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .Alternative,
+        };
         pub const description =
-            \\Deprecated, use `link()`
+            \\Returns an alternative by name.
         ;
-        pub const examples = "";
+        pub const examples =
+            \\<ctx alt="$page.alternative('rss')">
+            \\  <a href="$ctx.alt.link()" 
+            \\     type="$ctx.alt.type" 
+            \\     :text="$ctx.alt.name"
+            \\  ></a>
+        ;
         pub fn call(
-            _: *const Page,
-            _: Allocator,
-            _: []const Value,
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
         ) !Value {
-            return .{ .err = "deprecated, use `link`" };
+            const bad_arg = .{
+                .err = "expected 1 string argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const alt_name = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            for (p.alternatives) |alt| {
+                if (std.mem.eql(u8, alt.name, alt_name)) {
+                    return Value.from(gpa, alt);
+                }
+            }
+
+            return .{
+                .err = "unable to find an alertnative with the provided name",
+            };
         }
     };
 
