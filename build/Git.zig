@@ -136,27 +136,27 @@ fn setAdditionalMetadata(git: *Git, arena: Allocator, git_dir: std.fs.Dir) !void
 
     var attributes = std.mem.splitScalar(u8, data, '\n');
 
-    _ = attributes.next(); // tree hash
-    _ = attributes.next(); // parent commit hash
-    _ = attributes.next(); // author
+    while (attributes.next()) |attribute| {
+        const committerHeading = "committer ";
+        if (std.mem.startsWith(u8, attribute, committerHeading)) {
+            const @"<_index" = std.mem.indexOfScalar(u8, attribute, '<').?;
+            const @">_index" = std.mem.indexOfScalar(u8, attribute, '>').?;
 
-    if (attributes.next()) |committer| {
-        const @"<_index" = std.mem.indexOfScalar(u8, committer, '<').?;
-        const @">_index" = std.mem.indexOfScalar(u8, committer, '>').?;
+            git.author_name = attribute[10 .. @"<_index" - 1];
+            git.author_email = attribute[@"<_index" + 1 .. @">_index"];
 
-        git.author_name = committer[10 .. @"<_index" - 1];
-        git.author_email = committer[@"<_index" + 1 .. @">_index"];
-
-        const unix_time = try std.fmt.parseInt(i64, committer[@">_index" + 2 .. committer.len - 6], 10);
-        const offset_hour = try std.fmt.parseInt(i64, committer[committer.len - 4 .. committer.len - 2], 10);
-        const offset = switch (committer[committer.len - 5]) {
-            '-' => -offset_hour,
-            '+' => offset_hour,
-            else => unreachable,
-        };
-        git.commit_date = .{ .unix = unix_time + offset * 3600 };
+            const unix_time = try std.fmt.parseInt(i64, attribute[@">_index" + 2 .. attribute.len - 6], 10);
+            const offset_hour = try std.fmt.parseInt(i64, attribute[attribute.len - 4 .. attribute.len - 2], 10);
+            const offset = switch (attribute[attribute.len - 5]) {
+                '-' => -offset_hour,
+                '+' => offset_hour,
+                else => unreachable,
+            };
+            git.commit_date = .{ .unix = unix_time + offset * 3600 };
+        }
+        if (attribute.len == 0) {
+            break;
+        }
     }
-
-    _ = attributes.next(); // empty line
     git.commit_message = attributes.rest();
 }
