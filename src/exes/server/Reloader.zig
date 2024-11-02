@@ -168,6 +168,9 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
             log.err("unable to generate ws message", .{});
             return;
         };
+        if (std.fs.path.sep != '/') {
+            std.mem.replaceScalar(u8, msg, std.fs.path.sep, '/');
+        }
 
         conn.write(msg) catch |err| {
             log.debug("error writing to websocket: {s}", .{
