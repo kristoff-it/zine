@@ -65,6 +65,7 @@ pub fn build(b: *std.Build) !void {
     const syntax = b.dependency("flow-syntax", mode);
     const ts = syntax.builder.dependency("tree-sitter", mode);
     const treez = ts.module("treez");
+    const wuffs = b.dependency("wuffs", mode);
 
     const zine = b.addModule("zine", .{
         .root_source_file = b.path("src/root.zig"),
@@ -97,6 +98,7 @@ pub fn build(b: *std.Build) !void {
     layout.root_module.addImport("zeit", zeit);
     layout.root_module.addImport("syntax", syntax.module("syntax"));
     layout.root_module.addImport("treez", treez);
+    layout.root_module.addImport("wuffs", wuffs.module("wuffs"));
     layout.linkLibrary(ts.artifact("tree-sitter"));
 
     b.installArtifact(layout);
