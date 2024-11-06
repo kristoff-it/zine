@@ -27,8 +27,8 @@
             .hash = "12208720b772330f309cfb48957f4152ee0930b716837d0c1d07fee2dea2f4dc712e",
         },
         .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit#10c8daf12c8d7ff51d1e56bf492fe5fa28116eaf",
-            .hash = "1220aeb0bd83285a72d784dbabfb400c6b75b3b38f37ca3fa386a52df63f3da7cecc",
+            .url = "git+https://github.com/rockorager/zeit?ref=v0.4.4#5041c7cac243f0d05f4578a334f52e12bb450e55",
+            .hash = "12204b653c90b503f89e2f1a73c4754b83fb7275c100c81872deaca12c9f17e334ec",
         },
         .@"flow-syntax" = .{
             .url = "git+https://github.com/neurocyte/flow-syntax#d5b5da509350ef946b33cfb5c04ede68e288545b",
