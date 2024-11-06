@@ -95,17 +95,18 @@ function zineConnect() {
   socket.addEventListener("error", (event) => {
     log("error", event);
   });
+  return socket;
 }
 
-zineConnect();
+{
+  const socket = zineConnect();
 
-
-
-// Keep sending messages to circumvent an issue related to windows 
-// networking, see https://github.com/ziglang/zig/issues/14233
-function zinewin() {
+  // Keep sending messages to circumvent an issue related to windows
+  // networking, see https://github.com/ziglang/zig/issues/14233
+  function zinewin() {
     if (socket.readyState === WebSocket.OPEN) {
-        socket.send("https://github.com/ziglang/zig/issues/14233");
+      socket.send("https://github.com/ziglang/zig/issues/14233");
     }
+  }
+  setInterval(zinewin, 100);
 }
-setInterval(zinewin, 100);
