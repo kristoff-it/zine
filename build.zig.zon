@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#a034ec48c8a01b26de50f479090716d3ed2152c9",
-            .hash = "122058e6f4ebd493d1c7f7c1e21549d2b2e5d9a1921dba758f3558d88a34a70384be",
+            .url = "git+https://github.com/kristoff-it/supermd#c47273684d3236881fdc9f90fbf66965389d88bd",
+            .hash = "1220f5265c5f99c621f3b2d822723ba1b79297b4c809fcee98c7d48947002458bf7c",
         },
         .scripty = .{
             .url = "git+https://github.com/kristoff-it/scripty#df8c11380f9e9bec34809f2242fb116d27cf39d6",
@@ -38,6 +38,10 @@
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#f003bfe714f2964c90939fdc940d5993190a66ec",
             .hash = "1220f2d8402bb7bbc4786b9c0aad73910929ea209cbd3b063842371d68abfed33c1e",
             .lazy = true,
+        },
+        .wuffs = .{
+            .url = "git+https://github.com/allyourcodebase/wuffs#818c8ad6607dd5c1ee571362fdb9813b744ee548",
+            .hash = "1220e4ee09c4fa2d90a9cc7f34f14e04be55a779c84d486696fa9f9ab98ade35409d",
         },
     },
     .paths = .{"."},

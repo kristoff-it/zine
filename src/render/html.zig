@@ -354,6 +354,7 @@ fn renderDirective(
                 if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
                 try w.print(" src=\"{s}\"", .{img.src.?.url});
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
+                if(img.size) |size| try w.print(" width=\"{d}\" height=\"{d}\"", .{size.w, size.h});
                 try w.print(">", .{});
                 if (img.linked) |l| if (l) try w.print("</a>", .{});
                 if (caption != null) try w.print("\n<figcaption>", .{});

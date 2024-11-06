@@ -6,6 +6,7 @@ const join = zine.join;
 const context = zine.context;
 const Allocator = std.mem.Allocator;
 const DepWriter = zine.DepWriter;
+const wuffs = @import("wuffs");
 
 const log = std.log.scoped(.layout_cache);
 
@@ -957,7 +958,7 @@ fn loadPage(
                 directive.kind.code.src = .{ .url = buf.items };
             },
             inline else => |val, tag| {
-                const res = switch (val.src.?) {
+                const res: context.Value = switch (val.src.?) {
                     .url => continue,
                     .self_page => blk: {
                         if (@hasField(@TypeOf(val), "alternative")) {
@@ -1138,12 +1139,84 @@ fn loadPage(
                             a._meta.kind,
                         );
                         @field(directive.kind, @tagName(tag)).src = .{ .url = url };
+                        if(directive.kind == .image) blk: {
+                            const image_handle = std.fs.cwd().openFile(a._meta.path, .{}) catch break :blk;
+                            defer image_handle.close();
+                            var image_header_buf: [2048]u8 = undefined;
+                            const image_header_len = image_handle.readAll(&image_header_buf) catch break :blk;
+                            const image_header = image_header_buf[0..image_header_len];
+
+                            const img_size = getImageSize(image_header) catch break :blk;
+                            directive.kind.image.size = .{.w = img_size.w, .h = img_size.h};
+                        }
                     },
                 }
             },
         }
     }
     return page;
+}
+
+const max_align = @alignOf(std.c.max_align_t);
+fn allocDecoder(
+    comptime name: []const u8,
+) !struct { []align(max_align) u8, *wuffs.wuffs_base__image_decoder } {
+    const size = @field(wuffs, "sizeof__wuffs_" ++ name ++ "__decoder")();
+    const init_fn = @field(wuffs, "wuffs_" ++ name ++ "__decoder__initialize");
+    const upcast_fn = @field(wuffs, "wuffs_" ++ name ++ "__decoder__upcast_as__wuffs_base__image_decoder");
+
+    const decoder_raw = try gpa.alignedAlloc(u8, max_align, size);
+    errdefer gpa.free(decoder_raw);
+    for (decoder_raw) |*byte| byte.* = 0;
+
+    try wrapErr(init_fn(@ptrCast(decoder_raw), size, wuffs.WUFFS_VERSION, wuffs.WUFFS_INITIALIZE__ALREADY_ZEROED));
+
+    const upcasted = upcast_fn(@ptrCast(decoder_raw)).?;
+    return .{ decoder_raw, upcasted };
+}
+fn wrapErr(status: wuffs.wuffs_base__status) !void {
+    if (wuffs.wuffs_base__status__message(&status)) |_| {
+        return error.WuffsError;
+    }
+}
+const Size = struct {w: i64, h: i64};
+fn getImageSize(image_src: []const u8) !Size {
+    var g_src = wuffs.wuffs_base__ptr_u8__reader(@constCast(image_src.ptr), image_src.len, true);
+
+    const g_fourcc = wuffs.wuffs_base__magic_number_guess_fourcc(
+        wuffs.wuffs_base__io_buffer__reader_slice(&g_src),
+        g_src.meta.closed,
+    );
+    if (g_fourcc < 0) return error.CouldNotGuessFileFormat;
+
+    const decoder_raw, const g_image_decoder = switch (g_fourcc) {
+        wuffs.WUFFS_BASE__FOURCC__BMP => try allocDecoder("bmp"),
+        wuffs.WUFFS_BASE__FOURCC__GIF => try allocDecoder("gif"),
+        wuffs.WUFFS_BASE__FOURCC__JPEG => try allocDecoder("jpeg"),
+        wuffs.WUFFS_BASE__FOURCC__NPBM => try allocDecoder("netpbm"),
+        wuffs.WUFFS_BASE__FOURCC__NIE => try allocDecoder("nie"),
+        wuffs.WUFFS_BASE__FOURCC__PNG => try allocDecoder("png"),
+        wuffs.WUFFS_BASE__FOURCC__QOI => try allocDecoder("qoi"),
+        wuffs.WUFFS_BASE__FOURCC__TGA => try allocDecoder("tga"),
+        wuffs.WUFFS_BASE__FOURCC__WBMP => try allocDecoder("wbmp"),
+        wuffs.WUFFS_BASE__FOURCC__WEBP => try allocDecoder("webp"),
+        else => {
+            return error.UnsupportedImageFormat;
+        },
+    };
+    defer gpa.free(decoder_raw);
+
+    var g_image_config = std.mem.zeroes(wuffs.wuffs_base__image_config);
+    try wrapErr(wuffs.wuffs_base__image_decoder__decode_image_config(
+        g_image_decoder,
+        &g_image_config,
+        &g_src,
+    ));
+
+    const g_width = wuffs.wuffs_base__pixel_config__width(&g_image_config.pixcfg);
+    const g_height = wuffs.wuffs_base__pixel_config__height(&g_image_config.pixcfg);
+
+    return .{.w = std.math.cast(i64, g_width) orelse return error.Cast, .h = std.math.cast(i64, g_height) orelse return error.Cast};
 }
 
 pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
