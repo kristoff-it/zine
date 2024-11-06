@@ -34,19 +34,22 @@ const Server = struct {
         // const n = try res.readAll(&request_buffer);
         // const request_body = request_buffer[0..n];
 
-        var path = req.head.target;
+        var path_with_query = req.head.target;
 
-        if (std.mem.indexOf(u8, path, "..")) |_| {
+        if (std.mem.indexOf(u8, path_with_query, "..")) |_| {
             std.debug.print("'..' not allowed in URLs\n", .{});
             @panic("TODO: check if '..' is fine");
         }
 
-        if (std.mem.indexOfScalar(u8, path, '%')) |_| {
-            const buffer = try arena.dupe(u8, path);
-            path = std.Uri.percentDecodeInPlace(buffer);
+        if (std.mem.indexOfScalar(u8, path_with_query, '%')) |_| {
+            const buffer = try arena.dupe(u8, path_with_query);
+            path_with_query = std.Uri.percentDecodeInPlace(buffer);
         }
 
-        if (std.mem.endsWith(u8, path, "/")) {
+        var path = path_with_query[0 .. std.mem.indexOfScalar(u8, path_with_query, '?') orelse path_with_query.len];
+        const path_ends_with_slash = std.mem.endsWith(u8, path, "/");
+
+        if (path_ends_with_slash) {
             path = try std.fmt.allocPrint(arena, "{s}{s}", .{
                 path,
                 "index.html",
@@ -94,15 +97,13 @@ const Server = struct {
             return true;
         }
 
-        path = path[0 .. std.mem.indexOfScalar(u8, path, '?') orelse path.len];
-
         const ext = fs.path.extension(path);
         const mime_type = mime.extension_map.get(ext) orelse
             .@"application/octet-stream";
 
         const file = s.public_dir.openFile(path[1..], .{}) catch |err| switch (err) {
             error.FileNotFound => {
-                if (std.mem.endsWith(u8, req.head.target, "/")) {
+                if (path_ends_with_slash) {
                     try req.respond(not_found_html, .{
                         .status = .not_found,
                         .extra_headers = &.{
@@ -113,7 +114,7 @@ const Server = struct {
                     log.debug("not found\n", .{});
                     return false;
                 } else {
-                    try appendSlashRedirect(arena, req);
+                    try appendSlashRedirect(arena, req, path_with_query);
                     return false;
                 }
             },
@@ -140,7 +141,7 @@ const Server = struct {
 
         const contents = file.readToEndAlloc(arena, std.math.maxInt(usize)) catch |err| switch (err) {
             error.IsDir => {
-                try appendSlashRedirect(arena, req);
+                try appendSlashRedirect(arena, req, path_with_query);
                 return false;
             },
             else => return err,
@@ -186,12 +187,16 @@ const Server = struct {
 fn appendSlashRedirect(
     arena: std.mem.Allocator,
     req: *std.http.Server.Request,
+    path_with_query: []const u8,
 ) !void {
+    // convert `foo/bar?query=1` to `foo/bar/?query=1`
+    const query_start = std.mem.indexOfScalar(u8, path_with_query, '?') orelse path_with_query.len;
     const location = try std.fmt.allocPrint(
         arena,
-        "{s}/",
-        .{req.head.target},
+        "{s}/{s}",
+        .{ path_with_query[0..query_start], path_with_query[query_start..] },
     );
+
     try req.respond(not_found_html, .{
         .status = .see_other,
         .extra_headers = &.{
