@@ -138,14 +138,16 @@ pub const Builtins = struct {
             defer gpa.free(data);
 
             const sha384 = std.crypto.hash.sha2.Sha384;
-            var hashed_data: [std.crypto.hash.sha2.Sha384.digest_length]u8 = undefined;
+            const base64 = std.base64.standard.Encoder;
+
+            var hashed_data: [sha384.digest_length]u8 = undefined;
             sha384.hash(data, &hashed_data, .{});
 
-            const base64 = std.base64.standard.Encoder;
             var hashed_encoded_data: [base64.calcSize(hashed_data.len)]u8 = undefined;
             _ = base64.encode(&hashed_encoded_data, &hashed_data);
 
-            return Value.from(gpa, @as([]u8, "sha384-" ++ hashed_encoded_data));
+            const result: []u8 = try gpa.dupe(u8, "sha384-" ++ hashed_encoded_data);
+            return Value.from(gpa, result);
         }
     };
 
