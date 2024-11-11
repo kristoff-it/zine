@@ -135,7 +135,6 @@ pub const Builtins = struct {
             const data = std.fs.cwd().readFileAlloc(gpa, self._meta.path, std.math.maxInt(u32)) catch {
                 return .{ .err = "i/o error while reading asset file" };
             };
-            defer gpa.free(data);
 
             const sha384 = std.crypto.hash.sha2.Sha384;
             const base64 = std.base64.standard.Encoder;
