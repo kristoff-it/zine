@@ -35,13 +35,13 @@ pub const Builtins = struct {
         pub const description =
             \\Returns a link to the asset.
             \\
-            \\Calling `link` on an asset will cause it to be installed 
+            \\Calling `link` on an asset will cause it to be installed
             \\under the same relative path into the output directory.
             \\
             \\    `content/post/bar.jpg` -> `zig-out/post/bar.jpg`
             \\  `assets/foo/bar/baz.jpg` -> `zig-out/foo/bar/baz.jpg`
             \\
-            \\Build assets will be installed under the path defined in 
+            \\Build assets will be installed under the path defined in
             \\your `build.zig`.
         ;
         pub const examples =
@@ -135,6 +135,7 @@ pub const Builtins = struct {
             const data = std.fs.cwd().readFileAlloc(gpa, self._meta.path, std.math.maxInt(u32)) catch {
                 return .{ .err = "i/o error while reading asset file" };
             };
+            defer gpa.free(data);
 
             const sha384 = std.crypto.hash.sha2.Sha384;
             var hashed_data: [std.crypto.hash.sha2.Sha384.digest_length]u8 = undefined;
