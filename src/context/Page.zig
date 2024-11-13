@@ -150,6 +150,49 @@ pub const Alternative = struct {
         };
     };
 };
+
+pub const Footnote = struct {
+    def_id: []const u8,
+    ref_ids: []const []const u8,
+
+    _page: *const Page,
+    _idx: usize,
+
+    pub const Fields = struct {
+        pub const def_id =
+            \\The ID for the footnote definition.
+        ;
+        pub const ref_ids =
+            \\The IDs of the footnote's references,
+            \\to be used for creating backlinks.
+        ;
+    };
+    pub const Builtins = struct {
+        pub const html = struct {
+            pub const signature: Signature = .{ .ret = .String };
+            pub const description =
+                \\Renders the footnote definition.
+            ;
+            pub const examples = "";
+            pub fn call(
+                f: Footnote,
+                gpa: Allocator,
+                args: []const Value,
+            ) !Value {
+                if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+                var buf = std.ArrayList(u8).init(gpa);
+                const ast = f._page._meta.ast orelse unreachable;
+                const node = ast.footnotes.values()[f._idx].node;
+
+                try render.html(gpa, ast, node, "", buf.writer());
+                return String.init(try buf.toOwnedSlice());
+            }
+        };
+    };
+    pub const dot = scripty.defaultDot(Footnote, Value, false);
+};
+
 pub const dot = scripty.defaultDot(Page, Value, false);
 pub const PassByRef = true;
 
@@ -993,6 +1036,48 @@ pub const Builtins = struct {
             }
 
             return Value.from(gpa, try sections.toOwnedSlice());
+        }
+    };
+
+    pub const footnotes = struct {
+        pub const signature: Signature = .{
+            .params = &.{},
+            .ret = .{ .Many = .Footnote },
+        };
+        pub const description =
+            \\Returns a list of footnotes for the current page.
+        ;
+        pub const examples =
+            \\<ol :loop="$page.footnotes()">
+            \\  <li id="$loop.it.defId">
+            \\    <ctx :html="$loop.it.html()"></ctx>
+            \\    <ctx :loop="$loop.it.refIds">
+            \\      <a href="$loop.it.prefix('#')" :html="$loop.idx.plus(1)"></a>
+            \\    </ctx>
+            \\  </li>
+            \\<\ol>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
+            const ast = p._meta.ast.?;
+            var _footnotes = try gpa.alloc(Footnote, ast.footnotes.count());
+            for (ast.footnotes.values(), 0..) |footnote, i| {
+                _footnotes[i] = .{
+                    .def_id = footnote.def_id,
+                    .ref_ids = footnote.ref_ids,
+                    ._page = p,
+                    ._idx = i,
+                };
+            }
+            return Value.from(gpa, _footnotes);
         }
     };
 

@@ -9,30 +9,6 @@ const Iter = Ast.Iter;
 
 const log = std.log.scoped(.render);
 
-const FootnoteIdx = struct {
-    started: u32,
-    written: u32,
-};
-
-fn printFootnoteBackref(w: anytype, footnote: supermd.Node, idx: *FootnoteIdx) !void {
-    if (idx.written >= idx.started) {
-        return;
-    }
-    idx.written = idx.started;
-    // TODO escape the literal before printing
-    try w.print(
-        \\<a href="#fnref-{s}" class="footnote-backref" data-footnote-backref data-footnote-backref-idx="{1d}" aria-label="Back to reference {1d}">↩</a>
-    , .{ footnote.literal().?, idx.written });
-    if (footnote.footnoteDefCount() > 1) {
-        var i: i32 = 2;
-        while (i <= footnote.footnoteDefCount()) : (i += 1) {
-            try w.print(
-                \\<a href="#fnref-{0s}-{1d}" class="footnote-backref" data-footnote-backref data-footnote-backref-idx="{2d}-{1d}" aria-label="Back to reference {2d}-{1d}">↩<sup class="footnote-ref">{1d}</sup></a>
-            , .{ footnote.literal().?, i, idx.written });
-        }
-    }
-}
-
 pub fn html(
     gpa: std.mem.Allocator,
     ast: Ast,
@@ -41,9 +17,7 @@ pub fn html(
     path: []const u8,
     w: anytype,
 ) !void {
-    var footnoteIdx: ?FootnoteIdx = null;
-    var it = Iter.init(ast.md.root);
-    it.reset(start, .enter);
+    var it = Iter.init(start);
 
     const full_page = start.n == ast.md.root.n;
 
@@ -142,9 +116,6 @@ pub fn html(
                                 continue;
                             }
                         }
-                        if (node.parent().?.nodeType() == .FOOTNOTE_DEFINITION and node.nextSibling() == null) {
-                            try printFootnoteBackref(w, node.parent().?, &footnoteIdx.?);
-                        }
                         try w.print("</p>", .{});
                     },
                 }
@@ -190,17 +161,22 @@ pub fn html(
                 .enter => try w.print("<hr>", .{}),
                 .exit => {},
             },
-            .FOOTNOTE_DEFINITION => switch (ev.dir) {
+            .FOOTNOTE_REFERENCE => switch (ev.dir) {
                 .enter => {
-                    if (footnoteIdx == null) {
-                        footnoteIdx = .{ .written = 0, .started = 0 };
-                        try w.writeAll("<section class=\"footnotes\" data-footnotes><ol>");
-                    }
-                    footnoteIdx.?.started += 1;
-                    // TODO escape literal before printing
-                    try w.print("<li id=\"fn-{s}\">", .{node.literal().?});
+                    const literal = node.literal().?;
+                    const def_idx = ast.footnotes.getIndex(literal).?;
+                    const footnote = ast.footnotes.values()[def_idx];
+                    try w.print("<sup class=\"footnote-ref\"><a href=\"#{s}\" id=\"{s}\">{d}</a></sup>", .{
+                        footnote.def_id,
+                        footnote.ref_ids[@intCast(node.footnoteRefIx() - 1)],
+                        def_idx + 1,
+                    });
                 },
-                .exit => try printFootnoteBackref(w, node, &footnoteIdx.?),
+                .exit => {},
+            },
+            .FOOTNOTE_DEFINITION => switch (ev.dir) {
+                .enter => {},
+                .exit => {},
             },
             .HTML_INLINE => switch (ev.dir) {
                 .enter => try w.print(
@@ -341,9 +317,6 @@ pub fn html(
     }
     if (open_div) {
         try w.writeAll("</div>");
-    }
-    if (footnoteIdx) |_| {
-        try w.writeAll("</ol></section>");
     }
 }
 
