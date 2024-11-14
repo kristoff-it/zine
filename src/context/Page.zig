@@ -1051,14 +1051,16 @@ pub const Builtins = struct {
             \\Returns a list of footnotes for the current page, if any exist.
         ;
         pub const examples =
-            \\<ol :loop="$page.footnotes?()">
-            \\  <li id="$loop.it.defId">
-            \\    <ctx :html="$loop.it.html()"></ctx>
-            \\    <ctx :loop="$loop.it.refIds">
-            \\      <a href="$loop.it.prefix('#')" :html="$loop.idx.plus(1)"></a>
-            \\    </ctx>
-            \\  </li>
-            \\<\ol>
+            \\<ctx :if="$page.footnotes?()">
+            \\  <ol :loop="$if">
+            \\    <li id="$loop.it.def_id">
+            \\      <ctx :html="$loop.it.html()"></ctx>
+            \\      <ctx :loop="$loop.it.ref_ids">
+            \\        <a href="$loop.it.prefix('#')" :html="$loop.idx"></a>
+            \\      </ctx>
+            \\    </li>
+            \\  </ol>
+            \\</ctx>
         ;
         pub fn call(
             p: *const Page,
