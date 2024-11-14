@@ -42,7 +42,7 @@ pub fn main() !void {
         \\---
         \\
     );
-    try w.print("{}", .{ref});
+    try w.writeAll(std.fmt.comptimePrint("{}", .{ref}));
     try buf_writer.flush();
 }
 

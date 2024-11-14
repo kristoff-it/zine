@@ -158,6 +158,9 @@ pub const Footnote = struct {
     _page: *const Page,
     _idx: usize,
 
+    pub const description =
+        \\A footnote from a page.
+    ;
     pub const Fields = struct {
         pub const def_id =
             \\The ID for the footnote definition.
@@ -1039,16 +1042,16 @@ pub const Builtins = struct {
         }
     };
 
-    pub const footnotes = struct {
+    pub const @"footnotes?" = struct {
         pub const signature: Signature = .{
             .params = &.{},
-            .ret = .{ .Many = .Footnote },
+            .ret = .{ .Opt = .{ .Many = .Footnote } },
         };
         pub const description =
-            \\Returns a list of footnotes for the current page.
+            \\Returns a list of footnotes for the current page, if any exist.
         ;
         pub const examples =
-            \\<ol :loop="$page.footnotes()">
+            \\<ol :loop="$page.footnotes?()">
             \\  <li id="$loop.it.defId">
             \\    <ctx :html="$loop.it.html()"></ctx>
             \\    <ctx :loop="$loop.it.refIds">
@@ -1068,6 +1071,9 @@ pub const Builtins = struct {
             if (args.len != 0) return bad_arg;
 
             const ast = p._meta.ast.?;
+            if (ast.footnotes.count() == 0) {
+                return Optional.Null;
+            }
             var _footnotes = try gpa.alloc(Footnote, ast.footnotes.count());
             for (ast.footnotes.values(), 0..) |footnote, i| {
                 _footnotes[i] = .{
