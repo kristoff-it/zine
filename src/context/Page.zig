@@ -1083,7 +1083,7 @@ pub const Builtins = struct {
                     ._idx = i,
                 };
             }
-            return Value.from(gpa, _footnotes);
+            return Optional.init(gpa, _footnotes);
         }
     };
 
