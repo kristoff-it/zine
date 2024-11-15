@@ -31,10 +31,11 @@ pub fn highlightCode(
     code: []const u8,
     writer: anytype,
 ) !void {
-    const lang = syntax.create_file_type(arena, code, lang_name) catch blk: {
+    const lang = syntax.create_file_type(arena, lang_name) catch blk: {
         const fake_filename = try std.fmt.allocPrint(arena, "file.{s}", .{lang_name});
         break :blk try syntax.create_guess_file_type(arena, "", fake_filename);
     };
+    try lang.refresh_full(code);
     defer lang.destroy();
 
     const tree = lang.tree orelse return;
