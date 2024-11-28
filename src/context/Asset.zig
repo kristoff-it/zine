@@ -35,13 +35,13 @@ pub const Builtins = struct {
         pub const description =
             \\Returns a link to the asset.
             \\
-            \\Calling `link` on an asset will cause it to be installed 
+            \\Calling `link` on an asset will cause it to be installed
             \\under the same relative path into the output directory.
             \\
             \\    `content/post/bar.jpg` -> `zig-out/post/bar.jpg`
             \\  `assets/foo/bar/baz.jpg` -> `zig-out/foo/bar/baz.jpg`
             \\
-            \\Build assets will be installed under the path defined in 
+            \\Build assets will be installed under the path defined in
             \\your `build.zig`.
         ;
         pub const examples =
@@ -137,14 +137,16 @@ pub const Builtins = struct {
             };
 
             const sha384 = std.crypto.hash.sha2.Sha384;
-            var hashed_data: [std.crypto.hash.sha2.Sha384.digest_length]u8 = undefined;
+            const base64 = std.base64.standard.Encoder;
+
+            var hashed_data: [sha384.digest_length]u8 = undefined;
             sha384.hash(data, &hashed_data, .{});
 
-            const base64 = std.base64.standard.Encoder;
             var hashed_encoded_data: [base64.calcSize(hashed_data.len)]u8 = undefined;
             _ = base64.encode(&hashed_encoded_data, &hashed_data);
 
-            return Value.from(gpa, @as([]u8, "sha384-" ++ hashed_encoded_data));
+            const result: []u8 = try gpa.dupe(u8, "sha384-" ++ hashed_encoded_data);
+            return Value.from(gpa, result);
         }
     };
 
