@@ -194,6 +194,7 @@ pub fn website(b: *std.Build, site: Site) void {
             site.content_dir_path,
             site.assets_dir_path,
         },
+        .output_path_prefix = site.output_path_prefix,
     });
 }
 
@@ -298,6 +299,7 @@ pub const DevelopmentServerOptions = struct {
     port: u16 = 1990,
     include_drafts: bool = false,
     input_dirs: []const []const u8,
+    output_path_prefix: []const u8 = "",
 };
 pub fn addDevelopmentServer(
     b: *std.Build,
@@ -310,10 +312,16 @@ pub fn addDevelopmentServer(
         .scope = zine_opts.scopes,
     });
 
+
+    const output_path = std.fs.path.join(b.allocator, &.{b.install_path, server_opts.output_path_prefix}) catch |err| {
+        std.debug.print("Error joining install path and output_path_prefix: {s}\n\n", .{@errorName(err)});
+        std.process.exit(1);
+    };
+
     const server_exe = zine_dep.artifact("server");
     const run_server = b.addRunArtifact(server_exe);
     run_server.addArg(b.graph.zig_exe); // #1
-    run_server.addArg(b.install_path); // #2
+    run_server.addArg(output_path); // #2
     run_server.addArg(b.fmt("{d}", .{server_opts.port})); // #3
     run_server.addArg(server_opts.website_step.name); // #4
     run_server.addArg(@tagName(zine_opts.optimize)); // #5
