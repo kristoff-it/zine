@@ -36,6 +36,7 @@ pub const ScriptyParam = union(enum) {
     Asset,
     Alternative,
     ContentSection,
+    Footnote,
     Iterator,
     Array,
     String,
@@ -51,11 +52,12 @@ pub const ScriptyParam = union(enum) {
     Opt: Base,
     Many: Base,
 
-    pub const Base = enum {
+    pub const Base = union(enum) {
         Site,
         Page,
         Alternative,
         ContentSection,
+        Footnote,
         Iterator,
         String,
         Int,
@@ -63,6 +65,11 @@ pub const ScriptyParam = union(enum) {
         Date,
         KV,
         any,
+        Many: Base2,
+
+        pub const Base2 = enum {
+            Footnote,
+        };
     };
 
     pub fn fromType(t: type) ScriptyParam {
@@ -76,6 +83,7 @@ pub const ScriptyParam = union(enum) {
             superhtml.utils.Ctx(context.Value) => .Ctx,
             context.Page.Alternative => .Alternative,
             context.Page.ContentSection => .ContentSection,
+            context.Page.Footnote => .Footnote,
             context.Asset => .Asset,
             // context.Slice => .any,
             context.Optional, ?*const context.Optional => .{ .Opt = .any },
@@ -90,6 +98,8 @@ pub const ScriptyParam = union(enum) {
             context.Iterator => .Iterator,
             ?*context.Iterator => .{ .Opt = .Iterator },
             []const context.Page.Alternative => .{ .Many = .Alternative },
+            []const context.Page.Footnote => .{ .Many = .Footnote },
+            ?[]const context.Page.Footnote => .{ .Opt = .{ .Many = .Footnote } },
             []const u8 => .String,
             ?[]const u8 => .{ .Opt = .String },
             []const []const u8 => .{ .Many = .String },
@@ -106,14 +116,17 @@ pub const ScriptyParam = union(enum) {
         comptime is_fn_param: bool,
     ) []const u8 {
         switch (p) {
-            .Many => |m| switch (m) {
-                inline else => |mm| {
+            inline .Many => |m| switch (m) {
+                inline else => {
                     const dots = if (is_fn_param) "..." else "";
-                    return "[" ++ @tagName(mm) ++ dots ++ "]";
+                    return "[" ++ @tagName(m) ++ dots ++ "]";
                 },
             },
             .Opt => |o| switch (o) {
-                inline else => |oo| return "?" ++ @tagName(oo),
+                .Many => |om| switch (om) {
+                    inline else => |omm| return "?[" ++ @tagName(omm) ++ "]",
+                },
+                inline else => return "?" ++ @tagName(o),
             },
             inline else => return @tagName(p),
         }
@@ -123,21 +136,26 @@ pub const ScriptyParam = union(enum) {
         comptime is_fn_param: bool,
     ) []const u8 {
         switch (p) {
-            .Many => |m| switch (m) {
-                inline else => |mm| {
+            inline .Many => |m| switch (m) {
+                inline else => {
                     const dots = if (is_fn_param) "..." else "";
                     return std.fmt.comptimePrint(
                         \\[[{0s}]($link.ref("{0s}")){1s}]{2s}
                     , .{
-                        @tagName(mm), dots, if (is_fn_param or mm == .any) "" else 
+                        @tagName(m), dots, if (is_fn_param or m == .any) "" else 
                         \\ *(see also [[any]]($link.ref("Array")))*   
                     });
                 },
             },
-            .Opt => |o| switch (o) {
-                inline else => |oo| return comptime std.fmt.comptimePrint(
+            inline .Opt => |o| switch (o) {
+                inline .Many => |om| switch (om) {
+                    inline else => |omm| return comptime std.fmt.comptimePrint(
+                        \\?[[{0s}]($link.ref("{0s}"))]
+                    , .{@tagName(omm)}),
+                },
+                inline else => return comptime std.fmt.comptimePrint(
                     \\?[{0s}]($link.ref("{0s}"))
-                , .{@tagName(oo)}),
+                , .{@tagName(o)}),
             },
             inline else => |_, t| return comptime std.fmt.comptimePrint(
                 \\[{0s}]($link.ref("{0s}"))
@@ -148,7 +166,7 @@ pub const ScriptyParam = union(enum) {
     pub fn id(p: ScriptyParam) []const u8 {
         switch (p) {
             .Opt, .Many => |o| switch (o) {
-                inline else => |oo| return @tagName(oo),
+                inline else => return @tagName(o),
             },
             inline else => return @tagName(p),
         }

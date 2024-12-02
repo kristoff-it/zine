@@ -17,8 +17,7 @@ pub fn html(
     path: []const u8,
     w: anytype,
 ) !void {
-    var it = Iter.init(ast.md.root);
-    it.reset(start, .enter);
+    var it = Iter.init(start);
 
     const full_page = start.n == ast.md.root.n;
 
@@ -162,9 +161,22 @@ pub fn html(
                 .enter => try w.print("<hr>", .{}),
                 .exit => {},
             },
+            .FOOTNOTE_REFERENCE => switch (ev.dir) {
+                .enter => {
+                    const literal = node.literal().?;
+                    const def_idx = ast.footnotes.getIndex(literal).?;
+                    const footnote = ast.footnotes.values()[def_idx];
+                    try w.print("<sup class=\"footnote-ref\"><a href=\"#{s}\" id=\"{s}\">{d}</a></sup>", .{
+                        footnote.def_id,
+                        footnote.ref_ids[@intCast(node.footnoteRefIx() - 1)],
+                        def_idx + 1,
+                    });
+                },
+                .exit => {},
+            },
             .FOOTNOTE_DEFINITION => switch (ev.dir) {
-                .enter => @panic("TODO: FOOTNOTE_DEFINITION"),
-                .exit => @panic("TODO: FOOTNOTE_DEFINITION"),
+                .enter => {},
+                .exit => {},
             },
             .HTML_INLINE => switch (ev.dir) {
                 .enter => try w.print(

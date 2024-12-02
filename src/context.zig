@@ -84,6 +84,7 @@ pub const Value = union(enum) {
     ctx: Ctx(Value),
     alternative: Page.Alternative,
     content_section: Page.ContentSection,
+    footnote: Page.Footnote,
     build: *const Build,
     git: Git,
     asset: Asset,
@@ -174,6 +175,7 @@ pub const Value = union(enum) {
             *const Page, *Page => .{ .page = v },
             Page.Alternative => .{ .alternative = v },
             Page.ContentSection => .{ .content_section = v },
+            Page.Footnote => .{ .footnote = v },
             *const Build => .{ .build = v },
             Git => .{ .git = v },
             Ctx(Value) => .{ .ctx = v },
@@ -213,6 +215,7 @@ pub const Value = union(enum) {
 
             []const Page.Alternative => try Array.init(gpa, Page.Alternative, v),
             []Page.ContentSection => try Array.init(gpa, Page.ContentSection, v),
+            []Page.Footnote => try Array.init(gpa, Page.Footnote, v),
             else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),
         };
     }
