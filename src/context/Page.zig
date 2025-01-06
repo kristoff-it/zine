@@ -900,10 +900,6 @@ pub const Builtins = struct {
             var buf = std.ArrayList(u8).init(gpa);
             const ast = p._meta.ast orelse unreachable;
 
-            if (!p._meta.is_root) return .{
-                .err = "only the main page can be rendered for now, sorry!",
-            };
-
             try render.html(gpa, ast, ast.md.root, "", buf.writer());
             return String.init(try buf.toOwnedSlice());
         }
