@@ -1,7 +1,6 @@
 const Reloader = @This();
 const std = @import("std");
 const builtin = @import("builtin");
-const ws = @import("ws");
 const AnsiRenderer = @import("AnsiRenderer.zig");
 
 const log = std.log.scoped(.watcher);
@@ -14,7 +13,6 @@ const Watcher = switch (builtin.target.os.tag) {
 };
 
 gpa: std.mem.Allocator,
-ws_server: ws.Server,
 zig_exe: []const u8,
 out_dir_path: []const u8,
 website_step_name: []const u8,
@@ -23,7 +21,7 @@ include_drafts: bool,
 watcher: Watcher,
 
 clients_lock: std.Thread.Mutex = .{},
-clients: std.AutoArrayHashMapUnmanaged(*ws.Conn, void) = .{},
+clients: std.AutoArrayHashMapUnmanaged(std.net.Stream, void) = .{},
 
 pub fn init(
     gpa: std.mem.Allocator,
@@ -34,13 +32,10 @@ pub fn init(
     debug: bool,
     include_drafts: bool,
 ) !Reloader {
-    const ws_server = try ws.Server.init(gpa, .{});
-
     return .{
         .gpa = gpa,
         .zig_exe = zig_exe,
         .out_dir_path = out_dir_path,
-        .ws_server = ws_server,
         .website_step_name = website_step_name,
         .debug = debug,
         .include_drafts = include_drafts,
@@ -114,23 +109,16 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     while (idx < self.clients.entries.len) {
         const conn = self.clients.entries.get(idx).key;
 
-        const BuildCommand = struct {
-            command: []const u8 = "build",
-            err: []const u8,
+        conn.writeAll("event: build\n") catch |err| {
+            log.debug("error writing to sse: {s}", .{
+                @errorName(err),
+            });
+            self.clients.swapRemoveAt(idx);
+            continue;
         };
 
-        const cmd: BuildCommand = .{ .err = html_err };
-
-        var buf = std.ArrayList(u8).init(self.gpa);
-        defer buf.deinit();
-
-        std.json.stringify(cmd, .{}, buf.writer()) catch {
-            log.err("unable to generate ws message", .{});
-            return;
-        };
-
-        conn.write(buf.items) catch |err| {
-            log.debug("error writing to websocket: {s}", .{
+        conn.writer().print("data: {s}\n\n", .{html_err}) catch |err| {
+            log.debug("error writing to sse: {s}", .{
                 @errorName(err),
             });
             self.clients.swapRemoveAt(idx);
@@ -140,6 +128,7 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
         idx += 1;
     }
 }
+
 pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void {
     if (std.mem.indexOfScalar(u8, name, '.') == null) {
         return;
@@ -153,27 +142,28 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
     while (idx < self.clients.entries.len) {
         const conn = self.clients.entries.get(idx).key;
 
-        const msg_fmt =
-            \\{{
-            \\  "command":"reload",
-            \\  "path":"{s}/{s}"
-            \\}}
-        ;
+        conn.writeAll("event: reload\n") catch |err| {
+            log.debug("error writing to sse: {s}", .{
+                @errorName(err),
+            });
+            self.clients.swapRemoveAt(idx);
+            continue;
+        };
 
         var buf: [4096]u8 = undefined;
-        const msg = std.fmt.bufPrint(&buf, msg_fmt, .{
+        const msg = std.fmt.bufPrint(&buf, "data: {s}/{s}\n\n", .{
             path[self.out_dir_path.len..],
             name,
         }) catch {
-            log.err("unable to generate ws message", .{});
+            log.err("unable to generate sse message", .{});
             return;
         };
         if (std.fs.path.sep != '/') {
             std.mem.replaceScalar(u8, msg, std.fs.path.sep, '/');
         }
 
-        conn.write(msg) catch |err| {
-            log.debug("error writing to websocket: {s}", .{
+        conn.writeAll(msg) catch |err| {
+            log.debug("error writing to sse: {s}", .{
                 @errorName(err),
             });
             self.clients.swapRemoveAt(idx);
@@ -183,58 +173,3 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
         idx += 1;
     }
 }
-
-pub fn handleWs(self: *Reloader, req: *std.http.Server.Request, h: [20]u8) void {
-    var buf =
-        ("HTTP/1.1 101 Switching Protocols\r\n" ++
-        "Upgrade: websocket\r\n" ++
-        "Connection: upgrade\r\n" ++
-        "Sec-Websocket-Accept: 0000000000000000000000000000\r\n\r\n").*;
-
-    const key_pos = buf.len - 32;
-    _ = std.base64.standard.Encoder.encode(buf[key_pos .. key_pos + 28], h[0..]);
-
-    const stream = req.server.connection.stream;
-    stream.writeAll(&buf) catch return;
-
-    var conn = self.ws_server.newConn(stream);
-    var context: Handler.Context = .{ .watcher = self };
-    var handler = Handler.init(undefined, &conn, &context) catch return;
-    self.ws_server.handle(Handler, &handler, &conn);
-}
-
-const Handler = struct {
-    conn: *ws.Conn,
-    context: *Context,
-
-    const Context = struct {
-        watcher: *Reloader,
-    };
-
-    pub fn init(h: ws.Handshake, conn: *ws.Conn, context: *Context) !Handler {
-        _ = h;
-
-        const watcher = context.watcher;
-        watcher.clients_lock.lock();
-        defer watcher.clients_lock.unlock();
-        try watcher.clients.put(context.watcher.gpa, conn, {});
-
-        return Handler{
-            .conn = conn,
-            .context = context,
-        };
-    }
-
-    pub fn handle(self: *Handler, message: ws.Message) !void {
-        _ = self;
-        log.debug("ws message: {s}\n", .{message.data});
-    }
-
-    pub fn close(self: *Handler) void {
-        log.debug("ws connection was closed\n", .{});
-        const watcher = self.context.watcher;
-        watcher.clients_lock.lock();
-        defer watcher.clients_lock.unlock();
-        _ = watcher.clients.swapRemove(self.conn);
-    }
-};

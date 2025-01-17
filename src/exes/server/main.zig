@@ -68,32 +68,26 @@ const Server = struct {
             return false;
         }
 
-        if (std.mem.eql(u8, path, "/__zine/ws")) {
-            var it = req.iterateHeaders();
-            const key = while (it.next()) |header| {
-                if (std.ascii.eqlIgnoreCase(header.name, "sec-websocket-key")) {
-                    break header.value;
-                }
-            } else {
-                log.debug("couldn't find key header!\n", .{});
+        if (std.mem.eql(u8, path, "/__zine/sse")) {
+            var buf =
+                ("HTTP/1.1 200 OK\r\n" ++
+                "Content-Type: text/event-stream; charset=UTF-8\r\n" ++
+                "Cache-Control: no-cache\r\n" ++
+                "Connection: keep-alive\r\n\r\n" ++
+                "data: connected\n\n").*;
+
+            const conn = req.server.connection.stream;
+            conn.writeAll(&buf) catch |err| {
+                log.debug("error responding to SSE: {s}", .{
+                    @errorName(err),
+                });
                 return false;
             };
 
-            log.debug("key = '{s}'", .{key});
+            s.watcher.clients_lock.lock();
+            defer s.watcher.clients_lock.unlock();
+            try s.watcher.clients.put(s.watcher.gpa, conn, {});
 
-            var hasher = std.crypto.hash.Sha1.init(.{});
-            hasher.update(key);
-            hasher.update("258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
-
-            var h: [20]u8 = undefined;
-            hasher.final(&h);
-
-            const ws = try std.Thread.spawn(.{}, Reloader.handleWs, .{
-                s.watcher,
-                req,
-                h,
-            });
-            ws.detach();
             return true;
         }
 
@@ -277,13 +271,13 @@ fn serve(s: *Server, listen_port: u16) !void {
         const conn = try tcp_server.accept();
 
         var http_server = std.http.Server.init(conn, &buffer);
-        var became_websocket = false;
+        var became_sse = false;
 
         defer {
-            if (!became_websocket) {
+            if (!became_sse) {
                 conn.stream.close();
             } else {
-                log.debug("request became websocket\n", .{});
+                log.debug("request became sse\n", .{});
             }
         }
 
@@ -292,16 +286,16 @@ fn serve(s: *Server, listen_port: u16) !void {
                 if (err != error.HttpConnectionClosing) {
                     log.debug("connection error: {s}\n", .{@errorName(err)});
                 }
-                became_websocket = true;
+                became_sse = true;
                 continue :accept;
             };
 
             log.debug("request: {s}", .{request.head.target});
-            became_websocket = s.handleRequest(&request) catch |err| {
+            became_sse = s.handleRequest(&request) catch |err| {
                 log.debug("failed request: {s}", .{@errorName(err)});
                 continue :accept;
             };
-            if (became_websocket) continue :accept;
+            if (became_sse) continue :accept;
         }
     }
 }
