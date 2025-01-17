@@ -144,14 +144,9 @@ fn setupServer(
         .target = target,
         .optimize = optimize,
     });
-    const ws = b.dependency("ws", .{
-        .target = target,
-        .optimize = optimize,
-    });
 
     server.root_module.addImport("options", options);
     server.root_module.addImport("mime", mime.module("mime"));
-    server.root_module.addImport("ws", ws.module("websocket"));
 
     b.installArtifact(server);
 }
