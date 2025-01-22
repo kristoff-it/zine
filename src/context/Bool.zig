@@ -22,14 +22,14 @@ pub const True = Bool.init(true);
 pub const False = Bool.init(false);
 
 pub const PassByRef = false;
-pub const description = "A boolean value";
+pub const docs_description = "A boolean value";
 pub const Builtins = struct {
     pub const then = struct {
         pub const signature: Signature = .{
             .params = &.{ .String, .{ .Opt = .String } },
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\If the boolean is `true`, returns the first argument.
             \\Otherwise, returns the second argument.
             \\
@@ -58,7 +58,7 @@ pub const Builtins = struct {
     };
     pub const not = struct {
         pub const signature: Signature = .{ .ret = .Bool };
-        pub const description =
+        pub const docs_description =
             \\Negates a boolean value.
             \\
         ;
@@ -80,7 +80,7 @@ pub const Builtins = struct {
             .ret = .Bool,
         };
 
-        pub const description =
+        pub const docs_description =
             \\Computes logical `and` between the receiver value and any other 
             \\value passed as argument.
         ;
@@ -108,7 +108,7 @@ pub const Builtins = struct {
             .params = &.{ .Bool, .{ .Many = .Bool } },
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Computes logical `or` between the receiver value and any other value passed as argument.
             \\
         ;

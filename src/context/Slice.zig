@@ -13,5 +13,5 @@ pub fn dot(s: Slice, gpa: Allocator, path: []const u8) !Value {
     _ = path;
     return .{ .err = "todo" };
 }
-pub const description = "TODO";
+pub const docs_description = "TODO";
 pub const Builtins = struct {};

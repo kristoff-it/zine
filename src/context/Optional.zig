@@ -21,5 +21,5 @@ pub fn init(gpa: Allocator, v: anytype) !Value {
 //     return .{ .err = "todo" };
 // }
 pub const PassByRef = false;
-pub const description = "An optional value, to be used in conjunction with `if` attributes.";
+pub const docs_description = "An optional value, to be used in conjunction with `if` attributes.";
 pub const Builtins = struct {};

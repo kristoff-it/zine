@@ -92,7 +92,7 @@ pub const Alternative = struct {
     pub const dot = scripty.defaultDot(Alternative, Value, false);
     // pub const PassByRef = true;
 
-    pub const description =
+    pub const docs_description =
         \\An alternative version of the current page. Title and type
         \\can be used when generating `<link rel="alternate">` elements.
     ;
@@ -125,7 +125,7 @@ pub const Alternative = struct {
     pub const Builtins = struct {
         pub const link = struct {
             pub const signature: Signature = .{ .ret = .String };
-            pub const description =
+            pub const docs_description =
                 \\Returns the URL of the target alternative.
             ;
             pub const examples =
@@ -158,7 +158,7 @@ pub const Footnote = struct {
     _page: *const Page,
     _idx: usize,
 
-    pub const description =
+    pub const docs_description =
         \\A footnote from a page.
     ;
     pub const Fields = struct {
@@ -173,7 +173,7 @@ pub const Footnote = struct {
     pub const Builtins = struct {
         pub const html = struct {
             pub const signature: Signature = .{ .ret = .String };
-            pub const description =
+            pub const docs_description =
                 \\Renders the footnote definition.
             ;
             pub const examples = "";
@@ -199,7 +199,7 @@ pub const Footnote = struct {
 pub const dot = scripty.defaultDot(Page, Value, false);
 pub const PassByRef = true;
 
-pub const description =
+pub const docs_description =
     \\The page currently being rendered.
 ;
 pub const Fields = struct {
@@ -207,7 +207,7 @@ pub const Fields = struct {
         \\Title of the page, 
         \\as set in the SuperMD frontmatter.
     ;
-    pub const description =
+    pub const docs_description =
         \\Description of the page, 
         \\as set in the SuperMD frontmatter.
     ;
@@ -269,7 +269,7 @@ pub const Fields = struct {
 pub const Builtins = struct {
     pub const isCurrent = struct {
         pub const signature: Signature = .{ .ret = .Bool };
-        pub const description =
+        pub const docs_description =
             \\Returns true if the target page is the one currently being 
             \\rendered. 
             \\
@@ -295,7 +295,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Asset,
         };
-        pub const description =
+        pub const docs_description =
             \\Retuns an asset by name from inside the page's asset directory.
             \\
             \\Assets for a non-section page must be placed under a subdirectory 
@@ -320,7 +320,7 @@ pub const Builtins = struct {
                 .err = "accessing assets of other pages has not been implemented yet, sorry!",
             };
 
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -335,7 +335,7 @@ pub const Builtins = struct {
     };
     pub const site = struct {
         pub const signature: Signature = .{ .ret = .Site };
-        pub const description =
+        pub const docs_description =
             \\Returns the Site that the page belongs to.
         ;
         pub const examples =
@@ -357,7 +357,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .{ .Opt = .Page },
         };
-        pub const description =
+        pub const docs_description =
             \\Returns a reference to a localized variant of the target page.
             \\
         ;
@@ -371,7 +371,7 @@ pub const Builtins = struct {
         ) !Value {
             _ = gpa;
 
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -410,7 +410,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .{ .Opt = .Page },
         };
-        pub const description =
+        pub const docs_description =
             \\Returns a reference to a localized variant of the target page, if
             \\present. Returns null otherwise.
             \\
@@ -426,7 +426,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -462,7 +462,7 @@ pub const Builtins = struct {
 
     pub const locales = struct {
         pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
-        pub const description =
+        pub const docs_description =
             \\Returns the list of localized variants of the current page.
         ;
         pub const examples =
@@ -521,7 +521,7 @@ pub const Builtins = struct {
 
     pub const wordCount = struct {
         pub const signature: Signature = .{ .ret = .Int };
-        pub const description =
+        pub const docs_description =
             \\Returns the word count of the page.
             \\
             \\The count is performed assuming 5-letter words, so it actually
@@ -543,7 +543,7 @@ pub const Builtins = struct {
 
     pub const parentSection = struct {
         pub const signature: Signature = .{ .ret = .Page };
-        pub const description =
+        pub const docs_description =
             \\Returns the parent section of a page. 
             \\
             \\It's always an error to call this function on the site's main 
@@ -573,7 +573,7 @@ pub const Builtins = struct {
 
     pub const isSection = struct {
         pub const signature: Signature = .{ .ret = .Bool };
-        pub const description =
+        pub const docs_description =
             \\Returns true if the current page defines a section (i.e. if 
             \\the current page is an 'index.smd' page).
             \\
@@ -594,7 +594,7 @@ pub const Builtins = struct {
 
     pub const subpages = struct {
         pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
-        pub const description =
+        pub const docs_description =
             \\Returns a list of all the pages in this section. If the page is 
             \\not a section, returns an empty list.
             \\
@@ -618,7 +618,7 @@ pub const Builtins = struct {
 
     pub const subpagesAlphabetic = struct {
         pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
-        pub const description =
+        pub const docs_description =
             \\Same as `subpages`, but returns the pages in alphabetic order by
             \\comparing their titles. 
         ;
@@ -647,7 +647,7 @@ pub const Builtins = struct {
 
     pub const nextPage = struct {
         pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
-        pub const description =
+        pub const docs_description =
             \\Returns the next page in the same section, sorted by date. 
             \\
             \\The returned value is an optional to be used in conjunction 
@@ -676,7 +676,7 @@ pub const Builtins = struct {
     };
     pub const prevPage = struct {
         pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
-        pub const description =
+        pub const docs_description =
             \\Tries to return the page before the target one (sorted by date), to be used with an `if` attribute.
         ;
         pub const examples =
@@ -702,7 +702,7 @@ pub const Builtins = struct {
 
     pub const hasNext = struct {
         pub const signature: Signature = .{ .ret = .Bool };
-        pub const description =
+        pub const docs_description =
             \\Returns true of the target page has another page after (sorted by date) 
         ;
         pub const examples =
@@ -727,7 +727,7 @@ pub const Builtins = struct {
     };
     pub const hasPrev = struct {
         pub const signature: Signature = .{ .ret = .Bool };
-        pub const description =
+        pub const docs_description =
             \\Returns true of the target page has another page before (sorted by date) 
         ;
         pub const examples =
@@ -754,7 +754,7 @@ pub const Builtins = struct {
 
     pub const link = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the URL of the target page.
         ;
         pub const examples =
@@ -788,7 +788,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns the URL of the target page, allowing you 
             \\to specify a fragment id to deep-link to a specific
             \\element of the content page.
@@ -807,7 +807,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -847,7 +847,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Alternative,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns an alternative by name.
         ;
         pub const examples =
@@ -862,7 +862,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -886,7 +886,7 @@ pub const Builtins = struct {
 
     pub const content = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Renders the full Markdown page to HTML
         ;
         pub const examples = "";
@@ -913,7 +913,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Renders the specified [content section]($link.page('docs/supermd/scripty').ref('Section')) of a page.
         ;
         pub const examples =
@@ -925,7 +925,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -968,7 +968,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns true if the page contains a content-section with the given id
         ;
         pub const examples =
@@ -980,7 +980,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument argument",
             };
             if (args.len != 1) return bad_arg;
@@ -1002,7 +1002,7 @@ pub const Builtins = struct {
             .params = &.{},
             .ret = .{ .Many = .ContentSection },
         };
-        pub const description =
+        pub const docs_description =
             \\Returns a list of sections for the current page.
             \\
             \\A page that doesn't define any section will have
@@ -1017,7 +1017,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -1047,7 +1047,7 @@ pub const Builtins = struct {
             .params = &.{},
             .ret = .{ .Opt = .{ .Many = .Footnote } },
         };
-        pub const description =
+        pub const docs_description =
             \\Returns a list of footnotes for the current page, if any exist.
         ;
         pub const examples =
@@ -1067,7 +1067,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -1091,7 +1091,7 @@ pub const Builtins = struct {
 
     pub const toc = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Renders the table of content.
         ;
         pub const examples =
@@ -1102,7 +1102,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -1125,7 +1125,7 @@ pub const ContentSection = struct {
     _ast: supermd.Ast,
 
     pub const dot = scripty.defaultDot(ContentSection, Value, false);
-    pub const description =
+    pub const docs_description =
         \\A content section from a page.
     ;
     pub const Fields = struct {
@@ -1139,7 +1139,7 @@ pub const ContentSection = struct {
     pub const Builtins = struct {
         pub const heading = struct {
             pub const signature: Signature = .{ .ret = .String };
-            pub const description =
+            pub const docs_description =
                 \\If the section starts with a heading element,
                 \\this function returns the heading as simple text.           
             ;
@@ -1151,7 +1151,7 @@ pub const ContentSection = struct {
                 gpa: Allocator,
                 args: []const Value,
             ) !Value {
-                const bad_arg = .{
+                const bad_arg: Value = .{
                     .err = "expected 0 arguments",
                 };
                 if (args.len != 0) return bad_arg;
@@ -1183,7 +1183,7 @@ pub const ContentSection = struct {
         };
         pub const @"heading?" = struct {
             pub const signature: Signature = .{ .ret = .{ .Opt = .String } };
-            pub const description =
+            pub const docs_description =
                 \\If the section starts with a heading element,
                 \\this function returns the heading as simple text.           
             ;
@@ -1195,7 +1195,7 @@ pub const ContentSection = struct {
                 gpa: Allocator,
                 args: []const Value,
             ) !Value {
-                const bad_arg = .{
+                const bad_arg: Value = .{
                     .err = "expected 0 arguments",
                 };
                 if (args.len != 0) return bad_arg;
@@ -1217,7 +1217,7 @@ pub const ContentSection = struct {
         };
         pub const html = struct {
             pub const signature: Signature = .{ .ret = .String };
-            pub const description =
+            pub const docs_description =
                 \\Renders the section.
             ;
             pub const examples =
@@ -1228,7 +1228,7 @@ pub const ContentSection = struct {
                 gpa: Allocator,
                 args: []const Value,
             ) !Value {
-                const bad_arg = .{
+                const bad_arg: Value = .{
                     .err = "expected 0 arguments",
                 };
                 if (args.len != 0) return bad_arg;

@@ -47,7 +47,7 @@ pub fn init(gpa: Allocator, T: type, items: []const T) error{OutOfMemory}!Value 
 // }
 
 pub const dot = scripty.defaultDot(Array, Value, false);
-pub const description = "An array of items.";
+pub const docs_description = "An array of items.";
 pub const Fields = struct {
     pub const len =
         \\The length of the array.
@@ -63,7 +63,7 @@ pub const Builtins = struct {
             .params = &.{ .Int, .{ .Opt = .Int } },
             .ret = .{ .Many = .any },
         };
-        pub const description =
+        pub const docs_description =
             \\Slices an array from the first value (inclusive) to the
             \\second value (exclusive).
             \\
@@ -82,7 +82,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 1 or 2 integer argument(s)" };
+            const bad_arg: Value = .{ .err = "expected 1 or 2 integer argument(s)" };
             if (args.len < 1 or args.len > 2) return bad_arg;
 
             const start = switch (args[0]) {
@@ -135,7 +135,7 @@ pub const Builtins = struct {
             .params = &.{.Int},
             .ret = .any,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns the value at the provided index. 
         ;
         pub const examples =
@@ -146,7 +146,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 1 integer argument" };
+            const bad_arg: Value = .{ .err = "expected 1 integer argument" };
             if (args.len != 1) return bad_arg;
 
             const idx = switch (args[0]) {

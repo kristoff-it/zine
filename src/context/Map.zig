@@ -21,7 +21,7 @@ pub fn dot(map: Map, gpa: Allocator, path: []const u8) Value {
     _ = path;
     return .{ .err = "Map has no fields" };
 }
-pub const description =
+pub const docs_description =
     \\A map that can hold any value, used to represent the `custom` field 
     \\in Page frontmatters or Ziggy / JSON data loaded from assets.
 ;
@@ -31,7 +31,7 @@ pub const Builtins = struct {
             .params = &.{ .String, .String },
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Tries to get a value from a map, returns the second value on failure.
             \\
         ;
@@ -43,7 +43,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 2 string arguments" };
+            const bad_arg: Value = .{ .err = "expected 2 string arguments" };
             if (args.len != 2) return bad_arg;
 
             const path = switch (args[0]) {
@@ -67,7 +67,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .any,
         };
-        pub const description =
+        pub const docs_description =
             \\Tries to get a value from a map, errors out if the value is not present.
             \\
         ;
@@ -79,7 +79,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 1 string argument" };
+            const bad_arg: Value = .{ .err = "expected 1 string argument" };
             if (args.len != 1) return bad_arg;
 
             const path = switch (args[0]) {
@@ -103,7 +103,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .{ .Opt = .any },
         };
-        pub const description =
+        pub const docs_description =
             \\Tries to get a dynamic value, to be used in conjuction with an `if` attribute.
             \\
         ;
@@ -117,7 +117,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "'get?' wants 1 string argument" };
+            const bad_arg: Value = .{ .err = "'get?' wants 1 string argument" };
             if (args.len != 1) return bad_arg;
 
             const path = switch (args[0]) {
@@ -137,7 +137,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns true if the map contains the provided key.
             \\
         ;
@@ -150,7 +150,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) Value {
             _ = gpa;
-            const bad_arg = .{ .err = "'get?' wants 1 string argument" };
+            const bad_arg: Value = .{ .err = "'get?' wants 1 string argument" };
             if (args.len != 1) return bad_arg;
 
             const path = switch (args[0]) {
@@ -167,7 +167,7 @@ pub const Builtins = struct {
             .params = &.{},
             .ret = .{ .Many = .KV },
         };
-        pub const description =
+        pub const docs_description =
             \\Iterates over key-value pairs of a Ziggy map.
         ;
         pub const examples =
@@ -178,7 +178,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 0 arguments" };
+            const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
 
             const kvs = try keyValueArray(gpa, map, null);
@@ -191,7 +191,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .{ .Many = .KV },
         };
-        pub const description =
+        pub const docs_description =
             \\Iterates over key-value pairs of a Ziggy map where the key
             \\matches the given pattern.
         ;
@@ -203,7 +203,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 1 string argument" };
+            const bad_arg: Value = .{ .err = "expected 1 string argument" };
             if (args.len != 1) return bad_arg;
 
             const filter: []const u8 = switch (args[0]) {
@@ -222,7 +222,7 @@ pub const KV = struct {
     value: ziggy.dynamic.Value,
 
     pub const dot = scripty.defaultDot(KV, Value, false);
-    pub const description = "A key-value pair.";
+    pub const docs_description = "A key-value pair.";
     pub const Fields = struct {
         pub const key = "The key string.";
         pub const value = "The corresponding value.";

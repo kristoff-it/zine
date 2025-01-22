@@ -25,7 +25,7 @@ author_email: []const u8 = undefined,
 _tag: ?[]const u8 = null,
 _branch: ?[]const u8 = null,
 
-pub const description =
+pub const docs_description =
     \\Information about the current git repository.
 ;
 
@@ -50,7 +50,7 @@ pub const Fields = struct {
 pub const Builtins = struct {
     pub const tag = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the tag of the current commit.
             \\If the current commit does not have a tag, an error is returned.
         ;
@@ -63,7 +63,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -74,7 +74,7 @@ pub const Builtins = struct {
 
     pub const @"tag?" = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the tag of the current commit.
             \\If the current commit does not have a tag, null is returned.
         ;
@@ -87,7 +87,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -98,7 +98,7 @@ pub const Builtins = struct {
 
     pub const branch = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the branch of the current commit.
             \\If the current commit does not have a branch, an error is returned.
         ;
@@ -111,7 +111,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -122,7 +122,7 @@ pub const Builtins = struct {
 
     pub const @"branch?" = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the branch of the current commit.
             \\If the current commit does not have a branch, null is returned.
         ;
@@ -135,7 +135,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;

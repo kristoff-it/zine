@@ -64,7 +64,7 @@ pub fn fromArray(gpa: Allocator, arr: Array) !*Iterator {
 }
 
 pub const dot = scripty.defaultDot(Iterator, Value, false);
-pub const description = "An iterator.";
+pub const docs_description = "An iterator.";
 pub const Fields = struct {
     pub const it =
         \\The current iteration variable.
@@ -85,7 +85,7 @@ pub const Fields = struct {
 pub const Builtins = struct {
     pub const up = struct {
         pub const signature: Signature = .{ .ret = .Iterator };
-        pub const description =
+        pub const docs_description =
             \\In nested loops, accesses the upper `$loop`
             \\
         ;
@@ -97,7 +97,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 0 arguments" };
+            const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
             return it._superhtml_context.up();
         }

@@ -29,7 +29,7 @@ _meta: struct {
     },
 },
 
-pub const description =
+pub const docs_description =
     \\The global site configuration. The fields come from the call to 
     \\`website` in your `build.zig`.
     \\ 
@@ -52,7 +52,7 @@ pub const Builtins = struct {
         pub const signature: Signature = .{
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\In a multilingual website, returns the locale of the current 
             \\variant as defined in your `build.zig` file. 
         ;
@@ -65,7 +65,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             _ = gpa;
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -82,7 +82,7 @@ pub const Builtins = struct {
         pub const signature: Signature = .{
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\In a multilingual website, returns the locale name of the current 
             \\variant as defined in your `build.zig` file. 
         ;
@@ -95,7 +95,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             _ = gpa;
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -113,7 +113,7 @@ pub const Builtins = struct {
         pub const signature: Signature = .{
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns a link to the homepage of the website.
             \\
             \\Correctly links to a subpath when correct to do so in a  
@@ -127,7 +127,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -147,7 +147,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Asset,
         };
-        pub const description =
+        pub const docs_description =
             \\Retuns an asset by name from inside the assets directory.
         ;
         pub const examples =
@@ -158,7 +158,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -176,7 +176,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Page,
         };
-        pub const description =
+        pub const docs_description =
             \\Finds a page by path.
             \\
             \\Paths are relative to the content directory and should exclude
@@ -198,7 +198,7 @@ pub const Builtins = struct {
         ) !Value {
             _ = gpa;
 
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -223,7 +223,7 @@ pub const Builtins = struct {
             .params = &.{ .String, .{ .Many = .String } },
             .ret = .{ .Many = .Page },
         };
-        pub const description =
+        pub const docs_description =
             \\Same as `page`, but accepts a variable number of page references and 
             \\loops over them in the provided order. All pages must exist.
             \\
@@ -276,7 +276,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Site,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns the Site corresponding to the provided locale code.
             \\
             \\Only available in multilingual websites.
@@ -289,7 +289,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;

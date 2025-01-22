@@ -32,7 +32,7 @@ pub fn initNow() DateTime {
     return .{ ._inst = date };
 }
 
-pub const description =
+pub const docs_description =
     \\A datetime.
 ;
 pub const Builtins = struct {
@@ -41,7 +41,7 @@ pub const Builtins = struct {
             .params = &.{.Date},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Return true if lhs is later than rhs (the argument).
             \\
         ;
@@ -54,7 +54,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             _ = gpa;
-            const argument_error = .{ .err = "'gt' wants one (date) argument" };
+            const argument_error: Value = .{ .err = "'gt' wants one (date) argument" };
             if (args.len != 1) return argument_error;
 
             const rhs = switch (args[0]) {
@@ -70,7 +70,7 @@ pub const Builtins = struct {
             .params = &.{.Date},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Return true if lhs is earlier than rhs (the argument).
             \\
         ;
@@ -83,7 +83,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             _ = gpa;
-            const argument_error = .{ .err = "'lt' wants one (date) argument" };
+            const argument_error: Value = .{ .err = "'lt' wants one (date) argument" };
             if (args.len != 1) return argument_error;
 
             const rhs = switch (args[0]) {
@@ -99,7 +99,7 @@ pub const Builtins = struct {
             .params = &.{.Date},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Return true if lhs is the same instant as the rhs (the argument).
             \\
         ;
@@ -112,7 +112,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) !Value {
             _ = gpa;
-            const argument_error = .{ .err = "'eq' wants one (date) argument" };
+            const argument_error: Value = .{ .err = "'eq' wants one (date) argument" };
             if (args.len != 1) return argument_error;
 
             const rhs = switch (args[0]) {
@@ -128,7 +128,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Formats a datetime according to the specified format string.
             \\
             \\Zine uses Go-style format strings, which are all variations based
@@ -149,7 +149,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const argument_error = .{ .err = "expected 1 string argument" };
+            const argument_error: Value = .{ .err = "expected 1 string argument" };
             if (args.len != 1) return argument_error;
 
             const fmt_string = switch (args[0]) {
@@ -168,7 +168,7 @@ pub const Builtins = struct {
 
     pub const formatHTTP = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Formats a datetime according to the HTTP spec.
             \\
         ;
@@ -180,7 +180,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const argument_error = .{ .err = "'formatHTTP' wants no argument" };
+            const argument_error: Value = .{ .err = "'formatHTTP' wants no argument" };
             if (args.len != 0) return argument_error;
 
             // Fri, 16 Jun 2023 00:00:00 +0000

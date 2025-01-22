@@ -1,7 +1,7 @@
 const Reloader = @This();
 const std = @import("std");
 const builtin = @import("builtin");
-const ws = @import("ws");
+const ws = @import("websocket.zig");
 const AnsiRenderer = @import("AnsiRenderer.zig");
 
 const log = std.log.scoped(.watcher);
@@ -14,7 +14,6 @@ const Watcher = switch (builtin.target.os.tag) {
 };
 
 gpa: std.mem.Allocator,
-ws_server: ws.Server,
 zig_exe: []const u8,
 out_dir_path: []const u8,
 website_step_name: []const u8,
@@ -23,7 +22,7 @@ include_drafts: bool,
 watcher: Watcher,
 
 clients_lock: std.Thread.Mutex = .{},
-clients: std.AutoArrayHashMapUnmanaged(*ws.Conn, void) = .{},
+clients: std.AutoArrayHashMapUnmanaged(*ws.Connection, void) = .{},
 
 pub fn init(
     gpa: std.mem.Allocator,
@@ -34,13 +33,10 @@ pub fn init(
     debug: bool,
     include_drafts: bool,
 ) !Reloader {
-    const ws_server = try ws.Server.init(gpa, .{});
-
     return .{
         .gpa = gpa,
         .zig_exe = zig_exe,
         .out_dir_path = out_dir_path,
-        .ws_server = ws_server,
         .website_step_name = website_step_name,
         .debug = debug,
         .include_drafts = include_drafts,
@@ -129,7 +125,7 @@ pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
             return;
         };
 
-        conn.write(buf.items) catch |err| {
+        conn.writeMessage(buf.items, .text) catch |err| {
             log.debug("error writing to websocket: {s}", .{
                 @errorName(err),
             });
@@ -172,7 +168,7 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
             std.mem.replaceScalar(u8, msg, std.fs.path.sep, '/');
         }
 
-        conn.write(msg) catch |err| {
+        conn.writeMessage(msg, .text) catch |err| {
             log.debug("error writing to websocket: {s}", .{
                 @errorName(err),
             });
@@ -184,57 +180,30 @@ pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void 
     }
 }
 
-pub fn handleWs(self: *Reloader, req: *std.http.Server.Request, h: [20]u8) void {
-    var buf =
-        ("HTTP/1.1 101 Switching Protocols\r\n" ++
-        "Upgrade: websocket\r\n" ++
-        "Connection: upgrade\r\n" ++
-        "Sec-Websocket-Accept: 0000000000000000000000000000\r\n\r\n").*;
+pub fn handleWs(self: *Reloader, req: *std.http.Server.Request) !void {
+    const conn = try self.gpa.create(ws.Connection);
+    conn.* = try .init(req);
 
-    const key_pos = buf.len - 32;
-    _ = std.base64.standard.Encoder.encode(buf[key_pos .. key_pos + 28], h[0..]);
+    {
+        self.clients_lock.lock();
+        defer self.clients_lock.unlock();
+        try self.clients.put(self.gpa, conn, {});
+    }
 
-    const stream = req.server.connection.stream;
-    stream.writeAll(&buf) catch return;
-
-    var conn = self.ws_server.newConn(stream);
-    var context: Handler.Context = .{ .watcher = self };
-    var handler = Handler.init(undefined, &conn, &context) catch return;
-    self.ws_server.handle(Handler, &handler, &conn);
+    // TODO: we currently leak closed connections.
+    //       implementing cleanup correctly requires
+    //       handling correctly different scenarios
+    drainWs(conn);
 }
 
-const Handler = struct {
-    conn: *ws.Conn,
-    context: *Context,
-
-    const Context = struct {
-        watcher: *Reloader,
-    };
-
-    pub fn init(h: ws.Handshake, conn: *ws.Conn, context: *Context) !Handler {
-        _ = h;
-
-        const watcher = context.watcher;
-        watcher.clients_lock.lock();
-        defer watcher.clients_lock.unlock();
-        try watcher.clients.put(context.watcher.gpa, conn, {});
-
-        return Handler{
-            .conn = conn,
-            .context = context,
+fn drainWs(conn: *ws.Connection) void {
+    while (true) {
+        var buf: [4096]u8 = undefined;
+        const msg = conn.readMessage(&buf) catch {
+            conn.close();
+            return;
         };
-    }
 
-    pub fn handle(self: *Handler, message: ws.Message) !void {
-        _ = self;
-        log.debug("ws message: {s}\n", .{message.data});
+        log.debug("ws message: {s}", .{msg});
     }
-
-    pub fn close(self: *Handler) void {
-        log.debug("ws connection was closed\n", .{});
-        const watcher = self.context.watcher;
-        watcher.clients_lock.lock();
-        defer watcher.clients_lock.unlock();
-        _ = watcher.clients.swapRemove(self.conn);
-    }
-};
+}

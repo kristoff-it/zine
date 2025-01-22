@@ -27,12 +27,12 @@ pub const Kind = enum {
     build,
 };
 
-pub const description = "Represents an asset.";
+pub const docs_description = "Represents an asset.";
 pub const dot = scripty.defaultDot(Asset, Value, false);
 pub const Builtins = struct {
     pub const link = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns a link to the asset.
             \\
             \\Calling `link` on an asset will cause it to be installed
@@ -53,7 +53,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{ .err = "expected 0 arguments" };
+            const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
 
             switch (asset._meta.kind) {
@@ -76,7 +76,7 @@ pub const Builtins = struct {
     };
     pub const size = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the size of an asset file in bytes.
         ;
         pub const examples =
@@ -98,7 +98,7 @@ pub const Builtins = struct {
     };
     pub const bytes = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the raw contents of an asset.
         ;
         pub const examples =
@@ -119,7 +119,7 @@ pub const Builtins = struct {
     };
     pub const sriHash = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the Base64-encoded SHA384 hash of an asset, prefixed with `sha384-`, for use with Subresource Integrity.
         ;
         pub const examples =
@@ -152,7 +152,7 @@ pub const Builtins = struct {
 
     pub const ziggy = struct {
         pub const signature: Signature = .{ .ret = .any };
-        pub const description =
+        pub const docs_description =
             \\Tries to parse the asset as a Ziggy document.
         ;
         pub const examples =

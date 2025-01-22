@@ -15,12 +15,12 @@ pub fn init(str: []const u8) Value {
     return .{ .string = .{ .value = str } };
 }
 
-pub const description = "A string.";
+pub const docs_description = "A string.";
 pub const PassByRef = false;
 pub const Builtins = struct {
     pub const len = struct {
         pub const signature: Signature = .{ .ret = .Int };
-        pub const description =
+        pub const docs_description =
             \\Returns the length of a string.
             \\
         ;
@@ -42,7 +42,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns true if the receiver contains the provided string.
             \\
         ;
@@ -54,7 +54,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -73,7 +73,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns true if the receiver ends with the provided string.
             \\
         ;
@@ -85,7 +85,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -106,7 +106,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns true if the receiver equals the provided string.
             \\
         ;
@@ -118,7 +118,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -133,7 +133,7 @@ pub const Builtins = struct {
 
     pub const basename = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns the last component of a path.
         ;
         pub const examples =
@@ -154,7 +154,7 @@ pub const Builtins = struct {
             .params = &.{ .String, .{ .Many = .String } },
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Concatenates strings together (left-to-right).
             \\
         ;
@@ -188,7 +188,7 @@ pub const Builtins = struct {
             .params = &.{ .String, .{ .Many = .String } },
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Concatenates strings together (left-to-right) and
             \\prepends them to the receiver string.
         ;
@@ -227,7 +227,7 @@ pub const Builtins = struct {
             .params = &.{ .String, .{ .Many = .String } },
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Looks for '{}' placeholders in the receiver string and 
             \\replaces them with the provided arguments.
             \\
@@ -277,7 +277,7 @@ pub const Builtins = struct {
             .params = &.{ .String, .{ .Many = .String } },
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Joins URL path segments automatically adding `/` as needed. 
         ;
         pub const examples =
@@ -320,7 +320,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Applies syntax highlighting to a string.
             \\The argument specifies the language name.
             \\
@@ -362,7 +362,7 @@ pub const Builtins = struct {
 
     pub const parseInt = struct {
         pub const signature: Signature = .{ .ret = .Int };
-        pub const description =
+        pub const docs_description =
             \\Parses an integer out of a string
             \\
         ;
@@ -388,7 +388,7 @@ pub const Builtins = struct {
 
     pub const parseDate = struct {
         pub const signature: Signature = .{ .ret = .Date };
-        pub const description =
+        pub const docs_description =
             \\Parses a Date out of a string.
         ;
         pub const examples =
@@ -418,7 +418,7 @@ pub const Builtins = struct {
             .params = &.{ .String, .Int },
             .ret = .String,
         };
-        pub const description =
+        pub const docs_description =
             \\Splits the string using the first string argument as delimiter and then
             \\returns the Nth substring (where N is the second argument).
             \\
@@ -457,7 +457,7 @@ pub const Builtins = struct {
     };
     pub const lower = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Returns a lowercase version of the target string.
             \\
         ;

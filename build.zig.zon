@@ -3,36 +3,28 @@
     .version = "0.0.0",
     .dependencies = .{
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#2260dce98037300d40b74462a7ea92525f5bb900",
-            .hash = "12206a2d7b0eb77aaa02348a06acea6df8b03075071fab668600f8a44ced23182cae",
+            .url = "git+https://github.com/kristoff-it/supermd#23d3b3a190530b1b371b46e65e03d4a0926ed597",
+            .hash = "12207090facf02f7be484ebe4dc29476c14ce4c327445204ecf8764e82f413114feb",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#df8c11380f9e9bec34809f2242fb116d27cf39d6",
-            .hash = "122014e78d7c69d93595993b3231f3141368e22634b332b0b91a2fb73a8570f147a5",
+            .url = "git+https://github.com/kristoff-it/scripty#d1b0b5ba333ee518352ef371ae23ead015fda313",
+            .hash = "12205f32c4752f2521f7e399bd494c202f1abe2731388cc0d947ed29e806813190ee",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#36f37aa5aa440805f27d4a9f5203e616a303c6a1",
-            .hash = "1220dcb13f7d63fdb2d60f528de211e5c6284010a8ca37542b8ef9fe6d77f990cb3d",
-        },
-        .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy#c66f47bc632c66668d61fa06eda112b41d6e5130",
-            .hash = "1220115ff095a3c970cc90fce115294ba67d6fbc4927472dc856abc51e2a1a9364d7",
+            .url = "git+https://github.com/kristoff-it/superhtml#1d4fbe06aa056a5858d3fdcf33e5ec001f44f6ea",
+            .hash = "12209cebe407671a4e35847f439ae50e61f8ad6893fc722e53bad4c9a5859e387bf3",
         },
         .mime = .{
             .url = "git+https://github.com/andrewrk/mime.git#0b676643886b1e2f19cf11b4e15b028768708342",
             .hash = "12209083b0c43d0f68a26a48a7b26ad9f93b22c9cff710c78ddfebb47b89cfb9c7a4",
         },
-        .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig.git#c77f87d0e6548865636eb9781106a8be72e5755a",
-            .hash = "12208720b772330f309cfb48957f4152ee0930b716837d0c1d07fee2dea2f4dc712e",
-        },
         .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit?ref=v0.4.4#5041c7cac243f0d05f4578a334f52e12bb450e55",
-            .hash = "12204b653c90b503f89e2f1a73c4754b83fb7275c100c81872deaca12c9f17e334ec",
+            .url = "git+https://github.com/rockorager/zeit#52b100caa223d5cb1ff0d34f1b677f26e0ce8b84",
+            .hash = "1220e97357cc39f4f9f053c763f3ec1623e0c7f3999f185746f2bd9bf9b5c5551392",
         },
         .@"flow-syntax" = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#9eb5c4c74daecec2a73654628c31b68d9908ec2e",
-            .hash = "122065eda677896d25cefbd042384a5b9236a3a4a3b58857ab66e22ade7777f8623f",
+            .url = "git+https://github.com/neurocyte/flow-syntax?ref=zig-0.14#3711541e089780e4da3bd7294990ba60e5ea50bc",
+            .hash = "12208b28892561181dbc85097fc6a033a442d7816a5012804ed261cd4091a2567b28",
         },
         .@"zig-afl-kit" = .{
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#f003bfe714f2964c90939fdc940d5993190a66ec",
@@ -42,6 +34,14 @@
         .wuffs = .{
             .url = "git+https://github.com/allyourcodebase/wuffs#818c8ad6607dd5c1ee571362fdb9813b744ee548",
             .hash = "1220e4ee09c4fa2d90a9cc7f34f14e04be55a779c84d486696fa9f9ab98ade35409d",
+        },
+        .ziggy = .{
+            .url = "git+https://github.com/kristoff-it/ziggy#3518133e9ebea7c372eff4def368eda8488fad18",
+            .hash = "12209b6577a9c749085c2c5c9c7e4fb24adc9db7ee4a88f126616110667a600279ac",
+        },
+        .ws = .{
+            .url = "git+https://github.com/karlseguin/websocket.zig#c5e133c3a0605507b4dc65474f49a6c3b903b215",
+            .hash = "1220fdc708abc8cd90d7c54aa5eeddfe7893fdd01f8370e783cc1d2bcead448b5e23",
         },
     },
     .paths = .{"."},

@@ -122,7 +122,7 @@ pub const Reference = struct {
                     \\{s}
                     \\
                     \\
-                , .{ f.name, f.type_name.link(false), f.description });
+                , .{ f.name, f.type_name.link(false), f.docs_description });
             }
 
             if (v.builtins.len > 0)
@@ -190,7 +190,7 @@ pub fn analyzeType(T: type) Reference.Type {
     const fields = analyzeFields(T);
     return .{
         .name = Param.fromType(T),
-        .description = T.description,
+        .description = T.docs_description,
         .fields = fields,
         .builtins = builtins,
     };

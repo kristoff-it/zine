@@ -24,7 +24,7 @@ loop: ?*Iterator = null,
 @"if": ?*const Optional = null,
 
 pub const dot = scripty.defaultDot(Template, Value, false);
-pub const description = "";
+pub const docs_description = "";
 pub const Fields = struct {
     pub const site =
         \\The current website. In a multilingual website,

@@ -16,14 +16,14 @@ pub fn init(i: i64) Value {
 }
 
 pub const PassByRef = false;
-pub const description = "A signed 64-bit integer.";
+pub const docs_description = "A signed 64-bit integer.";
 pub const Builtins = struct {
     pub const eq = struct {
         pub const signature: Signature = .{
             .params = &.{.Int},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Tests if two integers have the same value.
             \\
         ;
@@ -35,7 +35,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const argument_error = .{ .err = "'plus' wants one int argument" };
+            const argument_error: Value = .{ .err = "'plus' wants one int argument" };
             if (args.len != 1) return argument_error;
 
             switch (args[0]) {
@@ -49,7 +49,7 @@ pub const Builtins = struct {
             .params = &.{.Int},
             .ret = .Bool,
         };
-        pub const description =
+        pub const docs_description =
             \\Returns true if lhs is greater than rhs (the argument).
             \\
         ;
@@ -61,7 +61,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const argument_error = .{ .err = "'gt' wants one int argument" };
+            const argument_error: Value = .{ .err = "'gt' wants one int argument" };
             if (args.len != 1) return argument_error;
 
             switch (args[0]) {
@@ -76,7 +76,7 @@ pub const Builtins = struct {
             .params = &.{.Int},
             .ret = .Int,
         };
-        pub const description =
+        pub const docs_description =
             \\Sums two integers.
             \\
         ;
@@ -88,7 +88,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const argument_error = .{ .err = "expected 1 int argument" };
+            const argument_error: Value = .{ .err = "expected 1 int argument" };
             if (args.len != 1) return argument_error;
 
             switch (args[0]) {
@@ -103,7 +103,7 @@ pub const Builtins = struct {
             .params = &.{.Int},
             .ret = .Int,
         };
-        pub const description =
+        pub const docs_description =
             \\Divides the receiver by the argument.
             \\
         ;
@@ -115,7 +115,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const argument_error = .{ .err = "'div' wants one (int|float) argument" };
+            const argument_error: Value = .{ .err = "'div' wants one (int|float) argument" };
             if (args.len != 1) return argument_error;
 
             switch (args[0]) {
@@ -134,7 +134,7 @@ pub const Builtins = struct {
 
     pub const byteSize = struct {
         pub const signature: Signature = .{ .ret = .String };
-        pub const description =
+        pub const docs_description =
             \\Turns a raw number of bytes into a human readable string that
             \\appropriately uses Kilo, Mega, Giga, etc.
             \\

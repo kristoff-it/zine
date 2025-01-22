@@ -32,7 +32,7 @@ pub fn init(
     };
 }
 
-pub const description =
+pub const docs_description =
     \\Gives you access to build-time assets and other build related info.
     \\When inside of a git repository it also gives git-related metadata.
 ;
@@ -56,7 +56,7 @@ pub const Builtins = struct {
             .params = &.{.String},
             .ret = .Asset,
         };
-        pub const description =
+        pub const docs_description =
             \\Retuns a build-time asset (i.e. an asset generated through your 'build.zig' file) by name.
         ;
         pub const examples =
@@ -67,7 +67,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
@@ -83,7 +83,7 @@ pub const Builtins = struct {
 
     pub const git = struct {
         pub const signature: Signature = .{ .ret = .Git };
-        pub const description =
+        pub const docs_description =
             \\Returns git-related metadata if you are inside a git repository.
             \\If you are not or the parsing failes, it will return an error.
             \\Packed object are not supported, commit anything to get the metadata.
@@ -96,7 +96,7 @@ pub const Builtins = struct {
             _: Allocator,
             args: []const Value,
         ) Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
@@ -113,7 +113,7 @@ pub const Builtins = struct {
 
     pub const @"git?" = struct {
         pub const signature: Signature = .{ .ret = .Git };
-        pub const description =
+        pub const docs_description =
             \\Returns git-related metadata if you are inside a git repository.
             \\If you are not or the parsing failes, it will return null.
             \\Packed object are not supported, commit anything to get the metadata.
@@ -126,7 +126,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             args: []const Value,
         ) !Value {
-            const bad_arg = .{
+            const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
