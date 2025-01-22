@@ -207,7 +207,7 @@ pub const Fields = struct {
         \\Title of the page, 
         \\as set in the SuperMD frontmatter.
     ;
-    pub const docs_description =
+    pub const description =
         \\Description of the page, 
         \\as set in the SuperMD frontmatter.
     ;

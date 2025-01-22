@@ -122,7 +122,7 @@ pub const Reference = struct {
                     \\{s}
                     \\
                     \\
-                , .{ f.name, f.type_name.link(false), f.docs_description });
+                , .{ f.name, f.type_name.link(false), f.description });
             }
 
             if (v.builtins.len > 0)
@@ -160,7 +160,7 @@ pub const Reference = struct {
 };
 
 pub fn analyzeValues() []const Reference.Type {
-    const info = @typeInfo(context.Value).Union;
+    const info = @typeInfo(context.Value).@"union";
     var values: [info.fields.len]Reference.Type = undefined;
     inline for (info.fields, &values) |f, *v| {
         const t = getStructType(f.type) orelse {
@@ -198,25 +198,25 @@ pub fn analyzeType(T: type) Reference.Type {
 
 fn getStructType(T: type) ?type {
     switch (@typeInfo(T)) {
-        .Struct => return T,
-        .Pointer => |p| switch (p.size) {
-            .One => return getStructType(p.child),
+        .@"struct" => return T,
+        .pointer => |p| switch (p.size) {
+            .one => return getStructType(p.child),
             else => return null,
         },
-        .Optional => |opt| return getStructType(opt.child),
+        .optional => |opt| return getStructType(opt.child),
         else => return null,
     }
 }
 
 fn analyzeBuiltins(T: type) []const Reference.Builtin {
-    const info = @typeInfo(T.Builtins).Struct;
+    const info = @typeInfo(T.Builtins).@"struct";
     var decls: [info.decls.len]Reference.Builtin = undefined;
     inline for (info.decls, &decls) |decl, *b| {
         const t = @field(T.Builtins, decl.name);
         b.* = .{
             .name = decl.name,
             .signature = t.signature,
-            .description = t.description,
+            .description = t.docs_description,
             .examples = t.examples,
         };
     }
@@ -225,7 +225,7 @@ fn analyzeBuiltins(T: type) []const Reference.Builtin {
 }
 
 fn analyzeFields(T: type) []const Reference.Field {
-    const info = @typeInfo(T).Struct;
+    const info = @typeInfo(T).@"struct";
     var reference_fields: [info.fields.len]Reference.Field = undefined;
     var idx: usize = 0;
     for (info.fields) |tf| {

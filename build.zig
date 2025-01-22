@@ -387,7 +387,7 @@ pub fn scriptyReferenceDocs(
             "shtml_scripty_reference.smd",
         );
 
-        const wf = project.addWriteFiles();
+        const wf = project.addUpdateSourceFiles();
         wf.addCopyFileToSource(reference_md, shtml_output_file_path);
 
         run_step.dependOn(&wf.step);
