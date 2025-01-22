@@ -1,0 +1,26 @@
+---
+.title = "Homepage",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "",
+.aliases = [
+   "good.html",
+   "/also/good.html",
+   "bad path 💩",
+],
+.alternatives = [{
+	.name = "good",
+	.output = "also/good/but/not/a/collision.html",
+	.layout = "foo.html",
+},{
+	.name = "",
+	.output = "good/url/though.html"
+	.layout = "foo.html",
+},{
+	.name = "good name but bad url",
+	.output = "",
+	.layout = "foo.html",
+}],
+.draft = false,
+--- 
+Your **SuperMD** content goes here.

@@ -3,6 +3,7 @@ const Template = @This();
 const superhtml = @import("superhtml");
 const scripty = @import("scripty");
 const ziggy = @import("ziggy");
+const ZineBuild = @import("../Build.zig");
 const context = @import("../context.zig");
 const Value = context.Value;
 const Site = context.Site;
@@ -17,6 +18,11 @@ site: *const Site,
 page: *const Page,
 build: Build,
 i18n: Map.ZiggyMap,
+
+_meta: struct {
+    build: *const ZineBuild,
+    variant_id: u32,
+},
 
 // Globals specific to SuperHTML
 ctx: Ctx(Value) = .{},

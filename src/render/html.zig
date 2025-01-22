@@ -316,24 +316,16 @@ pub fn html(
                 },
             },
 
-            else => switch (ev.dir) {
-                .enter => {
-                    const rendered_html = c.cmark_render_html(
-                        node.n,
-                        c.CMARK_OPT_DEFAULT,
-                        ast.md.extensions,
-                    );
-                    try w.writeAll(std.mem.span(rendered_html));
-                    it.exit(node);
-                    // std.debug.panic("TODO: implement support for {x}", .{node.nodeType()});
-                },
-                .exit => {
-
-                    // const html = c.cmark_render_html(node.n, c.CMARK_OPT_DEFAULT, extensions);
-                    // try w.writeAll(std.mem.span(html));
-                    // std.debug.panic("TODO: implement exit for {x}", .{node.nodeType()});
-                },
-            },
+            else => |nt| if (@intFromEnum(nt) == c.CMARK_NODE_STRIKETHROUGH) {
+                std.debug.print("striketrhough\n", .{});
+                switch (ev.dir) {
+                    .enter => try w.writeAll("<del>"),
+                    .exit => try w.writeAll("</del>"),
+                }
+            } else std.debug.panic(
+                "TODO: implement support for {x}",
+                .{node.nodeType()},
+            ),
         }
     }
     if (open_div) {

@@ -1,15 +1,22 @@
 const Page = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const scripty = @import("scripty");
 const supermd = @import("supermd");
 const utils = @import("utils.zig");
+const fatal = @import("../fatal.zig");
 const render = @import("../render.zig");
 const Signature = @import("doctypes.zig").Signature;
 const DateTime = @import("DateTime.zig");
 const context = @import("../context.zig");
+const Build = @import("../Build.zig");
+const Variant = @import("../Variant.zig");
+const PathTable = @import("../PathTable.zig");
+const StringTable = @import("../StringTable.zig");
 const join = @import("../root.zig").join;
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Optional = context.Optional;
@@ -18,8 +25,15 @@ const String = context.String;
 
 const log = std.log.scoped(.page);
 
-var asset_undef: context.AssetExtern = .{};
-var page_undef: context.PageExtern = .{};
+pub const ziggy_options = struct {
+    pub const skip_fields: []const std.meta.FieldEnum(Page) = &.{
+        ._debug,
+        ._scan,
+        ._parse,
+        ._analysis,
+        ._meta,
+    };
+};
 
 title: []const u8,
 description: []const u8 = "",
@@ -33,6 +47,57 @@ alternatives: []const Alternative = &.{},
 skip_subdirs: bool = false,
 translation_key: ?[]const u8 = null,
 custom: ziggy.dynamic.Value = .{ .kv = .{} },
+
+/// Only present in debug builds to catch programming errors
+/// in the processing pipeline.
+_debug: if (builtin.mode != .Debug) void else struct {
+    stage: std.atomic.Value(Stage),
+    pub const Stage = enum(u8) { scanned, parsed, analyzed, rendered };
+} = undefined,
+
+/// Fields populated after scanning a variant.
+_scan: struct {
+    md_path: PathTable.Path,
+    md_name: StringTable.String,
+    page_id: u32,
+    subsection_id: u32, // 0 means no subsection
+    parent_section_id: u32, // 0 means no parent section (only true for root index)
+} = undefined,
+
+/// Fields populated after parsing the page.
+/// All top-level fields are also available if status == success.
+_parse: struct {
+    active: bool,
+    full_src: [:0]const u8,
+    status: union(enum) {
+        /// File is empty
+        empty,
+        /// Frontmatter framing error, 'fm' will contain info
+        frontmatter: ziggy.FrontmatterError,
+        /// Ziggy parsing error. Note that the diagnostic has
+        /// its 'path' field set to null and it's the duty of the
+        /// code that prints errors to reify a path string to
+        /// give to Diagnostic.
+        ziggy: ziggy.Diagnostic,
+
+        /// The frontmatter data is in order and the file was parsed.
+        /// Note that the ast might contain errors still, and after that
+        /// there might be supermd analysis errors.
+        parsed,
+    },
+
+    // Available if status != .empty
+    fm: ziggy.FrontmatterMeta,
+
+    // Available if status == .parsed
+    ast: supermd.Ast,
+} = undefined,
+
+// Valid if parse.status == .ok
+_analysis: struct {
+    frontmatter: std.ArrayListUnmanaged(FrontmatterAnalysisError) = .empty,
+    page: std.ArrayListUnmanaged(PageAnalysisError) = .empty,
+} = .{},
 
 _meta: struct {
     site: *const context.Site = undefined,
@@ -50,34 +115,285 @@ _meta: struct {
     key_variants: []const Translation = &.{},
     src: []const u8 = "",
     ast: ?supermd.Ast = null,
+} = .{},
 
-    const Self = @This();
-    pub const ziggy_options = struct {
-        pub fn stringify(
-            value: Self,
-            opts: ziggy.serializer.StringifyOptions,
-            indent_level: usize,
-            depth: usize,
+pub const PageAnalysisError = struct {
+    node: supermd.Node,
+    kind: union(enum) {
+        resource_kind_mismatch: struct {
+            expected: Variant.ResourceKind,
+            got: Variant.ResourceKind,
+        },
+        unknown_page: struct {
+            ref: []const u8,
+        },
+        unknown_alternative: struct {
+            name: []const u8,
+        },
+        missing_asset: struct {
+            ref: []const u8,
+            kind: enum { site, page, build },
+        },
+        unknown_language: struct {
+            lang: []const u8,
+        },
+        unknown_ref: struct {
+            ref: []const u8,
+        },
+    },
+
+    pub fn title(err: PageAnalysisError) []const u8 {
+        return switch (err.kind) {
+            .resource_kind_mismatch => "wrong resource kind",
+            .unknown_page => "unknown page",
+            .unknown_language => "unknown language code",
+            .unknown_alternative => "unknown alternative",
+            .unknown_ref => "unknown ref",
+            .missing_asset => |ma| switch (ma.kind) {
+                .site => "missing site asset",
+                .page => "missing page asset",
+                .build => "missing build asset",
+            },
+        };
+    }
+};
+
+pub const FrontmatterAnalysisError = union(enum) {
+    layout,
+    alias: u32, // index into aliases
+    alternative: struct {
+        id: u32, // index into alternatives
+        kind: enum {
+            name,
+            path,
+        },
+    },
+
+    pub fn title(err: @This()) []const u8 {
+        return switch (err) {
+            .layout => "missing layout file",
+            .alias => "invalid value in 'aliases'",
+            .alternative => "invalid value in alternatives",
+        };
+    }
+
+    pub fn noteFmt(err: @This(), p: *const Page) Formatter {
+        return .{ .err = err, .p = p };
+    }
+
+    pub fn location(
+        err: @This(),
+        src: []const u8,
+        ast: ziggy.Ast,
+    ) ziggy.Tokenizer.Token.Loc {
+        switch (err) {
+            .layout => {
+                assert(ast.nodes[2].tag == .@"struct" or
+                    ast.nodes[2].tag == .braceless_struct);
+                var current = ast.nodes[3];
+                while (true) : (current = ast.nodes[current.next_id]) {
+                    assert(current.tag == .struct_field);
+
+                    const identifier = ast.nodes[current.first_child_id];
+                    if (std.mem.eql(u8, "layout", identifier.loc.src(src))) {
+                        return ast.nodes[identifier.next_id].loc;
+                    }
+                }
+            },
+            .alias => |a| {
+                assert(ast.nodes[2].tag == .@"struct" or
+                    ast.nodes[2].tag == .braceless_struct);
+                var current = ast.nodes[3];
+                while (true) : (current = ast.nodes[current.next_id]) {
+                    assert(current.tag == .struct_field);
+
+                    const identifier = ast.nodes[current.first_child_id];
+                    if (std.mem.eql(u8, "aliases", identifier.loc.src(src))) {
+                        return ast.nodes[identifier.next_id + a + 1].loc;
+                    }
+                }
+            },
+            .alternative => |alt| {
+                assert(ast.nodes[2].tag == .@"struct" or
+                    ast.nodes[2].tag == .braceless_struct);
+                var current = ast.nodes[3];
+                while (true) : (current = ast.nodes[current.next_id]) {
+                    assert(current.tag == .struct_field);
+
+                    const identifier = ast.nodes[current.first_child_id];
+                    if (std.mem.eql(u8, "alternatives", identifier.loc.src(src))) {
+                        var current_alt = ast.nodes[identifier.next_id + 1];
+                        for (0..alt.id) |_| current_alt = ast.nodes[current_alt.next_id];
+                        const field_name = switch (alt.kind) {
+                            .name => "name",
+                            .path => "output",
+                        };
+
+                        var current_field = ast.nodes[current_alt.first_child_id];
+                        while (true) : (current_field = ast.nodes[current_field.next_id]) {
+                            assert(current.tag == .struct_field);
+
+                            const field_ident = ast.nodes[current_field.first_child_id];
+                            if (std.mem.eql(u8, field_name, field_ident.loc.src(src))) {
+                                return ast.nodes[field_ident.next_id].loc;
+                            }
+                        }
+                    }
+                }
+            },
+        }
+
+        // Failing to find the source location of a reported error is a
+        // programming error.
+        unreachable;
+    }
+
+    const ErrSelf = @This();
+    const Formatter = struct {
+        err: ErrSelf,
+        p: *const Page,
+
+        pub fn format(
+            f: Formatter,
+            comptime _: []const u8,
+            options: std.fmt.FormatOptions,
             writer: anytype,
         ) !void {
-            _ = value;
-            _ = opts;
-            _ = indent_level;
-            _ = depth;
-
-            try writer.writeAll("{}");
-        }
-
-        pub fn parse(
-            p: *ziggy.Parser,
-            first_tok: ziggy.Tokenizer.Token,
-        ) !Self {
-            try p.must(first_tok, .lb);
-            _ = try p.nextMust(.rb);
-            return .{};
+            _ = options;
+            switch (f.err) {
+                .layout => {
+                    try writer.print("'{s}' does not exist in the layouts directory path", .{
+                        f.p.layout,
+                    });
+                },
+                .alias => |idx| {
+                    try writer.print("'{s}' is an invalid output path", .{
+                        f.p.aliases[idx],
+                    });
+                },
+                .alternative => |aerr| {
+                    switch (aerr.kind) {
+                        .name => {
+                            try writer.print(
+                                "empty string is an invalid name (at index {})",
+                                .{aerr.id},
+                            );
+                        },
+                        .path => {
+                            const alt = f.p.alternatives[aerr.id];
+                            try writer.print(
+                                "alternative '{s}' has an invalid output path",
+                                .{alt.name},
+                            );
+                        },
+                    }
+                },
+            }
         }
     };
-} = .{},
+};
+
+pub fn parse(
+    p: *Page,
+    gpa: Allocator,
+    cmark: supermd.Ast.CmarkParser,
+    progress: ?std.Progress.Node,
+    variant: *const @import("../Variant.zig"),
+) void {
+    if (builtin.mode == .Debug) {
+        const last = p._debug.stage.swap(.parsed, .acq_rel);
+        assert(last == .scanned);
+    }
+
+    errdefer |err| switch (err) {
+        error.OutOfMemory => fatal.oom(),
+    };
+
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path_bytes = buf[0..p._scan.md_path.bytesSlice(
+        &variant.string_table,
+        &variant.path_table,
+        &buf,
+        std.fs.path.sep,
+        p._scan.md_name,
+    )];
+
+    const maybe_pr = if (progress) |parent| parent.start(path_bytes, 1) else null;
+    defer if (maybe_pr) |pr| pr.end();
+
+    const max = std.math.maxInt(u32);
+    const full_src = variant.content_dir.readFileAllocOptions(
+        gpa,
+        path_bytes,
+        max,
+        null,
+        1,
+        0,
+    ) catch |err| fatal.file(path_bytes, err);
+
+    if (full_src.len == 0) {
+        p._parse = .{
+            .active = true,
+            .full_src = full_src,
+            .status = .empty,
+            .fm = undefined,
+            .ast = undefined,
+        };
+        return;
+    }
+
+    // Save and then restore _scan on the way out because it will be overridden
+    // with its default value by the ziggy paser.
+    const scan = p._scan;
+    defer p._scan = scan;
+
+    // Noop in non-debug builds
+    const debug = p._debug;
+    defer p._debug = debug;
+
+    var fm: ziggy.FrontmatterMeta = .{};
+    var diag: ziggy.Diagnostic = .{ .path = null };
+    p.* = ziggy.parseLeaky(Page, gpa, full_src, .{
+        .diagnostic = &diag,
+        .frontmatter_meta = &fm,
+    }) catch |err| switch (err) {
+        error.OutOfMemory, error.Overflow => fatal.oom(),
+        error.MissingFrontmatter, error.OpenFrontmatter => |fm_err| {
+            p._parse = .{
+                .active = true,
+                .full_src = full_src,
+                .fm = fm,
+                .status = .{ .frontmatter = fm_err },
+                .ast = undefined,
+            };
+            return;
+        },
+        error.Syntax => {
+            p._parse = .{
+                .active = true,
+                .full_src = full_src,
+                .fm = fm,
+                .status = .{ .ziggy = diag },
+                .ast = undefined,
+            };
+            return;
+        },
+    };
+
+    // Note that a frontmatter validation error does not prevent us from parsing
+    // the SuperMD data correctly, so te do that unconditionally in order to
+    // report more errors at once.
+
+    const ast = try supermd.Ast.init(gpa, full_src[fm.offset..], cmark);
+
+    p._parse = .{
+        .active = true,
+        .full_src = full_src,
+        .fm = fm,
+        .ast = ast,
+        .status = .parsed,
+    };
+}
 
 pub const Translation = struct {
     site: *const context.Site,
@@ -136,6 +452,7 @@ pub const Alternative = struct {
             pub fn call(
                 alt: Alternative,
                 gpa: Allocator,
+                _: *const context.Template,
                 args: []const Value,
             ) !Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -182,6 +499,7 @@ pub const Footnote = struct {
             pub fn call(
                 f: Footnote,
                 gpa: Allocator,
+                _: *const context.Template,
                 args: []const Value,
             ) !Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -284,6 +602,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -316,6 +635,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (!p._meta.is_root) return .{
@@ -346,6 +666,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -369,6 +690,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -426,6 +748,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -473,6 +796,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -535,6 +859,7 @@ pub const Builtins = struct {
         pub fn call(
             self: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -555,21 +880,22 @@ pub const Builtins = struct {
             \\$page.parentSection()
         ;
         pub fn call(
-            self: *const Page,
+            p: *const Page,
             gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            const p = self._meta.parent_section_path orelse return .{
+
+            const section_id = p._scan.parent_section_id;
+            if (section_id == 0) return .{
                 .err = "root index page has no parent path",
             };
-            return context.pageFind(.{
-                .ref = .{
-                    .path = p,
-                    .site = self._meta.site,
-                },
-            });
+
+            const v = ctx._meta.build.variants[ctx._meta.variant_id];
+            const index_id = v.sections.items[section_id].index;
+            return .{ .page = &v.pages.items[index_id] };
         }
     };
 
@@ -586,6 +912,7 @@ pub const Builtins = struct {
         pub fn call(
             self: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -610,11 +937,23 @@ pub const Builtins = struct {
         ;
         pub fn call(
             p: *const Page,
-            _: Allocator,
+            gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return context.pageFind(.{ .subpages = p });
+            const subsection_id = p._scan.subsection_id;
+            if (subsection_id == 0) return context.Array.Empty;
+
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const s = v.sections.items[p._scan.subsection_id];
+
+            const pages = try gpa.alloc(Value, s.pages.items.len);
+            for (pages, s.pages.items) |*sp, pidx| sp.* = .{
+                .page = &v.pages.items[pidx],
+            };
+
+            return context.Array.init(gpa, Value, pages);
         }
     };
 
@@ -632,6 +971,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -664,16 +1004,27 @@ pub const Builtins = struct {
 
         pub fn call(
             p: *const Page,
-            _: Allocator,
+            gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            if (p._meta.index_in_section == null) return .{
-                .err = "unable to do next on a page loaded by scripty, for now",
-            };
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const s = v.sections.items[p._scan.parent_section_id];
+            const self_section_id = std.mem.indexOfScalar(
+                u32,
+                s.pages.items,
+                p._scan.page_id,
+            ).?;
 
-            return context.pageFind(.{ .next = p });
+            if (self_section_id == 0) return context.Optional.Null;
+
+            const next_section_id = self_section_id - 1;
+            return Optional.init(
+                gpa,
+                &v.pages.items[s.pages.items[next_section_id]],
+            );
         }
     };
     pub const @"prevPage?" = struct {
@@ -687,18 +1038,26 @@ pub const Builtins = struct {
 
         pub fn call(
             p: *const Page,
-            _: Allocator,
+            gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const idx = p._meta.index_in_section orelse return .{
-                .err = "unable to do prev on a page loaded by scripty, for now",
-            };
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const s = v.sections.items[p._scan.parent_section_id];
+            const self_section_id = std.mem.indexOfScalar(
+                u32,
+                s.pages.items,
+                p._scan.page_id,
+            ).?;
 
-            if (idx == 0) return .{ .optional = null };
-
-            return context.pageFind(.{ .prev = p });
+            const next_section_id = self_section_id + 1;
+            if (next_section_id >= s.pages.items.len) return context.Optional.Null;
+            return Optional.init(
+                gpa,
+                &v.pages.items[s.pages.items[next_section_id]],
+            );
         }
     };
 
@@ -714,17 +1073,22 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            if (p._meta.index_in_section == null) return .{
-                .err = "unable to do next on a page loaded by scripty, for now",
-            };
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const s = v.sections.items[p._scan.parent_section_id];
+            const self_id = std.mem.indexOfScalar(
+                u32,
+                s.pages.items,
+                p._scan.page_id,
+            ).?;
 
-            const other = try context.pageFind(.{ .next = p });
-            return Bool.init(other.optional != null);
+            if (self_id == 0) return Bool.False;
+            return Bool.True;
         }
     };
     pub const hasPrev = struct {
@@ -738,19 +1102,23 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const idx = p._meta.index_in_section orelse return .{
-                .err = "unable to do prev on a page loaded by scripty, for now",
-            };
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const s = v.sections.items[p._scan.parent_section_id];
+            const self_id = std.mem.indexOfScalar(
+                u32,
+                s.pages.items,
+                p._scan.page_id,
+            ).?;
 
-            if (idx == 0) return Bool.False;
-
-            const other = try context.pageFind(.{ .prev = p });
-            return Bool.init(other.optional != null);
+            const next_id = self_id + 1;
+            if (next_id >= s.pages.items.len) return Bool.False;
+            return Bool.True;
         }
     };
 
@@ -763,25 +1131,26 @@ pub const Builtins = struct {
             \\$page.link()
         ;
         pub fn call(
-            self: *const Page,
+            page: *const Page,
             gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            const p = self._meta.md_rel_path;
-            const path = switch (self._meta.is_section) {
-                true => p[0 .. p.len - "index.smd".len],
-                false => p[0 .. p.len - ".smd".len],
-            };
 
-            const result = try join(gpa, &.{
-                "/",
-                self._meta.site._meta.url_path_prefix,
-                path,
-                "/",
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const index_smd: StringTable.String = @enumFromInt(1);
+
+            const path = try std.fmt.allocPrint(gpa, "/{s}{s}{s}", .{
+                page._scan.md_path.fmt(&v.string_table, &v.path_table, true),
+                if (page._scan.md_name == index_smd)
+                    ""
+                else
+                    std.fs.path.stem(page._scan.md_name.slice(&v.string_table)),
+                if (page._scan.md_name == index_smd) "" else "/",
             });
 
-            return String.init(result);
+            return String.init(path);
         }
     };
 
@@ -807,6 +1176,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -835,7 +1205,7 @@ pub const Builtins = struct {
             const fragment = try std.fmt.allocPrint(gpa, "#{s}", .{elem_id});
             const result = try join(gpa, &.{
                 "/",
-                p._meta.site._meta.url_path_prefix,
+                // p._meta.site._meta.url_path_prefix,
                 path,
                 fragment,
             });
@@ -862,6 +1232,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -895,16 +1266,13 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             var buf = std.ArrayList(u8).init(gpa);
             const ast = p._meta.ast orelse unreachable;
-
-            if (!p._meta.is_root) return .{
-                .err = "only the main page can be rendered for now, sorry!",
-            };
 
             try render.html(gpa, ast, ast.md.root, "", buf.writer());
             return String.init(try buf.toOwnedSlice());
@@ -925,6 +1293,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -977,6 +1346,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -1020,6 +1390,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -1070,6 +1441,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -1105,6 +1477,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -1154,6 +1527,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
+                _: *const context.Template,
                 args: []const Value,
             ) !Value {
                 const bad_arg: Value = .{
@@ -1198,6 +1572,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
+                _: *const context.Template,
                 args: []const Value,
             ) !Value {
                 const bad_arg: Value = .{
@@ -1231,6 +1606,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
+                _: *const context.Template,
                 args: []const Value,
             ) !Value {
                 const bad_arg: Value = .{

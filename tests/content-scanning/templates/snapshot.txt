@@ -1,0 +1,37 @@
+*-----------------------------------------------*
+|    WARNING: THIS IS A DEBUG BUILD OF ZINE     |
+|-----------------------------------------------|
+| Debug builds enable expensive sanity checks   |
+| that reduce performance.                      |
+|                                               |
+| To create a release build, run:               |
+|                                               |
+|           zig build --release=fast            |
+|                                               |
+| If you're investigating a bug in Zine, then a |
+| debug build might turn confusing behavior     |
+| into a crash.                                 |
+|                                               |
+| To disable all forms of concurrency, you can  |
+| add the following flag to your build command: |
+|                                               |
+|             --single-threaded                 |
+|                                               |
+*-----------------------------------------------*
+
+WARNING: found plain HTML file layouts/oops.html, did you mean to give it a shtml extension?
+another.smd:5:11: error: missing layout file
+|    .layout = "doesntexist-layout.shtml",
+|              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+layouts/badhtml.shtml:1:4: erroneous_end_tag
+layouts/badextend.shtml: error: extending a template that doesn't exist 
+   template 'doesntexist-template.shtml' does not exist
+layouts/badshtml.shtml:0:1: extend_without_template_attr
+layouts/badshtml.shtml:2:3: super_parent_element_missing_id
+layouts/badshtml.shtml:8:3: unexpected_extend
+layouts/badshtml.shtml:10:1: top_level_super
+layouts/badshtml.shtml:6:4: super_under_branching
+
+
+ ----- EXIT CODE: 1 -----

@@ -33,6 +33,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const argument_error: Value = .{ .err = "'plus' wants one int argument" };
@@ -59,6 +60,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const argument_error: Value = .{ .err = "'gt' wants one int argument" };
@@ -86,6 +88,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const argument_error: Value = .{ .err = "expected 1 int argument" };
@@ -113,6 +116,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const argument_error: Value = .{ .err = "'div' wants one (int|float) argument" };
@@ -145,6 +149,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };

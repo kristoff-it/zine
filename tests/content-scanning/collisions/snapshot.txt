@@ -1,0 +1,35 @@
+index.html: error: output url collision detected
+   between  index.smd (main output)
+   and      index.smd (page alias)
+
+foo/bar/baz.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      page.smd (page alias)
+
+foo/bar.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      page.smd (page alias)
+
+README.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      page.smd (page alias)
+
+nested/path/page/index.html: error: output url collision detected
+   between  page.smd (page alias)
+   and      nested/path/page.smd (main output)
+
+another_index.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      nested/path/page.smd (page alias)
+
+nested/path/page/README.html: error: output url collision detected
+   between  index.smd (page alternative 'readme')
+   and      nested/path/page.smd (page alternative 'readme')
+
+page/index.html: error: output url collision detected
+   between  page.smd (main output)
+   and      page/index.smd (main output)
+
+
+
+ ----- EXIT CODE: 1 -----

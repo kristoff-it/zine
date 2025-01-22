@@ -1,0 +1,2 @@
+<extend template="doesntexist-template.shtml">
+<div id="foo"></div>

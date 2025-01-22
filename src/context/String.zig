@@ -30,6 +30,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -52,6 +53,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -83,6 +85,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -116,6 +119,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -142,6 +146,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -164,6 +169,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
@@ -198,6 +204,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -238,6 +245,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len == 0) return .{ .err = "expected 1 or more argument(s)" };
@@ -287,6 +295,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len == 0) return .{ .err = "'path' wants at least one argument" };
@@ -335,6 +344,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 1) return .{ .err = "'syntaxHighlight' wants one argument" };
@@ -372,6 +382,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -397,6 +408,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -431,6 +443,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 2) return .{ .err = "expected 2 (string, int) arguments" };
@@ -467,6 +480,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };

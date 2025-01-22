@@ -1,0 +1,59 @@
+---
+.title = "Homepage",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.alternatives = [{
+	.name = "correct-alt",
+	.output = "arst.html",
+	.layout = "index.shtml",
+}],
+.draft = false,
+--- 
+
+# [Ok Ref]($heading.id('okref')) // correct
+
+# Wrong asset
+[]($image.siteAsset('doesntexist.jpg')) //wrong
+
+# Self page, correct alternative
+[]($link.alternative('correct-alt')) //correct
+
+# Self page, wrong alternative
+[]($link.alternative('doesntexist-alternative')) //wrong
+
+# Self page, correct ref
+[]($link.ref('okref')) //correct
+
+# Correct page
+[]($link.page('/other'))  //correct
+
+# Correct page
+[]($link.page('other')) //correct
+
+# Wrong page (the dot makes it wrong)
+[]($link.page('./other')) //wrong
+
+# Correct page
+[]($link.sub('other')) //correct
+
+# Wrong page
+[]($link.page('doesntexist')) //wrong
+
+# Correct page, wrong alternative
+[]($link.page('other').alternative('doesntexist')) // wrong
+
+# Markdown syntax
+![](/bad.jpg) //wrong
+![](./bad.jpg) //wrong
+![](bad.jpg) // wrong
+![](/skater.webp) // correct
+![](skater.webp) // correct
+
+
+
+
+
+
+
+

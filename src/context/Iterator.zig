@@ -95,6 +95,7 @@ pub const Builtins = struct {
         pub fn call(
             it: *Iterator,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };

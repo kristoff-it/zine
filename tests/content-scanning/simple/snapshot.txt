@@ -1,0 +1,63 @@
+*-----------------------------------------------*
+|    WARNING: THIS IS A DEBUG BUILD OF ZINE     |
+|-----------------------------------------------|
+| Debug builds enable expensive sanity checks   |
+| that reduce performance.                      |
+|                                               |
+| To create a release build, run:               |
+|                                               |
+|           zig build --release=fast            |
+|                                               |
+| If you're investigating a bug in Zine, then a |
+| debug build might turn confusing behavior     |
+| into a crash.                                 |
+|                                               |
+| To disable all forms of concurrency, you can  |
+| add the following flag to your build command: |
+|                                               |
+|             --single-threaded                 |
+|                                               |
+*-----------------------------------------------*
+
+----------------------------
+       -- VARIANT --
+----------------------------
+.id = 0,
+.content_dir_path = content
+
+  ------- SECTION -------
+.index = 1,
+.section_path = ,
+.pages = [ 
+   sections.smd
+   archive/index.smd #2
+],
+
+
+  ------- SECTION -------
+.index = 2,
+.section_path = archive/,
+.pages = [ 
+   archive/2025/index.smd #4
+   archive/2024/index.smd #3
+],
+
+
+  ------- SECTION -------
+.index = 3,
+.section_path = archive/2024/,
+.pages = [ 
+   archive/2024/first.smd
+],
+
+
+  ------- SECTION -------
+.index = 4,
+.section_path = archive/2025/,
+.pages = [ 
+   archive/2025/second.smd
+],
+
+
+
+ ----- EXIT CODE: 0 -----
