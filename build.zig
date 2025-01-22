@@ -312,8 +312,7 @@ pub fn addDevelopmentServer(
         .scope = zine_opts.scopes,
     });
 
-
-    const output_path = std.fs.path.join(b.allocator, &.{b.install_path, server_opts.output_path_prefix}) catch |err| {
+    const output_path = std.fs.path.join(b.allocator, &.{ b.install_path, server_opts.output_path_prefix }) catch |err| {
         std.debug.print("Error joining install path and output_path_prefix: {s}\n\n", .{@errorName(err)});
         std.process.exit(1);
     };
@@ -402,7 +401,7 @@ pub fn scriptyReferenceDocs(
             "smd_scripty_reference.smd",
         );
 
-        const wf = project.addWriteFiles();
+        const wf = project.addUpdateSourceFiles();
         wf.addCopyFileToSource(reference_md, smd_output_file_path);
 
         run_step.dependOn(&wf.step);
