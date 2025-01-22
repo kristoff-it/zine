@@ -1,0 +1,19 @@
+---
+.title = "foo",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "page.shtml",
+.aliases = [
+	"/another_index.html",
+	// None of these aliases should collide because they're all relative:
+	"foo/bar/baz.html",
+	"foo/bar.html",
+],
+.alternatives = [{
+	.name = "readme",
+	.output = "README.html",
+	.layout = "",
+}],
+.draft = false,
+--- 
+

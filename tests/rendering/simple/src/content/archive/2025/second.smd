@@ -1,0 +1,8 @@
+---
+.title = "Second post (2025)",
+.date = @date("2024-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "archive-entry.shtml",
+.draft = false,
+--- 
+dolor something something

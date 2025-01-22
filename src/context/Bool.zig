@@ -42,6 +42,7 @@ pub const Builtins = struct {
         pub fn call(
             b: Bool,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len < 1 or args.len > 2) return .{
@@ -68,6 +69,7 @@ pub const Builtins = struct {
         pub fn call(
             b: Bool,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -90,6 +92,7 @@ pub const Builtins = struct {
         pub fn call(
             b: Bool,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len == 0) return .{ .err = "expected 1 or more boolean argument(s)" };
@@ -118,6 +121,7 @@ pub const Builtins = struct {
         pub fn call(
             b: Bool,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len == 0) return .{ .err = "'or' wants at least one argument" };

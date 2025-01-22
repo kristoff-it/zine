@@ -51,6 +51,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -80,6 +81,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -109,6 +111,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -147,6 +150,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const argument_error: Value = .{ .err = "expected 1 string argument" };
@@ -178,6 +182,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const argument_error: Value = .{ .err = "'formatHTTP' wants no argument" };

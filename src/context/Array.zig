@@ -19,6 +19,14 @@ len: usize,
 empty: bool,
 _items: []const Value,
 
+pub const Empty: Value = .{
+    .array = .{
+        .len = 0,
+        .empty = true,
+        ._items = &.{},
+    },
+};
+
 pub fn init(gpa: Allocator, T: type, items: []const T) error{OutOfMemory}!Value {
     if (T == Value) return .{
         .array = .{
@@ -80,6 +88,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 1 or 2 integer argument(s)" };
@@ -144,6 +153,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 1 integer argument" };
@@ -182,6 +192,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
@@ -207,6 +218,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };

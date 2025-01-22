@@ -1,5 +1,8 @@
 pub const context = @import("context.zig");
 pub const highlight = @import("highlight.zig");
+pub const StringTable = @import("StringTable.zig");
+pub const PathTable = @import("PathTable.zig");
+pub const fatal = @import("fatal.zig");
 
 const std = @import("std");
 

@@ -1,0 +1,4 @@
+<extend template="withmenu.shtml">
+<body id="body">
+  <h1>Hello World!</h1>
+</body>

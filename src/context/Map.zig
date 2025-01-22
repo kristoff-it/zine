@@ -41,6 +41,7 @@ pub const Builtins = struct {
         pub fn call(
             map: Map,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 2 string arguments" };
@@ -77,6 +78,7 @@ pub const Builtins = struct {
         pub fn call(
             map: Map,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 1 string argument" };
@@ -115,6 +117,7 @@ pub const Builtins = struct {
         pub fn call(
             map: Map,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "'get?' wants 1 string argument" };
@@ -147,6 +150,7 @@ pub const Builtins = struct {
         pub fn call(
             map: Map,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) Value {
             _ = gpa;
@@ -176,6 +180,7 @@ pub const Builtins = struct {
         pub fn call(
             map: Map,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
@@ -201,6 +206,7 @@ pub const Builtins = struct {
         pub fn call(
             map: Map,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 1 string argument" };

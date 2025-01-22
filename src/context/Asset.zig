@@ -5,11 +5,12 @@ const _ziggy = @import("ziggy");
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
-const log = utils.log;
+const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Int = context.Int;
+const log = utils.log;
 
 _meta: struct {
     ref: []const u8,
@@ -27,6 +28,18 @@ pub const Kind = enum {
     build,
 };
 
+pub fn init(ref: []const u8, path: []const u8, kind: context.AssetKindUnion) Value {
+    return .{
+        .asset = .{
+            ._meta = .{
+                .ref = ref,
+                .path = path,
+                .kind = kind,
+            },
+        },
+    };
+}
+
 pub const docs_description = "Represents an asset.";
 pub const dot = scripty.defaultDot(Asset, Value, false);
 pub const Builtins = struct {
@@ -38,8 +51,8 @@ pub const Builtins = struct {
             \\Calling `link` on an asset will cause it to be installed
             \\under the same relative path into the output directory.
             \\
-            \\    `content/post/bar.jpg` -> `zig-out/post/bar.jpg`
-            \\  `assets/foo/bar/baz.jpg` -> `zig-out/foo/bar/baz.jpg`
+            \\    `content/post/bar.jpg` -> `public/post/bar.jpg`
+            \\  `assets/foo/bar/baz.jpg` -> `public/foo/bar/baz.jpg`
             \\
             \\Build assets will be installed under the path defined in
             \\your `build.zig`.
@@ -51,6 +64,7 @@ pub const Builtins = struct {
         pub fn call(
             asset: Asset,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
@@ -65,12 +79,7 @@ pub const Builtins = struct {
                 },
             }
 
-            const url = try context.assetCollect(
-                asset._meta.ref,
-                asset._meta.path,
-                asset._meta.kind,
-            );
-
+            const url = try join(gpa, &.{ "/", asset._meta.path });
             return Value.from(gpa, url);
         }
     };
@@ -85,6 +94,7 @@ pub const Builtins = struct {
         pub fn call(
             self: Asset,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -107,6 +117,7 @@ pub const Builtins = struct {
         pub fn call(
             self: Asset,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -128,6 +139,7 @@ pub const Builtins = struct {
         pub fn call(
             self: Asset,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -161,6 +173,7 @@ pub const Builtins = struct {
         pub fn call(
             self: Asset,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };

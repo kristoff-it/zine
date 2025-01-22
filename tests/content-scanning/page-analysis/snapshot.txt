@@ -1,0 +1,56 @@
+*-----------------------------------------------*
+|    WARNING: THIS IS A DEBUG BUILD OF ZINE     |
+|-----------------------------------------------|
+| Debug builds enable expensive sanity checks   |
+| that reduce performance.                      |
+|                                               |
+| To create a release build, run:               |
+|                                               |
+|           zig build --release=fast            |
+|                                               |
+| If you're investigating a bug in Zine, then a |
+| debug build might turn confusing behavior     |
+| into a crash.                                 |
+|                                               |
+| To disable all forms of concurrency, you can  |
+| add the following flag to your build command: |
+|                                               |
+|             --single-threaded                 |
+|                                               |
+*-----------------------------------------------*
+
+index.smd:5:1: error: missing site asset
+|    []($image.siteAsset('doesntexist.jpg')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+index.smd:11:1: error: unknown alternative
+|    []($link.alternative('doesntexist-alternative')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+index.smd:23:1: error: unknown page
+|    []($link.page('./other')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+index.smd:29:1: error: unknown page
+|    []($link.page('doesntexist')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+index.smd:32:1: error: unknown alternative
+|    []($link.page('other').alternative('doesntexist')) // wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+index.smd:35:1: error: missing site asset
+|    ![](/bad.jpg) //wrong
+|    ^^^^^^^^^^^^
+
+index.smd:36:1: error: missing page asset
+|    ![](./bad.jpg) //wrong
+|    ^^^^^^^^^^^^^
+
+index.smd:37:1: error: missing page asset
+|    ![](bad.jpg) // wrong
+|    ^^^^^^^^^^^
+
+
+
+ ----- EXIT CODE: 1 -----

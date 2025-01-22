@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title :text="$site.title"></title>
+  </head>
+  <body>
+    <h1 :text="$page.title"></h1>
+    <div :loop="$page.subpages()">
+      <h2>
+        <a href="$loop.it.link()" :html="$loop.it.title">
+        </a>
+      </h2>
+      <div :loop="$loop.it.subpages()">
+        <h3>
+          <a href="$loop.it.link()" :html="$loop.it.title">
+          </a>
+        </h3>
+      </div>
+    </div>
+  </body>
+</html>

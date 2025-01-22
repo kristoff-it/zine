@@ -1,0 +1,6 @@
+<extend template="base.shtml">
+<html id="html">
+  <body id="body">
+    <super>
+  </body>
+</html>

@@ -220,7 +220,7 @@ pub const Value = union(enum) {
         };
     }
 
-    pub const call = scripty.defaultCall(Value);
+    pub const call = scripty.defaultCall(Value, Template);
     pub fn dot(
         self: *Value,
         gpa: Allocator,

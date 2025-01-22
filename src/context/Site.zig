@@ -1,12 +1,12 @@
 const Site = @This();
 
 const std = @import("std");
-const Allocator = std.mem.Allocator;
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
 const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
+const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Bool = context.Bool;
 const String = context.String;
@@ -17,9 +17,6 @@ const log = std.log.scoped(.scripty);
 host_url: []const u8,
 title: []const u8,
 _meta: struct {
-    url_path_prefix: []const u8,
-    output_path_prefix: []const u8,
-    content_dir_path: []const u8,
     kind: union(enum) {
         simple,
         multi: struct {
@@ -62,6 +59,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Site,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -92,6 +90,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Site,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -123,10 +122,12 @@ pub const Builtins = struct {
             \\<a href="$site.link()" :text="$site.title"></a>
         ;
         pub fn call(
-            p: *const Site,
+            s: *const Site,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
+            _ = s;
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
@@ -134,7 +135,7 @@ pub const Builtins = struct {
 
             const url = join(gpa, &.{
                 "/",
-                p._meta.url_path_prefix,
+                // p._meta.url_path_prefix,
                 "/",
             }) catch @panic("oom");
 
@@ -156,6 +157,7 @@ pub const Builtins = struct {
         pub fn call(
             _: *const Site,
             _: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -168,7 +170,15 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            return context.assetFind(ref, .site);
+            return .{
+                .asset = .{
+                    ._meta = .{
+                        .ref = ref,
+                        .path = ref,
+                        .kind = .site,
+                    },
+                },
+            };
         }
     };
     pub const page = struct {
@@ -194,6 +204,7 @@ pub const Builtins = struct {
         pub fn call(
             site: *const Site,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -235,6 +246,7 @@ pub const Builtins = struct {
         pub fn call(
             site: *const Site,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len == 0) return .{
@@ -287,6 +299,7 @@ pub const Builtins = struct {
         pub fn call(
             _: *const Site,
             gpa: Allocator,
+            _: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{

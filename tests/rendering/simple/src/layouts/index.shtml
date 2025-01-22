@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title :text="$site.title"></title>
+  </head>
+  <body>
+    <h1 :text="$page.title"></h1>
+    <div :html="$page.content()"></div>
+  </body>
+</html>

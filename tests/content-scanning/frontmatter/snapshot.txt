@@ -1,0 +1,50 @@
+*-----------------------------------------------*
+|    WARNING: THIS IS A DEBUG BUILD OF ZINE     |
+|-----------------------------------------------|
+| Debug builds enable expensive sanity checks   |
+| that reduce performance.                      |
+|                                               |
+| To create a release build, run:               |
+|                                               |
+|           zig build --release=fast            |
+|                                               |
+| If you're investigating a bug in Zine, then a |
+| debug build might turn confusing behavior     |
+| into a crash.                                 |
+|                                               |
+| To disable all forms of concurrency, you can  |
+| add the following flag to your build command: |
+|                                               |
+|             --single-threaded                 |
+|                                               |
+*-----------------------------------------------*
+
+wrong-syntax.smd:18:2:
+    .layout = "foo.html",
+     ^
+unexpected '.', expected: ',' or '}'
+
+
+index.smd:5:11: error: missing layout file
+|    .layout = "",
+|              ^^
+
+validation-errors.smd:5:11: error: missing layout file
+|    .layout = "",
+|              ^^
+
+validation-errors.smd:9:4: error: invalid value in 'aliases'
+|    "bad path 💩",
+|    ^^^^^^^^^^^^^^^
+
+validation-errors.smd:16:10: error: invalid value in alternatives
+|    .name = "",
+|            ^^
+
+validation-errors.smd:21:12: error: invalid value in alternatives
+|    .output = "",
+|              ^^
+
+
+
+ ----- EXIT CODE: 1 -----

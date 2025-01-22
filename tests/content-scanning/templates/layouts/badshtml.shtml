@@ -1,0 +1,11 @@
+<extend>
+<html>
+  <div :if="$arst">
+    <super>
+  </div>
+  <div id="foo" :if="$arst">
+    <super>
+  </div>
+  <extend template="banana">
+</html>
+<super>

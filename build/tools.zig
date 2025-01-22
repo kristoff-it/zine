@@ -5,7 +5,9 @@ const content = @import("content.zig");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{
+        // .preferred_optimize_mode = .ReleaseFast,
+    });
 
     const scopes: []const []const u8 = b.option(
         []const []const u8,
@@ -31,24 +33,6 @@ pub fn build(b: *std.Build) !void {
         break :blk options.createModule();
     };
 
-    const index_assets = b.addExecutable(.{
-        .name = "index-assets",
-        .root_source_file = b.path("src/exes/index-assets.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    index_assets.root_module.addImport("options", options);
-    b.installArtifact(index_assets);
-
-    const update_assets = b.addExecutable(.{
-        .name = "update-assets",
-        .root_source_file = b.path("src/exes/update-assets.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    update_assets.root_module.addImport("options", options);
-    b.installArtifact(update_assets);
-
     // "BDFL version resolution" strategy
     const scripty = b.dependency("scripty", .{}).module("scripty");
 
@@ -65,57 +49,31 @@ pub fn build(b: *std.Build) !void {
     const syntax = b.dependency("flow_syntax", mode);
     const ts = syntax.builder.dependency("tree_sitter", mode);
     const treez = ts.module("treez");
-    const wuffs = b.dependency("wuffs", mode);
+    // const wuffs = b.dependency("wuffs", mode);
 
-    const zine = b.addModule("zine", .{
-        .root_source_file = b.path("src/root.zig"),
-    });
-    zine.addImport("ziggy", ziggy);
-    zine.addImport("scripty", scripty);
-    zine.addImport("supermd", supermd);
-    zine.addImport("superhtml", superhtml);
-    zine.addImport("zeit", zeit);
-    zine.addImport("syntax", syntax.module("syntax"));
-    zine.addImport("treez", treez);
+    // const zine = b.addModule("zine", .{
+    //     .root_source_file = b.path("src/main.zig"),
+    // });
+    // zine.addImport("ziggy", ziggy);
+    // zine.addImport("scripty", scripty);
+    // zine.addImport("supermd", supermd);
+    // zine.addImport("superhtml", superhtml);
+    // zine.addImport("zeit", zeit);
+    // zine.addImport("syntax", syntax.module("syntax"));
+    // zine.addImport("treez", treez);
 
     setupServer(b, options, target, optimize);
 
-    const layout = b.addExecutable(.{
-        .name = "layout",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/exes/layout.zig"),
-            .target = target,
-            .optimize = optimize,
-            // .strip = true,
-            // Workaround for https://github.com/ziglang/zig/issues/23052
-            .sanitize_c = true,
-        }),
-    });
-
-    layout.root_module.addImport("options", options);
-    layout.root_module.addImport("zine", zine);
-    layout.root_module.addImport("ziggy", ziggy);
-    layout.root_module.addImport("scripty", scripty);
-    layout.root_module.addImport("supermd", supermd);
-    layout.root_module.addImport("superhtml", superhtml);
-    layout.root_module.addImport("zeit", zeit);
-    layout.root_module.addImport("syntax", syntax.module("syntax"));
-    layout.root_module.addImport("treez", treez);
-    layout.root_module.addImport("wuffs", wuffs.module("wuffs"));
-    layout.linkLibrary(ts.artifact("tree-sitter"));
-
-    b.installArtifact(layout);
-
-    const shtml_docgen = b.addExecutable(.{
-        .name = "shtml_docgen",
-        .root_source_file = b.path("src/exes/docgen.zig"),
-        .target = target,
-        .optimize = .Debug,
-    });
-    shtml_docgen.root_module.addImport("zine", zine);
-    shtml_docgen.root_module.addImport("zeit", zeit);
-    shtml_docgen.root_module.addImport("ziggy", ziggy);
-    b.installArtifact(shtml_docgen);
+    // const shtml_docgen = b.addExecutable(.{
+    //     .name = "shtml_docgen",
+    //     .root_source_file = b.path("src/exes/docgen.zig"),
+    //     .target = target,
+    //     .optimize = .Debug,
+    // });
+    // shtml_docgen.root_module.addImport("zine", zine);
+    // shtml_docgen.root_module.addImport("zeit", zeit);
+    // shtml_docgen.root_module.addImport("ziggy", ziggy);
+    // b.installArtifact(shtml_docgen);
 
     if (b.option(
         bool,
@@ -125,11 +83,55 @@ pub fn build(b: *std.Build) !void {
         setupFuzzing(b, target, optimize);
     }
 
-    try setupSnapshotTesting(b, scopes);
+    // setup the Zine standalone executable
+    const zine_exe = b.addExecutable(.{
+        .name = "zine",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .single_threaded = b.option(
+            bool,
+            "single-threaded",
+            "build Zine in single-threaded mode",
+        ) orelse false,
+    });
+
+    // zine_exe.root_module.addImport("zine", zine);
+    zine_exe.root_module.addImport("ziggy", ziggy);
+    zine_exe.root_module.addImport("scripty", scripty);
+    zine_exe.root_module.addImport("supermd", supermd);
+    zine_exe.root_module.addImport("superhtml", superhtml);
+    zine_exe.root_module.addImport("zeit", zeit);
+    zine_exe.root_module.addImport("syntax", syntax.module("syntax"));
+    zine_exe.root_module.addImport("treez", treez);
+    zine_exe.root_module.addImport("options", options);
+
+    const check = b.step("check", "check the standalone zine executable");
+    check.dependOn(&zine_exe.step);
+    b.installArtifact(zine_exe);
+
+    const run_step = b.step("run", "run the standalone zine executable");
+    const zine_run = b.addRunArtifact(zine_exe);
+    zine_run.setCwd(b.path("standalone-test"));
+    if (b.args) |args| zine_run.addArgs(args);
+    run_step.dependOn(&zine_run.step);
+
+    try setupSnapshotTesting(b, target, zine_exe);
 }
 
-fn setupSnapshotTesting(b: *std.Build, scopes: []const []const u8) !void {
-    const test_step = b.step("test", "builds test websites under test/ and compares with golden snapshot");
+fn setupSnapshotTesting(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    zine_exe: *std.Build.Step.Compile,
+) !void {
+    const test_step = b.step("test", "build snapshot tests and diff the results");
+
+    const camera = b.addExecutable(.{
+        .name = "camera",
+        .root_source_file = b.path("build/camera.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
 
     const diff = b.addSystemCommand(&.{
         "git",
@@ -137,48 +139,77 @@ fn setupSnapshotTesting(b: *std.Build, scopes: []const []const u8) !void {
         "--cached",
         "--exit-code",
     });
-
     diff.addDirectoryArg(b.path("tests/"));
-
+    diff.setName("git diff tests/");
     test_step.dependOn(&diff.step);
 
     // We need to stage all of tests/ in order for untracked files to show up in
     // the diff. It's also not a bad automatism since it avoids the problem of
     // forgetting to stage new snapshot files.
-    const git_add = b.addSystemCommand(&.{ "git", "add", "tests/" });
-
+    const git_add = b.addSystemCommand(&.{ "git", "add" });
+    git_add.addDirectoryArg(b.path("tests/"));
+    git_add.setName("git add tests/");
     diff.step.dependOn(&git_add.step);
 
-    const tests_dir = try b.build_root.handle.openDir("tests/", .{
-        .iterate = true,
-    });
-
-    var it = tests_dir.iterateAssumeFirstIteration();
-    while (try it.next()) |entry| {
-        if (entry.kind != .directory) continue;
-        if (entry.name[0] == '.') continue;
-
-        const build_site = b.addSystemCommand(&.{
-            b.graph.zig_exe,
-            "build",
-            "-Ddebug",
-            "-p",
-            "../snapshot",
+    // content scanning
+    {
+        const tests_dir = try b.build_root.handle.openDir("tests/content-scanning", .{
+            .iterate = true,
         });
 
-        build_site.addArgs(scopes);
+        var it = tests_dir.iterateAssumeFirstIteration();
+        while (try it.next()) |entry| {
+            if (entry.kind != .directory) continue;
+            if (entry.name[0] == '.') continue;
 
-        build_site.setEnvironmentVariable("ZIG_LOCAL_CACHE_DIR", b.pathJoin(
-            &.{ b.build_root.path.?, ".zig-cache" },
-        ));
+            const path = b.pathJoin(&.{
+                "tests/content-scanning",
+                entry.name,
+            });
 
-        build_site.setCwd(b.path(b.pathJoin(&.{
-            "tests/",
-            entry.name,
-            "src",
-        })));
+            const run_camera = b.addRunArtifact(camera);
+            run_camera.addArtifactArg(zine_exe);
+            run_camera.addArg("tree");
+            run_camera.setCwd(b.path(path));
+            run_camera.has_side_effects = true;
 
-        git_add.step.dependOn(&build_site.step);
+            const out = run_camera.captureStdErr();
+
+            const update_snap = b.addUpdateSourceFiles();
+            update_snap.addCopyFileToSource(out, b.pathJoin(&.{ path, "snapshot.txt" }));
+
+            update_snap.step.dependOn(&run_camera.step);
+            git_add.step.dependOn(&update_snap.step);
+        }
+    }
+
+    // rendering
+    {
+        const tests_dir = try b.build_root.handle.openDir("tests/rendering", .{
+            .iterate = true,
+        });
+
+        var it = tests_dir.iterateAssumeFirstIteration();
+        while (try it.next()) |entry| {
+            if (entry.kind != .directory) continue;
+            if (entry.name[0] == '.') continue;
+
+            const src_path = b.pathJoin(&.{
+                "tests/rendering",
+                entry.name,
+                "src",
+            });
+            const out_path = b.pathJoin(&.{ "..", "snapshot" });
+
+            const run_zine = b.addRunArtifact(zine_exe);
+            run_zine.addArg("release");
+            run_zine.addArg("--output");
+            run_zine.addArg(out_path);
+            run_zine.setCwd(b.path(src_path));
+            run_zine.has_side_effects = true;
+
+            git_add.step.dependOn(&run_zine.step);
+        }
     }
 }
 
