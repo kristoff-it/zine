@@ -6,6 +6,17 @@ const Reloader = @import("../Reloader.zig");
 
 const log = std.log.scoped(.watcher);
 
+const notify_filter = windows.FileNotifyChangeFilter{
+    .file_name = true,
+    .dir_name = true,
+    .attributes = false,
+    .size = false,
+    .last_write = true,
+    .last_access = false,
+    .creation = false,
+    .security = false,
+};
+
 const Error = error{ InvalidHandle, QueueFailed, WaitFailed };
 
 const CompletionKey = usize;
@@ -81,7 +92,7 @@ pub fn init(
             @ptrCast(@alignCast(&watcher.read_buffer[entry.buf_idx])),
             ReadBufferEntrySize,
             @intFromBool(true),
-            windows.FILE_NOTIFY_CHANGE_LAST_WRITE | windows.FILE_NOTIFY_CHANGE_FILE_NAME | windows.FILE_NOTIFY_CHANGE_DIR_NAME,
+            notify_filter,
             null,
             &entry.overlap,
             null,
@@ -196,7 +207,7 @@ pub fn listen(
             @ptrCast(@alignCast(&self.read_buffer[entry.buf_idx])),
             ReadBufferEntrySize,
             @intFromBool(true),
-            windows.FILE_NOTIFY_CHANGE_LAST_WRITE | windows.FILE_NOTIFY_CHANGE_FILE_NAME | windows.FILE_NOTIFY_CHANGE_DIR_NAME,
+            notify_filter,
             null,
             &entry.overlap,
             null,
