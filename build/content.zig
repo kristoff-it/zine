@@ -951,7 +951,7 @@ fn addLayoutStep(
 
     // #18
     if (parent_section_path) |pp|
-        layout_step.addArg(pp)
+        layout_step.addArg(join(project.allocator, &.{ pp, "s" }) catch unreachable)
     else
         layout_step.addArg("null");
 

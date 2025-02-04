@@ -729,20 +729,33 @@ fn loadPage(
         var idx: usize = 0;
         while (it.next()) |page_path| : (idx += 1) {
             if (std.mem.eql(u8, page_path, md_rel_path)) {
-                break :blk idx;
+                break;
             }
+        } else {
+            std.debug.panic(
+                \\Failed to find a parent section match for a page.
+                \\
+                \\md_rel_path = '{s}'
+                \\section_path = '{s}'
+                \\section file contents: 
+                \\```
+                \\{s}
+                \\```
+            , .{ md_rel_path, ps_file_path, section });
         }
 
-        std.debug.panic(
-            \\Failed to find a parent section match for a page.
-            \\
-            \\md_rel_path = '{s}'
-            \\section_path = '{s}'
-            \\section file contents: 
-            \\```
-            \\{s}
-            \\```
-        , .{ md_rel_path, ps_file_path, section });
+        var total = idx;
+        while (it.next()) |_| {
+            total += 1;
+        }
+
+        // We do total - idx because the sorting order in a `s` file is
+        // newest to oldest, which is the inverse of what the prev/next page
+        // indes does.
+        // TODO: change the index file format to start with the total line count
+        //       so that we can turn this full-file-scan into a constant time
+        //       operation.
+        break :blk total - idx;
     };
 
     page._meta = .{
@@ -753,7 +766,7 @@ fn loadPage(
         .md_rel_path = md_rel_path,
         .md_asset_dir_path = md_asset_dir_path,
         .md_asset_dir_rel_path = md_asset_dir_rel_path,
-        .parent_section_path = psp,
+        .parent_section_path = if (psp) |p| std.fs.path.dirnamePosix(p) else null, // remove '/s'
         .index_in_section = iis,
         .site = site,
         .src = md_src,
@@ -1139,7 +1152,7 @@ fn loadPage(
                             a._meta.kind,
                         );
                         @field(directive.kind, @tagName(tag)).src = .{ .url = url };
-                        if(directive.kind == .image) blk: {
+                        if (directive.kind == .image) blk: {
                             const image_handle = std.fs.cwd().openFile(a._meta.path, .{}) catch break :blk;
                             defer image_handle.close();
                             var image_header_buf: [2048]u8 = undefined;
@@ -1147,7 +1160,7 @@ fn loadPage(
                             const image_header = image_header_buf[0..image_header_len];
 
                             const img_size = getImageSize(image_header) catch break :blk;
-                            directive.kind.image.size = .{.w = img_size.w, .h = img_size.h};
+                            directive.kind.image.size = .{ .w = img_size.w, .h = img_size.h };
                         }
                     },
                 }
@@ -1179,7 +1192,7 @@ fn wrapErr(status: wuffs.wuffs_base__status) !void {
         return error.WuffsError;
     }
 }
-const Size = struct {w: i64, h: i64};
+const Size = struct { w: i64, h: i64 };
 fn getImageSize(image_src: []const u8) !Size {
     var g_src = wuffs.wuffs_base__ptr_u8__reader(@constCast(image_src.ptr), image_src.len, true);
 
@@ -1216,7 +1229,7 @@ fn getImageSize(image_src: []const u8) !Size {
     const g_width = wuffs.wuffs_base__pixel_config__width(&g_image_config.pixcfg);
     const g_height = wuffs.wuffs_base__pixel_config__height(&g_image_config.pixcfg);
 
-    return .{.w = std.math.cast(i64, g_width) orelse return error.Cast, .h = std.math.cast(i64, g_height) orelse return error.Cast};
+    return .{ .w = std.math.cast(i64, g_width) orelse return error.Cast, .h = std.math.cast(i64, g_height) orelse return error.Cast };
 }
 
 pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
