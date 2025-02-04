@@ -39,10 +39,6 @@
             .url = "git+https://github.com/kristoff-it/ziggy#3518133e9ebea7c372eff4def368eda8488fad18",
             .hash = "12209b6577a9c749085c2c5c9c7e4fb24adc9db7ee4a88f126616110667a600279ac",
         },
-        .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig#c5e133c3a0605507b4dc65474f49a6c3b903b215",
-            .hash = "1220fdc708abc8cd90d7c54aa5eeddfe7893fdd01f8370e783cc1d2bcead448b5e23",
-        },
     },
     .paths = .{"."},
 }
