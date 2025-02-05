@@ -16,6 +16,8 @@ const Optional = context.Optional;
 const Bool = context.Bool;
 const String = context.String;
 
+const log = std.log.scoped(.page);
+
 var asset_undef: context.AssetExtern = .{};
 var page_undef: context.PageExtern = .{};
 
@@ -1235,6 +1237,7 @@ pub const ContentSection = struct {
 
                 var buf = std.ArrayList(u8).init(gpa);
 
+                log.debug("rendering content section [#{s}]", .{cs.id});
                 try render.html(
                     gpa,
                     cs._ast,

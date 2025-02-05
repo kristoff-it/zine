@@ -17,20 +17,40 @@ pub fn html(
     path: []const u8,
     w: anytype,
 ) !void {
-    var it = Iter.init(start);
+    // Footnotes are disconnected from the main ast tree so we cannot
+    // start an iterator from the document's root node when rendering
+    // one (which happens on-demand by pointing `start` at a footnote node).
+    const root = if (start.nodeType() == .FOOTNOTE_DEFINITION) start else ast.md.root;
+    var it = Iter.init(root);
 
     const full_page = start.n == ast.md.root.n;
+    if (!full_page) {
+        it.reset(start, .enter);
+    }
 
     var open_div = false;
-    var event: ?Iter.Event = .{ .node = start, .dir = .enter };
-    while (event) |ev| : (event = it.next()) {
+    while (it.next()) |ev| {
         const node = ev.node;
         const node_is_section = if (node.getDirective()) |d|
-            d.kind == .section
+            d.kind == .section and node.nodeType() != .LINK
         else
             false;
 
-        if (!full_page and node_is_section and node.n != start.n) break;
+        log.debug("node ({}, {s}, {?s}) = {} {s} \n({*} == {*} {})", .{
+            node_is_section,
+            if (node.getDirective()) |d| @tagName(d.kind) else "<>",
+            if (node.getDirective()) |d| d.id else null,
+            node.nodeType(),
+            @tagName(ev.dir),
+            node.n,
+            start.n,
+            node.n != start.n,
+        });
+
+        if (!full_page and node_is_section and node.n != start.n) {
+            log.debug("done, breaking", .{});
+            break;
+        }
         switch (node.nodeType()) {
             .DOCUMENT => {},
             .BLOCK_QUOTE => switch (ev.dir) {
@@ -41,7 +61,7 @@ pub fn html(
                     };
 
                     try w.print("<div", .{});
-                    if (d.id) |id| try w.print(" id={s}", .{id});
+                    if (d.id) |id| try w.print(" id=\"{s}\"", .{id});
                     try w.print(" class=\"block", .{});
                     if (d.attrs) |attrs| {
                         for (attrs) |attr| try w.print(" {s}", .{attr});
@@ -93,7 +113,7 @@ pub fn html(
                             }
                             open_div = true;
                             try w.print("<div", .{});
-                            if (d.id) |id| try w.print(" id={s}", .{id});
+                            if (d.id) |id| try w.print(" id=\"{s}\"", .{id});
                             if (d.attrs) |attrs| {
                                 try w.print(" class=\"", .{});
                                 for (attrs) |attr| try w.print("{s} ", .{attr});
@@ -101,8 +121,8 @@ pub fn html(
                             }
 
                             try w.print(">", .{});
-                            event = it.next();
-                            event = it.next();
+                            _ = it.next();
+                            _ = it.next();
                             if (node.firstChild().?.nextSibling() == null) {
                                 continue;
                             }
@@ -126,7 +146,7 @@ pub fn html(
                         else => {},
                         .heading => {
                             try w.print("<h{}", .{node.headingLevel()});
-                            try w.print(" id={s}", .{d.id.?});
+                            try w.print(" id=\"{s}\"", .{d.id.?});
                             if (d.attrs) |attrs| {
                                 try w.print(" class=\"", .{});
                                 for (attrs) |attr| try w.print("{s} ", .{attr});
@@ -142,7 +162,7 @@ pub fn html(
                             }
                             open_div = true;
                             try w.print("<div", .{});
-                            try w.print(" id={s}", .{d.id.?});
+                            try w.print(" id=\"{s}\"", .{d.id.?});
                             if (d.attrs) |attrs| {
                                 try w.print(" class=\"", .{});
                                 for (attrs) |attr| try w.print("{s} ", .{attr});
@@ -366,7 +386,7 @@ fn renderDirective(
                 if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
                 try w.print(" src=\"{s}\"", .{img.src.?.url});
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
-                if(img.size) |size| try w.print(" width=\"{d}\" height=\"{d}\"", .{size.w, size.h});
+                if (img.size) |size| try w.print(" width=\"{d}\" height=\"{d}\"", .{ size.w, size.h });
                 try w.print(">", .{});
                 if (img.linked) |l| if (l) try w.print("</a>", .{});
                 if (caption != null) try w.print("\n<figcaption>", .{});
@@ -522,8 +542,7 @@ pub fn htmlToc(ast: Ast, w: anytype) !void {
 
 fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
     var it = Iter.init(heading);
-    var event: ?Iter.Event = .{ .node = heading, .dir = .enter };
-    while (event) |ev| : (event = it.next()) {
+    while (it.next()) |ev| {
         const node = ev.node;
         switch (node.nodeType()) {
             else => std.debug.panic(

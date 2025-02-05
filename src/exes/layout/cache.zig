@@ -1038,7 +1038,8 @@ fn loadPage(
                                 });
                             },
                             .sibling => sibl: {
-                                const ps_base = psp orelse reportError(
+                                // don't use psp for this as it has a `/s` suffix
+                                const ps_base = page._meta.parent_section_path orelse reportError(
                                     n,
                                     md_src,
                                     md_rel_path,
