@@ -647,7 +647,7 @@ pub const Builtins = struct {
         }
     };
 
-    pub const nextPage = struct {
+    pub const @"nextPage?" = struct {
         pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
         pub const docs_description =
             \\Returns the next page in the same section, sorted by date. 
@@ -676,7 +676,7 @@ pub const Builtins = struct {
             return context.pageFind(.{ .next = p });
         }
     };
-    pub const prevPage = struct {
+    pub const @"prevPage?" = struct {
         pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
         pub const docs_description =
             \\Tries to return the page before the target one (sorted by date), to be used with an `if` attribute.
