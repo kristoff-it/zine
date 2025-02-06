@@ -24,12 +24,13 @@ pub fn html(
     var it = Iter.init(root);
 
     const full_page = start.n == ast.md.root.n;
-    if (!full_page) {
+    var event: ?Iter.Event = if (!full_page) blk: {
         it.reset(start, .enter);
-    }
+        break :blk .{ .node = start, .dir = .enter };
+    } else it.next();
 
     var open_div = false;
-    while (it.next()) |ev| {
+    while (event) |ev| : (event = it.next()) {
         const node = ev.node;
         const node_is_section = if (node.getDirective()) |d|
             d.kind == .section and node.nodeType() != .LINK
