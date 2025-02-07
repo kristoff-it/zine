@@ -13,6 +13,7 @@ const Template = context.Template;
 const Site = context.Site;
 const Page = context.Page;
 const Map = context.Map;
+const Optional = context.Optional;
 
 len: usize,
 empty: bool,
@@ -69,8 +70,7 @@ pub const Builtins = struct {
             \\
             \\The second value can be omitted and defaults to the array's
             \\length, meaning that invoking `slice` with one argunent 
-            \\produces **suffixes** of the original sequence (i.e. it 
-            \\removes a prefix from the original sequence).
+            \\produces **suffixes** of the original sequence.
             \\
             \\Note that negative values are not allowed at the moment.
         ;
@@ -165,6 +165,56 @@ pub const Builtins = struct {
             });
 
             return arr._items[@intCast(idx)];
+        }
+    };
+
+    pub const @"first?" = struct {
+        pub const signature: Signature = .{
+            .params = &.{},
+            .ret = .{ .Many = .any },
+        };
+        pub const docs_description =
+            \\Returns the the first value of the array or null if the array is empty. 
+        ;
+        pub const examples =
+            \\$page.tags.first?()
+        ;
+        pub fn call(
+            arr: Array,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg: Value = .{ .err = "expected 0 arguments" };
+            if (args.len != 0) return bad_arg;
+
+            if (arr._items.len == 0) return Optional.Null;
+
+            return Optional.init(gpa, arr._items[0]);
+        }
+    };
+
+    pub const @"last?" = struct {
+        pub const signature: Signature = .{
+            .params = &.{},
+            .ret = .{ .Many = .any },
+        };
+        pub const docs_description =
+            \\Returns the the last value of the array or null if the array is empty. 
+        ;
+        pub const examples =
+            \\$page.tags.last?()
+        ;
+        pub fn call(
+            arr: Array,
+            gpa: Allocator,
+            args: []const Value,
+        ) !Value {
+            const bad_arg: Value = .{ .err = "expected 0 arguments" };
+            if (args.len != 0) return bad_arg;
+
+            if (arr._items.len == 0) return Optional.Null;
+
+            return Optional.init(gpa, arr._items[arr._items.len - 1]);
         }
     };
 };

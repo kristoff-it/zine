@@ -1,0 +1,40 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title :text="$site.title"></title>
+  </head>
+  <body>
+    <h1 :text="$page.title"></h1>
+    <div :html="$page.content()"></div>
+    <ctx :if="$page.prevPage?()">
+      <div>
+        Prev:
+        <a href="$if.link()" :html="$if.title"></a>
+      </div>
+    </ctx>
+    <ctx :if="$page.hasPrev().not()">
+      <ctx :if="$page.parentSection().prevPage?()">
+        <ctx :if="$if.subpages().first?()">
+          Prev:
+          <a href="$if.link()" :html="$if.title"></a>
+        </ctx>
+      </ctx>
+    </ctx>
+    <ctx :if="$page.nextPage?()">
+      <div>
+        Next:
+        <a href="$if.link()" :html="$if.title"></a>
+      </div>
+    </ctx>
+    <ctx :if="$page.hasNext().not()">
+      <ctx :if="$page.parentSection().nextPage?()">
+        <ctx :if="$if.subpages().last?()">
+          Next:
+          <a href="$if.link()" :html="$if.title"></a>
+        </ctx>
+      </ctx>
+    </ctx>
+  </body>
+</html>

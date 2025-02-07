@@ -448,7 +448,7 @@ pub const Builtins = struct {
                         return Optional.init(gpa, other);
                     }
                 }
-                return .{ .optional = null };
+                return Optional.Null;
             } else {
                 const other = context.pageGet(
                     other_site,
