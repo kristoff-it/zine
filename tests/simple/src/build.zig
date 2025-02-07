@@ -3,6 +3,7 @@ const zine = @import("zine");
 
 pub fn build(b: *std.Build) !void {
     zine.website(b, .{
+        .debug = true,
         .title = "Simple Test Website",
         .host_url = "https://sample.com",
         .content_dir_path = "content",
