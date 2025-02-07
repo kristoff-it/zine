@@ -131,12 +131,20 @@ fn setupSnapshotTesting(b: *std.Build, scopes: []const []const u8) !void {
     const diff = b.addSystemCommand(&.{
         "git",
         "diff",
+        "--cached",
         "--exit-code",
     });
 
     diff.addDirectoryArg(b.path("tests/"));
 
     test_step.dependOn(&diff.step);
+
+    // We need to stage all of tests/ in order for untracked files to show up in
+    // the diff. It's also not a bad automatism since it avoids the problem of
+    // forgetting to stage new snapshot files.
+    const git_add = b.addSystemCommand(&.{ "git", "add", "tests/" });
+
+    diff.step.dependOn(&git_add.step);
 
     const tests_dir = try b.build_root.handle.openDir("tests/", .{
         .iterate = true,
@@ -167,7 +175,7 @@ fn setupSnapshotTesting(b: *std.Build, scopes: []const []const u8) !void {
             "src",
         })));
 
-        diff.step.dependOn(&build_site.step);
+        git_add.step.dependOn(&build_site.step);
     }
 }
 
