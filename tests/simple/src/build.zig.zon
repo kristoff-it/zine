@@ -1,0 +1,10 @@
+.{
+    .name = "Simple Test Website",
+    .version = "0.0.0",
+    .dependencies = .{
+        .zine = .{
+            .path = "../../../",
+        },
+    },
+    .paths = .{"."},
+}
