@@ -3,16 +3,16 @@
     .version = "0.0.0",
     .dependencies = .{
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#ea63b86e951f0d765ac2b05db360ef85c50b1fde",
-            .hash = "12208f47d32f3f2cf48bb28efc3e3b5237f30e0f0ae858130ca43c50b639f70661b8",
+            .url = "git+https://github.com/kristoff-it/supermd#161d0e9d4e158442c1f1b8c8c92c7e8c5a25f8b5",
+            .hash = "1220b4e04964bfdfc23d252fbf61d36d7f17acb65a335f826f8d70e17662790d808c",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#d1b0b5ba333ee518352ef371ae23ead015fda313",
-            .hash = "12205f32c4752f2521f7e399bd494c202f1abe2731388cc0d947ed29e806813190ee",
+            .url = "git+https://github.com/kristoff-it/scripty#c76ef31dd5429725220de30504bde89a68565ece",
+            .hash = "1220c242654fe9bdd1be1fdb7b8e142842adc9adcc987efe7eb64af6451f45cbbc34",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#e6eba40bf54dd94d842154be0389c53a37be8dc8",
-            .hash = "12205698b44f40f56b59f98ea7304421338823a0b24722f49e5546a3449edeb0a09b",
+            .url = "git+https://github.com/kristoff-it/superhtml#9266b3131bbcc0705b3b752bcb7478871a143740",
+            .hash = "1220f49c7d559480568d02c4d8824724a69531d9fc3ac37e2dd094f54e09c230b404",
         },
         .mime = .{
             .url = "git+https://github.com/andrewrk/mime.git#0b676643886b1e2f19cf11b4e15b028768708342",
