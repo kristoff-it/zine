@@ -446,7 +446,7 @@ pub fn scanVariant(
     }) catch unreachable;
 
     var root_index: ?Section.Page = null;
-    while (dir_stack.popOrNull()) |de| {
+    while (dir_stack.pop()) |de| {
         var dir_entry = de;
         log.debug("scanning dir '{s}'", .{dir_entry.path});
         defer {
