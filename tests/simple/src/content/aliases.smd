@@ -1,0 +1,24 @@
+---
+.title = "Homepage",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.draft = false,
+.aliases = [
+    "alias_in_root_folder.html",
+    "/alias/path/with/leading/slash.html",
+    "alias/path/without/leading/slash.html",
+],
+--- 
+Your **SuperMD** content goes here.
+
+
+# H1
+Lorem Ipsum 1
+
+## H2
+Lorem Ipsum 2
+
+#### H3
+Lorem Ipsum 3
+
