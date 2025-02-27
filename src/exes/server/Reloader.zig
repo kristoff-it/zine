@@ -20,11 +20,14 @@ website_step_name: []const u8,
 debug: bool,
 include_drafts: bool,
 watcher: Watcher,
+rebuild_thread: std.Thread,
+cascade_window_ms: i64,
 
 clients_lock: std.Thread.Mutex = .{},
 clients: std.AutoArrayHashMapUnmanaged(*ws.Connection, void) = .{},
 
 pub fn init(
+    reloader: *Reloader,
     gpa: std.mem.Allocator,
     zig_exe: []const u8,
     out_dir_path: []const u8,
@@ -32,8 +35,9 @@ pub fn init(
     website_step_name: []const u8,
     debug: bool,
     include_drafts: bool,
-) !Reloader {
-    return .{
+    cascade_window_ms: i64,
+) !void {
+    reloader.* = .{
         .gpa = gpa,
         .zig_exe = zig_exe,
         .out_dir_path = out_dir_path,
@@ -41,6 +45,8 @@ pub fn init(
         .debug = debug,
         .include_drafts = include_drafts,
         .watcher = try Watcher.init(gpa, out_dir_path, in_dir_paths),
+        .rebuild_thread = try std.Thread.spawn(.{}, rebuildThread, .{reloader}),
+        .cascade_window_ms = cascade_window_ms,
     };
 }
 
@@ -48,92 +54,130 @@ pub fn listen(self: *Reloader) !void {
     try self.watcher.listen(self.gpa, self);
 }
 
+var cascade_mutex: std.Thread.Mutex = .{};
+var cascade_condition: std.Thread.Condition = .{};
+var cascade_start_ms: i64 = 0;
 pub fn onInputChange(self: *Reloader, path: []const u8, name: []const u8) void {
+    _ = self;
     _ = name;
     _ = path;
-    const args: []const []const u8 = blk: {
-        var args_count: usize = 3;
-        var all_args: [5][]const u8 = .{
-            self.zig_exe,
-            "build",
-            self.website_step_name,
-            "",
-            "",
-        };
 
-        if (self.include_drafts) {
-            all_args[args_count] = "-Dinclude-drafts";
-            args_count += 1;
+    {
+        cascade_mutex.lock();
+        defer cascade_mutex.unlock();
+        cascade_start_ms = std.time.milliTimestamp();
+    }
+    cascade_condition.signal();
+}
+
+pub fn rebuildThread(self: *Reloader) void {
+    while (true) {
+        cascade_mutex.lock();
+        defer cascade_mutex.unlock();
+
+        while (cascade_start_ms == 0) {
+            // no active cascade
+            cascade_condition.wait(&cascade_mutex);
         }
-        if (self.debug) {
-            all_args[args_count] = "-Ddebug";
-            args_count += 1;
+
+        // cascade != 0
+        while (true) {
+            const time_passed = std.time.milliTimestamp() - cascade_start_ms;
+            if (time_passed >= self.cascade_window_ms) break;
+            cascade_mutex.unlock();
+            const sleep_ms = self.cascade_window_ms - time_passed;
+            std.Thread.sleep(@intCast(sleep_ms * std.time.ns_per_ms));
+            cascade_mutex.lock();
         }
 
-        break :blk all_args[0..args_count];
-    };
-    log.debug("re-building! args: {s}", .{args});
+        // We have slept enough, "commit" the cascade window and
+        // trigger a new build.
+        cascade_start_ms = 0;
 
-    const result = std.process.Child.run(.{
-        .allocator = self.gpa,
-        .argv = args,
-    }) catch |err| {
-        log.err("unable to run zig build: {s}", .{@errorName(err)});
-        return;
-    };
+        const args: []const []const u8 = blk: {
+            var args_count: usize = 3;
+            var all_args: [5][]const u8 = .{
+                self.zig_exe,
+                "build",
+                self.website_step_name,
+                "",
+                "",
+            };
 
-    defer {
-        self.gpa.free(result.stdout);
-        self.gpa.free(result.stderr);
-    }
+            if (self.include_drafts) {
+                all_args[args_count] = "-Dinclude-drafts";
+                args_count += 1;
+            }
+            if (self.debug) {
+                all_args[args_count] = "-Ddebug";
+                args_count += 1;
+            }
 
-    if (result.stdout.len > 0) {
-        log.info("zig build stdout: {s}", .{result.stdout});
-    }
-
-    if (result.stderr.len > 0) {
-        std.debug.print("{s}\n\n", .{result.stderr});
-    } else {
-        std.debug.print("File change triggered a successful build.\n", .{});
-    }
-
-    self.clients_lock.lock();
-    defer self.clients_lock.unlock();
-
-    const html_err = AnsiRenderer.renderSlice(self.gpa, result.stderr) catch |err| err: {
-        log.err("error rendering the ANSI-encoded error message: {s}", .{@errorName(err)});
-        break :err result.stderr;
-    };
-    defer self.gpa.free(html_err);
-
-    var idx: usize = 0;
-    while (idx < self.clients.entries.len) {
-        const conn = self.clients.entries.get(idx).key;
-
-        const BuildCommand = struct {
-            command: []const u8 = "build",
-            err: []const u8,
+            break :blk all_args[0..args_count];
         };
+        log.debug("re-building! args: {s}", .{args});
 
-        const cmd: BuildCommand = .{ .err = html_err };
-
-        var buf = std.ArrayList(u8).init(self.gpa);
-        defer buf.deinit();
-
-        std.json.stringify(cmd, .{}, buf.writer()) catch {
-            log.err("unable to generate ws message", .{});
+        const result = std.process.Child.run(.{
+            .allocator = self.gpa,
+            .argv = args,
+        }) catch |err| {
+            log.err("unable to run zig build: {s}", .{@errorName(err)});
             return;
         };
 
-        conn.writeMessage(buf.items, .text) catch |err| {
-            log.debug("error writing to websocket: {s}", .{
-                @errorName(err),
-            });
-            self.clients.swapRemoveAt(idx);
-            continue;
-        };
+        defer {
+            self.gpa.free(result.stdout);
+            self.gpa.free(result.stderr);
+        }
 
-        idx += 1;
+        if (result.stdout.len > 0) {
+            log.info("zig build stdout: {s}", .{result.stdout});
+        }
+
+        if (result.stderr.len > 0) {
+            std.debug.print("{s}\n\n", .{result.stderr});
+        } else {
+            std.debug.print("File change triggered a successful build.\n", .{});
+        }
+
+        self.clients_lock.lock();
+        defer self.clients_lock.unlock();
+
+        const html_err = AnsiRenderer.renderSlice(self.gpa, result.stderr) catch |err| err: {
+            log.err("error rendering the ANSI-encoded error message: {s}", .{@errorName(err)});
+            break :err result.stderr;
+        };
+        defer self.gpa.free(html_err);
+
+        var idx: usize = 0;
+        while (idx < self.clients.entries.len) {
+            const conn = self.clients.entries.get(idx).key;
+
+            const BuildCommand = struct {
+                command: []const u8 = "build",
+                err: []const u8,
+            };
+
+            const cmd: BuildCommand = .{ .err = html_err };
+
+            var buf = std.ArrayList(u8).init(self.gpa);
+            defer buf.deinit();
+
+            std.json.stringify(cmd, .{}, buf.writer()) catch {
+                log.err("unable to generate ws message", .{});
+                return;
+            };
+
+            conn.writeMessage(buf.items, .text) catch |err| {
+                log.debug("error writing to websocket: {s}", .{
+                    @errorName(err),
+                });
+                self.clients.swapRemoveAt(idx);
+                continue;
+            };
+
+            idx += 1;
+        }
     }
 }
 pub fn onOutputChange(self: *Reloader, path: []const u8, name: []const u8) void {

@@ -184,11 +184,18 @@ pub fn website(b: *std.Build, site: Site) void {
         "port to listen on for the development server",
     ) orelse 1990;
 
+    const rebuild_debounce_ms = b.option(
+        u16,
+        "debounce",
+        "Delay before rebuilding after a file change is detected (default: 50ms)",
+    ) orelse 50;
+
     zine.addDevelopmentServer(b, opts, serve, .{
         .website_step = website_step,
         .host = "localhost",
         .port = port,
         .include_drafts = include_drafts,
+        .rebuild_debounce_ms = rebuild_debounce_ms,
         .input_dirs = &.{
             site.layouts_dir_path,
             site.content_dir_path,
@@ -240,6 +247,12 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
         "port to listen on for the development server",
     ) orelse 1990;
 
+    const rebuild_debounce_ms = b.option(
+        u16,
+        "debounce",
+        "Delay before rebuilding after a file change is detected (default: 50ms)",
+    ) orelse 50;
+
     var input_dirs = std.ArrayList([]const u8).init(b.allocator);
     input_dirs.appendSlice(&.{
         multi.layouts_dir_path,
@@ -258,6 +271,8 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
         .website_step = website_step,
         .host = "localhost",
         .port = port,
+        .include_drafts = include_drafts,
+        .rebuild_debounce_ms = rebuild_debounce_ms,
         .input_dirs = input_dirs.items,
     });
 }
@@ -296,10 +311,11 @@ pub fn addMultilingualWebsite(
 pub const DevelopmentServerOptions = struct {
     website_step: *std.Build.Step,
     host: []const u8,
-    port: u16 = 1990,
-    include_drafts: bool = false,
+    port: u16,
+    include_drafts: bool,
+    rebuild_debounce_ms: usize,
     input_dirs: []const []const u8,
-    output_path_prefix: []const u8 = "",
+    output_path_prefix: []const u8,
 };
 pub fn addDevelopmentServer(
     b: *std.Build,
@@ -325,6 +341,7 @@ pub fn addDevelopmentServer(
     run_server.addArg(server_opts.website_step.name); // #4
     run_server.addArg(@tagName(zine_opts.optimize)); // #5
     run_server.addArg(b.fmt("{}", .{server_opts.include_drafts})); // #6
+    run_server.addArg(b.fmt("{}", .{server_opts.rebuild_debounce_ms})); // #7
 
     for (server_opts.input_dirs) |dir| {
         run_server.addArg(dir); // #7..
