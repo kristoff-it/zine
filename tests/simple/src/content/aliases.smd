@@ -5,11 +5,12 @@
 .layout = "index.shtml",
 .draft = false,
 .aliases = [
-    "alias_in_root_folder.html",
+    "alias_relative.html",
+    "/alias_absolute.html",
     "/aliases/path/with/leading/slash.html",
     "aliases/path/without/leading/slash.html",
 ],
---- 
+---
 Your **SuperMD** content goes here.
 
 
@@ -21,4 +22,3 @@ Lorem Ipsum 2
 
 #### H3
 Lorem Ipsum 3
-
