@@ -1188,7 +1188,9 @@ fn allocDecoder(
     return .{ decoder_raw, upcasted };
 }
 fn wrapErr(status: wuffs.wuffs_base__status) !void {
-    if (wuffs.wuffs_base__status__message(&status)) |_| {
+    if (wuffs.wuffs_base__status__message(&status)) |x| {
+        const y: [*:0]const u8 = x;
+        std.debug.print("Wuffs image parsing returned an error: \"{s}\", image sizes may not be emitted. Consider stripping Exif data. Continuing...\n", .{y});
         return error.WuffsError;
     }
 }
