@@ -62,8 +62,8 @@ pub fn build(b: *std.Build) !void {
     supermd.addImport("ziggy", ziggy);
 
     const zeit = b.dependency("zeit", mode).module("zeit");
-    const syntax = b.dependency("flow-syntax", mode);
-    const ts = syntax.builder.dependency("tree-sitter", mode);
+    const syntax = b.dependency("flow_syntax", mode);
+    const ts = syntax.builder.dependency("tree_sitter", mode);
     const treez = ts.module("treez");
     const wuffs = b.dependency("wuffs", mode);
 
@@ -212,7 +212,7 @@ fn setupFuzzing(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) void {
-    const afl = b.lazyImport(@This(), "zig-afl-kit") orelse return;
+    const afl = b.lazyImport(@This(), "afl_kit") orelse return;
 
     const scripty_afl_obj = b.addObject(.{
         .name = "scripty",

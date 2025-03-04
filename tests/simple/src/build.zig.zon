@@ -1,6 +1,7 @@
 .{
-    .name = "Simple Test Website",
+    .name = .website,
     .version = "0.0.0",
+    .fingerprint = 0x476f5de7272d4419,
     .dependencies = .{
         .zine = .{
             .path = "../../../",
