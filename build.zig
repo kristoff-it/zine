@@ -274,6 +274,7 @@ pub fn multilingualWebsite(b: *std.Build, multi: MultilingualSite) void {
         .include_drafts = include_drafts,
         .rebuild_debounce_ms = rebuild_debounce_ms,
         .input_dirs = input_dirs.items,
+        .output_path_prefix = "",
     });
 }
 

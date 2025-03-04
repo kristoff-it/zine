@@ -82,11 +82,14 @@ pub fn build(b: *std.Build) !void {
 
     const layout = b.addExecutable(.{
         .name = "layout",
-        .root_source_file = b.path("src/exes/layout.zig"),
-        .target = target,
-        .optimize = optimize,
-        // .strip = true,
-
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/exes/layout.zig"),
+            .target = target,
+            .optimize = optimize,
+            // .strip = true,
+            // Workaround for https://github.com/ziglang/zig/issues/23052
+            .sanitize_c = true,
+        }),
     });
 
     layout.root_module.addImport("options", options);
