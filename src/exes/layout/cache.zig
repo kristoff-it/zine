@@ -766,7 +766,7 @@ fn loadPage(
         .md_rel_path = md_rel_path,
         .md_asset_dir_path = md_asset_dir_path,
         .md_asset_dir_rel_path = md_asset_dir_rel_path,
-        .parent_section_path = if (psp) |p| std.fs.path.dirnamePosix(p) else null, // remove '/s'
+        .parent_section_path = if (psp) |p| std.fs.path.dirnamePosix(p) orelse "" else null, // remove '/s'
         .index_in_section = iis,
         .site = site,
         .src = md_src,
