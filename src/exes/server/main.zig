@@ -208,8 +208,11 @@ pub fn main() !void {
     const rebuild_step_name = args[4];
     const debug = std.mem.eql(u8, args[5], "Debug");
     const include_drafts = std.mem.eql(u8, args[6], "true");
+    const cascade_window_ms = std.fmt.parseInt(u32, args[7], 10) catch {
+        @panic("unable to parse cascade_window_ms argument!");
+    };
 
-    const input_dirs = args[7..];
+    const input_dirs = args[8..];
 
     // ensure the path exists. without this, an empty website that
     // doesn't generate a zig-out/ will cause the server to error out
@@ -219,7 +222,8 @@ pub fn main() !void {
         fatal("unable to open directory '{s}': {s}", .{ root_dir_path, @errorName(e) });
     defer root_dir.close();
 
-    var watcher = try Reloader.init(
+    var watcher: Reloader = undefined;
+    try watcher.init(
         gpa,
         zig_exe,
         root_dir_path,
@@ -227,6 +231,7 @@ pub fn main() !void {
         rebuild_step_name,
         debug,
         include_drafts,
+        @intCast(cascade_window_ms),
     );
 
     var server: Server = .{

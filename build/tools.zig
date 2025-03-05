@@ -62,8 +62,8 @@ pub fn build(b: *std.Build) !void {
     supermd.addImport("ziggy", ziggy);
 
     const zeit = b.dependency("zeit", mode).module("zeit");
-    const syntax = b.dependency("flow-syntax", mode);
-    const ts = syntax.builder.dependency("tree-sitter", mode);
+    const syntax = b.dependency("flow_syntax", mode);
+    const ts = syntax.builder.dependency("tree_sitter", mode);
     const treez = ts.module("treez");
     const wuffs = b.dependency("wuffs", mode);
 
@@ -82,11 +82,14 @@ pub fn build(b: *std.Build) !void {
 
     const layout = b.addExecutable(.{
         .name = "layout",
-        .root_source_file = b.path("src/exes/layout.zig"),
-        .target = target,
-        .optimize = optimize,
-        // .strip = true,
-
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/exes/layout.zig"),
+            .target = target,
+            .optimize = optimize,
+            // .strip = true,
+            // Workaround for https://github.com/ziglang/zig/issues/23052
+            .sanitize_c = true,
+        }),
     });
 
     layout.root_module.addImport("options", options);
@@ -212,7 +215,7 @@ fn setupFuzzing(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) void {
-    const afl = b.lazyImport(@This(), "zig-afl-kit") orelse return;
+    const afl = b.lazyImport(@This(), "afl_kit") orelse return;
 
     const scripty_afl_obj = b.addObject(.{
         .name = "scripty",
