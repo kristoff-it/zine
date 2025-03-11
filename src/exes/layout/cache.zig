@@ -1158,7 +1158,7 @@ fn loadPage(
                         if (directive.kind == .image and image_size_attributes) blk: {
                             const image_handle = std.fs.cwd().openFile(a._meta.path, .{}) catch break :blk;
                             defer image_handle.close();
-                            var image_header_buf: [2048]u8 = undefined;
+                            var image_header_buf: [4096 * 100]u8 = undefined;
                             const image_header_len = image_handle.readAll(&image_header_buf) catch break :blk;
                             const image_header = image_header_buf[0..image_header_len];
 
@@ -1239,7 +1239,10 @@ fn getImageSize(image_src: []const u8) !Size {
     const g_width = wuffs.wuffs_base__pixel_config__width(&g_image_config.pixcfg);
     const g_height = wuffs.wuffs_base__pixel_config__height(&g_image_config.pixcfg);
 
-    return .{ .w = std.math.cast(i64, g_width) orelse return error.Cast, .h = std.math.cast(i64, g_height) orelse return error.Cast };
+    return .{
+        .w = std.math.cast(i64, g_width) orelse return error.Cast,
+        .h = std.math.cast(i64, g_height) orelse return error.Cast,
+    };
 }
 
 pub fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
