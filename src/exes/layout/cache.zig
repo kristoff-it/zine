@@ -1159,7 +1159,12 @@ fn loadPage(
                             const image_header_len = image_handle.readAll(&image_header_buf) catch break :blk;
                             const image_header = image_header_buf[0..image_header_len];
 
-                            const img_size = getImageSize(image_header) catch break :blk;
+                            const img_size = getImageSize(image_header) catch {
+                                std.debug.print("Image file that caused the error: '{s}'. Continuing...\n", .{
+                                    a._meta.path,
+                                });
+                                break :blk;
+                            };
                             directive.kind.image.size = .{ .w = img_size.w, .h = img_size.h };
                         }
                     },
@@ -1190,7 +1195,7 @@ fn allocDecoder(
 fn wrapErr(status: wuffs.wuffs_base__status) !void {
     if (wuffs.wuffs_base__status__message(&status)) |x| {
         const y: [*:0]const u8 = x;
-        std.debug.print("Wuffs image parsing returned an error: \"{s}\", image sizes may not be emitted. Consider stripping Exif data. Continuing...\n", .{y});
+        std.debug.print("Wuffs image parsing returned an error: \"{s}\", image sizes may not be emitted. Consider stripping Exif data.\n", .{y});
         return error.WuffsError;
     }
 }
