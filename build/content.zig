@@ -973,11 +973,26 @@ fn addLayoutStep(
     );
     step.dependOn(&target_output.step);
 
+    const output_dir = std.fs.path.dirname(out_path) orelse "";
+
     for (aliases) |a| {
-        const alias = project.addInstallFile(
+        var dir_name = std.fs.path.dirname(a) orelse ".";
+        if (!std.fs.path.isAbsolute(dir_name)) {
+            dir_name = project.pathJoin(&.{ output_dir, dir_name });
+        }
+
+        const file_name = std.fs.path.basename(a);
+
+        const install_dir = std.Build.InstallDir{
+            .custom = project.pathJoin(&.{ output_path_prefix, dir_name }),
+        };
+
+        const alias = project.addInstallFileWithDir(
             final_html,
-            join(project.allocator, &.{ output_path_prefix, a }) catch unreachable,
+            install_dir,
+            file_name,
         );
+
         step.dependOn(&alias.step);
     }
 }
