@@ -24,10 +24,12 @@ pub fn initAll(
     locales: []const Locale,
     _dep_writer: DepWriter,
     asset_list_writer: std.io.AnyWriter,
+    _image_size_attributes: bool,
 ) error{OutOfMemory}!void {
     gpa = _gpa;
     dep_writer = _dep_writer;
     index_dir_path = _index_dir_path;
+    image_size_attributes = _image_size_attributes;
     context.assetFind = asset_finder.find;
     context.assetCollect = asset_collector.collect;
     context.pageFind = page_finder.find;
@@ -66,6 +68,7 @@ pub fn initAll(
 var gpa: Allocator = undefined;
 var dep_writer: DepWriter = undefined;
 var index_dir_path: []const u8 = undefined;
+var image_size_attributes: bool = undefined;
 
 pub const sites = struct {
     var multi: bool = undefined;
@@ -1152,7 +1155,7 @@ fn loadPage(
                             a._meta.kind,
                         );
                         @field(directive.kind, @tagName(tag)).src = .{ .url = url };
-                        if (directive.kind == .image) blk: {
+                        if (directive.kind == .image and image_size_attributes) blk: {
                             const image_handle = std.fs.cwd().openFile(a._meta.path, .{}) catch break :blk;
                             defer image_handle.close();
                             var image_header_buf: [2048]u8 = undefined;
@@ -1160,10 +1163,10 @@ fn loadPage(
                             const image_header = image_header_buf[0..image_header_len];
 
                             const img_size = getImageSize(image_header) catch {
-                                std.debug.print("Image file that caused the error: '{s}'. Continuing...\n", .{
+                                std.debug.print("Image file that caused the error: '{s}'.\n", .{
                                     a._meta.path,
                                 });
-                                break :blk;
+                                std.process.exit(1);
                             };
                             directive.kind.image.size = .{ .w = img_size.w, .h = img_size.h };
                         }

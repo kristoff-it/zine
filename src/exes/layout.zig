@@ -57,6 +57,7 @@ pub fn main() !void {
     const locale_name = args[21];
     _ = locale_name;
     const locales_path = args[22];
+    const image_size_attributes = std.mem.eql(u8, args[23], "true");
 
     for (args, 0..) |a, idx| log.debug("args[{}]: {s}", .{ idx, a });
 
@@ -170,6 +171,7 @@ pub fn main() !void {
         locales,
         dep_writer,
         asset_list_writer.any(),
+        image_size_attributes,
     );
 
     const site = if (locale_code) |lc|

@@ -176,6 +176,7 @@ fn scan(
                     update_assets,
                     v.name,
                     lv,
+                    ml.image_size_attributes,
                 );
             }
         },
@@ -230,6 +231,7 @@ fn scan(
                 update_assets,
                 null,
                 null,
+                s.image_size_attributes,
             );
         },
     }
@@ -653,6 +655,7 @@ pub fn addAllSteps(
     update_assets: *std.Build.Step.Run,
     name: ?[]const u8,
     locales: ?std.Build.LazyPath,
+    image_size_attributes: bool,
 ) void {
     if (root_index) |idx| {
         // const rendered = addMarkdownRenderStep(
@@ -689,6 +692,7 @@ pub fn addAllSteps(
             update_assets,
             name,
             locales,
+            image_size_attributes,
         );
         for (idx.fm.alternatives) |alt| {
             addLayoutStep(
@@ -715,6 +719,7 @@ pub fn addAllSteps(
                 update_assets,
                 name,
                 locales,
+                image_size_attributes,
             );
         }
     }
@@ -752,6 +757,7 @@ pub fn addAllSteps(
                 update_assets,
                 name,
                 locales,
+                image_size_attributes,
             );
             for (p.fm.alternatives) |alt| {
                 addLayoutStep(
@@ -778,6 +784,7 @@ pub fn addAllSteps(
                     update_assets,
                     name,
                     locales,
+                    image_size_attributes,
                 );
             }
         }
@@ -863,6 +870,7 @@ fn addLayoutStep(
     update_assets: *std.Build.Step.Run,
     name: ?[]const u8,
     locales: ?std.Build.LazyPath,
+    image_size_attributes: bool,
 ) void {
     const layout_path = join(project.allocator, &.{ layouts_dir_path, layout_name }) catch unreachable;
     project.build_root.handle.access(layout_path, .{}) catch |err| {
@@ -943,7 +951,7 @@ fn addLayoutStep(
     const md_path = join(project.allocator, &.{ content_dir_path, content_sub_path, md_basename }) catch unreachable;
     layout_step.addFileArg(project.path(md_path));
 
-    // #1
+    // #17
     if (index_in_section) |idx|
         layout_step.addArg(project.fmt("{d}", .{idx}))
     else
@@ -955,16 +963,23 @@ fn addLayoutStep(
     else
         layout_step.addArg("null");
 
+    // #19
     const collected_assets = layout_step.addOutputFileArg("assets");
     update_assets.addFileArg(collected_assets);
 
+    // #20
     layout_step.addArg(output_path_prefix);
+    // #21
     layout_step.addArg(name orelse "null");
 
+    // #22
     if (locales) |v|
         layout_step.addFileArg(v)
     else
         layout_step.addArg("null");
+
+    // #23
+    layout_step.addArg(if (image_size_attributes) "true" else "false");
 
     // ------------
     const target_output = project.addInstallFile(

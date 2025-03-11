@@ -44,6 +44,20 @@ pub const Site = struct {
     ///   - `install_path` (if set, unless `link`ing them is mutually exclusive)
     build_assets: []const BuildAsset = &.{},
 
+    /// When enabled, Zine will automatically add
+    /// 'width' and 'height' attributes to <img> elements
+    /// for local assets. This feature relies on 'wuffs'
+    /// which can sometimes refuse to load an otherwise
+    /// valid image. When that happens a warning will
+    /// be printed.
+    /// Lastly, be aware that setting 'width' and 'heigth' of an image will in some circumstances cause browsers to distort images.
+    /// This problem can be solved by adding the following CSS code to your site:
+    ///
+    /// img {
+    ///    height: auto;
+    /// }
+    image_size_attributes: bool = false,
+
     /// Enables Zine's -Ddebug and -Dscope flags
     /// (only useful if you're developing Zine)
     debug: bool = false,
@@ -106,6 +120,20 @@ pub const MultilingualSite = struct {
     ///   - `code`
     ///   - `output_prefix_override` (if set) + `host_url_override`
     locales: []const Locale,
+
+    /// When enabled, Zine will automatically add
+    /// 'width' and 'height' attributes to <img> elements
+    /// for local assets. This feature relies on 'wuffs'
+    /// which can sometimes refuse to load an otherwise
+    /// valid image. When that happens a warning will
+    /// be printed.
+    /// Lastly, be aware that setting 'width' and 'heigth' of an image will in some circumstances cause browsers to distort images.
+    /// This problem can be solved by adding the following CSS code to your site:
+    ///
+    /// img {
+    ///    height: auto;
+    /// }
+    image_size_attributes: bool = false,
 
     /// Enables Zine's -Ddebug and -Dscope flags
     /// (only useful if you're developing Zine)
