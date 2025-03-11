@@ -165,4 +165,26 @@ pub const Builtins = struct {
             }));
         }
     };
+
+    pub const str = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const docs_description =
+            \\Converts the number into a string, so that can be used for
+            \\functions that require a string argument.
+        ;
+
+        pub const examples =
+            \\$i18n.get!("current_page").fmt($loop.idx.str())
+        ;
+
+        pub fn call(
+            int: Int,
+            gpa: Allocator,
+            _: *const context.Template,
+            args: []const Value,
+        ) !Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            return String.init(try std.fmt.allocPrint(gpa, "{}", .{int.value}));
+        }
+    };
 };
