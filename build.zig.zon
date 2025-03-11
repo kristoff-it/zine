@@ -2,6 +2,7 @@
     .name = .zine,
     .version = "0.0.0",
     .fingerprint = 0xa466bcb520a7eea2,
+    .minimum_zig_version = "0.14.0",
     .dependencies = .{
         .supermd = .{
             .url = "git+https://github.com/kristoff-it/supermd#369740f58459a88e398cded0ce3f86c508449603",
