@@ -950,15 +950,12 @@ pub const Builtins = struct {
                 );
             };
 
-            switch (node.getDirective().?.kind) {
-                .section => {},
-                else => {
-                    return Value.errFmt(
-                        gpa,
-                        "id '{s}' exists but is not a section",
-                        .{section_id},
-                    );
-                },
+            if (node.getDirective() == null or node.getDirective().?.kind != .section) {
+                return Value.errFmt(
+                    gpa,
+                    "id '{s}' exists but is not a section",
+                    .{section_id},
+                );
             }
 
             try render.html(gpa, ast, node, "", buf.writer());
@@ -995,7 +992,13 @@ pub const Builtins = struct {
             const ast = p._meta.ast orelse return .{
                 .err = "only the main page can be rendered for now",
             };
-            return Bool.init(ast.ids.get(section_id) != null);
+            // a true value indicates that `contentSection` will not error
+            const has_section = blk: {
+                const section = ast.ids.get(section_id) orelse break :blk false;
+                const directive = section.getDirective() orelse break :blk false;
+                break :blk directive.kind == .section;
+            };
+            return Bool.init(has_section);
         }
     };
 
@@ -1029,7 +1032,7 @@ pub const Builtins = struct {
             var sections = std.ArrayList(ContentSection).init(gpa);
             var it = ast.ids.iterator();
             while (it.next()) |kv| {
-                const d = kv.value_ptr.getDirective().?;
+                const d = kv.value_ptr.getDirective() orelse continue;
                 if (d.kind == .section) {
                     try sections.append(.{
                         .id = d.id orelse "",
