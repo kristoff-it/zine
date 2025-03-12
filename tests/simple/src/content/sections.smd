@@ -15,3 +15,6 @@ Lorem Ipsum 2
 ### [H3]($section.id('h3'))
 Lorem Ipsum 3
 
+This is a footnote[^1]
+
+[^1]: That should not break this page
