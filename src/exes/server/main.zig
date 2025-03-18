@@ -17,6 +17,8 @@ pub const std_options: std.Options = .{
 var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
 
 const Server = struct {
+    pub const MAX_CONN_HEADER_SIZE: usize = 8 * 1024;
+
     watcher: *Reloader,
     public_dir: std.fs.Dir,
 
@@ -257,7 +259,7 @@ fn serve(s: *Server, listen_port: u16) !void {
     const server_port = tcp_server.listen_address.in.getPort();
     std.debug.print("\x1b[2K\rListening at http://127.0.0.1:{d}/\n", .{server_port});
 
-    var buffer: [1024]u8 = undefined;
+    var buffer: [Server.MAX_CONN_HEADER_SIZE]u8 = undefined;
     accept: while (true) {
         const conn = try tcp_server.accept();
 
