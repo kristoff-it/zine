@@ -301,12 +301,12 @@ pub fn load(gpa: Allocator, arena: Allocator, args: []const []const u8) Build {
 
         const layouts_dir = base_dir.makeOpenPath(
             cfg.getLayoutsDirPath(),
-            .{},
+            .{ .iterate = true },
         ) catch |err| fatal.dir(cfg.getLayoutsDirPath(), err);
 
         const assets_dir = base_dir.makeOpenPath(
             cfg.getAssetsDirPath(),
-            .{},
+            .{ .iterate = true },
         ) catch |err| fatal.dir(cfg.getAssetsDirPath(), err);
 
         var table: StringTable = .empty;
