@@ -63,6 +63,20 @@ const Config = union(enum) {
             .Multilingual => |m| m.assets_dir_path,
         };
     }
+
+    pub fn getSiteTitle(c: *const Config, locale_id: u32) []const u8 {
+        return switch (c.*) {
+            .Site => |s| s.title,
+            .Multilingual => |m| m.locales[locale_id].site_title,
+        };
+    }
+
+    pub fn getHostUrl(c: *const Config, locale_id: u32) []const u8 {
+        return switch (c.*) {
+            .Site => |s| s.host_url,
+            .Multilingual => |m| m.locales[locale_id].host_url_override orelse m.host_url,
+        };
+    }
 };
 
 pub const Site = struct {

@@ -148,16 +148,29 @@ pub fn run(
     var build: Build = .load(gpa, arena, args);
     _ = arena_state.reset(.retain_capacity);
 
-    const content_dir_paths: []const []const u8 = &.{build.cfg.Site.content_dir_path};
-    build.variants = try gpa.alloc(Variant, content_dir_paths.len);
-    for (content_dir_paths, 0..) |p, idx| {
-        worker.addJob(.{
-            .scan = .{
-                .variant = &build.variants[idx],
-                .base_dir = build.base_dir,
-                .content_dir_path = p,
-            },
-        });
+    switch (build.cfg) {
+        .Site => |s| {
+            build.variants = try gpa.alloc(Variant, 1);
+            worker.addJob(.{
+                .scan = .{
+                    .variant = &build.variants[0],
+                    .base_dir = build.base_dir,
+                    .content_dir_path = s.content_dir_path,
+                },
+            });
+        },
+        .Multilingual => |ml| {
+            build.variants = try gpa.alloc(Variant, ml.locales.len);
+            for (ml.locales, 0..) |locale, idx| {
+                worker.addJob(.{
+                    .scan = .{
+                        .variant = &build.variants[idx],
+                        .base_dir = build.base_dir,
+                        .content_dir_path = locale.content_dir_path,
+                    },
+                });
+            }
+        },
     }
 
     // Before we wait for content dirs to be scanned, we scan the layouts

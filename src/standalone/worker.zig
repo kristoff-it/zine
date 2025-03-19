@@ -801,8 +801,8 @@ fn renderPage(
     };
 
     const site: context.Site = .{
-        .host_url = build.cfg.Site.host_url,
-        .title = build.cfg.Site.title,
+        .host_url = build.cfg.getHostUrl(variant_id),
+        .title = build.cfg.getSiteTitle(variant_id),
         ._meta = .{ .kind = .simple },
     };
     var ctx: context.Template = .{
@@ -872,6 +872,8 @@ fn renderPage(
     var out_buf = std.io.bufferedWriter(out_raw.writer());
     const out = out_buf.writer();
 
+    var err_buf = std.ArrayList(u8).init(gpa);
+
     var super_vm = SuperVM.init(
         arena,
         &ctx,
@@ -883,7 +885,7 @@ fn renderPage(
         std.mem.endsWith(u8, layout_path, ".xml"),
         md_name,
         out,
-        std.io.getStdErr().writer(),
+        err_buf.writer(),
     );
 
     while (true) super_vm.run() catch |err| switch (err) {
@@ -919,6 +921,10 @@ fn renderPage(
     };
 
     out_buf.flush() catch |err| fatal.file(md_name, err);
+
+    if (err_buf.items.len > 0) {
+        std.debug.print("{s}", .{err_buf.items});
+    }
 }
 
 // Null language evaluates to true for convenience.

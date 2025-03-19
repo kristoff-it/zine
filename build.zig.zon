@@ -38,8 +38,8 @@
             .hash = "supermd-0.1.0-3Mco3DhrWAAsbx7bzzZwd4HB3ZBOP24nJ8aJ8w-TwnYh",
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#bf6443fb272808b350d2e0399b8e66cc2427b4e6",
-            .hash = "superhtml-0.4.0-Y7MdPFiWDQByHzU1USAv_rKVdWQZ5-Q527Cgipfo0zPL",
+            .url = "git+https://github.com/kristoff-it/superhtml#fc7c594f52528e4a4a08671137850143d55a5bf2",
+            .hash = "superhtml-0.4.0-Y7MdPF6WDQDa7hxWC6LpPwxXo4YA2OJzNEE5jsaCROLX",
         },
         .tracy = .{
             .url = "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
