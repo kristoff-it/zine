@@ -1,5 +1,6 @@
 const std = @import("std");
 const supermd = @import("supermd");
+const tracy = @import("tracy");
 const hl = @import("../highlight.zig");
 const c = supermd.c;
 const highlightCode = hl.highlightCode;
@@ -13,10 +14,11 @@ pub fn html(
     gpa: std.mem.Allocator,
     ast: Ast,
     start: supermd.Node,
-    // path to the file, used in error messages
-    path: []const u8,
     w: anytype,
 ) !void {
+    const zone = tracy.traceNamed(@src(), "html");
+    defer zone.end();
+
     // Footnotes are disconnected from the main ast tree so we cannot
     // start an iterator from the document's root node when rendering
     // one (which happens on-demand by pointing `start` at a footnote node).
@@ -30,12 +32,24 @@ pub fn html(
     } else it.next();
 
     var open_div = false;
+    var table_in_header = false;
+    var table_alignments: []const u8 = &.{};
+    var table_cell_id: usize = 0;
     while (event) |ev| : (event = it.next()) {
+        const loop_zone = tracy.traceNamed(@src(), "html-event");
+        defer loop_zone.end();
+
         const node = ev.node;
         const node_is_section = if (node.getDirective()) |d|
             d.kind == .section and node.nodeType() != .LINK
         else
             false;
+
+        var buf: [1024]u8 = undefined;
+        tracy.messageCopy(std.fmt.bufPrint(&buf, "{} {s}", .{
+            node.nodeType(),
+            @tagName(ev.dir),
+        }) catch unreachable);
 
         log.debug("node ({}, {s}, {?s}) = {} {s} \n({*} == {*} {})", .{
             node_is_section,
@@ -52,6 +66,7 @@ pub fn html(
             log.debug("done, breaking", .{});
             break;
         }
+
         switch (node.nodeType()) {
             .DOCUMENT => {},
             .BLOCK_QUOTE => switch (ev.dir) {
@@ -239,28 +254,6 @@ pub fn html(
                 .exit => try w.print("</strong>", .{}),
             },
             .LINK, .IMAGE => try renderDirective(gpa, ast, ev, w),
-            // .IMAGE => switch (ev.dir) {
-            //     .enter => {
-            //         const url = node.link() orelse "";
-            //         const title = node.title();
-            //         if (title) |t| {
-            //             try w.print(
-            //                 "<figure data-title=\"{s}\"><img src=\"{s}\" alt=\"",
-            //                 .{ t, url },
-            //             );
-            //         } else {
-            //             try w.print("<img src=\"{s}\" alt=\"", .{url});
-            //         }
-            //     },
-            //     .exit => {
-            //         if (node.title()) |t| {
-            //             try w.print("\" title=\"{s}\"></figure>", .{t});
-            //         } else {
-            //             try w.print("\">", .{});
-            //         }
-            //     },
-            // },
-
             .CODE_BLOCK => switch (ev.dir) {
                 .exit => {},
                 .enter => {
@@ -281,34 +274,15 @@ pub fn html(
 
                             try w.print("<pre><code class=\"{s}\">", .{lang_name});
 
-                            const line = node.startLine();
-                            const col = node.startColumn();
                             highlightCode(
                                 gpa,
                                 lang_name,
                                 code,
                                 w,
                             ) catch |err| switch (err) {
-                                error.NoLanguage => {
-                                    std.debug.print(
-                                        \\{s}:{}:{}
-                                        \\Unable to find highlighting queries for language '{s}'
-                                        \\
-                                    ,
-                                        .{ path, line, col, lang_name },
-                                    );
-                                    std.process.exit(1);
-                                },
-                                else => {
-                                    std.debug.print(
-                                        \\{s}:{}:{}
-                                        \\Error while syntax highlighting: {s}
-                                        \\
-                                    ,
-                                        .{ path, line, col, @errorName(err) },
-                                    );
-                                    std.process.exit(1);
-                                },
+                                error.OutOfMemory => return error.OutOfMemory,
+                                // Already validated in analyzePage
+                                else => unreachable,
                             };
                             try w.writeAll("</code></pre>\n");
                         }
@@ -316,12 +290,58 @@ pub fn html(
                 },
             },
 
-            else => |nt| if (@intFromEnum(nt) == c.CMARK_NODE_STRIKETHROUGH) {
-                std.debug.print("striketrhough\n", .{});
-                switch (ev.dir) {
-                    .enter => try w.writeAll("<del>"),
-                    .exit => try w.writeAll("</del>"),
-                }
+            else => |nt| if (@intFromEnum(nt) == c.CMARK_NODE_STRIKETHROUGH) switch (ev.dir) {
+                .enter => try w.writeAll("<del>"),
+                .exit => try w.writeAll("</del>"),
+            } else if (@intFromEnum(nt) == c.CMARK_NODE_TABLE) switch (ev.dir) {
+                .enter => {
+                    table_alignments = node.getTableAlignments();
+                    try w.writeAll("<table>");
+                },
+                .exit => {
+                    table_alignments = &.{};
+                    try w.writeAll("</table>");
+                },
+            } else if (@intFromEnum(nt) == c.CMARK_NODE_TABLE_ROW) switch (ev.dir) {
+                .enter => {
+                    table_in_header = node.isTableHeader();
+                    try w.writeAll("<tr>");
+                },
+                .exit => {
+                    table_in_header = !node.isTableHeader();
+                    table_cell_id = 0;
+                    try w.writeAll("</tr>");
+                },
+            } else if (@intFromEnum(nt) == c.CMARK_NODE_TABLE_CELL) switch (ev.dir) {
+                .enter => {
+                    if (table_in_header) {
+                        try w.writeAll("<th");
+                    } else {
+                        try w.writeAll("<td");
+                    }
+
+                    if (table_cell_id < table_alignments.len) {
+                        const char = table_alignments[table_cell_id];
+                        if (char != 0) try w.print(" align='{s}'", .{
+                            switch (char) {
+                                else => unreachable,
+                                'l' => "left",
+                                'c' => "center",
+                                'r' => "right",
+                            },
+                        });
+                    }
+                    table_cell_id += 1;
+
+                    try w.writeAll(">");
+                },
+                .exit => {
+                    if (table_in_header) {
+                        try w.writeAll("</th>");
+                    } else {
+                        try w.writeAll("</td>");
+                    }
+                },
             } else std.debug.panic(
                 "TODO: implement support for {x}",
                 .{node.nodeType()},
@@ -339,7 +359,8 @@ fn renderDirective(
     ev: Iter.Event,
     w: anytype,
 ) !void {
-    _ = gpa;
+    const zone = tracy.trace(@src());
+    defer zone.end();
     _ = ast;
     const node = ev.node;
     const directive = node.getDirective() orelse return renderLink(ev, w);
@@ -458,8 +479,22 @@ fn renderDirective(
                     if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
                     try w.print("><code class=\"{?s}\">", .{code.language});
 
-                    // In this case src.url contains the prerendered source code
-                    try w.writeAll(code.src.?.url);
+                    if (code.language) |lang| {
+                        highlightCode(
+                            gpa,
+                            lang,
+                            code.src.?.url,
+                            w,
+                        ) catch |err| switch (err) {
+                            error.OutOfMemory => return error.OutOfMemory,
+                            // We assert success because the language code was
+                            // validated during the page analysis phase.
+                            else => unreachable,
+                        };
+                    } else {
+                        try w.print("{s}", .{HtmlSafe{ .bytes = code.src.?.url }});
+                    }
+
                     try w.print("</code></pre>", .{});
                 }
                 if (caption != null) try w.print("\n<figcaption>", .{});

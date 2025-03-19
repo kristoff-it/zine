@@ -4,8 +4,11 @@ const std = @import("std");
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
+const StringTable = @import("../StringTable.zig");
+const PathTable = @import("../PathTable.zig");
 const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
+const PathName = PathTable.PathName;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Bool = context.Bool;
@@ -156,8 +159,8 @@ pub const Builtins = struct {
         ;
         pub fn call(
             _: *const Site,
-            _: Allocator,
-            _: *const context.Template,
+            gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -170,15 +173,25 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            return .{
-                .asset = .{
-                    ._meta = .{
-                        .ref = ref,
-                        .path = ref,
-                        .kind = .site,
-                    },
-                },
-            };
+            if (context.pathValidationError(ref)) |err| return err;
+
+            const st = &ctx._meta.build.st;
+            const pt = &ctx._meta.build.pt;
+            if (PathName.get(st, pt, ref)) |pn| {
+                if (ctx._meta.build.site_assets.contains(pn)) {
+                    return .{
+                        .asset = .{
+                            ._meta = .{
+                                .ref = context.stripTrailingSlash(ref),
+                                .url = pn,
+                                .kind = .site,
+                            },
+                        },
+                    };
+                }
+            }
+
+            return Value.errFmt(gpa, "missing site asset: '{s}'", .{ref});
         }
     };
     pub const page = struct {
@@ -204,11 +217,10 @@ pub const Builtins = struct {
         pub fn call(
             site: *const Site,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
-            _ = gpa;
-
+            _ = site;
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -219,14 +231,40 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const res = try context.pageFind(.{
-                .ref = .{
-                    .path = ref,
-                    .site = site,
-                },
+            if (context.pathValidationError(ref)) |err| return err;
+
+            const variant = &ctx._meta.build.variants[ctx._meta.variant_id];
+
+            const path = variant.path_table.getPathNoName(
+                &variant.string_table,
+                ref,
+            ) orelse return Value.errFmt(gpa, "missing page '{s}'", .{
+                ref,
             });
 
-            return res;
+            const index_html: StringTable.String = @enumFromInt(11);
+            std.debug.assert(variant.string_table.get("index.html") == index_html);
+            const pn: PathName = .{
+                .path = path,
+                .name = index_html,
+            };
+
+            const hint = variant.urls.get(pn) orelse return Value.errFmt(
+                gpa,
+                "missing page '{s}'",
+                .{ref},
+            );
+
+            switch (hint.kind) {
+                .page_main => {},
+                else => return Value.errFmt(
+                    gpa,
+                    "missing page '{s}'",
+                    .{ref},
+                ),
+            }
+
+            return .{ .page = &variant.pages.items[hint.id] };
         }
     };
     pub const pages = struct {
@@ -264,23 +302,29 @@ pub const Builtins = struct {
                         return .{ .err = "argument is not a string" };
                     },
                 };
-                const res = try context.pageFind(.{
-                    .ref = .{
-                        .path = ref,
-                        .site = site,
-                    },
-                });
 
-                switch (res) {
-                    .err => {
-                        gpa.free(page_list);
-                        return res;
-                    },
-                    .page => |_p| p.* = .{ .page = _p },
-                    else => unreachable,
-                }
+                if (context.pathValidationError(ref)) |err| return err;
+
+                _ = site;
+                _ = p;
+                // const res = try context.pageFind(.{
+                //     .ref = .{
+                //         .path = ref,
+                //         .site = site,
+                //     },
+                // });
+
+                // switch (res) {
+                //     .err => {
+                //         gpa.free(page_list);
+                //         return res;
+                //     },
+                //     .page => |_p| p.* = .{ .page = _p },
+                //     else => unreachable,
+                // }
             }
-            return Array.init(gpa, Value, page_list);
+            // return Array.init(gpa, Value, page_list);
+            @panic("TODO");
         }
     };
     pub const locale = struct {
@@ -312,13 +356,17 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const other = context.siteGet(code) orelse {
-                return Value.errFmt(gpa, "unable to find locale '{s}'", .{
-                    code,
-                });
-            };
+            _ = gpa;
+            _ = code;
+            @panic("TODO");
+            // const other = context.siteGet(code) orelse {
+            //     return Value.errFmt(gpa, "unable to find locale '{s}'", .{
+            //         code,
+            //     });
+            // };
 
-            return .{ .site = other };
+            // return .{ .site = other };
+            //
         }
     };
 };

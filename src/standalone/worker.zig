@@ -3,6 +3,8 @@ const builtin = @import("builtin");
 const supermd = @import("supermd");
 const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
+const tracy = @import("tracy");
+const syntax = @import("syntax");
 const fatal = @import("../fatal.zig");
 const context = @import("../context.zig");
 const Build = @import("../Build.zig");
@@ -67,6 +69,7 @@ pub const Job = union(enum) {
         build: *const Build,
         variant_id: u32,
         page: *Page,
+        kind: RenderJobKind,
     },
 
     variant_assets_install: struct {
@@ -186,6 +189,7 @@ inline fn runOneJob(
             pr.build,
             pr.variant_id,
             pr.page,
+            pr.kind,
         ),
         .page_analyze => |pa| analyzePage(
             arena,
@@ -210,6 +214,9 @@ fn analyzePage(
     variant_id: u32,
     page: *Page,
 ) void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     assert(page._parse.status == .parsed);
     if (builtin.mode == .Debug) {
         const last = page._debug.stage.swap(.analyzed, .monotonic);
@@ -277,6 +284,7 @@ fn analyzeContent(
     variant_id: u32,
     page: *Page,
 ) error{OutOfMemory}!void {
+    _ = arena;
     const ast = &page._parse.ast;
     const errors = &page._analysis.page;
     const variant = &b.variants[variant_id];
@@ -287,6 +295,25 @@ fn analyzeContent(
 
     var current: ?supermd.Node = ast.md.root.firstChild();
     outer: while (current) |n| : (current = n.next(ast.md.root)) {
+        if (n.nodeType() == .CODE_BLOCK) blk: {
+            const fence_info = n.fenceInfo() orelse break :blk;
+            var fence_it = std.mem.tokenizeScalar(u8, fence_info, ' ');
+            const lang = fence_it.next() orelse break :blk;
+
+            if (!languageExists(lang)) {
+                try errors.append(gpa, .{
+                    .node = n,
+                    .kind = .{
+                        .unknown_language = .{
+                            .lang = lang,
+                        },
+                    },
+                });
+            }
+
+            continue :outer;
+        }
+
         const directive = n.getDirective() orelse continue;
 
         switch (directive.kind) {
@@ -298,8 +325,7 @@ fn analyzeContent(
                     .build_asset => @panic("TODO"),
                     .site_asset => |ref| blk: {
                         if (PathName.get(&b.st, &b.pt, ref)) |pn| {
-                            if (b.site_assets.getPtr(pn)) |rc| {
-                                _ = rc.fetchAdd(1, .acq_rel);
+                            if (b.site_assets.contains(pn)) {
                                 break :blk ref;
                             }
                         }
@@ -319,41 +345,25 @@ fn analyzeContent(
                     },
                 };
 
-                const src = std.fs.cwd().readFileAlloc(
+                const src = b.site_assets_dir.readFileAlloc(
                     gpa,
                     path,
                     std.math.maxInt(u32),
                 ) catch |err| fatal.file(path, err);
 
-                const lang = code.language orelse {
-                    directive.kind.code.src = .{ .url = src };
-                    continue;
-                };
-
-                if (std.mem.eql(u8, lang, "=html")) {
-                    directive.kind.code.src = .{ .url = src };
-                    continue;
+                if (!languageExists(code.language)) {
+                    try errors.append(gpa, .{
+                        .node = n,
+                        .kind = .{
+                            .unknown_language = .{
+                                .lang = code.language.?,
+                            },
+                        },
+                    });
+                    continue :outer;
                 }
 
-                var buf = std.ArrayList(u8).init(gpa);
-
-                highlight.highlightCode(arena, lang, src, buf.writer()) catch |err| switch (err) {
-                    // else => unreachable,
-                    else => @panic("unexpected error in syntax highlighter\n"),
-                    error.OutOfMemory => return error.OutOfMemory,
-                    error.InvalidLanguage => {
-                        try errors.append(gpa, .{
-                            .node = n,
-                            .kind = .{
-                                .unknown_language = .{
-                                    .lang = lang,
-                                },
-                            },
-                        });
-                        continue :outer;
-                    },
-                };
-                directive.kind.code.src = .{ .url = buf.items };
+                directive.kind.code.src = .{ .url = src };
             },
 
             // Link, Image, Video directives
@@ -380,13 +390,12 @@ fn analyzeContent(
                                         },
                                     },
                                 });
+                                continue :outer;
                             }
                         }
 
                         if (val.ref) |ref| {
-                            try path_bytes.append('#');
-                            try path_bytes.appendSlice(ref);
-                            if (!val.ref_unsafe and !ast.ids.contains(ref)) {
+                            if (!val.ref_unsafe and !ast.ids.contains(ref) and ref.len > 0) {
                                 try errors.append(gpa, .{
                                     .node = n,
                                     .kind = .{
@@ -395,10 +404,13 @@ fn analyzeContent(
                                         },
                                     },
                                 });
+                                continue :outer;
                             }
                         }
 
-                        @field(directive.kind, @tagName(tag)).src = .{ .url = path_bytes.items };
+                        @field(directive.kind, @tagName(tag)).src = .{
+                            .url = path_bytes.items,
+                        };
                         continue :outer;
                     },
 
@@ -446,14 +458,21 @@ fn analyzeContent(
                                 continue :outer;
                             },
                             .sibling => blk: {
-                                try path_bytes.writer().print("{s}{s}", .{
+                                try path_bytes.writer().print("{s}", .{
                                     page._scan.md_path.fmt(
                                         &variant.string_table,
                                         &variant.path_table,
-                                        true,
+                                        false,
                                     ),
-                                    p.ref,
                                 });
+
+                                if (page._scan.md_name == index_smd) {
+                                    const keep = std.fs.path.dirname(path_bytes.items) orelse "";
+                                    path_bytes.items = path_bytes.items[0..keep.len];
+                                }
+
+                                try path_bytes.append('/');
+                                try path_bytes.appendSlice(p.ref);
 
                                 if (variant.path_table.getPathNoName(
                                     &variant.string_table,
@@ -515,6 +534,10 @@ fn analyzeContent(
                             },
                         };
 
+                        if (path_bytes.items[path_bytes.items.len - 1] != '/') {
+                            try path_bytes.append('/');
+                        }
+
                         const hint = variant.urls.get(pn) orelse {
                             try errors.append(gpa, .{
                                 .node = n,
@@ -550,6 +573,7 @@ fn analyzeContent(
                                 if (std.mem.eql(u8, alt.name, alt_name)) {
                                     // TODO: semantics for relative output paths
                                     assert(std.mem.startsWith(u8, alt.output, "/"));
+                                    path_bytes.clearRetainingCapacity();
                                     try path_bytes.appendSlice(alt.output);
                                     break;
                                 }
@@ -579,11 +603,14 @@ fn analyzeContent(
                                 continue :outer;
                             }
 
-                            try path_bytes.append('#');
-                            try path_bytes.appendSlice(ref);
+                            // try path_bytes.append('#');
+                            // try path_bytes.appendSlice(ref);
                         }
 
-                        @field(directive.kind, @tagName(tag)).src = .{ .url = path_bytes.items };
+                        @field(directive.kind, @tagName(tag)).src = .{
+                            .url = path_bytes.items,
+                        };
+                        continue :outer;
                         // const page_site = if (p.locale) |lc|
                         //     sites.get(lc) orelse reportError(
                         //         n,
@@ -701,7 +728,9 @@ fn analyzeContent(
                         // const img_size = getImageSize(image_header) catch break :blk;
                         // directive.kind.image.size = .{ .w = img_size.w, .h = img_size.h };
                         // }
-                        @field(directive.kind, @tagName(tag)).src = .{ .url = path_bytes.items };
+                        @field(directive.kind, @tagName(tag)).src = .{
+                            .url = path_bytes.items,
+                        };
                     },
                     .build_asset => @panic("TODO"),
                 }
@@ -710,6 +739,7 @@ fn analyzeContent(
     }
 }
 
+pub const RenderJobKind = union(enum) { main, alternative: u32 };
 const SuperVM = superhtml.VM(context.Template, context.Value);
 fn renderPage(
     arena: Allocator,
@@ -717,7 +747,11 @@ fn renderPage(
     build: *const Build,
     variant_id: u32,
     page: *Page,
+    kind: RenderJobKind,
 ) void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     _ = gpa;
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
@@ -733,7 +767,7 @@ fn renderPage(
     // ) else md_rel_path;
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const md_path = path_buf[0..page._scan.md_path.bytesSlice(
+    const page_path = path_buf[0..page._scan.md_path.bytesSlice(
         &variant.string_table,
         &variant.path_table,
         &path_buf,
@@ -741,7 +775,20 @@ fn renderPage(
         null,
     )];
 
-    const p = progress.start(md_path, 0);
+    tracy.messageCopy(page_path);
+
+    const progress_name = switch (kind) {
+        .main => page_path,
+        .alternative => |idx| blk: {
+            const alt_name = page.alternatives[idx].name;
+            break :blk try std.fmt.allocPrint(arena, "{s} (alternative '{s}')", .{
+                page_path,
+                alt_name,
+            });
+        },
+    };
+
+    const p = progress.start(progress_name, 0);
     defer p.end();
 
     page._meta = .{
@@ -769,28 +816,58 @@ fn renderPage(
         },
     };
 
-    const layout_name_str = build.st.get(page.layout).?;
+    ctx.build.generated = .initNow();
+
+    const layout_path = switch (kind) {
+        .main => page.layout,
+        .alternative => |idx| page.alternatives[idx].layout,
+    };
+
+    const layout_name_str = build.st.get(layout_path).?;
     const layout = build.templates.get(.fromString(layout_name_str, true)).?;
 
-    const index_smd: String = @enumFromInt(1);
-    const out_dir_path = if (page._scan.md_name == index_smd)
-        md_path
-    else
-        try std.fs.path.join(arena, &.{
-            md_path,
-            std.fs.path.stem(md_name),
-        });
+    const out_raw = switch (kind) {
+        .main => blk: {
+            const index_smd: String = @enumFromInt(1);
+            const out_dir_path = if (page._scan.md_name == index_smd)
+                page_path
+            else
+                try std.fs.path.join(arena, &.{
+                    page_path,
+                    std.fs.path.stem(md_name),
+                });
 
-    // note: do not close build.install_dir
-    var out_dir = if (md_path.len == 0) build.install_dir else build.install_dir.makeOpenPath(
-        out_dir_path,
-        .{},
-    ) catch |err| fatal.dir(out_dir_path, err);
+            // note: do not close build.install_dir
+            var out_dir = if (out_dir_path.len == 0) build.install_dir else build.install_dir.makeOpenPath(
+                out_dir_path,
+                .{},
+            ) catch |err| fatal.dir(out_dir_path, err);
+            defer if (out_dir_path.len > 0) out_dir.close();
 
-    const out_raw = out_dir.createFile(
-        "index.html",
-        .{},
-    ) catch |err| fatal.file("index.html", err);
+            break :blk out_dir.createFile(
+                "index.html",
+                .{},
+            ) catch |err| fatal.file("index.html", err);
+        },
+
+        .alternative => |idx| blk: {
+            const out_path = page.alternatives[idx].output;
+            assert(out_path[0] == '/');
+
+            if (std.fs.path.dirnamePosix(out_path)) |path| {
+                build.install_dir.makePath(
+                    path[1..],
+                ) catch |err| fatal.dir(path, err);
+            }
+
+            break :blk build.install_dir.createFile(
+                out_path[1..],
+                .{},
+            ) catch |err| fatal.file("index.html", err);
+        },
+    };
+
+    defer out_raw.close();
 
     var out_buf = std.io.bufferedWriter(out_raw.writer());
     const out = out_buf.writer();
@@ -798,10 +875,12 @@ fn renderPage(
     var super_vm = SuperVM.init(
         arena,
         &ctx,
-        page.layout,
+        layout_path,
         build.cfg.getLayoutsDirPath(),
         layout.src,
-        std.mem.endsWith(u8, page.layout, ".xml"),
+        layout.html_ast,
+        layout.ast,
+        std.mem.endsWith(u8, layout_path, ".xml"),
         md_name,
         out,
         std.io.getStdErr().writer(),
@@ -823,29 +902,17 @@ fn renderPage(
             });
 
             log.debug("loading template = '{s}'", .{template_path});
-            const template_html = readFile(
-                arena,
-                build.base_dir,
-                template_path,
-            ) catch |ioerr| {
-                super_vm.reportResourceFetchError(@errorName(ioerr));
-                std.debug.print(
-                    \\
-                    \\NOTE: Zine expects templates to be placed under a
-                    \\      'templates/' subdirectory in your layouts
-                    \\      directory.
-                    \\
-                    \\Zine tried to find the template here:
-                    \\'{s}'
-                    \\
-                    \\
-                , .{template_path});
-                std.process.exit(1);
-            };
+
+            const t = build.templates.get(.fromString(
+                build.st.get(template_name).?,
+                false,
+            )).?;
 
             super_vm.insertTemplate(
                 template_path,
-                template_html,
+                t.src,
+                t.html_ast,
+                t.ast,
                 std.mem.endsWith(u8, template_name, ".xml"),
             );
         },
@@ -854,17 +921,23 @@ fn renderPage(
     out_buf.flush() catch |err| fatal.file(md_name, err);
 }
 
-fn readFile(
-    arena: Allocator,
-    dir: std.fs.Dir,
-    path: []const u8,
-) ![:0]const u8 {
-    return dir.readFileAllocOptions(
-        arena,
-        path,
-        1024 * 1024,
-        null,
-        1,
-        0,
-    );
+// Null language evaluates to true for convenience.
+pub fn languageExists(language: ?[]const u8) bool {
+    const lang = language orelse return true;
+
+    if (std.mem.eql(u8, lang, "=html")) return true;
+
+    if (syntax.FileType.get_by_name(lang) == null) {
+        var buf: [1024]u8 = undefined;
+        const filename = std.fmt.bufPrint(
+            &buf,
+            "file.{s}",
+            .{lang},
+        ) catch "<lang name too long>";
+        if (syntax.FileType.guess(filename, "") == null) {
+            return false;
+        }
+    }
+
+    return true;
 }

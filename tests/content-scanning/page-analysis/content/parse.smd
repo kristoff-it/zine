@@ -1,0 +1,40 @@
+---
+.title = "parsing errors",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.draft = false,
+--- 
+# Inline html 
+<b>wrong</b>
+
+<div>wrong block-level html</div>
+
+[]($link.page(/other))  //wrong
+[]($link.page('/other))  //wrong
+
+# Correct page but wrong path (no abs paths in scripty arguments)
+[]($link.page('/other'))  //wrong
+
+# Wrong page (the dot makes it wrong)
+[]($link.page('./other')) //wrong
+
+# Bad paths
+[]($link.page('foo//bar')) //wrong 1/9
+
+[]($link.page('foo/./bar')) //wrong 2/9
+
+[]($link.page('foo/../bar')) //wrong 3/9
+
+[]($link.page('foo/.')) //wrong 4/9
+
+[]($link.page('foo/..')) //wrong 5/9
+
+[]($link.page('a//foo/./bar')) //wrong 6/9
+
+[]($link.page('a//foo/../bar')) //wrong 7/9
+
+[]($link.page('a//foo/.')) //wrong 8/9
+
+[]($link.page('a//foo/..')) //wrong 9/9
+

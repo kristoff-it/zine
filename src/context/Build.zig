@@ -78,7 +78,9 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            return context.assetFind(ref, .{ .build = null });
+            _ = ref;
+            @panic("TODO");
+            // return context.assetFind(ref, .{ .build = null });
         }
     };
 

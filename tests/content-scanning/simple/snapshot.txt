@@ -15,7 +15,7 @@
 | To disable all forms of concurrency, you can  |
 | add the following flag to your build command: |
 |                                               |
-|             --single-threaded                 |
+|              -Dsingle-threaded                |
 |                                               |
 *-----------------------------------------------*
 

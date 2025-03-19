@@ -2,6 +2,7 @@ const Template = @This();
 
 const std = @import("std");
 const superhtml = @import("superhtml");
+const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
 const worker = @import("standalone/worker.zig");
 const Build = @import("Build.zig");
@@ -45,6 +46,9 @@ pub fn parse(
     name: []const u8,
     is_layout: bool,
 ) void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     assert(t.rc.load(.acquire) > 0);
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
@@ -59,7 +63,11 @@ pub fn parse(
     const src = layouts_dir.readFileAlloc(gpa, path, max) catch |err| fatal.file(name, err);
 
     t.src = src;
-    t.html_ast = try .init(gpa, src, .superhtml);
+    t.html_ast = try .init(
+        gpa,
+        src,
+        if (std.mem.endsWith(u8, name, ".xml")) .xml else .superhtml,
+    );
     if (t.html_ast.errors.len > 0) return;
     t.ast = try .init(gpa, t.html_ast, src);
 

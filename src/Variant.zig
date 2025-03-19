@@ -4,6 +4,7 @@ const log = std.log.scoped(.variant);
 const std = @import("std");
 const builtin = @import("builtin");
 const ziggy = @import("ziggy");
+const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
 const worker = @import("standalone/worker.zig");
 const context = @import("context.zig");
@@ -114,6 +115,9 @@ pub const Section = struct {
         variant: *const Variant,
         index: *Page,
     ) void {
+        const zone = tracy.trace(@src());
+        defer zone.end();
+
         index.parse(gpa, worker.cmark, null, variant);
         s.active = !index.draft;
     }
@@ -141,6 +145,9 @@ pub fn scanContentDir(
     base_dir: std.fs.Dir,
     content_dir_path: []const u8,
 ) void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
@@ -396,6 +403,9 @@ pub fn installAssets(
     progress: std.Progress.Node,
     install_dir: std.fs.Dir,
 ) void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     // errdefer |err| switch (err) {
     //     error.OutOfMemory => fatal.oom(),
     // };

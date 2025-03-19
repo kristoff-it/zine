@@ -5,27 +5,17 @@ const scripty = @import("scripty");
 const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
 const doctypes = @import("context/doctypes.zig");
+const Variant = @import("Variant.zig");
 const Allocator = std.mem.Allocator;
 const Ctx = superhtml.utils.Ctx;
 
 pub const AssetKindUnion = union(Asset.Kind) {
     site,
-    page: *const Page,
+    page: *const Variant,
     // defined install path for a build asset as defined in the user's
     // build.zig
     build: ?[]const u8,
 };
-
-pub var assetFind: *const fn (
-    ref: []const u8,
-    kind: AssetKindUnion,
-) error{OutOfMemory}!Value = undefined;
-
-pub var assetCollect: *const fn (
-    ref: []const u8,
-    path: []const u8,
-    kind: AssetKindUnion,
-) error{OutOfMemory}![]const u8 = undefined;
 
 pub const PageSearchStrategy = union(enum) {
     ref: struct {
@@ -36,24 +26,6 @@ pub const PageSearchStrategy = union(enum) {
     prev: *const Page,
     subpages: *const Page,
 };
-pub var pageFind: *const fn (
-    search: PageSearchStrategy,
-) error{OutOfMemory}!Value = undefined;
-
-pub var pageGet: *const fn (
-    site: *const Site,
-    md_rel_path: []const u8,
-    parent_section_path: ?[]const u8,
-    index_in_section: ?usize,
-    is_root: bool,
-) error{ OutOfMemory, PageLoad }!*const Page = undefined;
-pub var pageGetRoot: *const fn () *const Page = undefined;
-
-pub var siteGet: *const fn (
-    code: []const u8,
-) ?*const Site = undefined;
-
-pub var allSites: *const fn () []const Site = undefined;
 
 pub const ScriptyParam = doctypes.ScriptyParam;
 pub const Signature = doctypes.Signature;
@@ -244,3 +216,49 @@ pub const Value = union(enum) {
         }
     }
 };
+
+//NOTE: this must be kept in sync with SuperMD
+pub fn pathValidationError(path: []const u8) ?context.Value {
+    // Paths must not have spaces around them
+    const spaces = std.mem.trim(u8, path, &std.ascii.whitespace);
+    if (spaces.len != path.len) return .{
+        .err = "remove whitespace surrounding path",
+    };
+
+    // Paths cannot be empty
+    if (path.len == 0) return .{
+        .err = "path is empty",
+    };
+
+    // All paths must be relative
+    if (path[0] == '/') return .{
+        .err = "path must be relative, use the appropriate builtin if necessary",
+    };
+
+    // Paths cannot contain Windows-style separators
+    if (std.mem.indexOfScalar(u8, path, '\\') != null) return .{
+        .err = "use '/' instead of '\\' as the path component separator",
+    };
+
+    // Path cannot contain any relative component (. or ..)
+    var it = std.mem.splitScalar(u8, path, '/');
+    while (it.next()) |c| {
+        if (std.mem.eql(u8, c, ".") or
+            std.mem.eql(u8, c, "..")) return .{
+            .err = "'.' and '..' are not allowed in paths, use the appropriate builtin instead",
+        };
+
+        if (c.len == 0) {
+            if (it.next() != null) return .{
+                .err = "empty component in path",
+            };
+        }
+    }
+
+    return null;
+}
+
+pub fn stripTrailingSlash(path: []const u8) []const u8 {
+    if (path[path.len - 1] == '/') return path[0 .. path.len - 1];
+    return path;
+}

@@ -26,13 +26,7 @@
 []($link.ref('okref')) //correct
 
 # Correct page
-[]($link.page('/other'))  //correct
-
-# Correct page
 []($link.page('other')) //correct
-
-# Wrong page (the dot makes it wrong)
-[]($link.page('./other')) //wrong
 
 # Correct page
 []($link.sub('other')) //correct

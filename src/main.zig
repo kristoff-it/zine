@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const supermd = @import("supermd");
 const options = @import("options");
+const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
 const worker = @import("standalone/worker.zig");
 const Build = @import("Build.zig");
@@ -97,6 +98,36 @@ pub fn run(
             \\|                                               |
             \\|              -Dsingle-threaded                |
             \\|                                               |
+            \\*-----------------------------------------------*
+            \\
+            \\
+        , .{});
+    }
+    if (tracy.enable) {
+        std.debug.print(
+            \\*-----------------------------------------------*
+            \\|            WARNING: TRACING ENABLED           |
+            \\|-----------------------------------------------|
+            \\| Tracing introduces a significant performance  |
+            \\| overhead. If you're not interested in tracing |
+            \\| Zine, remove `-Dtracy` when building again    |
+            \\*-----------------------------------------------*
+            \\
+            \\
+        , .{});
+    }
+
+    if (options.tsan) {
+        std.debug.print(
+            \\*-----------------------------------------------*
+            \\|             WARNING: TSAN ENABLED             |
+            \\|-----------------------------------------------|
+            \\| Thread sanitizer introduces a significant     |
+            \\| performance overhead.                         |
+            \\|                                               |
+            \\| If you're not interested in debugging         |  
+            \\| concurrency bugs in Zine, remove `-Dtsan`     |
+            \\| when building again.                          |
             \\*-----------------------------------------------*
             \\
             \\
@@ -316,6 +347,42 @@ pub fn run(
                         },
                     });
                 }
+
+                for (p.alternatives, 0..) |alt, aidx| {
+                    const alt_layout_name = try build.st.intern(
+                        gpa,
+                        alt.layout,
+                    );
+                    const alt_layout = build.templates.getPtr(
+                        .fromString(alt_layout_name, true),
+                    ) orelse {
+                        // We can use analysis because a page that has
+                        // parse.status == ok will have initialized the field for
+                        // us.
+                        try p._analysis.frontmatter.append(gpa, .{
+                            .alternative = .{
+                                .id = @intCast(aidx),
+                                .kind = .path,
+                            },
+                        });
+                        break :layout;
+                    };
+
+                    if (alt_layout.rc.fetchAdd(1, .monotonic) == 0) {
+                        // We found the first active reference, submit a worker job
+                        // to load the layout.
+                        worker.addJob(.{
+                            .template_parse = .{
+                                .table = &build.st,
+                                .templates = &build.templates,
+                                .layouts_dir = build.layouts_dir,
+                                .template = alt_layout,
+                                .name = alt.layout,
+                                .is_layout = true,
+                            },
+                        });
+                    }
+                }
             }
 
             if (p._parse.ast.errors.len > 0) {
@@ -471,10 +538,10 @@ pub fn run(
 
                     var hl_buf: [1024]u8 = undefined;
 
-                    const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
-                        const h = hl_buf[0 .. caret_len + caret_spaces_len];
+                    const highlight = if (caret_len + caret_spaces_len + 1 < 1024) blk: {
+                        const h = hl_buf[0 .. caret_len + caret_spaces_len + 1];
                         @memset(h[0..caret_spaces_len], ' ');
-                        @memset(h[caret_spaces_len..][0..caret_len], '^');
+                        @memset(h[caret_spaces_len..][0 .. caret_len + 1], '^');
                         break :blk h;
                     } else "";
 
@@ -734,14 +801,28 @@ pub fn run(
             if (!p._parse.active) continue;
 
             pages_to_render += 1;
+
             worker.addJob(.{
                 .page_render = .{
                     .progress = progress_page_render,
                     .build = &build,
                     .variant_id = @intCast(vidx),
                     .page = p,
+                    .kind = .main,
                 },
             });
+
+            for (0..p.alternatives.len) |aidx| {
+                worker.addJob(.{
+                    .page_render = .{
+                        .progress = progress_page_render,
+                        .build = &build,
+                        .variant_id = @intCast(vidx),
+                        .page = p,
+                        .kind = .{ .alternative = @intCast(aidx) },
+                    },
+                });
+            }
         }
     }
 
@@ -791,7 +872,6 @@ pub fn run(
             )];
 
             if (entry.value_ptr.raw > 0) {
-                std.debug.print("installing!\n", .{});
                 _ = build.site_assets_dir.updateFile(
                     path,
                     build.install_dir,
@@ -804,6 +884,12 @@ pub fn run(
 
     worker.wait(); // done installing assets
     progress_install_assets.end();
+
+    if (tracy.enable) {
+        var progress_tracy = progress.start("Tracy", 0);
+        std.Thread.sleep(100 * std.time.ns_per_ms);
+        progress_tracy.end();
+    }
 }
 
 pub fn showTree(
@@ -885,6 +971,7 @@ fn printSuperMdErrors(
     md_src: []const u8,
     fm_offset: usize,
 ) void {
+    _ = arena;
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
@@ -921,10 +1008,12 @@ fn printSuperMdErrors(
 
         var buf: [1024]u8 = undefined;
 
-        const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
-            const h = buf[0 .. caret_len + caret_spaces_len];
+        const extra: u32 = if (err.kind == .scripty) 1 else 0;
+
+        const highlight = if (caret_len + caret_spaces_len + extra < 1024) blk: {
+            const h = buf[0 .. caret_len + caret_spaces_len + extra];
             @memset(h[0..caret_spaces_len], ' ');
-            @memset(h[caret_spaces_len..][0..caret_len], '^');
+            @memset(h[caret_spaces_len..][0 .. caret_len + extra], '^');
             break :blk h;
         } else "";
 
@@ -942,12 +1031,12 @@ fn printSuperMdErrors(
 
         // Saturating subtraction because of a bug related to html comments
         // in markdown.
-        const lines = range.end.row -| range.start.row;
-        const lines_fmt = if (lines == 0) "" else try std.fmt.allocPrint(
-            arena,
-            "(+{} lines)",
-            .{lines},
-        );
+        // const lines = range.end.row -| range.start.row;
+        // const lines_fmt = if (lines == 0) "" else try std.fmt.allocPrint(
+        //     arena,
+        //     "(+{} lines)",
+        //     .{lines},
+        // );
 
         const tag_name = switch (err.kind) {
             .html => |h| switch (h.tag) {
@@ -956,17 +1045,15 @@ fn printSuperMdErrors(
             else => @tagName(err.kind),
         };
         std.debug.print(
+            \\{s}:{}:{}: [{s}] {s}
+            \\|    {s}
+            \\|    {s}
             \\
-            \\[{s}] {s}
-            \\{s}:{}:{}: {s}
-            \\    {s}
-            \\    {s}
             \\
         , .{
-            tag_name,        msg,
-            md_path,         fm_offset + range.start.row,
-            range.start.col, lines_fmt,
-            line_trim,       highlight,
+            md_path,   fm_offset + range.start.row, range.start.col,
+            tag_name,  msg,                         line_trim,
+            highlight,
         });
     }
 }

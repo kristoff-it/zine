@@ -6,6 +6,20 @@ pub fn build(b: *std.Build) !void {
         // .preferred_optimize_mode = .ReleaseFast,
     });
 
+    const tsan = b.option(
+        bool,
+        "tsan",
+        "enable thread sanitizer",
+    ) orelse false;
+
+    const enable_tracy = b.option(
+        bool,
+        "tracy",
+        "Enable Tracy profiling",
+    ) orelse false;
+
+    const tracy = b.dependency("tracy", .{ .enable = enable_tracy });
+
     const scopes: []const []const u8 = b.option(
         []const []const u8,
         "scope",
@@ -17,12 +31,14 @@ pub fn build(b: *std.Build) !void {
     const options = blk: {
         const options = b.addOptions();
         const out = options.contents.writer();
-        try out.writeAll(
+        try out.print(
             \\// module = zine
             \\const std = @import("std");
-            \\pub const log_scope_levels: []const std.log.ScopeLevel = &.{
+            \\pub const tsan = {};
+            \\pub const log_scope_levels: []const std.log.ScopeLevel = &.{{
             \\
-        );
+        , .{tsan});
+
         for (scopes) |l| try out.print(
             \\.{{.scope = .{s}, .level = .debug}},
         , std.zig.fmtId(l));
@@ -31,23 +47,33 @@ pub fn build(b: *std.Build) !void {
     };
 
     // "BDFL version resolution" strategy
-    const scripty = b.dependency("scripty", .{}).module("scripty");
+    const scripty = b.dependency("scripty", .{
+        .target = target,
+        .optimize = optimize,
+        .tracy = enable_tracy,
+    }).module("scripty");
 
-    const superhtml = b.dependency("superhtml", mode).module("superhtml");
-    superhtml.addImport("scripty", scripty);
+    const superhtml = b.dependency("superhtml", .{
+        .target = target,
+        .optimize = optimize,
+        .tracy = enable_tracy,
+    }).module("superhtml");
 
     const ziggy = b.dependency("ziggy", mode).module("ziggy");
     const supermd = b.dependency("supermd", .{
         .target = target,
         .optimize = optimize,
-        // .@"sanitize-thread" = optimize == .Debug,
+        .tracy = enable_tracy,
     }).module("supermd");
     supermd.addImport("scripty", scripty);
     supermd.addImport("superhtml", superhtml);
     supermd.addImport("ziggy", ziggy);
 
     const zeit = b.dependency("zeit", mode).module("zeit");
-    const syntax = b.dependency("flow_syntax", mode);
+    const syntax = b.dependency("flow_syntax", .{
+        .target = target,
+        .optimize = optimize,
+    });
     const ts = syntax.builder.dependency("tree_sitter", mode);
     const treez = ts.module("treez");
     // const wuffs = b.dependency("wuffs", mode);
@@ -63,7 +89,7 @@ pub fn build(b: *std.Build) !void {
     // zine.addImport("syntax", syntax.module("syntax"));
     // zine.addImport("treez", treez);
 
-    setupServer(b, options, target, optimize);
+    // setupServer(b, options, target, optimize);
 
     // const shtml_docgen = b.addExecutable(.{
     //     .name = "shtml_docgen",
@@ -95,6 +121,8 @@ pub fn build(b: *std.Build) !void {
             "single-threaded",
             "build Zine in single-threaded mode",
         ) orelse false,
+
+        .sanitize_thread = tsan,
     });
 
     // zine_exe.root_module.addImport("zine", zine);
@@ -106,6 +134,7 @@ pub fn build(b: *std.Build) !void {
     zine_exe.root_module.addImport("syntax", syntax.module("syntax"));
     zine_exe.root_module.addImport("treez", treez);
     zine_exe.root_module.addImport("options", options);
+    zine_exe.root_module.addImport("tracy", tracy.module("tracy"));
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);

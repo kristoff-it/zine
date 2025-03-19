@@ -1,0 +1,34 @@
+---
+.title = "Code",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.draft = false,
+--- 
+
+```
+correct!
+```
+
+```=html
+correct!
+```
+
+```=html
+</span> wrong!
+```
+
+```rust
+// Correct!
+```
+
+```zig
+// correct
+```
+
+```zig++
+// wrong
+```
+
+[](<$code.siteAsset('code.zig').language('zig')>) //correct
+[](<$code.siteAsset('code.zig').language('zig++')>) //wrong

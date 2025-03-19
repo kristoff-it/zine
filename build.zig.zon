@@ -4,18 +4,6 @@
     .fingerprint = 0xa466bcb520a7eea2,
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
-        .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#240cc44b5fcd8e9e01180f1cbdcdd0f909a27275",
-            .hash = "superhtml-0.4.0-Y7MdPDK_DQDDgg8BEvvhUPk4lwUi_3LMKsszgFMVYsBW",
-        },
-        .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#9409ce365e25d8824524e6cb397fc172af0954c3",
-            .hash = "supermd-0.1.0-3Mco3NWBVACuOyqdA5H9JeWrRtBa_lGkIMRMoIVDDYkG",
-        },
-        .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#37dad0cc4a527d9b8148db7b8bfce5cc3670e3fa",
-            .hash = "scripty-0.1.0-LKK5O93AAAAsHaPH44imnLqQ9dKHj-y-jOapdwBe4Dxs",
-        },
         .ziggy = .{
             .url = "git+https://github.com/kristoff-it/ziggy#8a29017169f43dc2c3526817e98142eb9a335087",
             .hash = "ziggy-0.1.0-kTg8vwkbBgAOHreabwZtDDtNDi3U_RAiOMvuRDTJiy0I",
@@ -27,10 +15,6 @@
         .zeit = .{
             .url = "git+https://github.com/rockorager/zeit#52b100caa223d5cb1ff0d34f1b677f26e0ce8b84",
             .hash = "1220e97357cc39f4f9f053c763f3ec1623e0c7f3999f185746f2bd9bf9b5c5551392",
-        },
-        .flow_syntax = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#d5c1cd2a328ec75fd9b0feddbc9eb84b5f590939",
-            .hash = "flow_syntax-0.1.0-X8jOoZSdAADPlbyIxCpvEuiVCcPGVfSm_zRa8Ds7Jr3l",
         },
         .afl_kit = .{
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#f003bfe714f2964c90939fdc940d5993190a66ec",
@@ -44,6 +28,26 @@
         .lsp_kit = .{
             .url = "git+https://github.com/kristoff-it/zig-lsp-kit#87ff3d537a0c852442e180137d9557711963802c",
             .hash = "lsp_kit-0.1.0-hAAxO9S9AADv_5D0iplASFtNCFXAPk54M0u-3jj2MRFk",
+        },
+        .scripty = .{
+            .url = "git+https://github.com/kristoff-it/scripty#57056571abcc6fe69fcb171c10b0c9e5962f53b0",
+            .hash = "scripty-0.1.0-LKK5O9jDAADwZbkwkzYcmtTD3xIStr1SNYWL0kcGf8sk",
+        },
+        .supermd = .{
+            .url = "git+https://github.com/kristoff-it/supermd#4ea9a35a7108be78379e209d01bc977904789120",
+            .hash = "supermd-0.1.0-3Mco3DhrWAAsbx7bzzZwd4HB3ZBOP24nJ8aJ8w-TwnYh",
+        },
+        .superhtml = .{
+            .url = "git+https://github.com/kristoff-it/superhtml#bf6443fb272808b350d2e0399b8e66cc2427b4e6",
+            .hash = "superhtml-0.4.0-Y7MdPFiWDQByHzU1USAv_rKVdWQZ5-Q527Cgipfo0zPL",
+        },
+        .tracy = .{
+            .url = "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
+            .hash = "tracy-0.0.0-4Xw-1pwwAABTfMgoDP1unCbZDZhJEfict7XCBGF6IdIn",
+        },
+        .flow_syntax = .{
+            .url = "git+https://github.com/kristoff-it/flow-syntax?ref=fix-cache#2459748eebfad0977ceeb680584cbd18aacb57c4",
+            .hash = "flow_syntax-0.1.0-X8jOoYmxAACQQh9mujHiGTBVi-tWKJKr4-mMaKxImV0I",
         },
     },
     .paths = .{"."},

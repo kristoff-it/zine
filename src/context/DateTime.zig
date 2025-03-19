@@ -185,7 +185,9 @@ pub const Builtins = struct {
             _: *const context.Template,
             args: []const Value,
         ) !Value {
-            const argument_error: Value = .{ .err = "'formatHTTP' wants no argument" };
+            const argument_error: Value = .{
+                .err = "'formatHTTP' wants no argument",
+            };
             if (args.len != 0) return argument_error;
 
             // Fri, 16 Jun 2023 00:00:00 +0000

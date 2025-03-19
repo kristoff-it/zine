@@ -6,6 +6,7 @@ const ziggy = @import("ziggy");
 const scripty = @import("scripty");
 const supermd = @import("supermd");
 const utils = @import("utils.zig");
+const tracy = @import("tracy");
 const fatal = @import("../fatal.zig");
 const render = @import("../render.zig");
 const Signature = @import("doctypes.zig").Signature;
@@ -16,6 +17,8 @@ const Variant = @import("../Variant.zig");
 const PathTable = @import("../PathTable.zig");
 const StringTable = @import("../StringTable.zig");
 const join = @import("../root.zig").join;
+const Path = PathTable.Path;
+const PathName = PathTable.PathName;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
@@ -300,6 +303,9 @@ pub fn parse(
     progress: ?std.Progress.Node,
     variant: *const @import("../Variant.zig"),
 ) void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     if (builtin.mode == .Debug) {
         const last = p._debug.stage.swap(.parsed, .acq_rel);
         assert(last == .scanned);
@@ -387,7 +393,7 @@ pub fn parse(
     const ast = try supermd.Ast.init(gpa, full_src[fm.offset..], cmark);
 
     p._parse = .{
-        .active = true,
+        .active = !p.draft,
         .full_src = full_src,
         .fm = fm,
         .ast = ast,
@@ -508,7 +514,7 @@ pub const Footnote = struct {
                 const ast = f._page._meta.ast orelse unreachable;
                 const node = ast.footnotes.values()[f._idx].node;
 
-                try render.html(gpa, ast, node, "", buf.writer());
+                try render.html(gpa, ast, node, buf.writer());
                 return String.init(try buf.toOwnedSlice());
             }
         };
@@ -634,8 +640,8 @@ pub const Builtins = struct {
         ;
         pub fn call(
             p: *const Page,
-            _: Allocator,
-            _: *const context.Template,
+            gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (!p._meta.is_root) return .{
@@ -652,7 +658,46 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            return context.assetFind(ref, .{ .page = p });
+            if (context.pathValidationError(ref)) |err| return err;
+
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const st = &v.string_table;
+            const pt = &v.path_table;
+
+            if (PathName.get(st, pt, ref)) |pn| blk: {
+                if (v.urls.get(pn)) |hint| {
+                    switch (hint.kind) {
+                        .page_asset => {
+                            const self_id = @divExact(@intFromPtr(p) - @intFromPtr(v.pages.items.ptr), @sizeOf(Page));
+
+                            if (hint.id != self_id) {
+                                const other_page = &v.pages.items[hint.id];
+                                const page_pn: PathName = .{
+                                    .path = other_page._scan.md_path,
+                                    .name = other_page._scan.md_name,
+                                };
+
+                                return Value.errFmt(gpa, "page asset '{s}' exists but belongs to page '{s}', to reference an asset that belongs to another page you must access it through that page (see page accessing functions in SuperHTML Scripty docs)", .{
+                                    ref,
+                                    page_pn.fmt(st, pt),
+                                });
+                            }
+                        },
+                        else => break :blk,
+                    }
+                    return .{
+                        .asset = .{
+                            ._meta = .{
+                                .ref = context.stripTrailingSlash(ref),
+                                .url = pn,
+                                .kind = .site,
+                            },
+                        },
+                    };
+                }
+            }
+
+            return Value.errFmt(gpa, "missing page asset: '{s}'", .{ref});
         }
     };
     pub const site = struct {
@@ -705,27 +750,32 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const other_site = context.siteGet(code) orelse return .{
-                .err = "unknown locale code",
-            };
-            if (p.translation_key) |tk| {
-                for (p._meta.key_variants) |*v| {
-                    if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
-                        const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
-                        return .{ .page = other };
-                    }
-                }
-                return .{ .err = "locale not found" };
-            } else {
-                const other = context.pageGet(
-                    other_site,
-                    p._meta.md_rel_path,
-                    null,
-                    null,
-                    false,
-                ) catch @panic("Trying to access a non-existent localized variant of a page is an error for now, sorry! As a temporary workaround you can set a translation key for this page (and its localized variants). This limitation will be lifted in the future.");
-                return .{ .page = other };
-            }
+            _ = code;
+            _ = p;
+
+            @panic("TODO");
+
+            // const other_site = context.siteGet(code) orelse return .{
+            //     .err = "unknown locale code",
+            // };
+            //     if (p.translation_key) |tk| {
+            //         for (p._meta.key_variants) |*v| {
+            //             if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
+            //                 const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
+            //                 return .{ .page = other };
+            //             }
+            //         }
+            //         return .{ .err = "locale not found" };
+            //     } else {
+            //         const other = context.pageGet(
+            //             other_site,
+            //             p._meta.md_rel_path,
+            //             null,
+            //             null,
+            //             false,
+            //         ) catch @panic("Trying to access a non-existent localized variant of a page is an error for now, sorry! As a temporary workaround you can set a translation key for this page (and its localized variants). This limitation will be lifted in the future.");
+            //         return .{ .page = other };
+            //     }
         }
     };
 
@@ -761,27 +811,32 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const other_site = context.siteGet(code) orelse return .{
-                .err = "unknown locale code",
-            };
-            if (p.translation_key) |tk| {
-                for (p._meta.key_variants) |*v| {
-                    if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
-                        const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
-                        return Optional.init(gpa, other);
-                    }
-                }
-                return Optional.Null;
-            } else {
-                const other = context.pageGet(
-                    other_site,
-                    p._meta.md_rel_path,
-                    null,
-                    null,
-                    false,
-                ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
-                return Optional.init(gpa, other);
-            }
+            _ = code;
+            _ = p;
+            _ = gpa;
+            @panic("TODO");
+
+            //     const other_site = context.siteGet(code) orelse return .{
+            //         .err = "unknown locale code",
+            //     };
+            //     if (p.translation_key) |tk| {
+            //         for (p._meta.key_variants) |*v| {
+            //             if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
+            //                 const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
+            //                 return Optional.init(gpa, other);
+            //             }
+            //         }
+            //         return Optional.Null;
+            //     } else {
+            //         const other = context.pageGet(
+            //             other_site,
+            //             p._meta.md_rel_path,
+            //             null,
+            //             null,
+            //             false,
+            //         ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
+            //         return Optional.init(gpa, other);
+            //     }
         }
     };
 
@@ -807,8 +862,8 @@ pub const Builtins = struct {
             //     }),
             // };
 
-            const all_sites = context.allSites();
-
+            const all_sites: []const context.Site = &.{};
+            if (true) @panic("TODO");
             // Because of a limitation of how indexing works, we
             // assume that all translations will be present if there is no
             // translation_key specified.
@@ -949,11 +1004,16 @@ pub const Builtins = struct {
             const s = v.sections.items[p._scan.subsection_id];
 
             const pages = try gpa.alloc(Value, s.pages.items.len);
-            for (pages, s.pages.items) |*sp, pidx| sp.* = .{
-                .page = &v.pages.items[pidx],
-            };
 
-            return context.Array.init(gpa, Value, pages);
+            var out_idx: usize = 0;
+            for (s.pages.items) |pidx| {
+                const page = &v.pages.items[pidx];
+                if (!page._parse.active) continue;
+                pages[out_idx] = .{ .page = page };
+                out_idx += 1;
+            }
+
+            return context.Array.init(gpa, Value, pages[0..out_idx]);
         }
     };
 
@@ -970,20 +1030,37 @@ pub const Builtins = struct {
         ;
         pub fn call(
             p: *const Page,
-            _: Allocator,
-            _: *const context.Template,
+            gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            const pages = try context.pageFind(.{ .subpages = p });
 
-            std.mem.sort(Value, @constCast(pages.array._items), {}, struct {
+            const subsection_id = p._scan.subsection_id;
+            if (subsection_id == 0) return context.Array.Empty;
+
+            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const s = v.sections.items[p._scan.subsection_id];
+
+            const pages_buf = try gpa.alloc(Value, s.pages.items.len);
+
+            var out_idx: usize = 0;
+            for (s.pages.items) |pidx| {
+                const page = &v.pages.items[pidx];
+                if (!page._parse.active) continue;
+                pages_buf[out_idx] = .{ .page = page };
+                out_idx += 1;
+            }
+
+            const pages = pages_buf[0..out_idx];
+
+            std.mem.sort(Value, @constCast(pages), {}, struct {
                 fn alphaLessThan(_: void, lhs: Value, rhs: Value) bool {
                     return std.mem.lessThan(u8, lhs.page.title, rhs.page.title);
                 }
             }.alphaLessThan);
 
-            return pages;
+            return context.Array.init(gpa, Value, pages);
         }
     };
 
@@ -1012,19 +1089,20 @@ pub const Builtins = struct {
 
             const v = &ctx._meta.build.variants[ctx._meta.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
-            const self_section_id = std.mem.indexOfScalar(
+            const self_id = std.mem.indexOfScalar(
                 u32,
                 s.pages.items,
                 p._scan.page_id,
             ).?;
 
-            if (self_section_id == 0) return context.Optional.Null;
+            var next_id = self_id;
+            while (next_id > 0) {
+                next_id -= 1;
+                const next = &v.pages.items[s.pages.items[next_id]];
+                if (next._parse.active) return Optional.init(gpa, next);
+            }
 
-            const next_section_id = self_section_id - 1;
-            return Optional.init(
-                gpa,
-                &v.pages.items[s.pages.items[next_section_id]],
-            );
+            return context.Optional.Null;
         }
     };
     pub const @"prevPage?" = struct {
@@ -1046,18 +1124,20 @@ pub const Builtins = struct {
 
             const v = &ctx._meta.build.variants[ctx._meta.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
-            const self_section_id = std.mem.indexOfScalar(
+            const self_id = std.mem.indexOfScalar(
                 u32,
                 s.pages.items,
                 p._scan.page_id,
             ).?;
 
-            const next_section_id = self_section_id + 1;
-            if (next_section_id >= s.pages.items.len) return context.Optional.Null;
-            return Optional.init(
-                gpa,
-                &v.pages.items[s.pages.items[next_section_id]],
-            );
+            var prev_id = self_id;
+            while (prev_id < s.pages.items.len - 1) {
+                prev_id += 1;
+                const prev = &v.pages.items[s.pages.items[prev_id]];
+                if (prev._parse.active) return Optional.init(gpa, prev);
+            }
+
+            return context.Optional.Null;
         }
     };
 
@@ -1087,8 +1167,15 @@ pub const Builtins = struct {
                 p._scan.page_id,
             ).?;
 
-            if (self_id == 0) return Bool.False;
-            return Bool.True;
+            var next_id = self_id;
+
+            while (next_id > 0) {
+                next_id -= 1;
+                const next = &v.pages.items[s.pages.items[next_id]];
+                if (next._parse.active) return Bool.True;
+            }
+
+            return Bool.False;
         }
     };
     pub const hasPrev = struct {
@@ -1116,9 +1203,14 @@ pub const Builtins = struct {
                 p._scan.page_id,
             ).?;
 
-            const next_id = self_id + 1;
-            if (next_id >= s.pages.items.len) return Bool.False;
-            return Bool.True;
+            var prev_id = self_id;
+            while (prev_id < s.pages.items.len - 1) {
+                prev_id += 1;
+                const prev = &v.pages.items[s.pages.items[prev_id]];
+                if (prev._parse.active) return Bool.True;
+            }
+
+            return Bool.False;
         }
     };
 
@@ -1141,16 +1233,26 @@ pub const Builtins = struct {
             const v = &ctx._meta.build.variants[ctx._meta.variant_id];
             const index_smd: StringTable.String = @enumFromInt(1);
 
-            const path = try std.fmt.allocPrint(gpa, "/{s}{s}{s}", .{
-                page._scan.md_path.fmt(&v.string_table, &v.path_table, true),
-                if (page._scan.md_name == index_smd)
-                    ""
-                else
-                    std.fs.path.stem(page._scan.md_name.slice(&v.string_table)),
-                if (page._scan.md_name == index_smd) "" else "/",
-            });
+            var buf: std.ArrayListUnmanaged(u8) = .empty;
+            const w = buf.writer(gpa);
 
-            return String.init(path);
+            const empty_path: Path = @enumFromInt(0);
+            const path = page._scan.md_path;
+            if (path != empty_path) {
+                try w.print("/{s}", .{
+                    page._scan.md_path.fmt(&v.string_table, &v.path_table, false),
+                });
+            }
+
+            const name = page._scan.md_name;
+            if (name != index_smd) {
+                try w.print("/{s}", .{
+                    std.fs.path.stem(page._scan.md_name.slice(&v.string_table)),
+                });
+            }
+
+            try buf.append(gpa, '/');
+            return String.init(buf.items);
         }
     };
 
@@ -1274,7 +1376,7 @@ pub const Builtins = struct {
             var buf = std.ArrayList(u8).init(gpa);
             const ast = p._meta.ast orelse unreachable;
 
-            try render.html(gpa, ast, ast.md.root, "", buf.writer());
+            try render.html(gpa, ast, ast.md.root, buf.writer());
             return String.init(try buf.toOwnedSlice());
         }
     };
@@ -1327,7 +1429,7 @@ pub const Builtins = struct {
                 );
             }
 
-            try render.html(gpa, ast, node, "", buf.writer());
+            try render.html(gpa, ast, node, buf.writer());
             return String.init(try buf.toOwnedSlice());
         }
     };
@@ -1617,13 +1719,7 @@ pub const ContentSection = struct {
                 var buf = std.ArrayList(u8).init(gpa);
 
                 log.debug("rendering content section [#{s}]", .{cs.id});
-                try render.html(
-                    gpa,
-                    cs._ast,
-                    cs._node,
-                    "",
-                    buf.writer(),
-                );
+                try render.html(gpa, cs._ast, cs._node, buf.writer());
                 return String.init(try buf.toOwnedSlice());
             }
         };

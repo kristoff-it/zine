@@ -434,7 +434,9 @@ pub fn scanTemplates(b: *Build, gpa: Allocator) !void {
                     });
                     continue;
                 }
-                if (std.mem.endsWith(u8, entry.name, ".shtml")) {
+                if (std.mem.endsWith(u8, entry.name, ".shtml") or
+                    std.mem.endsWith(u8, entry.name, ".xml"))
+                {
                     log.debug("new layout: '{s}'", .{entry.name});
                     progress.completeOne();
                     const str = try b.st.intern(gpa, entry.name);

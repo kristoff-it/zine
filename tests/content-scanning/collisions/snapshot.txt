@@ -1,3 +1,40 @@
+*-----------------------------------------------*
+|    WARNING: THIS IS A DEBUG BUILD OF ZINE     |
+|-----------------------------------------------|
+| Debug builds enable expensive sanity checks   |
+| that reduce performance.                      |
+|                                               |
+| To create a release build, run:               |
+|                                               |
+|           zig build --release=fast            |
+|                                               |
+| If you're investigating a bug in Zine, then a |
+| debug build might turn confusing behavior     |
+| into a crash.                                 |
+|                                               |
+| To disable all forms of concurrency, you can  |
+| add the following flag to your build command: |
+|                                               |
+|              -Dsingle-threaded                |
+|                                               |
+*-----------------------------------------------*
+
+index.smd:15:12: error: invalid value in alternatives
+|    .output = "nested/path/page/README.html",
+|              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+page.smd:15:13: error: invalid value in alternatives
+|    .output = "README.html",
+|              ^^^^^^^^^^^^^
+
+nested/path/page.smd:14:12: error: invalid value in alternatives
+|    .output = "README.html",
+|              ^^^^^^^^^^^^^
+
+page/index.html: error: output url collision detected
+   between  page.smd (main output)
+   and      page/index.smd (main output)
+
 index.html: error: output url collision detected
    between  index.smd (main output)
    and      index.smd (page alias)
@@ -15,20 +52,28 @@ README.html: error: output url collision detected
    and      page.smd (page alias)
 
 nested/path/page/index.html: error: output url collision detected
-   between  page.smd (page alias)
-   and      nested/path/page.smd (main output)
+   between  nested/path/page.smd (main output)
+   and      page.smd (page alias)
+
+README.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      page.smd (page alternative 'readme')
 
 another_index.html: error: output url collision detected
    between  index.smd (page alias)
    and      nested/path/page.smd (page alias)
 
-nested/path/page/README.html: error: output url collision detected
-   between  index.smd (page alternative 'readme')
-   and      nested/path/page.smd (page alternative 'readme')
+foo/bar/baz.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      nested/path/page.smd (page alias)
 
-page/index.html: error: output url collision detected
-   between  page.smd (main output)
-   and      page/index.smd (main output)
+foo/bar.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      nested/path/page.smd (page alias)
+
+README.html: error: output url collision detected
+   between  index.smd (page alias)
+   and      nested/path/page.smd (page alternative 'readme')
 
 
 

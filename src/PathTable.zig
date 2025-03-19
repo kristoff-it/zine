@@ -352,7 +352,7 @@ pub const Path = enum(u32) {
             const path_slice = f.p.slice(f.pt);
             for (path_slice, 0..) |c, idx| {
                 try writer.writeAll(c.slice(f.st));
-                if (f.slash or idx < path_slice.len - 2) {
+                if (f.slash or idx < path_slice.len - 1) {
                     try writer.writeAll("/");
                 }
             }

@@ -5,17 +5,20 @@ const _ziggy = @import("ziggy");
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
+const PathTable = @import("../PathTable.zig");
 const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
+const PathName = PathTable.PathName;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Int = context.Int;
 const log = utils.log;
+const assert = std.debug.assert;
 
 _meta: struct {
     ref: []const u8,
     // full path to the asset
-    path: []const u8,
+    url: PathName,
     kind: context.AssetKindUnion,
 },
 
@@ -64,22 +67,41 @@ pub const Builtins = struct {
         pub fn call(
             asset: Asset,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
 
-            switch (asset._meta.kind) {
-                else => {},
+            const url = switch (asset._meta.kind) {
+                .page => |v| blk: {
+                    const hint = v.urls.getPtr(asset._meta.url).?;
+                    assert(hint.kind == .page_asset);
+                    _ = hint.kind.page_asset.fetchAdd(1, .acq_rel);
+
+                    const st = &v.string_table;
+                    const pt = &v.path_table;
+                    break :blk try std.fmt.allocPrint(gpa, "/{s}", .{
+                        asset._meta.url.fmt(st, pt),
+                    });
+                },
+                .site => blk: {
+                    const rc = ctx._meta.build.site_assets.getPtr(asset._meta.url).?;
+                    _ = rc.fetchAdd(1, .acq_rel);
+
+                    const st = &ctx._meta.build.st;
+                    const pt = &ctx._meta.build.pt;
+                    break :blk try std.fmt.allocPrint(gpa, "/{s}", .{
+                        asset._meta.url.fmt(st, pt),
+                    });
+                },
                 .build => |bip| if (bip == null) {
                     return Value.errFmt(gpa, "build asset '{s}' is being linked but it doesn't define an `install_path` in `build.zig`", .{
                         asset._meta.ref,
                     });
-                },
-            }
+                } else asset._meta.ref,
+            };
 
-            const url = try join(gpa, &.{ "/", asset._meta.path });
             return Value.from(gpa, url);
         }
     };
@@ -92,18 +114,46 @@ pub const Builtins = struct {
             \\<div :text="$site.asset('foo.json').size()"></div>
         ;
         pub fn call(
-            self: Asset,
+            asset: Asset,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const stat = std.fs.cwd().statFile(self._meta.path) catch {
-                return .{ .err = "i/o error while reading asset file" };
-            };
-            return Int.init(@intCast(stat.size));
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            switch (asset._meta.kind) {
+                .page => |v| {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &v.string_table,
+                        &v.path_table,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    const stat = v.content_dir.statFile(path) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                    return Int.init(@intCast(stat.size));
+                },
+                .site => {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &ctx._meta.build.st,
+                        &ctx._meta.build.pt,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    const stat = ctx._meta.build.site_assets_dir.statFile(path) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                    return Int.init(@intCast(stat.size));
+                },
+                .build => @panic("TODO"),
+            }
         }
     };
     pub const bytes = struct {
@@ -115,17 +165,53 @@ pub const Builtins = struct {
             \\<div :text="$page.assets.file('foo.json').bytes()"></div>
         ;
         pub fn call(
-            self: Asset,
+            asset: Asset,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const data = std.fs.cwd().readFileAlloc(gpa, self._meta.path, std.math.maxInt(u32)) catch {
-                return .{ .err = "i/o error while reading asset file" };
-            };
-            return Value.from(gpa, data);
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            switch (asset._meta.kind) {
+                .page => |v| {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &v.string_table,
+                        &v.path_table,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    const data = v.content_dir.readFileAlloc(
+                        gpa,
+                        path,
+                        std.math.maxInt(u32),
+                    ) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                    return Value.from(gpa, data);
+                },
+                .site => {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &ctx._meta.build.st,
+                        &ctx._meta.build.pt,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    const data = ctx._meta.build.site_assets_dir.readFileAlloc(
+                        gpa,
+                        path,
+                        std.math.maxInt(u32),
+                    ) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                    return Value.from(gpa, data);
+                },
+                .build => @panic("TODO"),
+            }
         }
     };
     pub const sriHash = struct {
@@ -137,15 +223,50 @@ pub const Builtins = struct {
             \\<script src="$site.asset('foo.js').link()" integrity="$site.asset('foo.js').sriHash()"></script>
         ;
         pub fn call(
-            self: Asset,
+            asset: Asset,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const data = std.fs.cwd().readFileAlloc(gpa, self._meta.path, std.math.maxInt(u32)) catch {
-                return .{ .err = "i/o error while reading asset file" };
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            const data = switch (asset._meta.kind) {
+                .page => |v| blk: {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &v.string_table,
+                        &v.path_table,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    break :blk v.content_dir.readFileAlloc(
+                        gpa,
+                        path,
+                        std.math.maxInt(u32),
+                    ) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                },
+                .site => blk: {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &ctx._meta.build.st,
+                        &ctx._meta.build.pt,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    break :blk ctx._meta.build.site_assets_dir.readFileAlloc(
+                        gpa,
+                        path,
+                        std.math.maxInt(u32),
+                    ) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                },
+                .build => @panic("TODO"),
             };
 
             const sha384 = std.crypto.hash.sha2.Sha384;
@@ -171,34 +292,70 @@ pub const Builtins = struct {
             \\<div :text="$page.assets.file('foo.ziggy').ziggy().get('bar')"></div>
         ;
         pub fn call(
-            self: Asset,
+            asset: Asset,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const data = std.fs.cwd().readFileAllocOptions(
-                gpa,
-                self._meta.path,
-                std.math.maxInt(u32),
-                null,
-                1,
-                0,
-            ) catch {
-                return .{ .err = "i/o error while reading asset file" };
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            const data = switch (asset._meta.kind) {
+                .page => |v| blk: {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &v.string_table,
+                        &v.path_table,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    break :blk v.content_dir.readFileAllocOptions(
+                        gpa,
+                        path,
+                        std.math.maxInt(u32),
+                        null,
+                        1,
+                        0,
+                    ) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                },
+                .site => blk: {
+                    const path = buf[0..asset._meta.url.path.bytesSlice(
+                        &ctx._meta.build.st,
+                        &ctx._meta.build.pt,
+                        &buf,
+                        std.fs.path.sep,
+                        asset._meta.url.name,
+                    )];
+
+                    break :blk ctx._meta.build.site_assets_dir.readFileAllocOptions(
+                        gpa,
+                        path,
+                        std.math.maxInt(u32),
+                        null,
+                        1,
+                        0,
+                    ) catch {
+                        return .{ .err = "i/o error while reading asset file" };
+                    };
+                },
+                .build => @panic("TODO"),
             };
 
             log.debug("parsing ziggy file: '{s}'", .{data});
 
-            var diag: _ziggy.Diagnostic = .{ .path = self._meta.ref };
+            var diag: _ziggy.Diagnostic = .{ .path = asset._meta.ref };
             const parsed = _ziggy.parseLeaky(_ziggy.dynamic.Value, gpa, data, .{
                 .diagnostic = &diag,
                 .copy_strings = .to_unescape,
             }) catch {
-                var buf = std.ArrayList(u8).init(gpa);
-                try buf.writer().print("Error while parsing Ziggy file: {}", .{diag});
-                return .{ .err = buf.items };
+                return Value.errFmt(
+                    gpa,
+                    "Error while parsing Ziggy file: {}",
+                    .{diag},
+                );
             };
 
             return Value.fromZiggy(gpa, parsed);
