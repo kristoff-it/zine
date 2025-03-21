@@ -221,15 +221,19 @@ pub fn intern(pt: *PathTable, gpa: Allocator, components: []const String) !Path 
 pub fn internExtend(
     pt: *PathTable,
     gpa: Allocator,
-    components: []const String,
+    prefix_path: Path,
     new_component: String,
 ) !Path {
-    try pt.path_components.ensureUnusedCapacity(gpa, components.len + 2);
+    // NOTE: this needs to be recalculated again after ensuring capacity
+    // in case that the memory got reallocated
+    const components_len = prefix_path.slice(pt).len;
+    try pt.path_components.ensureUnusedCapacity(gpa, components_len + 2);
+    const components = prefix_path.slice(pt);
 
     const old_len = pt.path_components.items.len;
-    const new = pt.path_components.items[old_len..].ptr[0 .. components.len + 1];
-    for (components, new[0..components.len]) |c, *n| n.* = c;
-    new[components.len] = new_component;
+    const new = pt.path_components.items[old_len..].ptr[0 .. components_len + 1];
+    for (components, new[0..components_len]) |c, *n| n.* = c;
+    new[components_len] = new_component;
 
     const gop = try pt.path_map.getOrPutContextAdapted(
         gpa,

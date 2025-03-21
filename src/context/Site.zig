@@ -90,7 +90,7 @@ pub const Builtins = struct {
             \\<span :text="$site.localeName()"></span>
         ;
         pub fn call(
-            p: *const Site,
+            site: *const Site,
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
@@ -101,10 +101,10 @@ pub const Builtins = struct {
             };
             if (args.len != 0) return bad_arg;
 
-            return switch (p._meta.kind) {
+            return switch (site._meta.kind) {
                 .multi => |l| String.init(l.name),
                 .simple => .{
-                    .err = "only available in a multilingual website",
+                    .err = "only available in multilingual websites",
                 },
             };
         }
@@ -126,7 +126,7 @@ pub const Builtins = struct {
         pub fn call(
             s: *const Site,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = s;
@@ -135,13 +135,13 @@ pub const Builtins = struct {
             };
             if (args.len != 0) return bad_arg;
 
-            const url = join(gpa, &.{
-                "/",
-                // p._meta.url_path_prefix,
-                "/",
-            }) catch @panic("oom");
-
-            return String.init(url);
+            var buf: std.ArrayListUnmanaged(u8) = .empty;
+            const w = buf.writer(gpa);
+            try ctx.printLinkPrefix(w, ctx.site._meta.variant_id, false);
+            if (buf.items.len > 0 and buf.items[buf.items.len - 1] != '/') {
+                try buf.append(gpa, '/');
+            }
+            return String.init(buf.items);
         }
     };
 
@@ -345,7 +345,7 @@ pub const Builtins = struct {
         pub fn call(
             _: *const Site,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -358,17 +358,13 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            _ = gpa;
-            _ = code;
-            @panic("TODO");
-            // const other = context.siteGet(code) orelse {
-            //     return Value.errFmt(gpa, "unable to find locale '{s}'", .{
-            //         code,
-            //     });
-            // };
+            const site = ctx._meta.sites.getPtr(code) orelse return Value.errFmt(
+                gpa,
+                "unknown language code '{s}'",
+                .{code},
+            );
 
-            // return .{ .site = other };
-            //
+            return .{ .site = site };
         }
     };
 };

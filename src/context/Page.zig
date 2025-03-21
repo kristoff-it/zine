@@ -726,13 +726,14 @@ pub const Builtins = struct {
         ;
         pub fn call(
             p: *const Page,
-            gpa: Allocator,
-            _: *const context.Template,
+            _: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
-            _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{ .site = p._meta.site };
+            const variant_id = p._scan.variant_id;
+            const s = &ctx._meta.sites.entries.items(.value)[variant_id];
+            return .{ .site = s };
         }
     };
 
@@ -751,11 +752,9 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
-            _ = gpa;
-
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -766,32 +765,56 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            _ = code;
-            _ = p;
+            const other_variant_id = ctx._meta.sites.getIndex(
+                code,
+            ) orelse return Value.errFmt(
+                gpa,
+                "locale '{s}' does not exist",
+                .{code},
+            );
 
-            @panic("TODO");
+            const index_smd: StringTable.String = @enumFromInt(1);
+            const index_html: StringTable.String = @enumFromInt(11);
 
-            // const other_site = context.siteGet(code) orelse return .{
-            //     .err = "unknown locale code",
-            // };
-            //     if (p.translation_key) |tk| {
-            //         for (p._meta.key_variants) |*v| {
-            //             if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
-            //                 const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
-            //                 return .{ .page = other };
-            //             }
-            //         }
-            //         return .{ .err = "locale not found" };
-            //     } else {
-            //         const other = context.pageGet(
-            //             other_site,
-            //             p._meta.md_rel_path,
-            //             null,
-            //             null,
-            //             false,
-            //         ) catch @panic("Trying to access a non-existent localized variant of a page is an error for now, sorry! As a temporary workaround you can set a translation key for this page (and its localized variants). This limitation will be lifted in the future.");
-            //         return .{ .page = other };
-            //     }
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            const page_url = std.fmt.bufPrint(&buf, "{}/{s}", .{
+                p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
+                if (p._scan.md_name != index_smd)
+                    std.fs.path.stem(p._scan.md_name.slice(
+                        &v.string_table,
+                    ))
+                else
+                    "",
+            }) catch unreachable;
+
+            const vv = ctx._meta.build.variants[other_variant_id];
+            const path = vv.path_table.getPathNoName(
+                &vv.string_table,
+                page_url,
+            ) orelse return Value.errFmt(
+                gpa,
+                "no page '{s}' in locale '{s}'",
+                .{ page_url, code },
+            );
+
+            const hint = vv.urls.get(.{
+                .path = path,
+                .name = index_html,
+            }) orelse return Value.errFmt(
+                gpa,
+                "no page '{s}' in locale '{s}'",
+                .{ page_url, code },
+            );
+
+            if (hint.kind != .page_main) return Value.errFmt(
+                gpa,
+                "no page '{s}' in locale '{s}'",
+                .{ page_url, code },
+            );
+
+            return .{ .page = &vv.pages.items[hint.id] };
         }
     };
 
@@ -814,7 +837,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -827,32 +850,44 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            _ = code;
-            _ = p;
-            _ = gpa;
-            @panic("TODO");
+            const other_variant_id = ctx._meta.sites.getIndex(
+                code,
+            ) orelse return Value.errFmt(
+                gpa,
+                "locale '{s}' does not exist",
+                .{code},
+            );
 
-            //     const other_site = context.siteGet(code) orelse return .{
-            //         .err = "unknown locale code",
-            //     };
-            //     if (p.translation_key) |tk| {
-            //         for (p._meta.key_variants) |*v| {
-            //             if (std.mem.eql(u8, v.site._meta.kind.multi.code, code)) {
-            //                 const other = context.pageGet(other_site, tk, null, null, false) catch @panic("TODO: report that a localized variant failed to load");
-            //                 return Optional.init(gpa, other);
-            //             }
-            //         }
-            //         return Optional.Null;
-            //     } else {
-            //         const other = context.pageGet(
-            //             other_site,
-            //             p._meta.md_rel_path,
-            //             null,
-            //             null,
-            //             false,
-            //         ) catch @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore.");
-            //         return Optional.init(gpa, other);
-            //     }
+            const index_smd: StringTable.String = @enumFromInt(1);
+            const index_html: StringTable.String = @enumFromInt(11);
+
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            const page_url = std.fmt.bufPrint(&buf, "{}/{s}", .{
+                p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
+                if (p._scan.md_name != index_smd)
+                    std.fs.path.stem(p._scan.md_name.slice(
+                        &v.string_table,
+                    ))
+                else
+                    "",
+            }) catch unreachable;
+
+            const vv = ctx._meta.build.variants[other_variant_id];
+            const path = vv.path_table.getPathNoName(
+                &vv.string_table,
+                page_url,
+            ) orelse return Optional.Null;
+
+            const hint = vv.urls.get(.{
+                .path = path,
+                .name = index_html,
+            }) orelse return Optional.Null;
+
+            if (hint.kind != .page_main) return Optional.Null;
+
+            return .{ .page = &vv.pages.items[hint.id] };
         }
     };
 
@@ -867,52 +902,46 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            // if (true) return .{
-            //     .iterator = try context.Iterator.init(gpa, .{
-            //         .translation_it = context.Iterator.TranslationIterator.init(p),
-            //     }),
-            // };
+            const index_smd: StringTable.String = @enumFromInt(1);
+            const index_html: StringTable.String = @enumFromInt(11);
 
-            const all_sites: []const context.Site = &.{};
-            if (true) @panic("TODO");
-            // Because of a limitation of how indexing works, we
-            // assume that all translations will be present if there is no
-            // translation_key specified.
-            const total_variants = if (p.translation_key == null)
-                all_sites.len
-            else
-                p._meta.key_variants.len;
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
 
-            const localized_pages = try gpa.alloc(Value, total_variants);
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            const page_url = std.fmt.bufPrint(&buf, "{}/{s}", .{
+                p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
+                if (p._scan.md_name != index_smd)
+                    std.fs.path.stem(p._scan.md_name.slice(
+                        &v.string_table,
+                    ))
+                else
+                    "",
+            }) catch unreachable;
 
-            var last_page = p;
-            for (localized_pages, 0..) |*lp, idx| {
-                const t: Page.Translation = if (p.translation_key == null) .{
-                    .site = &all_sites[idx],
-                    .md_rel_path = last_page._meta.md_rel_path,
-                } else last_page._meta.key_variants[idx];
+            var pages: std.ArrayListUnmanaged(Value) = .empty;
 
-                const found_page = context.pageGet(
-                    t.site,
-                    t.md_rel_path,
-                    null,
-                    null,
-                    false,
-                ) catch |err| switch (err) {
-                    error.OutOfMemory => return error.OutOfMemory,
-                    error.PageLoad => @panic("trying to access a non-existent localized variant of a page is an error for now, sorry! give the same translation key to all variants of this page and you won't see this error anymore."),
-                };
+            for (ctx._meta.build.variants) |vv| {
+                const path = vv.path_table.getPathNoName(
+                    &vv.string_table,
+                    page_url,
+                ) orelse continue;
 
-                lp.* = .{ .page = found_page };
-                last_page = found_page;
+                const hint = vv.urls.get(.{
+                    .path = path,
+                    .name = index_html,
+                }) orelse continue;
+
+                if (hint.kind != .page_main) continue;
+
+                try pages.append(gpa, .{ .page = &vv.pages.items[hint.id] });
             }
 
-            return context.Array.init(gpa, Value, localized_pages) catch unreachable;
+            return context.Array.init(gpa, Value, pages.items) catch unreachable;
         }
     };
 

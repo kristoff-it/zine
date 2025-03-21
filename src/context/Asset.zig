@@ -4,6 +4,7 @@ const std = @import("std");
 const _ziggy = @import("ziggy");
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
+const fatal = @import("../fatal.zig");
 const context = @import("../context.zig");
 const PathTable = @import("../PathTable.zig");
 const join = @import("../root.zig").join;
@@ -102,10 +103,18 @@ pub const Builtins = struct {
                         asset._meta.url.fmt(st, pt),
                     });
                 },
-                .build => |bip| if (bip == null) {
-                    return Value.errFmt(gpa, "build asset '{s}' is being linked but it doesn't define an `install_path` in `build.zig`", .{
+                .build => {
+                    const ba = ctx._meta.build.cli.build_assets.getPtr(
                         asset._meta.ref,
-                    });
+                    ).?;
+
+                    _ = ba.rc.fetchAdd(1, .acq_rel);
+                    const ip = ba.install_path orelse return Value.errFmt(
+                        gpa,
+                        "unable to install build asset '{s}' as it does not specify an install path",
+                        .{asset._meta.ref},
+                    );
+                    try w.print("/{s}", .{ip});
                 },
             }
 
@@ -214,12 +223,23 @@ pub const Builtins = struct {
                         gpa,
                         path,
                         std.math.maxInt(u32),
-                    ) catch {
-                        return .{ .err = "i/o error while reading asset file" };
-                    };
+                    ) catch |err| fatal.file(path, err);
+
                     return Value.from(gpa, data);
                 },
-                .build => @panic("TODO"),
+                .build => {
+                    const ba = ctx._meta.build.cli.build_assets.getPtr(
+                        asset._meta.ref,
+                    ).?;
+
+                    const data = ctx._meta.build.base_dir.readFileAlloc(
+                        gpa,
+                        ba.input_path,
+                        std.math.maxInt(u32),
+                    ) catch |err| fatal.file(ba.input_path, err);
+
+                    return Value.from(gpa, data);
+                },
             }
         }
     };

@@ -12,9 +12,7 @@ const Ctx = superhtml.utils.Ctx;
 pub const AssetKindUnion = union(Asset.Kind) {
     site: u32, // variant_id
     page: u32, // variant_id
-    // defined install path for a build asset as defined in the user's
-    // build.zig
-    build: ?[]const u8,
+    build,
 };
 
 pub const PageSearchStrategy = union(enum) {

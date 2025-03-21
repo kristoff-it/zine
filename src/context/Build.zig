@@ -64,8 +64,8 @@ pub const Builtins = struct {
         ;
         pub fn call(
             _: *const Build,
-            _: Allocator,
-            _: *const context.Template,
+            gpa: Allocator,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -78,9 +78,20 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            _ = ref;
-            @panic("TODO");
-            // return context.assetFind(ref, .{ .build = null });
+            const ok = ctx._meta.build.cli.build_assets.contains(ref);
+            if (!ok) return Value.errFmt(gpa, "unknown build asset '{s}'", .{
+                ref,
+            });
+
+            return .{
+                .asset = .{
+                    ._meta = .{
+                        .ref = ref,
+                        .kind = .build,
+                        .url = undefined,
+                    },
+                },
+            };
         }
     };
 

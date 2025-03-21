@@ -439,10 +439,11 @@ pub fn run(
                 )];
                 printSuperMdErrors(
                     arena,
+                    v.content_dir_path,
                     path,
                     &p._parse.ast,
                     p._parse.full_src[p._parse.fm.offset..],
-                    p._parse.fm.offset,
+                    p._parse.fm.lines,
                 );
 
                 // Do not schedule the page for analysis if contains parsing
@@ -524,14 +525,14 @@ pub fn run(
                     } else "";
 
                     std.debug.print(
-                        \\{s}:{}:{}: error: {s}
+                        \\{s}/{s}:{}:{}: error: {s}
                         \\|    {s}
                         \\|    {s}
                         \\
                         \\
                     , .{
-                        path,      sel.start.line, sel.start.col, err.title(),
-                        line_trim, highlight,
+                        v.content_dir_path, path,      sel.start.line, sel.start.col,
+                        err.title(),        line_trim, highlight,
                     });
                 }
             }
@@ -585,15 +586,17 @@ pub fn run(
                         break :blk h;
                     } else "";
 
+                    const fm_lines = p._parse.fm.lines;
                     std.debug.print(
-                        \\{s}:{}:{}: error: {s}
+                        \\{s}/{s}:{}:{}: error: {s}
                         \\|    {s}
                         \\|    {s}
                         \\
                         \\
                     , .{
-                        path,      n.startLine(), n.startColumn(), err.title(),
-                        line_trim, highlight,
+                        v.content_dir_path, path,        fm_lines + n.startLine(),
+                        n.startColumn(),    err.title(), line_trim,
+                        highlight,
                     });
                 }
             }
@@ -1054,10 +1057,11 @@ fn runLayout(build: Build, content: void) void {
 
 fn printSuperMdErrors(
     arena: Allocator,
+    content_dir_path: []const u8,
     md_path: []const u8,
     ast: *const supermd.Ast,
     md_src: []const u8,
-    fm_offset: usize,
+    fm_lines: usize,
 ) void {
     _ = arena;
     errdefer |err| switch (err) {
@@ -1133,15 +1137,14 @@ fn printSuperMdErrors(
             else => @tagName(err.kind),
         };
         std.debug.print(
-            \\{s}:{}:{}: [{s}] {s}
+            \\{s}/{s}:{}:{}: [{s}] {s}
             \\|    {s}
             \\|    {s}
             \\
             \\
         , .{
-            md_path,   fm_offset + range.start.row, range.start.col,
-            tag_name,  msg,                         line_trim,
-            highlight,
+            content_dir_path, md_path, fm_lines + range.start.row, range.start.col,
+            tag_name,         msg,     line_trim,                  highlight,
         });
     }
 }

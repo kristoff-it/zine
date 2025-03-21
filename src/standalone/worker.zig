@@ -326,7 +326,21 @@ fn analyzeContent(
                 const path = switch (code.src.?) {
                     else => unreachable,
                     .page_asset => @panic("TODO"),
-                    .build_asset => @panic("TODO"),
+                    .build_asset => |name| blk: {
+                        const ba = b.cli.build_assets.get(name) orelse {
+                            try errors.append(gpa, .{
+                                .node = n,
+                                .kind = .{
+                                    .missing_asset = .{
+                                        .ref = name,
+                                        .kind = .build,
+                                    },
+                                },
+                            });
+                            continue :outer;
+                        };
+                        break :blk ba.input_path;
+                    },
                     .site_asset => |ref| blk: {
                         if (PathName.get(&b.st, &b.pt, ref)) |pn| {
                             if (b.site_assets.contains(pn)) {
@@ -343,8 +357,6 @@ fn analyzeContent(
                                 },
                             },
                         });
-
-                        // Stop analyzing this node.
                         continue :outer;
                     },
                 };
@@ -606,9 +618,6 @@ fn analyzeContent(
                                 });
                                 continue :outer;
                             }
-
-                            // try path_bytes.append('#');
-                            // try path_bytes.appendSlice(ref);
                         }
 
                         @field(directive.kind, @tagName(tag)).src = .{

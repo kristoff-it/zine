@@ -21,6 +21,7 @@ const PathName = PathTable.PathName;
 
 /// Open for the full duration of the program.
 content_dir: std.fs.Dir,
+content_dir_path: []const u8,
 /// Stores path components
 string_table: StringTable,
 /// Stores paths as slices of components (stored in string_table)
@@ -247,7 +248,6 @@ pub fn scanContentDir(
                 dir_entry.path,
             ),
         };
-        const content_sub_path_slice = content_sub_path.slice(&path_table);
 
         // Would be nice to be able to use destructuring...
         var current_section = dir_entry.parent_section;
@@ -332,7 +332,7 @@ pub fn scanContentDir(
 
             const page_path = try path_table.internExtend(
                 gpa,
-                content_sub_path_slice,
+                content_sub_path,
                 try string_table.intern(
                     gpa,
                     std.fs.path.stem(f.slice(&string_table)), // TODO: extensionless page names?
@@ -341,6 +341,7 @@ pub fn scanContentDir(
             const pn: PathName = .{ .path = page_path, .name = index_html };
             const lh: LocationHint = .{ .id = @intCast(idx), .kind = .page_main };
             const gop = urls.getOrPutAssumeCapacity(pn);
+
             if (gop.found_existing) {
                 try collisions.append(gpa, .{
                     .url = pn,
@@ -429,6 +430,7 @@ pub fn scanContentDir(
 
     variant.* = .{
         .content_dir = content_dir,
+        .content_dir_path = content_dir_path,
         .string_table = string_table,
         .path_table = path_table,
         .sections = sections,
