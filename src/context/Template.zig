@@ -1,5 +1,6 @@
 const Template = @This();
 
+const std = @import("std");
 const superhtml = @import("superhtml");
 const scripty = @import("scripty");
 const ziggy = @import("ziggy");
@@ -21,13 +22,51 @@ i18n: Map.ZiggyMap,
 
 _meta: struct {
     build: *const ZineBuild,
-    variant_id: u32,
+    // Indexed by language code, empty when building a simple site
+    // Get by key when you have a language code, get by idx when you
+    // have a variant_id.
+    sites: *const std.StringArrayHashMapUnmanaged(Site),
 },
 
 // Globals specific to SuperHTML
 ctx: Ctx(Value) = .{},
 loop: ?*Iterator = null,
 @"if": ?*const Optional = null,
+
+pub fn printLinkPrefix(
+    ctx: *const Template,
+    w: anytype,
+    other_variant_id: u32,
+    /// When set to true the full host url will be always printed
+    /// otherwise it will only be added in multilingual websites when
+    /// linking to content across variants that have different host url
+    /// overrides.
+    force_host_url: bool,
+) error{OutOfMemory}!void {
+    const other_site = ctx._meta.sites.entries.items(.value)[other_variant_id];
+    switch (other_site._meta.kind) {
+        .simple => |url_path_prefix| {
+            if (force_host_url) try w.print("{s}", .{
+                ctx._meta.build.cfg.Site.host_url,
+            });
+            if (url_path_prefix) |upp| try w.print("/{s}", .{upp});
+        },
+        .multi => |loc| {
+            const our_variant_id = ctx.page._scan.variant_id;
+            if (other_variant_id != our_variant_id) {
+                const sites = ctx._meta.sites.entries.items(.value);
+                const our_host_url = sites[our_variant_id].host_url;
+                const other_host_url = sites[other_variant_id].host_url;
+                if (force_host_url or our_host_url.ptr != other_host_url.ptr) {
+                    try w.print("{s}", .{other_host_url});
+                }
+            }
+
+            const path_prefix = loc.output_prefix_override orelse loc.code;
+            if (path_prefix.len > 0) try w.print("/{s}", .{path_prefix});
+        },
+    }
+}
 
 pub const dot = scripty.defaultDot(Template, Value, false);
 pub const docs_description = "";

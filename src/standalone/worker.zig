@@ -13,6 +13,7 @@ const PathTable = @import("../PathTable.zig");
 const Variant = @import("../Variant.zig");
 const Template = @import("../Template.zig");
 const highlight = @import("../highlight.zig");
+const main = @import("../main.zig");
 const Channel = @import("channel.zig").Channel;
 const String = StringTable.String;
 const Path = PathTable.Path;
@@ -20,6 +21,7 @@ const PathName = PathTable.PathName;
 const Allocator = std.mem.Allocator;
 const Page = context.Page;
 const assert = std.debug.assert;
+const gpa = main.gpa;
 
 const log = std.log.scoped(.worker);
 
@@ -31,8 +33,6 @@ var threads: []std.Thread = &.{};
 
 pub threadlocal var cmark: supermd.Ast.CmarkParser = undefined;
 pub const extensions: [*]supermd.c.cmark_llist = undefined;
-
-const gpa = @import("../main.zig").gpa;
 
 pub const Job = union(enum) {
     template_parse: struct {
@@ -47,6 +47,8 @@ pub const Job = union(enum) {
         variant: *Variant,
         base_dir: std.fs.Dir,
         content_dir_path: []const u8,
+        variant_id: u32,
+        multilingual: ?Variant.MultilingualScanParams,
     },
     section_activate: struct {
         variant: *const Variant,
@@ -67,7 +69,7 @@ pub const Job = union(enum) {
     page_render: struct {
         progress: std.Progress.Node,
         build: *const Build,
-        variant_id: u32,
+        sites: *const std.StringArrayHashMapUnmanaged(context.Site),
         page: *Page,
         kind: RenderJobKind,
     },
@@ -176,6 +178,8 @@ inline fn runOneJob(
             arena,
             s.base_dir,
             s.content_dir_path,
+            s.variant_id,
+            s.multilingual,
         ),
         .section_activate => |ap| ap.section.activate(
             gpa,
@@ -187,7 +191,7 @@ inline fn runOneJob(
             arena,
             pr.progress,
             pr.build,
-            pr.variant_id,
+            pr.sites,
             pr.page,
             pr.kind,
         ),
@@ -745,7 +749,7 @@ fn renderPage(
     arena: Allocator,
     progress: std.Progress.Node,
     build: *const Build,
-    variant_id: u32,
+    sites: *const std.StringArrayHashMapUnmanaged(context.Site),
     page: *Page,
     kind: RenderJobKind,
 ) void {
@@ -757,6 +761,7 @@ fn renderPage(
         error.OutOfMemory => fatal.oom(),
     };
 
+    const variant_id = page._scan.variant_id;
     const variant = &build.variants[variant_id];
 
     const md_name = page._scan.md_name.slice(&variant.string_table);
@@ -800,19 +805,14 @@ fn renderPage(
         // .parent_section_path = "",
     };
 
-    const site: context.Site = .{
-        .host_url = build.cfg.getHostUrl(variant_id),
-        .title = build.cfg.getSiteTitle(variant_id),
-        ._meta = .{ .kind = .simple },
-    };
     var ctx: context.Template = .{
-        .site = &site,
+        .site = &sites.entries.items(.value)[variant_id],
         .page = page,
-        .i18n = undefined,
+        .i18n = variant.i18n,
         .build = undefined,
         ._meta = .{
             .build = build,
-            .variant_id = variant_id,
+            .sites = sites,
         },
     };
 
@@ -829,13 +829,25 @@ fn renderPage(
     const out_raw = switch (kind) {
         .main => blk: {
             const index_smd: String = @enumFromInt(1);
-            const out_dir_path = if (page._scan.md_name == index_smd)
-                page_path
-            else
-                try std.fs.path.join(arena, &.{
+
+            const out_dir_path = switch (build.cfg) {
+                .Site => try std.fs.path.join(arena, &.{
                     page_path,
-                    std.fs.path.stem(md_name),
-                });
+                    if (page._scan.md_name != index_smd)
+                        std.fs.path.stem(md_name)
+                    else
+                        "",
+                }),
+                .Multilingual => |ml| try std.fs.path.join(arena, &.{
+                    ml.locales[variant_id].output_prefix_override orelse
+                        ml.locales[variant_id].code,
+                    page_path,
+                    if (page._scan.md_name != index_smd)
+                        std.fs.path.stem(md_name)
+                    else
+                        "",
+                }),
+            };
 
             // note: do not close build.install_dir
             var out_dir = if (out_dir_path.len == 0) build.install_dir else build.install_dir.makeOpenPath(
@@ -890,7 +902,11 @@ fn renderPage(
 
     while (true) super_vm.run() catch |err| switch (err) {
         error.Done => break,
-        error.Fatal => std.process.exit(1),
+        error.Fatal => {
+            std.debug.print("{s}\n", .{err_buf.items});
+            main.exit_code.store(1, .release);
+            return;
+        },
         error.OutOfMemory => fatal.oom(),
         error.OutIO, error.ErrIO => fatal.msg("i/o error in superhtml", .{}),
         error.Quota => super_vm.setQuota(100),
@@ -921,10 +937,6 @@ fn renderPage(
     };
 
     out_buf.flush() catch |err| fatal.file(md_name, err);
-
-    if (err_buf.items.len > 0) {
-        std.debug.print("{s}", .{err_buf.items});
-    }
 }
 
 // Null language evaluates to true for convenience.

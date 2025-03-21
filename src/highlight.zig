@@ -47,7 +47,6 @@ pub fn highlightCode(
     //     try writer.print("{s}", .{HtmlSafe{ .bytes = code }});
     //     return;
     // }
-    //
 
     const lang = blk: {
         const query_zone = tracy.traceNamed(@src(), "syntax");

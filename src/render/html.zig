@@ -14,6 +14,8 @@ pub fn html(
     gpa: std.mem.Allocator,
     ast: Ast,
     start: supermd.Node,
+    /// When provided, will be prefixed to all local hrefs.
+    host_url: ?[]const u8,
     w: anytype,
 ) !void {
     const zone = tracy.traceNamed(@src(), "html");
@@ -253,7 +255,7 @@ pub fn html(
                 .enter => try w.print("<strong>", .{}),
                 .exit => try w.print("</strong>", .{}),
             },
-            .LINK, .IMAGE => try renderDirective(gpa, ast, ev, w),
+            .LINK, .IMAGE => try renderDirective(gpa, ast, ev, host_url, w),
             .CODE_BLOCK => switch (ev.dir) {
                 .exit => {},
                 .enter => {
@@ -357,13 +359,14 @@ fn renderDirective(
     gpa: std.mem.Allocator,
     ast: Ast,
     ev: Iter.Event,
+    host_url: ?[]const u8,
     w: anytype,
 ) !void {
     const zone = tracy.trace(@src());
     defer zone.end();
     _ = ast;
     const node = ev.node;
-    const directive = node.getDirective() orelse return renderLink(ev, w);
+    const directive = node.getDirective() orelse return renderLink(ev, host_url, w);
     switch (directive.kind) {
         .section, .block, .heading => {},
         .text => switch (ev.dir) {
@@ -386,7 +389,8 @@ fn renderDirective(
             .enter => {
                 const caption = node.firstChild();
                 if (caption != null) try w.print("<figure>", .{});
-                if (img.linked) |l| if (l) try w.print("<a href=\"{s}\">", .{
+                if (img.linked) |l| if (l) try w.print("<a href=\"{s}{s}\">", .{
+                    host_url orelse "",
                     img.src.?.url,
                 });
 
@@ -398,7 +402,10 @@ fn renderDirective(
                     try w.print("\"", .{});
                 }
                 if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
-                try w.print(" src=\"{s}\"", .{img.src.?.url});
+                try w.print(" src=\"{s}{s}\"", .{
+                    host_url orelse "",
+                    img.src.?.url,
+                });
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
                 if (img.size) |size| try w.print(" width=\"{d}\" height=\"{d}\"", .{ size.w, size.h });
                 try w.print(">", .{});
@@ -432,7 +439,10 @@ fn renderDirective(
                     try w.print(" disablepictureinpicture", .{});
                 };
                 const src = vid.src.?.url;
-                try w.print(">\n<source src=\"{s}\">\n</video>", .{src});
+                try w.print(">\n<source src=\"{s}{s}\">\n</video>", .{
+                    host_url orelse "",
+                    src,
+                });
                 if (caption != null) try w.print("\n<figcaption>", .{});
             },
             .exit => {
@@ -453,7 +463,10 @@ fn renderDirective(
                 }
 
                 if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
-                try w.print(" href=\"{s}", .{lnk.src.?.url});
+                try w.print(" href=\"{s}{s}", .{
+                    host_url orelse "",
+                    lnk.src.?.url,
+                });
                 if (lnk.ref) |r| try w.print("#{s}", .{r});
                 try w.print("\"", .{});
 
@@ -511,12 +524,14 @@ fn renderDirective(
 
 fn renderLink(
     ev: Iter.Event,
+    host_url: ?[]const u8,
     w: anytype,
 ) !void {
     const node = ev.node;
     switch (ev.dir) {
         .enter => {
-            try w.print("<a href=\"{s}\">", .{
+            try w.print("<a href=\"{s}{s}\">", .{
+                host_url orelse "",
                 node.link() orelse "",
             });
         },

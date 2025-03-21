@@ -6,6 +6,7 @@ const utils = @import("utils.zig");
 const context = @import("../context.zig");
 const StringTable = @import("../StringTable.zig");
 const PathTable = @import("../PathTable.zig");
+const Build = @import("../Build.zig");
 const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
 const PathName = PathTable.PathName;
@@ -20,12 +21,10 @@ const log = std.log.scoped(.scripty);
 host_url: []const u8,
 title: []const u8,
 _meta: struct {
+    variant_id: u32,
     kind: union(enum) {
-        simple,
-        multi: struct {
-            code: []const u8,
-            name: []const u8,
-        },
+        simple: ?[]const u8, // url_path_prefix
+        multi: Build.Locale,
     },
 },
 
@@ -158,7 +157,7 @@ pub const Builtins = struct {
             \\<img src="$site.asset('foo.png').link()">
         ;
         pub fn call(
-            _: *const Site,
+            site: *const Site,
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
@@ -173,7 +172,7 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (context.pathValidationError(ref)) |err| return err;
+            if (context.pathValidationError(ref, .{})) |err| return err;
 
             const st = &ctx._meta.build.st;
             const pt = &ctx._meta.build.pt;
@@ -184,7 +183,7 @@ pub const Builtins = struct {
                             ._meta = .{
                                 .ref = context.stripTrailingSlash(ref),
                                 .url = pn,
-                                .kind = .site,
+                                .kind = .{ .site = site._meta.variant_id },
                             },
                         },
                     };
@@ -194,6 +193,7 @@ pub const Builtins = struct {
             return Value.errFmt(gpa, "missing site asset: '{s}'", .{ref});
         }
     };
+
     pub const page = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
@@ -210,6 +210,8 @@ pub const Builtins = struct {
             \\matched by Zine with either:
             \\ - content/foo/bar.smd
             \\ - content/foo/bar/index.smd
+            \\
+            \\To reference the site homepage, pass an empty string.
         ;
         pub const examples =
             \\<a href="$site.page('downloads').link()">Downloads</a>
@@ -220,7 +222,6 @@ pub const Builtins = struct {
             ctx: *const context.Template,
             args: []const Value,
         ) !Value {
-            _ = site;
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -231,9 +232,9 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (context.pathValidationError(ref)) |err| return err;
+            if (context.pathValidationError(ref, .{ .empty = true })) |err| return err;
 
-            const variant = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const variant = &ctx._meta.build.variants[site._meta.variant_id];
 
             const path = variant.path_table.getPathNoName(
                 &variant.string_table,
@@ -267,6 +268,7 @@ pub const Builtins = struct {
             return .{ .page = &variant.pages.items[hint.id] };
         }
     };
+
     pub const pages = struct {
         pub const signature: Signature = .{
             .params = &.{ .String, .{ .Many = .String } },
@@ -303,7 +305,7 @@ pub const Builtins = struct {
                     },
                 };
 
-                if (context.pathValidationError(ref)) |err| return err;
+                if (context.pathValidationError(ref, .{})) |err| return err;
 
                 _ = site;
                 _ = p;

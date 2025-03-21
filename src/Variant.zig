@@ -36,6 +36,10 @@ urls: std.AutoHashMapUnmanaged(PathName, LocationHint),
 /// Overflowing LocationHints end up in here, populated alongside 'urls'.
 collisions: std.ArrayListUnmanaged(Collision),
 
+i18n: context.Map.ZiggyMap,
+i18n_src: [:0]const u8,
+i18n_diag: ziggy.Diagnostic,
+
 const Collision = struct {
     url: PathName,
     loc: LocationHint,
@@ -138,12 +142,19 @@ pub const Section = struct {
     }
 };
 
+pub const MultilingualScanParams = struct {
+    i18n_dir: std.fs.Dir,
+    i18n_dir_path: []const u8,
+    locale_code: []const u8,
+};
 pub fn scanContentDir(
     variant: *Variant,
     gpa: Allocator,
     arena: Allocator,
     base_dir: std.fs.Dir,
     content_dir_path: []const u8,
+    variant_id: u32,
+    multilingual: ?MultilingualScanParams,
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
@@ -271,6 +282,7 @@ pub fn scanContentDir(
                 .page_id = page_id,
                 .subsection_id = current_section,
                 .parent_section_id = dir_entry.parent_section,
+                .variant_id = variant_id,
             };
             if (builtin.mode == .Debug) {
                 index_page._debug = .{ .stage = .init(.scanned) };
@@ -312,6 +324,7 @@ pub fn scanContentDir(
                 .page_id = @intCast(idx),
                 .subsection_id = 0,
                 .parent_section_id = current_section,
+                .variant_id = variant_id,
             };
             if (builtin.mode == .Debug) {
                 p._debug = .{ .stage = .init(.scanned) };
@@ -386,6 +399,34 @@ pub fn scanContentDir(
         dir_names.clearRetainingCapacity();
     }
 
+    var i18n: context.Map.ZiggyMap = .{};
+    var i18n_src: [:0]const u8 = "";
+    var i18n_diag: ziggy.Diagnostic = .{ .path = null };
+    // Present when in a multilingual site
+    if (multilingual) |ml| {
+        const name = try std.fmt.allocPrint(gpa, "{s}.ziggy", .{ml.locale_code});
+        i18n_src = ml.i18n_dir.readFileAllocOptions(
+            gpa,
+            name,
+            ziggy.max_size,
+            0,
+            1,
+            0,
+        ) catch |err| fatal.file(name, err);
+
+        i18n_diag.path = name;
+        i18n = ziggy.parseLeaky(context.Map.ZiggyMap, gpa, i18n_src, .{
+            .diagnostic = &i18n_diag,
+        }) catch |err| switch (err) {
+            error.OpenFrontmatter, error.MissingFrontmatter => unreachable,
+            error.Overflow, error.OutOfMemory => return error.OutOfMemory,
+            error.Syntax => .{
+                // We will detect later that an error happened by looking
+                // at the diagnostic struct.
+            },
+        };
+    }
+
     variant.* = .{
         .content_dir = content_dir,
         .string_table = string_table,
@@ -395,6 +436,9 @@ pub fn scanContentDir(
         .pages = pages,
         .urls = urls,
         .collisions = collisions,
+        .i18n = i18n,
+        .i18n_src = i18n_src,
+        .i18n_diag = i18n_diag,
     };
 }
 

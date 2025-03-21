@@ -38,10 +38,11 @@ variants: []Variant = &.{},
 // subdirectory" approach be global (ie only one templates dir) or should
 // it be made relative to where the layout lives (eg 'layouts/foo/templates',
 // 'layouts/bar/templates')?
-layouts_dir: std.fs.Dir = undefined,
+layouts_dir: std.fs.Dir,
 templates: Templates = .{},
-site_assets_dir: std.fs.Dir = undefined,
+site_assets_dir: std.fs.Dir,
 site_assets: Assets = .empty,
+i18n_dir: std.fs.Dir,
 install_dir: std.fs.Dir,
 
 pub const Assets = std.AutoArrayHashMapUnmanaged(PathName, std.atomic.Value(u32));
@@ -61,6 +62,13 @@ const Config = union(enum) {
         return switch (c.*) {
             .Site => |s| s.assets_dir_path,
             .Multilingual => |m| m.assets_dir_path,
+        };
+    }
+
+    pub fn getStaticAssets(c: *const Config) []const []const u8 {
+        return switch (c.*) {
+            .Site => |s| s.static_assets,
+            .Multilingual => |m| m.static_assets,
         };
     }
 
@@ -90,7 +98,7 @@ pub const Site = struct {
     /// `host_url` and `url_prefix_path` are split to allow the development
     /// server to generate correct relative paths when serving the website
     /// locally.
-    url_path_prefix: []const u8 = "",
+    url_path_prefix: ?[]const u8 = null,
     /// If you want your site to be placed in a subdirectory of the output
     /// directory.
     /// Zig Build's output directory is `zig-out` by default, customizable
@@ -146,6 +154,16 @@ pub const MultilingualSite = struct {
     i18n_dir_path: []const u8,
     layouts_dir_path: []const u8,
     assets_dir_path: []const u8,
+    /// Location where site assets will be installed. By default assets will be
+    /// installed directly in the output location.
+    ///
+    /// In mulitilingual websites Zine will create a single copy of site
+    /// assets which will then be installed at this location. It will be your
+    /// duty to then copy this directory elsewhere if needed in your deployment
+    /// setup (e.g. when deploying different localized variants to different
+    /// hosts). Note that *page* assets will still be installed next to their
+    /// relative page.
+    assets_prefix_path: []const u8 = "",
     /// Subpaths in `assets_dir_path` that will be installed unconditionally.
     /// All other assets will be installed only if referenced by a content file
     /// or a layout by using `$site.asset('foo').link()`.
@@ -321,6 +339,14 @@ pub fn load(gpa: Allocator, arena: Allocator, args: []const []const u8) Build {
             .{},
         ) catch |err| fatal.dir(cli.output_dir_path orelse "public", err);
 
+        const i18n_dir = switch (cfg) {
+            .Site => undefined,
+            .Multilingual => |ml| base_dir.makeOpenPath(
+                ml.i18n_dir_path,
+                .{},
+            ) catch |err| fatal.dir(ml.i18n_dir_path, err),
+        };
+
         return .{
             .cfg = cfg,
             .cli = cli,
@@ -331,6 +357,7 @@ pub fn load(gpa: Allocator, arena: Allocator, args: []const []const u8) Build {
             .st = table,
             .pt = path_table,
             .install_dir = install_dir,
+            .i18n_dir = i18n_dir,
         };
     }
 }

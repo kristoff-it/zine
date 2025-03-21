@@ -73,25 +73,32 @@ pub const Builtins = struct {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
 
-            const url = switch (asset._meta.kind) {
-                .page => |v| blk: {
+            var buf = std.ArrayList(u8).init(gpa);
+            errdefer buf.deinit();
+
+            const w = buf.writer();
+            switch (asset._meta.kind) {
+                .page => |variant_id| {
+                    try ctx.printLinkPrefix(w, variant_id, false);
+                    const v = ctx._meta.build.variants[variant_id];
                     const hint = v.urls.getPtr(asset._meta.url).?;
                     assert(hint.kind == .page_asset);
                     _ = hint.kind.page_asset.fetchAdd(1, .acq_rel);
 
                     const st = &v.string_table;
                     const pt = &v.path_table;
-                    break :blk try std.fmt.allocPrint(gpa, "/{s}", .{
+                    try w.print("/{s}", .{
                         asset._meta.url.fmt(st, pt),
                     });
                 },
-                .site => blk: {
+                .site => |variant_id| {
+                    try ctx.printLinkPrefix(w, variant_id, false);
                     const rc = ctx._meta.build.site_assets.getPtr(asset._meta.url).?;
                     _ = rc.fetchAdd(1, .acq_rel);
 
                     const st = &ctx._meta.build.st;
                     const pt = &ctx._meta.build.pt;
-                    break :blk try std.fmt.allocPrint(gpa, "/{s}", .{
+                    try w.print("/{s}", .{
                         asset._meta.url.fmt(st, pt),
                     });
                 },
@@ -99,10 +106,10 @@ pub const Builtins = struct {
                     return Value.errFmt(gpa, "build asset '{s}' is being linked but it doesn't define an `install_path` in `build.zig`", .{
                         asset._meta.ref,
                     });
-                } else asset._meta.ref,
-            };
+                },
+            }
 
-            return Value.from(gpa, url);
+            return Value.from(gpa, buf.items);
         }
     };
     pub const size = struct {
@@ -124,7 +131,8 @@ pub const Builtins = struct {
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             switch (asset._meta.kind) {
-                .page => |v| {
+                .page => |variant_id| {
+                    const v = &ctx._meta.build.variants[variant_id];
                     const path = buf[0..asset._meta.url.path.bytesSlice(
                         &v.string_table,
                         &v.path_table,
@@ -174,7 +182,8 @@ pub const Builtins = struct {
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             switch (asset._meta.kind) {
-                .page => |v| {
+                .page => |variant_id| {
+                    const v = &ctx._meta.build.variants[variant_id];
                     const path = buf[0..asset._meta.url.path.bytesSlice(
                         &v.string_table,
                         &v.path_table,
@@ -232,7 +241,8 @@ pub const Builtins = struct {
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             const data = switch (asset._meta.kind) {
-                .page => |v| blk: {
+                .page => |variant_id| blk: {
+                    const v = &ctx._meta.build.variants[variant_id];
                     const path = buf[0..asset._meta.url.path.bytesSlice(
                         &v.string_table,
                         &v.path_table,
@@ -301,7 +311,8 @@ pub const Builtins = struct {
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             const data = switch (asset._meta.kind) {
-                .page => |v| blk: {
+                .page => |variant_id| blk: {
+                    const v = &ctx._meta.build.variants[variant_id];
                     const path = buf[0..asset._meta.url.path.bytesSlice(
                         &v.string_table,
                         &v.path_table,

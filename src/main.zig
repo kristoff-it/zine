@@ -5,6 +5,7 @@ const supermd = @import("supermd");
 const options = @import("options");
 const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
+const context = @import("context.zig");
 const worker = @import("standalone/worker.zig");
 const Build = @import("Build.zig");
 const Variant = @import("Variant.zig");
@@ -44,7 +45,8 @@ else
 var progress_buf: [4096]u8 = undefined;
 pub var progress: std.Progress.Node = undefined;
 
-pub fn main() void {
+pub var exit_code: std.atomic.Value(u8) = .{ .raw = 0 };
+pub fn main() u8 {
     errdefer |err| switch (err) {
         error.OutOfMemory, error.Overflow => fatal.oom(),
     };
@@ -67,6 +69,8 @@ pub fn main() void {
         .help, .@"-h", .@"--help" => fatalHelp(),
         .version, .@"-v", .@"--version" => printVersion(),
     }
+
+    return exit_code.load(.acquire);
 }
 
 pub fn run(
@@ -156,6 +160,8 @@ pub fn run(
                     .variant = &build.variants[0],
                     .base_dir = build.base_dir,
                     .content_dir_path = s.content_dir_path,
+                    .variant_id = 0,
+                    .multilingual = null,
                 },
             });
         },
@@ -167,6 +173,12 @@ pub fn run(
                         .variant = &build.variants[idx],
                         .base_dir = build.base_dir,
                         .content_dir_path = locale.content_dir_path,
+                        .variant_id = @intCast(idx),
+                        .multilingual = .{
+                            .i18n_dir = build.i18n_dir,
+                            .i18n_dir_path = ml.i18n_dir_path,
+                            .locale_code = locale.code,
+                        },
                     },
                 });
             }
@@ -180,19 +192,28 @@ pub fn run(
     try build.scanSiteAssets(gpa, arena);
     _ = arena_state.reset(.retain_capacity);
 
-    worker.wait(); // content_dirs done scanning
-
-    // Stop if there is no content at all to analyze
-    for (build.variants) |*v| {
-        if (v.pages.items.len != 0) break;
-    } else fatal.msg(
-        "No content found, start by adding a index.smd file to your content directory.\n",
-        .{},
-    );
+    worker.wait(); // variants done scanning their content + i18n ziggy file
 
     // Activate sectinos by parsing their index.smd page
+    var i18n_errors = false;
+    var any_content = false;
     for (build.variants) |*v| {
+        if (v.i18n_diag.errors.items.len > 0) {
+            i18n_errors = true;
+
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            const path = std.fmt.bufPrint(&buf, "{}", .{std.fs.path.fmtJoin(&.{
+                build.cfg.Multilingual.i18n_dir_path,
+                v.i18n_diag.path.?,
+            })}) catch v.i18n_diag.path.?;
+
+            v.i18n_diag.path = path;
+            std.debug.print("{}\n\n", .{v.i18n_diag.fmt(v.i18n_src)});
+            continue;
+        }
+
         for (v.sections.items[1..]) |*s| {
+            any_content = true;
             worker.addJob(.{
                 .section_activate = .{
                     .variant = v,
@@ -202,6 +223,12 @@ pub fn run(
             });
         }
     }
+
+    // Stop if there is no content at all to analyze
+    if (!any_content) fatal.msg(
+        "No content found, start by adding a index.smd file to your content directory.\n",
+        .{},
+    );
 
     // Never a deadlock because we check that at least one page exists.
     worker.wait(); // sections have been activated (by parsing index.smd files)
@@ -375,7 +402,7 @@ pub fn run(
                         try p._analysis.frontmatter.append(gpa, .{
                             .alternative = .{
                                 .id = @intCast(aidx),
-                                .kind = .path,
+                                .kind = .layout,
                             },
                         });
                         break :layout;
@@ -794,7 +821,7 @@ pub fn run(
         }
     }
 
-    if (collision_errors or parse_errors or analysis_errors or
+    if (i18n_errors or collision_errors or parse_errors or analysis_errors or
         template_errors)
     {
         std.process.exit(1);
@@ -807,7 +834,35 @@ pub fn run(
 
     var pages_to_render: usize = 0;
     var progress_page_render = progress.start("Render pages", 0);
-    for (build.variants, 0..) |*v, vidx| {
+
+    var sites: std.StringArrayHashMapUnmanaged(context.Site) = .empty;
+    switch (build.cfg) {
+        .Site => |s| {
+            try sites.putNoClobber(gpa, "", .{
+                .host_url = s.host_url,
+                .title = s.title,
+                ._meta = .{
+                    .variant_id = 0,
+                    .kind = .{ .simple = s.url_path_prefix },
+                },
+            });
+        },
+        .Multilingual => |ml| {
+            try sites.ensureTotalCapacity(gpa, build.variants.len);
+            for (ml.locales, 0..) |loc, idx| sites.putAssumeCapacityNoClobber(loc.code, .{
+                .host_url = loc.host_url_override orelse ml.host_url,
+                .title = loc.site_title,
+                ._meta = .{
+                    .variant_id = @intCast(idx),
+                    .kind = .{
+                        .multi = loc,
+                    },
+                },
+            });
+        },
+    }
+
+    for (build.variants) |*v| {
         for (v.pages.items) |*p| {
             // This seems a clear case where active should be
             // stored in a more compact fashion.
@@ -815,11 +870,17 @@ pub fn run(
 
             pages_to_render += 1;
 
+            if (builtin.single_threaded) std.debug.print("Rendering {s}...\n", .{
+                (PathName{
+                    .path = p._scan.md_path,
+                    .name = p._scan.md_name,
+                }).fmt(&v.string_table, &v.path_table),
+            });
             worker.addJob(.{
                 .page_render = .{
                     .progress = progress_page_render,
                     .build = &build,
-                    .variant_id = @intCast(vidx),
+                    .sites = &sites,
                     .page = p,
                     .kind = .main,
                 },
@@ -830,7 +891,7 @@ pub fn run(
                     .page_render = .{
                         .progress = progress_page_render,
                         .build = &build,
-                        .variant_id = @intCast(vidx),
+                        .sites = &sites,
                         .page = p,
                         .kind = .{ .alternative = @intCast(aidx) },
                     },
@@ -859,14 +920,28 @@ pub fn run(
 
         // TODO: this should have been validated way earlier
         // static assets
-        for (build.cfg.Site.static_assets) |path_bytes| {
+        for (build.cfg.getStaticAssets()) |path_bytes| {
             const pn: ?PathName = .get(&build.st, &build.pt, path_bytes);
             const rc = build.site_assets.getPtr(pn.?).?;
             rc.raw = 0;
 
+            const site_assets_install_dir = switch (build.cfg) {
+                .Site => build.install_dir,
+                .Multilingual => |ml| blk: {
+                    if (ml.assets_prefix_path.len == 0) {
+                        break :blk build.install_dir;
+                    } else {
+                        break :blk build.install_dir.openDir(
+                            ml.assets_prefix_path,
+                            .{},
+                        ) catch |err| fatal.dir(ml.assets_prefix_path, err);
+                    }
+                },
+            };
+
             _ = build.site_assets_dir.updateFile(
                 path_bytes,
-                build.install_dir,
+                site_assets_install_dir,
                 path_bytes,
                 .{},
             ) catch |err| fatal.file(path_bytes, err);

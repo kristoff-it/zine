@@ -65,6 +65,7 @@ _scan: struct {
     page_id: u32,
     subsection_id: u32, // 0 means no subsection
     parent_section_id: u32, // 0 means no parent section (only true for root index)
+    variant_id: u32,
 } = undefined,
 
 /// Fields populated after parsing the page.
@@ -169,6 +170,7 @@ pub const FrontmatterAnalysisError = union(enum) {
         kind: enum {
             name,
             path,
+            layout,
         },
     },
 
@@ -176,7 +178,11 @@ pub const FrontmatterAnalysisError = union(enum) {
         return switch (err) {
             .layout => "missing layout file",
             .alias => "invalid value in 'aliases'",
-            .alternative => "invalid value in alternatives",
+            .alternative => |alt| switch (alt.kind) {
+                .name => "invalid name in alternatives",
+                .path => "invalid path in alternatives",
+                .layout => "invalid layout in alternatives",
+            },
         };
     }
 
@@ -230,6 +236,7 @@ pub const FrontmatterAnalysisError = union(enum) {
                         const field_name = switch (alt.kind) {
                             .name => "name",
                             .path => "output",
+                            .layout => "layout",
                         };
 
                         var current_field = ast.nodes[current_alt.first_child_id];
@@ -505,16 +512,25 @@ pub const Footnote = struct {
             pub fn call(
                 f: Footnote,
                 gpa: Allocator,
-                _: *const context.Template,
+                ctx: *const context.Template,
                 args: []const Value,
             ) !Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
                 var buf = std.ArrayList(u8).init(gpa);
-                const ast = f._page._meta.ast orelse unreachable;
+                const ast = f._page._meta.ast.?;
                 const node = ast.footnotes.values()[f._idx].node;
 
-                try render.html(gpa, ast, node, buf.writer());
+                const variant_id = f._page._scan.variant_id;
+                const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
+
+                try render.html(
+                    gpa,
+                    ast,
+                    node,
+                    if (f._page != ctx.page) host_url else null,
+                    buf.writer(),
+                );
                 return String.init(try buf.toOwnedSlice());
             }
         };
@@ -658,9 +674,9 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (context.pathValidationError(ref)) |err| return err;
+            if (context.pathValidationError(ref, .{})) |err| return err;
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const st = &v.string_table;
             const pt = &v.path_table;
 
@@ -690,7 +706,7 @@ pub const Builtins = struct {
                             ._meta = .{
                                 .ref = context.stripTrailingSlash(ref),
                                 .url = pn,
-                                .kind = .site,
+                                .kind = .{ .site = p._scan.variant_id },
                             },
                         },
                     };
@@ -948,7 +964,7 @@ pub const Builtins = struct {
                 .err = "root index page has no parent path",
             };
 
-            const v = ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = ctx._meta.build.variants[p._scan.variant_id];
             const index_id = v.sections.items[section_id].index;
             return .{ .page = &v.pages.items[index_id] };
         }
@@ -1000,7 +1016,7 @@ pub const Builtins = struct {
             const subsection_id = p._scan.subsection_id;
             if (subsection_id == 0) return context.Array.Empty;
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.subsection_id];
 
             const pages = try gpa.alloc(Value, s.pages.items.len);
@@ -1039,7 +1055,7 @@ pub const Builtins = struct {
             const subsection_id = p._scan.subsection_id;
             if (subsection_id == 0) return context.Array.Empty;
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.subsection_id];
 
             const pages_buf = try gpa.alloc(Value, s.pages.items.len);
@@ -1087,7 +1103,7 @@ pub const Builtins = struct {
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
             const self_id = std.mem.indexOfScalar(
                 u32,
@@ -1122,7 +1138,7 @@ pub const Builtins = struct {
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
             const self_id = std.mem.indexOfScalar(
                 u32,
@@ -1159,7 +1175,7 @@ pub const Builtins = struct {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
             const self_id = std.mem.indexOfScalar(
                 u32,
@@ -1195,7 +1211,7 @@ pub const Builtins = struct {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
             const self_id = std.mem.indexOfScalar(
                 u32,
@@ -1218,36 +1234,42 @@ pub const Builtins = struct {
         pub const signature: Signature = .{ .ret = .String };
         pub const docs_description =
             \\Returns the URL of the target page.
+            \\
+            \\In multilingual sites, if the target page belongs to a different
+            \\localized variant, the link will containt the full host URL if
+            \\'host_url_override' was specified for either page.
         ;
         pub const examples =
             \\$page.link()
         ;
         pub fn call(
-            page: *const Page,
+            p: *const Page,
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const v = &ctx._meta.build.variants[ctx._meta.variant_id];
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
             const index_smd: StringTable.String = @enumFromInt(1);
 
             var buf: std.ArrayListUnmanaged(u8) = .empty;
             const w = buf.writer(gpa);
 
+            try ctx.printLinkPrefix(w, p._scan.variant_id, false);
+
             const empty_path: Path = @enumFromInt(0);
-            const path = page._scan.md_path;
+            const path = p._scan.md_path;
             if (path != empty_path) {
                 try w.print("/{s}", .{
-                    page._scan.md_path.fmt(&v.string_table, &v.path_table, false),
+                    p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
                 });
             }
 
-            const name = page._scan.md_name;
+            const name = p._scan.md_name;
             if (name != index_smd) {
                 try w.print("/{s}", .{
-                    std.fs.path.stem(page._scan.md_name.slice(&v.string_table)),
+                    std.fs.path.stem(p._scan.md_name.slice(&v.string_table)),
                 });
             }
 
@@ -1368,7 +1390,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1376,7 +1398,19 @@ pub const Builtins = struct {
             var buf = std.ArrayList(u8).init(gpa);
             const ast = p._meta.ast orelse unreachable;
 
-            try render.html(gpa, ast, ast.md.root, buf.writer());
+            const variant_id = p._scan.variant_id;
+            const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
+
+            try render.html(
+                gpa,
+                ast,
+                ast.md.root,
+                // We print host URLs also for pages in the same variant if
+                // the page is being rendered from a different page. This
+                // makes RSS feeds behave correctly without any user input needed.
+                if (p != ctx.page) host_url else null,
+                buf.writer(),
+            );
             return String.init(try buf.toOwnedSlice());
         }
     };
@@ -1395,7 +1429,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -1429,7 +1463,16 @@ pub const Builtins = struct {
                 );
             }
 
-            try render.html(gpa, ast, node, buf.writer());
+            const variant_id = p._scan.variant_id;
+            const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
+
+            try render.html(
+                gpa,
+                ast,
+                node,
+                if (p != ctx.page) host_url else null,
+                buf.writer(),
+            );
             return String.init(try buf.toOwnedSlice());
         }
     };
@@ -1511,7 +1554,7 @@ pub const Builtins = struct {
                         .id = d.id orelse "",
                         .data = d.data,
                         ._node = kv.value_ptr.*,
-                        ._ast = ast,
+                        ._page = p,
                     });
                 }
             }
@@ -1602,7 +1645,7 @@ pub const ContentSection = struct {
     id: []const u8,
     data: supermd.Directive.Data = .{},
     _node: supermd.Node,
-    _ast: supermd.Ast,
+    _page: *const Page,
 
     pub const dot = scripty.defaultDot(ContentSection, Value, false);
     pub const docs_description =
@@ -1708,7 +1751,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
-                _: *const context.Template,
+                ctx: *const context.Template,
                 args: []const Value,
             ) !Value {
                 const bad_arg: Value = .{
@@ -1719,7 +1762,17 @@ pub const ContentSection = struct {
                 var buf = std.ArrayList(u8).init(gpa);
 
                 log.debug("rendering content section [#{s}]", .{cs.id});
-                try render.html(gpa, cs._ast, cs._node, buf.writer());
+
+                const variant_id = cs._page._scan.variant_id;
+                const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
+
+                try render.html(
+                    gpa,
+                    cs._page._meta.ast.?,
+                    cs._node,
+                    if (cs._page != ctx.page) host_url else null,
+                    buf.writer(),
+                );
                 return String.init(try buf.toOwnedSlice());
             }
         };

@@ -10,8 +10,8 @@ const Allocator = std.mem.Allocator;
 const Ctx = superhtml.utils.Ctx;
 
 pub const AssetKindUnion = union(Asset.Kind) {
-    site,
-    page: *const Variant,
+    site: u32, // variant_id
+    page: u32, // variant_id
     // defined install path for a build asset as defined in the user's
     // build.zig
     build: ?[]const u8,
@@ -218,21 +218,26 @@ pub const Value = union(enum) {
 };
 
 //NOTE: this must be kept in sync with SuperMD
-pub fn pathValidationError(path: []const u8) ?context.Value {
+pub fn pathValidationError(
+    path: []const u8,
+    // Toggle checks
+    options: struct { empty: bool = false },
+) ?context.Value {
     // Paths must not have spaces around them
     const spaces = std.mem.trim(u8, path, &std.ascii.whitespace);
     if (spaces.len != path.len) return .{
         .err = "remove whitespace surrounding path",
     };
 
-    // Paths cannot be empty
+    // Paths cannot be empty unless we allow it
+    if (path.len == 0 and options.empty) return null;
     if (path.len == 0) return .{
-        .err = "path is empty",
+        .err = "this builtin does not accept empty paths",
     };
 
     // All paths must be relative
     if (path[0] == '/') return .{
-        .err = "path must be relative, use the appropriate builtin if necessary",
+        .err = "this builtin does not accept absolute paths",
     };
 
     // Paths cannot contain Windows-style separators
