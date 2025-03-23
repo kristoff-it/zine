@@ -10,19 +10,9 @@ const Allocator = std.mem.Allocator;
 const Ctx = superhtml.utils.Ctx;
 
 pub const AssetKindUnion = union(Asset.Kind) {
-    site: u32, // variant_id
+    site,
     page: u32, // variant_id
     build,
-};
-
-pub const PageSearchStrategy = union(enum) {
-    ref: struct {
-        path: []const u8,
-        site: *const Site,
-    },
-    next: *const Page,
-    prev: *const Page,
-    subpages: *const Page,
 };
 
 pub const ScriptyParam = doctypes.ScriptyParam;

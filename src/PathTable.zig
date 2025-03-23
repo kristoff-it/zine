@@ -44,7 +44,7 @@ pub const PathName = packed struct {
             return .{ .path = empty_path, .name = name };
         };
 
-        const path = pt.getPathNoName(st, base) orelse return null;
+        const path = pt.getPathNoName(st, &.{}, base) orelse return null;
         const name = st.get(std.fs.path.basenamePosix(src[base.len..])) orelse return null;
         return .{ .path = path, .name = name };
     }
@@ -72,28 +72,36 @@ pub const PathName = packed struct {
     };
 };
 
-pub fn getPathNoName(pt: *const PathTable, string_table: *const StringTable, path: []const u8) ?Path {
+pub fn getPathNoName(
+    pt: *const PathTable,
+    string_table: *const StringTable,
+    /// Optional already computed prefix
+    prefix: []const String,
+    path: []const u8,
+) ?Path {
     var it = std.mem.tokenizeScalar(u8, path, std.fs.path.sep);
     const component_count = blk: {
         var count: u32 = 0;
         while (it.next() != null) count += 1;
         it.reset();
         break :blk count;
-    };
+    } + prefix.len;
 
-    var buf: [256]String = undefined;
-    if (component_count > 256) {
-        std.debug.print("error: a path has more than 256 components, PathTable needs to have its limits bumped up\nthe path: '{s}'\n", .{path});
+    var buf: [512]String = undefined;
+    if (component_count > 512) {
+        std.debug.print("error: a path has more than 512 components, PathTable needs to have its limits bumped up\nthe path: '{s}'\n", .{path});
         std.process.exit(1);
     }
 
-    const components = buf[0..component_count];
-    for (components) |*cmp| {
+    @memcpy(buf[0..prefix.len], prefix);
+
+    const new_components = buf[prefix.len..component_count];
+    for (new_components) |*cmp| {
         cmp.* = string_table.get(it.next().?) orelse return null;
     }
 
     return pt.path_map.getKeyAdapted(
-        mem.sliceAsBytes(components),
+        mem.sliceAsBytes(buf[0..component_count]),
         @as(Path.MapIndexAdapter, .{ .components = pt.path_components.items }),
     );
 }
@@ -336,14 +344,19 @@ pub const Path = enum(u32) {
         return out.items.len;
     }
 
-    pub fn fmt(p: Path, st: *StringTable, pt: *PathTable, trailing_slash: bool) Path.Formatter {
+    pub fn fmt(
+        p: Path,
+        st: *const StringTable,
+        pt: *const PathTable,
+        trailing_slash: bool,
+    ) Path.Formatter {
         return .{ .p = p, .st = st, .pt = pt, .slash = trailing_slash };
     }
 
     pub const Formatter = struct {
         p: Path,
-        st: *StringTable,
-        pt: *PathTable,
+        st: *const StringTable,
+        pt: *const PathTable,
         slash: bool,
 
         pub fn format(

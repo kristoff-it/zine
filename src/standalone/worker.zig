@@ -288,7 +288,6 @@ fn analyzeContent(
     variant_id: u32,
     page: *Page,
 ) error{OutOfMemory}!void {
-    _ = arena;
     const ast = &page._parse.ast;
     const errors = &page._analysis.page;
     const variant = &b.variants[variant_id];
@@ -323,28 +322,66 @@ fn analyzeContent(
         switch (directive.kind) {
             .section, .block, .heading, .text => {},
             .code => |code| {
-                const path = switch (code.src.?) {
+                const path, const base_dir = switch (code.src.?) {
                     else => unreachable,
-                    .page_asset => @panic("TODO"),
-                    .build_asset => |name| blk: {
-                        const ba = b.cli.build_assets.get(name) orelse {
-                            try errors.append(gpa, .{
-                                .node = n,
-                                .kind = .{
-                                    .missing_asset = .{
-                                        .ref = name,
-                                        .kind = .build,
+                    .page_asset => |pa| blk: {
+                        assert(std.mem.indexOfScalar(u8, pa.ref, '\\') == null);
+                        var buf: std.ArrayListUnmanaged(String) = .empty;
+
+                        try buf.appendSlice(
+                            arena,
+                            page._scan.md_path.slice(&variant.path_table),
+                        );
+
+                        if (page._scan.md_name != index_smd) {
+                            const name_bytes = page._scan.md_name.slice(
+                                &variant.string_table,
+                            );
+
+                            try buf.append(arena, variant.string_table.get(
+                                std.fs.path.stem(name_bytes),
+                            ).?);
+                        }
+
+                        var it = std.mem.tokenizeScalar(u8, pa.ref, '/');
+                        while (it.next()) |component_bytes| {
+                            const component = variant.string_table.get(
+                                component_bytes,
+                            ) orelse {
+                                try errors.append(gpa, .{
+                                    .node = n,
+                                    .kind = .{
+                                        .missing_asset = .{
+                                            .ref = pa.ref,
+                                            .kind = .page,
+                                        },
                                     },
-                                },
-                            });
-                            continue :outer;
-                        };
-                        break :blk ba.input_path;
-                    },
-                    .site_asset => |ref| blk: {
-                        if (PathName.get(&b.st, &b.pt, ref)) |pn| {
-                            if (b.site_assets.contains(pn)) {
-                                break :blk ref;
+                                });
+                                continue :outer;
+                            };
+                            try buf.append(arena, component);
+                        }
+
+                        const path_strings = buf.items[0 .. buf.items.len - 1];
+                        const name = buf.items[buf.items.len - 1];
+                        if (variant.path_table.get(path_strings)) |path| {
+                            const pn: PathName = .{ .path = path, .name = name };
+                            if (variant.urls.getPtr(pn)) |hint| {
+                                switch (hint.kind) {
+                                    .page_asset => {
+                                        break :blk .{ try std.fmt.allocPrint(
+                                            arena,
+                                            "{}",
+                                            .{
+                                                pn.fmt(
+                                                    &variant.string_table,
+                                                    &variant.path_table,
+                                                ),
+                                            },
+                                        ), variant.content_dir };
+                                    },
+                                    else => {},
+                                }
                             }
                         }
 
@@ -352,7 +389,45 @@ fn analyzeContent(
                             .node = n,
                             .kind = .{
                                 .missing_asset = .{
-                                    .ref = ref,
+                                    .ref = pa.ref,
+                                    .kind = .page,
+                                },
+                            },
+                        });
+                        continue :outer;
+                    },
+                    .build_asset => |ba| blk: {
+                        const asset = b.cli.build_assets.get(ba.ref) orelse {
+                            try errors.append(gpa, .{
+                                .node = n,
+                                .kind = .{
+                                    .missing_asset = .{
+                                        .ref = ba.ref,
+                                        .kind = .build,
+                                    },
+                                },
+                            });
+                            continue :outer;
+                        };
+                        break :blk .{ asset.input_path, b.site_assets_dir };
+                    },
+                    .site_asset => |*sa| blk: {
+                        if (PathName.get(&b.st, &b.pt, sa.ref)) |pn| {
+                            if (b.site_assets.contains(pn)) {
+                                break :blk .{
+                                    sa.ref,
+                                    // dir is not relevant because the path is
+                                    // absolute
+                                    b.site_assets_dir,
+                                };
+                            }
+                        }
+
+                        try errors.append(gpa, .{
+                            .node = n,
+                            .kind = .{
+                                .missing_asset = .{
+                                    .ref = sa.ref,
                                     .kind = .site,
                                 },
                             },
@@ -360,8 +435,7 @@ fn analyzeContent(
                         continue :outer;
                     },
                 };
-
-                const src = b.site_assets_dir.readFileAlloc(
+                const src = base_dir.readFileAlloc(
                     gpa,
                     path,
                     std.math.maxInt(u32),
@@ -383,18 +457,17 @@ fn analyzeContent(
             },
 
             // Link, Image, Video directives
-            inline else => |*val, tag| {
+            inline else => |*val| {
                 switch (val.src.?) {
                     .url => continue :outer,
-                    .self_page => {
+                    .self_page => |*resolved_alt| {
                         // This value is only expected for Link directives.
                         if (@TypeOf(val.*) != supermd.context.Link) continue :outer;
 
-                        var path_bytes = std.ArrayList(u8).init(gpa);
                         if (val.alternative) |alt_name| {
                             for (page.alternatives) |alt| {
                                 if (std.mem.eql(u8, alt.name, alt_name)) {
-                                    try path_bytes.appendSlice(alt.output);
+                                    resolved_alt.* = alt.output;
                                     break;
                                 }
                             } else {
@@ -423,14 +496,9 @@ fn analyzeContent(
                                 continue :outer;
                             }
                         }
-
-                        @field(directive.kind, @tagName(tag)).src = .{
-                            .url = path_bytes.items,
-                        };
-                        continue :outer;
                     },
 
-                    .page => |p| {
+                    .page => |*p| {
                         // This value is only expected for Link directives.
                         if (@TypeOf(val.*) != supermd.context.Link) continue :outer;
 
@@ -442,26 +510,21 @@ fn analyzeContent(
                         //     },
                         //     ref: []const u8,
                         //     locale: ?[]const u8 = null,
+                        //        resolved: struct {
+                        //            page_id: u32,
+                        //            variant_id: u32,
+                        //            path: u32,
+                        //        } = undefined,
                         // },
                         //
 
-                        // Here we will place the path as we compose it
-                        // and later on we will append to it ref/alt
-                        // information as needed.
-                        var path_bytes = std.ArrayList(u8).init(gpa);
-                        try path_bytes.append('/');
-                        const pn: PathName = switch (p.kind) {
+                        const path: Path = switch (p.kind) {
                             .absolute => blk: {
                                 if (variant.path_table.getPathNoName(
                                     &variant.string_table,
+                                    &.{},
                                     p.ref,
-                                )) |path| {
-                                    try path_bytes.appendSlice(p.ref);
-                                    break :blk .{
-                                        .path = path,
-                                        .name = index_html,
-                                    };
-                                }
+                                )) |path| break :blk path;
 
                                 try errors.append(gpa, .{
                                     .node = n,
@@ -474,31 +537,26 @@ fn analyzeContent(
                                 continue :outer;
                             },
                             .sibling => blk: {
-                                try path_bytes.writer().print("{s}", .{
-                                    page._scan.md_path.fmt(
-                                        &variant.string_table,
-                                        &variant.path_table,
-                                        false,
-                                    ),
-                                });
-
-                                if (page._scan.md_name == index_smd) {
-                                    const keep = std.fs.path.dirname(path_bytes.items) orelse "";
-                                    path_bytes.items = path_bytes.items[0..keep.len];
+                                // Sibling means that the path is rooted in
+                                // the current's section path. All pages have
+                                // a section except the root index page.
+                                const section_id = page._scan.parent_section_id;
+                                if (section_id == 0) {
+                                    try errors.append(gpa, .{
+                                        .node = n,
+                                        .kind = .no_parent_section,
+                                    });
+                                    continue :outer;
                                 }
 
-                                try path_bytes.append('/');
-                                try path_bytes.appendSlice(p.ref);
-
+                                const section = variant.sections.items[section_id];
                                 if (variant.path_table.getPathNoName(
                                     &variant.string_table,
-                                    path_bytes.items,
-                                )) |path| {
-                                    break :blk .{
-                                        .path = path,
-                                        .name = index_html,
-                                    };
-                                }
+                                    section.content_sub_path.slice(
+                                        &variant.path_table,
+                                    ),
+                                    p.ref,
+                                )) |path| break :blk path;
 
                                 try errors.append(gpa, .{
                                     .node = n,
@@ -511,32 +569,29 @@ fn analyzeContent(
                                 continue :outer;
                             },
                             .sub => blk: {
-                                try path_bytes.writer().print("{s}", .{
-                                    page._scan.md_path.fmt(
-                                        &variant.string_table,
-                                        &variant.path_table,
-                                        true,
-                                    ),
-                                });
+                                // Subpage means that the final path is
+                                // based on the current page's URL path.
+                                // It also is only available on pages that
+                                // are sections, which means that the page
+                                // is guaranteed to be named `index.smd`.
                                 if (page._scan.md_name != index_smd) {
-                                    try path_bytes.writer().print("{s}/", .{
-                                        page._scan.md_name.slice(
-                                            &variant.string_table,
-                                        ),
+                                    try errors.append(gpa, .{
+                                        .node = n,
+                                        .kind = .not_a_section,
                                     });
+                                    continue :outer;
                                 }
 
-                                try path_bytes.appendSlice(p.ref);
+                                var buf: std.ArrayListUnmanaged(String) = .empty;
+                                try buf.appendSlice(arena, page._scan.md_path.slice(
+                                    &variant.path_table,
+                                ));
 
                                 if (variant.path_table.getPathNoName(
                                     &variant.string_table,
-                                    path_bytes.items,
-                                )) |path| {
-                                    break :blk .{
-                                        .path = path,
-                                        .name = index_html,
-                                    };
-                                }
+                                    buf.items,
+                                    p.ref,
+                                )) |path| break :blk path;
 
                                 try errors.append(gpa, .{
                                     .node = n,
@@ -550,10 +605,7 @@ fn analyzeContent(
                             },
                         };
 
-                        if (path_bytes.items[path_bytes.items.len - 1] != '/') {
-                            try path_bytes.append('/');
-                        }
-
+                        const pn: PathName = .{ .path = path, .name = index_html };
                         const hint = variant.urls.get(pn) orelse {
                             try errors.append(gpa, .{
                                 .node = n,
@@ -582,15 +634,23 @@ fn analyzeContent(
                             },
                         }
 
-                        const other_page = variant.pages.items[hint.id];
+                        const other_page = if (p.locale) |loc| {
+                            _ = loc;
+                            @panic("TODO");
+                        } else variant.pages.items[hint.id];
+
+                        p.resolved = .{
+                            .page_id = hint.id,
+                            .variant_id = other_page._scan.variant_id,
+                            .path = @intFromEnum(path),
+                        };
 
                         if (val.alternative) |alt_name| {
                             for (other_page.alternatives) |alt| {
                                 if (std.mem.eql(u8, alt.name, alt_name)) {
                                     // TODO: semantics for relative output paths
                                     assert(std.mem.startsWith(u8, alt.output, "/"));
-                                    path_bytes.clearRetainingCapacity();
-                                    try path_bytes.appendSlice(alt.output);
+                                    p.resolved.alt = alt.output;
                                     break;
                                 }
                             } else {
@@ -620,132 +680,155 @@ fn analyzeContent(
                             }
                         }
 
-                        @field(directive.kind, @tagName(tag)).src = .{
-                            .url = path_bytes.items,
-                        };
                         continue :outer;
-                        // const page_site = if (p.locale) |lc|
-                        //     sites.get(lc) orelse reportError(
-                        //         n,
-                        //         md_src,
-                        //         md_rel_path,
-                        //         md_path,
-                        //         fm_offset,
-                        //         is_section,
-                        //         try std.fmt.allocPrint(
-                        //             gpa,
-                        //             "could not find locale '{s}'",
-                        //             .{lc},
-                        //         ),
-                        //     )
-                        // else
-                        //     site;
-                        // if (@hasField(@TypeOf(val), "alternative")) {
                     },
 
-                    .page_asset, .site_asset => |ref| { //ref
-                        assert(std.mem.indexOfScalar(u8, ref, '\\') == null);
+                    .page_asset => |*pa| {
+                        assert(std.mem.indexOfScalar(u8, pa.ref, '\\') == null);
+                        var buf: std.ArrayListUnmanaged(String) = .empty;
 
-                        var path_bytes = std.ArrayList(u8).init(gpa);
-                        try path_bytes.append('/');
-                        switch (val.src.?) {
-                            else => unreachable,
-                            // NOTE: site assets are stored in the build string
-                            //       and path tables, and must be serched in the
-                            //       build's assets hashmap.
-                            .site_asset => blk: {
-                                const dirname = std.fs.path.dirnamePosix(ref) orelse "";
-                                if (b.pt.getPathNoName(&b.st, dirname)) |path| {
-                                    const basename = std.fs.path.basenamePosix(ref);
-                                    if (b.st.get(basename)) |name| {
-                                        try path_bytes.appendSlice(ref);
-                                        const pn: PathName = .{
-                                            .path = path,
-                                            .name = name,
-                                        };
+                        try buf.appendSlice(
+                            arena,
+                            page._scan.md_path.slice(&variant.path_table),
+                        );
 
-                                        if (b.site_assets.getPtr(pn)) |rc| {
-                                            _ = rc.fetchAdd(1, .acq_rel);
-                                            break :blk;
-                                        }
-                                    }
-                                }
+                        if (page._scan.md_name != index_smd) {
+                            const name_bytes = page._scan.md_name.slice(
+                                &variant.string_table,
+                            );
 
+                            try buf.append(arena, variant.string_table.get(
+                                std.fs.path.stem(name_bytes),
+                            ).?);
+                        }
+
+                        var it = std.mem.tokenizeScalar(u8, pa.ref, '/');
+                        while (it.next()) |component_bytes| {
+                            const component = variant.string_table.get(
+                                component_bytes,
+                            ) orelse {
                                 try errors.append(gpa, .{
                                     .node = n,
                                     .kind = .{
                                         .missing_asset = .{
-                                            .ref = ref,
+                                            .ref = pa.ref,
                                             .kind = .site,
                                         },
                                     },
                                 });
                                 continue :outer;
-                            },
-                            .page_asset => blk: {
-                                try path_bytes.writer().print("{s}", .{
-                                    page._scan.md_path.fmt(
-                                        &variant.string_table,
-                                        &variant.path_table,
-                                        ref[0] != '/',
-                                    ),
-                                });
-                                try path_bytes.appendSlice(ref);
-
-                                const dirname = std.fs.path.dirnamePosix(path_bytes.items) orelse "";
-                                if (variant.path_table.getPathNoName(
-                                    &variant.string_table,
-                                    dirname,
-                                )) |path| {
-                                    const basename = std.fs.path.basenamePosix(ref);
-                                    if (variant.string_table.get(basename)) |name| {
-                                        const pn: PathName = .{
-                                            .path = path,
-                                            .name = name,
-                                        };
-
-                                        if (variant.urls.getPtr(pn)) |hint| {
-                                            switch (hint.kind) {
-                                                .page_asset => |*rc| {
-                                                    _ = rc.fetchAdd(1, .acq_rel);
-                                                    break :blk;
-                                                },
-                                                else => {},
-                                            }
-                                        }
-                                    }
-                                }
-
-                                try errors.append(gpa, .{
-                                    .node = n,
-                                    .kind = .{
-                                        .missing_asset = .{
-                                            .ref = ref,
-                                            .kind = .page,
-                                        },
-                                    },
-                                });
-                                continue :outer;
-                            },
+                            };
+                            try buf.append(arena, component);
                         }
 
-                        // Asset was found successfully.
+                        const path_strings = buf.items[0 .. buf.items.len - 1];
+                        const name = buf.items[buf.items.len - 1];
+                        if (variant.path_table.get(path_strings)) |path| {
+                            const pn: PathName = .{ .path = path, .name = name };
+                            if (variant.urls.getPtr(pn)) |hint| {
+                                switch (hint.kind) {
+                                    .page_asset => |*rc| {
+                                        // TODO: when going from zero to one
+                                        //       grab image size info if needed
+                                        _ = rc.fetchAdd(1, .acq_rel);
+                                        pa.resolved = .{
+                                            .path = @intFromEnum(path),
+                                            .name = @intFromEnum(name),
+                                        };
+                                        continue :outer;
+                                    },
+                                    else => {},
+                                }
+                            }
+                        }
 
-                        // if (directive.kind == .image) blk: {
-                        // const image_handle = std.fs.cwd().openFile(path_bytes.items, .{}) catch break :blk;
-                        // defer image_handle.close();
-                        // var image_header_buf: [2048]u8 = undefined;
-                        // const image_header_len = image_handle.readAll(&image_header_buf) catch break :blk;
-                        // const image_header = image_header_buf[0..image_header_len];
-
-                        // const img_size = getImageSize(image_header) catch break :blk;
-                        // directive.kind.image.size = .{ .w = img_size.w, .h = img_size.h };
-                        // }
-                        @field(directive.kind, @tagName(tag)).src = .{
-                            .url = path_bytes.items,
-                        };
+                        try errors.append(gpa, .{
+                            .node = n,
+                            .kind = .{
+                                .missing_asset = .{
+                                    .ref = pa.ref,
+                                    .kind = .page,
+                                },
+                            },
+                        });
+                        continue :outer;
                     },
-                    .build_asset => @panic("TODO"),
+                    .site_asset => |*sa| { //ref
+                        assert(std.mem.indexOfScalar(u8, sa.ref, '\\') == null);
+
+                        const dirname = std.fs.path.dirnamePosix(sa.ref) orelse "";
+                        if (b.pt.getPathNoName(&b.st, &.{}, dirname)) |path| {
+                            const basename = std.fs.path.basenamePosix(sa.ref);
+                            if (b.st.get(basename)) |name| {
+                                const pn: PathName = .{
+                                    .path = path,
+                                    .name = name,
+                                };
+
+                                if (b.site_assets.getPtr(pn)) |rc| {
+                                    _ = rc.fetchAdd(1, .acq_rel);
+                                    sa.resolved = .{
+                                        .path = @intFromEnum(path),
+                                        .name = @intFromEnum(name),
+                                    };
+                                    continue :outer;
+                                }
+                            }
+                        }
+
+                        try errors.append(gpa, .{
+                            .node = n,
+                            .kind = .{
+                                .missing_asset = .{
+                                    .ref = sa.ref,
+                                    .kind = .site,
+                                },
+                            },
+                        });
+                        continue :outer;
+                    },
+                    .build_asset => |*ba| {
+                        const asset = b.cli.build_assets.getPtr(ba.ref) orelse {
+                            try errors.append(gpa, .{
+                                .node = n,
+                                .kind = .{
+                                    .missing_asset = .{
+                                        .ref = ba.ref,
+                                        .kind = .build,
+                                    },
+                                },
+                            });
+                            continue :outer;
+                        };
+
+                        _ = asset.rc.fetchAdd(1, .acq_rel);
+
+                        const install_path = asset.install_path orelse {
+                            try errors.append(gpa, .{
+                                .node = n,
+                                .kind = .{
+                                    .build_asset_missing_install_path = .{
+                                        .ref = ba.ref,
+                                    },
+                                },
+                            });
+                            continue :outer;
+                        };
+
+                        ba.ref = install_path;
+                    },
+
+                    // Asset was found successfully.
+
+                    // if (directive.kind == .image) blk: {
+                    // const image_handle = std.fs.cwd().openFile(path_bytes.items, .{}) catch break :blk;
+                    // defer image_handle.close();
+                    // var image_header_buf: [2048]u8 = undefined;
+                    // const image_header_len = image_handle.readAll(&image_header_buf) catch break :blk;
+                    // const image_header = image_header_buf[0..image_header_len];
+
+                    // const img_size = getImageSize(image_header) catch break :blk;
+                    // directive.kind.image.size = .{ .w = img_size.w, .h = img_size.h };
                 }
             },
         }
@@ -873,7 +956,12 @@ fn renderPage(
 
         .alternative => |idx| blk: {
             const out_path = page.alternatives[idx].output;
-            assert(out_path[0] == '/');
+            if (out_path[0] != '/') {
+                std.debug.panic("Output paths for alternatives must be absolute (i.e. start with a '/'). Previously Zine interpreted the path as relative from the output root dir no matter what, but I would like to let users define also relative paths if they want to. That said, at the moment only absolute paths are implemented. The page that triggered this panic: '{s}/{s}'", .{
+                    page_path,
+                    page._scan.md_name.slice(&variant.string_table),
+                });
+            }
 
             if (std.fs.path.dirnamePosix(out_path)) |path| {
                 build.install_dir.makePath(

@@ -79,10 +79,10 @@ const Config = union(enum) {
         };
     }
 
-    pub fn getHostUrl(c: *const Config, locale_id: u32) []const u8 {
+    pub fn getHostUrl(c: *const Config, locale_id: ?u32) []const u8 {
         return switch (c.*) {
             .Site => |s| s.host_url,
-            .Multilingual => |m| m.locales[locale_id].host_url_override orelse m.host_url,
+            .Multilingual => |m| if (locale_id) |lid| m.locales[lid].host_url_override orelse m.host_url else m.host_url,
         };
     }
 };
@@ -133,8 +133,8 @@ pub const MultilingualSite = struct {
     i18n_dir_path: []const u8,
     layouts_dir_path: []const u8,
     assets_dir_path: []const u8,
-    /// Location where site assets will be installed. By default assets will be
-    /// installed directly in the output location.
+    /// Location where site and build assets will be installed. By default
+    /// assets will be installed directly in the output location.
     ///
     /// In mulitilingual websites Zine will create a single copy of site
     /// assets which will then be installed at this location. It will be your

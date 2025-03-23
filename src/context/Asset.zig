@@ -7,6 +7,7 @@ const utils = @import("utils.zig");
 const fatal = @import("../fatal.zig");
 const context = @import("../context.zig");
 const PathTable = @import("../PathTable.zig");
+const html = @import("../render/html.zig");
 const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
 const PathName = PathTable.PathName;
@@ -80,7 +81,11 @@ pub const Builtins = struct {
             const w = buf.writer();
             switch (asset._meta.kind) {
                 .page => |variant_id| {
-                    try ctx.printLinkPrefix(w, variant_id, false);
+                    try ctx.printLinkPrefix(
+                        w,
+                        variant_id,
+                        false,
+                    );
                     const v = ctx._meta.build.variants[variant_id];
                     const hint = v.urls.getPtr(asset._meta.url).?;
                     assert(hint.kind == .page_asset);
@@ -88,22 +93,23 @@ pub const Builtins = struct {
 
                     const st = &v.string_table;
                     const pt = &v.path_table;
-                    try w.print("/{s}", .{
+                    try w.print("{s}", .{
                         asset._meta.url.fmt(st, pt),
                     });
                 },
-                .site => |variant_id| {
-                    try ctx.printLinkPrefix(w, variant_id, false);
+                .site => {
+                    try html.printAssetUrlPrefix(ctx, ctx.page, w);
                     const rc = ctx._meta.build.site_assets.getPtr(asset._meta.url).?;
                     _ = rc.fetchAdd(1, .acq_rel);
 
                     const st = &ctx._meta.build.st;
                     const pt = &ctx._meta.build.pt;
-                    try w.print("/{s}", .{
+                    try w.print("{s}", .{
                         asset._meta.url.fmt(st, pt),
                     });
                 },
                 .build => {
+                    try html.printAssetUrlPrefix(ctx, ctx.page, w);
                     const ba = ctx._meta.build.cli.build_assets.getPtr(
                         asset._meta.ref,
                     ).?;
@@ -114,7 +120,7 @@ pub const Builtins = struct {
                         "unable to install build asset '{s}' as it does not specify an install path",
                         .{asset._meta.ref},
                     );
-                    try w.print("/{s}", .{ip});
+                    try w.print("{s}", .{ip});
                 },
             }
 

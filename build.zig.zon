@@ -33,10 +33,6 @@
             .url = "git+https://github.com/kristoff-it/scripty#57056571abcc6fe69fcb171c10b0c9e5962f53b0",
             .hash = "scripty-0.1.0-LKK5O9jDAADwZbkwkzYcmtTD3xIStr1SNYWL0kcGf8sk",
         },
-        .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#4ea9a35a7108be78379e209d01bc977904789120",
-            .hash = "supermd-0.1.0-3Mco3DhrWAAsbx7bzzZwd4HB3ZBOP24nJ8aJ8w-TwnYh",
-        },
         .tracy = .{
             .url = "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
             .hash = "tracy-0.0.0-4Xw-1pwwAABTfMgoDP1unCbZDZhJEfict7XCBGF6IdIn",
@@ -48,6 +44,10 @@
         .superhtml = .{
             .url = "git+https://github.com/kristoff-it/superhtml#fc7c594f52528e4a4a08671137850143d55a5bf2",
             .hash = "superhtml-0.4.0-Y7MdPF6WDQDa7hxWC6LpPwxXo4YA2OJzNEE5jsaCROLX",
+        },
+        .supermd = .{
+            .url = "git+https://github.com/kristoff-it/supermd#f357ecca639e4941b0b0977d5e09d129f294cb6f",
+            .hash = "supermd-0.1.0-3Mco3BRtWAA_P6X97kpttAXYjZNsC2nx5YRHwGrgmTK4",
         },
     },
     .paths = .{"."},

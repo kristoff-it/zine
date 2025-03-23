@@ -49,7 +49,11 @@ pub fn printLinkPrefix(
             if (force_host_url) try w.print("{s}", .{
                 ctx._meta.build.cfg.Site.host_url,
             });
-            if (url_path_prefix) |upp| try w.print("/{s}", .{upp});
+            if (url_path_prefix) |upp| {
+                try w.print("/{s}/", .{upp});
+            } else {
+                try w.writeAll("/");
+            }
         },
         .multi => |loc| {
             const our_variant_id = ctx.page._scan.variant_id;
@@ -61,9 +65,9 @@ pub fn printLinkPrefix(
                     try w.print("{s}", .{other_host_url});
                 }
             }
-
+            try w.writeAll("/");
             const path_prefix = loc.output_prefix_override orelse loc.code;
-            if (path_prefix.len > 0) try w.print("/{s}", .{path_prefix});
+            if (path_prefix.len > 0) try w.print("{s}/", .{path_prefix});
         },
     }
 }

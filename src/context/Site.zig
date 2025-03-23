@@ -138,9 +138,6 @@ pub const Builtins = struct {
             var buf: std.ArrayListUnmanaged(u8) = .empty;
             const w = buf.writer(gpa);
             try ctx.printLinkPrefix(w, ctx.site._meta.variant_id, false);
-            if (buf.items.len > 0 and buf.items[buf.items.len - 1] != '/') {
-                try buf.append(gpa, '/');
-            }
             return String.init(buf.items);
         }
     };
@@ -157,7 +154,7 @@ pub const Builtins = struct {
             \\<img src="$site.asset('foo.png').link()">
         ;
         pub fn call(
-            site: *const Site,
+            _: *const Site,
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
@@ -183,7 +180,7 @@ pub const Builtins = struct {
                             ._meta = .{
                                 .ref = context.stripTrailingSlash(ref),
                                 .url = pn,
-                                .kind = .{ .site = site._meta.variant_id },
+                                .kind = .site,
                             },
                         },
                     };
@@ -238,6 +235,7 @@ pub const Builtins = struct {
 
             const path = variant.path_table.getPathNoName(
                 &variant.string_table,
+                &.{},
                 ref,
             ) orelse return Value.errFmt(gpa, "missing page '{s}'", .{
                 ref,
@@ -286,47 +284,55 @@ pub const Builtins = struct {
         pub fn call(
             site: *const Site,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             if (args.len == 0) return .{
                 .err = "expected at least 1 string argument",
             };
 
+            const v = &ctx._meta.build.variants[site._meta.variant_id];
             const page_list = try gpa.alloc(Value, args.len);
             errdefer gpa.free(page_list);
 
-            for (args, page_list) |a, *p| {
-                const ref = switch (a) {
+            for (page_list, args) |*p, arg| {
+                const ref = switch (arg) {
                     .string => |s| s.value,
-                    else => {
-                        gpa.free(page_list);
-                        return .{ .err = "argument is not a string" };
-                    },
+                    else => return .{ .err = "not a string argument" },
                 };
 
-                if (context.pathValidationError(ref, .{})) |err| return err;
+                const path = v.path_table.getPathNoName(
+                    &v.string_table,
+                    &.{},
+                    ref,
+                ) orelse return Value.errFmt(gpa, "page '{s}' does not exist", .{
+                    ref,
+                });
 
-                _ = site;
-                _ = p;
-                // const res = try context.pageFind(.{
-                //     .ref = .{
-                //         .path = ref,
-                //         .site = site,
-                //     },
-                // });
+                const index_html: StringTable.String = @enumFromInt(11);
+                const hint = v.urls.get(.{
+                    .path = path,
+                    .name = index_html,
+                }) orelse return Value.errFmt(gpa, "page '{s}' does not exist", .{
+                    ref,
+                });
 
-                // switch (res) {
-                //     .err => {
-                //         gpa.free(page_list);
-                //         return res;
-                //     },
-                //     .page => |_p| p.* = .{ .page = _p },
-                //     else => unreachable,
-                // }
+                switch (hint.kind) {
+                    .page_main => {},
+                    else => return Value.errFmt(gpa, "page '{s}' does not exist", .{
+                        ref,
+                    }),
+                }
+
+                p.* = .{ .page = &v.pages.items[hint.id] };
+                if (!p.page._parse.active) return Value.errFmt(
+                    gpa,
+                    "page '{s}' is a draft",
+                    .{ref},
+                );
             }
-            // return Array.init(gpa, Value, page_list);
-            @panic("TODO");
+
+            return context.Array.init(gpa, Value, page_list);
         }
     };
     pub const locale = struct {

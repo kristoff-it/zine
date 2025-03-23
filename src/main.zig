@@ -270,6 +270,34 @@ pub fn run(
     }
 
     progress_parse.setEstimatedTotalItems(pages_to_parse);
+
+    var sites: std.StringArrayHashMapUnmanaged(context.Site) = .empty;
+    switch (build.cfg) {
+        .Site => |s| {
+            try sites.putNoClobber(gpa, "", .{
+                .host_url = s.host_url,
+                .title = s.title,
+                ._meta = .{
+                    .variant_id = 0,
+                    .kind = .{ .simple = s.url_path_prefix },
+                },
+            });
+        },
+        .Multilingual => |ml| {
+            try sites.ensureTotalCapacity(gpa, build.variants.len);
+            for (ml.locales, 0..) |loc, idx| sites.putAssumeCapacityNoClobber(loc.code, .{
+                .host_url = loc.host_url_override orelse ml.host_url,
+                .title = loc.site_title,
+                ._meta = .{
+                    .variant_id = @intCast(idx),
+                    .kind = .{
+                        .multi = loc,
+                    },
+                },
+            });
+        },
+    }
+
     // In case all pages are section indexes, we might have content but no
     // pages to analyze at thist stage.
     if (pages_to_parse > 0) worker.wait(); // all active pages have been loaded and parsed
@@ -837,34 +865,6 @@ pub fn run(
 
     var pages_to_render: usize = 0;
     var progress_page_render = progress.start("Render pages", 0);
-
-    var sites: std.StringArrayHashMapUnmanaged(context.Site) = .empty;
-    switch (build.cfg) {
-        .Site => |s| {
-            try sites.putNoClobber(gpa, "", .{
-                .host_url = s.host_url,
-                .title = s.title,
-                ._meta = .{
-                    .variant_id = 0,
-                    .kind = .{ .simple = s.url_path_prefix },
-                },
-            });
-        },
-        .Multilingual => |ml| {
-            try sites.ensureTotalCapacity(gpa, build.variants.len);
-            for (ml.locales, 0..) |loc, idx| sites.putAssumeCapacityNoClobber(loc.code, .{
-                .host_url = loc.host_url_override orelse ml.host_url,
-                .title = loc.site_title,
-                ._meta = .{
-                    .variant_id = @intCast(idx),
-                    .kind = .{
-                        .multi = loc,
-                    },
-                },
-            });
-        },
-    }
-
     for (build.variants) |*v| {
         for (v.pages.items) |*p| {
             // This seems a clear case where active should be

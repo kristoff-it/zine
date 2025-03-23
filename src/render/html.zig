@@ -2,6 +2,10 @@ const std = @import("std");
 const supermd = @import("supermd");
 const tracy = @import("tracy");
 const hl = @import("../highlight.zig");
+const context = @import("../context.zig");
+const PathTable = @import("../PathTable.zig");
+const Path = PathTable.Path;
+const PathName = PathTable.PathName;
 const c = supermd.c;
 const highlightCode = hl.highlightCode;
 const HtmlSafe = @import("superhtml").HtmlSafe;
@@ -12,14 +16,15 @@ const log = std.log.scoped(.render);
 
 pub fn html(
     gpa: std.mem.Allocator,
-    ast: Ast,
+    ctx: *const context.Template,
+    page: *const context.Page,
     start: supermd.Node,
-    /// When provided, will be prefixed to all local hrefs.
-    host_url: ?[]const u8,
     w: anytype,
 ) !void {
     const zone = tracy.traceNamed(@src(), "html");
     defer zone.end();
+
+    const ast = page._parse.ast;
 
     // Footnotes are disconnected from the main ast tree so we cannot
     // start an iterator from the document's root node when rendering
@@ -255,7 +260,7 @@ pub fn html(
                 .enter => try w.print("<strong>", .{}),
                 .exit => try w.print("</strong>", .{}),
             },
-            .LINK, .IMAGE => try renderDirective(gpa, ast, ev, host_url, w),
+            .LINK, .IMAGE => try renderDirective(gpa, ctx, page, ast, ev, w),
             .CODE_BLOCK => switch (ev.dir) {
                 .exit => {},
                 .enter => {
@@ -357,16 +362,17 @@ pub fn html(
 
 fn renderDirective(
     gpa: std.mem.Allocator,
+    ctx: *const context.Template,
+    page: *const context.Page,
     ast: Ast,
     ev: Iter.Event,
-    host_url: ?[]const u8,
     w: anytype,
 ) !void {
     const zone = tracy.trace(@src());
     defer zone.end();
     _ = ast;
     const node = ev.node;
-    const directive = node.getDirective() orelse return renderLink(ev, host_url, w);
+    const directive = node.getDirective() orelse return renderLink(ev, ctx, w);
     switch (directive.kind) {
         .section, .block, .heading => {},
         .text => switch (ev.dir) {
@@ -388,104 +394,101 @@ fn renderDirective(
         .image => |img| switch (ev.dir) {
             .enter => {
                 const caption = node.firstChild();
-                if (caption != null) try w.print("<figure>", .{});
-                if (img.linked) |l| if (l) try w.print("<a href=\"{s}{s}\">", .{
-                    host_url orelse "",
-                    img.src.?.url,
-                });
+                if (caption != null) try w.writeAll("<figure>");
+                if (img.linked) |l| if (l) {
+                    try w.writeAll("<a href=\"");
+                    try printUrl(ctx, page, img.src.?, w);
+                    try w.writeAll("\">");
+                };
 
-                try w.print("<img", .{});
+                try w.writeAll("<img");
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                 if (directive.attrs) |attrs| {
-                    try w.print(" class=\"", .{});
+                    try w.writeAll(" class=\"");
                     for (attrs) |attr| try w.print("{s} ", .{attr});
-                    try w.print("\"", .{});
+                    try w.writeAll("\"");
                 }
                 if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
-                try w.print(" src=\"{s}{s}\"", .{
-                    host_url orelse "",
-                    img.src.?.url,
-                });
+                try w.writeAll(" src=\"");
+                try printUrl(ctx, page, img.src.?, w);
+                try w.writeAll("\"");
+
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
                 if (img.size) |size| try w.print(" width=\"{d}\" height=\"{d}\"", .{ size.w, size.h });
-                try w.print(">", .{});
-                if (img.linked) |l| if (l) try w.print("</a>", .{});
-                if (caption != null) try w.print("\n<figcaption>", .{});
+                try w.writeAll(">");
+                if (img.linked) |l| if (l) try w.writeAll("</a>");
+                if (caption != null) try w.writeAll("\n<figcaption>");
             },
             .exit => {
                 const caption = node.firstChild();
                 if (caption != null) {
-                    try w.print("</figcaption></figure>", .{});
+                    try w.writeAll("</figcaption></figure>");
                 }
             },
         },
         .video => |vid| switch (ev.dir) {
             .enter => {
                 const caption = node.firstChild();
-                if (caption != null) try w.print("<figure>", .{});
-                try w.print("<video", .{});
+                if (caption != null) try w.writeAll("<figure>");
+                try w.writeAll("<video");
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                 if (directive.attrs) |attrs| {
-                    try w.print(" class=\"", .{});
+                    try w.writeAll(" class=\"");
                     for (attrs) |attr| try w.print("{s} ", .{attr});
-                    try w.print("\"", .{});
+                    try w.writeAll("\"");
                 }
                 if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
-                if (vid.loop) |val| if (val) try w.print(" loop", .{});
-                if (vid.autoplay) |val| if (val) try w.print(" autoplay", .{});
-                if (vid.muted) |val| if (val) try w.print(" muted", .{});
-                if (vid.controls) |val| if (val) try w.print(" controls", .{});
+                if (vid.loop) |val| if (val) try w.writeAll(" loop");
+                if (vid.autoplay) |val| if (val) try w.writeAll(" autoplay");
+                if (vid.muted) |val| if (val) try w.writeAll(" muted");
+                if (vid.controls) |val| if (val) try w.writeAll(" controls");
                 if (vid.pip) |val| if (!val) {
-                    try w.print(" disablepictureinpicture", .{});
+                    try w.writeAll(" disablepictureinpicture");
                 };
-                const src = vid.src.?.url;
-                try w.print(">\n<source src=\"{s}{s}\">\n</video>", .{
-                    host_url orelse "",
-                    src,
-                });
-                if (caption != null) try w.print("\n<figcaption>", .{});
+                try w.writeAll(">\n<source src=\"");
+                try printUrl(ctx, page, vid.src.?, w);
+                try w.writeAll("\">\n</video>");
+                if (caption != null) try w.writeAll("\n<figcaption>");
             },
             .exit => {
                 const caption = node.firstChild();
                 if (caption != null) {
-                    try w.print("</figcaption></figure>", .{});
+                    try w.writeAll("</figcaption></figure>");
                 }
             },
         },
         .link => |lnk| switch (ev.dir) {
             .enter => {
-                try w.print("<a", .{});
+                try w.writeAll("<a");
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                 if (directive.attrs) |attrs| {
-                    try w.print(" class=\"", .{});
+                    try w.writeAll(" class=\"");
                     for (attrs) |attr| try w.print("{s} ", .{attr});
-                    try w.print("\"", .{});
+                    try w.writeAll("\"");
                 }
 
                 if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
-                try w.print(" href=\"{s}{s}", .{
-                    host_url orelse "",
-                    lnk.src.?.url,
-                });
+                try w.writeAll(" href=\"");
+                try printUrl(ctx, page, lnk.src.?, w);
                 if (lnk.ref) |r| try w.print("#{s}", .{r});
-                try w.print("\"", .{});
+                try w.writeAll("\"");
 
-                if (lnk.new) |n| if (n) try w.print(" target=\"_blank\"", .{});
-                try w.print(">", .{});
+                if (lnk.new) |n| if (n) try w.writeAll(" target=\"_blank\"");
+                try w.writeAll(">");
             },
-            .exit => try w.print("</a>", .{}),
+            .exit => try w.writeAll("</a>"),
         },
         .code => |code| switch (ev.dir) {
             .enter => {
                 const caption = node.firstChild();
-                if (caption != null) try w.print("<figure>", .{});
+                if (caption != null) try w.writeAll("<figure>");
                 if (std.mem.eql(u8, code.language orelse "", "=html")) {
                     try w.writeAll(code.src.?.url);
                 } else {
-                    try w.print("<pre", .{});
+                    try w.writeAll("<pre");
                     if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                     if (directive.attrs) |attrs| {
-                        if (code.language == null) try w.print(" class=\"", .{});
+                        if (code.language == null) try w.writeAll(" class=\"");
                         for (attrs) |attr| try w.print("{s} ", .{attr});
                     }
 
@@ -508,30 +511,135 @@ fn renderDirective(
                         try w.print("{s}", .{HtmlSafe{ .bytes = code.src.?.url }});
                     }
 
-                    try w.print("</code></pre>", .{});
+                    try w.writeAll("</code></pre>");
                 }
-                if (caption != null) try w.print("\n<figcaption>", .{});
+                if (caption != null) try w.writeAll("\n<figcaption>");
             },
             .exit => {
                 const caption = node.firstChild();
                 if (caption != null) {
-                    try w.print("</figcaption></figure>", .{});
+                    try w.writeAll("</figcaption></figure>");
                 }
             },
         },
     }
 }
 
-fn renderLink(
-    ev: Iter.Event,
-    host_url: ?[]const u8,
+fn printUrl(
+    ctx: *const context.Template,
+    page: *const context.Page,
+    src: supermd.context.Src,
     w: anytype,
 ) !void {
+    switch (src) {
+        .url => |url| try w.writeAll(url),
+        .self_page => |alt| if (alt) |a| try w.writeAll(a),
+        .page => |p| {
+            try ctx.printLinkPrefix(
+                w,
+                p.resolved.variant_id,
+                // We are not checking the variant id so two different pages
+                // might have the same id in different variant arrays, but we
+                // don't care because, when the variant is different, the full
+                // host url will be printed anyway.
+                // NOTE: `p.resolved.page_id` is not the same as `page._scan.page_id`
+                page != ctx.page,
+            );
+
+            if (p.resolved.alt) |a| {
+                try w.writeAll(a);
+            } else {
+                const path: Path = @enumFromInt(p.resolved.path);
+                const v = ctx._meta.build.variants[p.resolved.variant_id];
+                try w.print("{}", .{path.fmt(&v.string_table, &v.path_table, true)});
+            }
+        },
+        .page_asset => |pa| {
+            try ctx.printLinkPrefix(
+                w,
+                page._scan.variant_id,
+                page != ctx.page,
+            );
+
+            const pn: PathName = .{
+                .path = @enumFromInt(pa.resolved.path),
+                .name = @enumFromInt(pa.resolved.name),
+            };
+
+            const v = ctx._meta.build.variants[page._scan.variant_id];
+            try w.print("{}", .{pn.fmt(
+                &v.string_table,
+                &v.path_table,
+            )});
+        },
+        .site_asset => |sa| {
+            try printAssetUrlPrefix(ctx, page, w);
+
+            const pn: PathName = .{
+                .path = @enumFromInt(sa.resolved.path),
+                .name = @enumFromInt(sa.resolved.name),
+            };
+
+            try w.print("{}", .{pn.fmt(
+                &ctx._meta.build.st,
+                &ctx._meta.build.pt,
+            )});
+        },
+        .build_asset => |ba| {
+            try printAssetUrlPrefix(ctx, page, w);
+            try w.print("{s}", .{ba.ref});
+        },
+    }
+}
+
+pub fn printAssetUrlPrefix(
+    ctx: *const context.Template,
+    page: *const context.Page,
+    w: anytype,
+) !void {
+    switch (ctx.site._meta.kind) {
+        .simple => |url_prefix_path| {
+            if (ctx.page != page) {
+                try w.print("{}/", .{
+                    std.fs.path.fmtJoin(&.{
+                        ctx.site.host_url,
+                        url_prefix_path orelse "",
+                    }),
+                });
+            } else if (url_prefix_path) |upp| {
+                try w.print("/{s}/", .{upp});
+            } else {
+                try w.writeAll("/");
+            }
+        },
+        .multi => |locale| {
+            const assets_prefix_path = ctx._meta.build.cfg.Multilingual.assets_prefix_path;
+            if (ctx.page != page or locale.host_url_override != null) {
+                try w.print("{}", .{
+                    std.fs.path.fmtJoin(&.{
+                        ctx.site.host_url,
+                        assets_prefix_path,
+                    }),
+                });
+            } else {
+                try w.writeAll("/");
+                if (assets_prefix_path.len > 0) {
+                    try w.print("{s}/", .{assets_prefix_path});
+                }
+            }
+        },
+    }
+}
+fn renderLink(
+    ev: Iter.Event,
+    ctx: *const context.Template,
+    w: anytype,
+) !void {
+    _ = ctx;
     const node = ev.node;
     switch (ev.dir) {
         .enter => {
-            try w.print("<a href=\"{s}{s}\">", .{
-                host_url orelse "",
+            try w.print("<a href=\"{s}\">", .{
                 node.link() orelse "",
             });
         },

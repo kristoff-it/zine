@@ -124,6 +124,8 @@ _meta: struct {
 pub const PageAnalysisError = struct {
     node: supermd.Node,
     kind: union(enum) {
+        not_a_section,
+        no_parent_section,
         resource_kind_mismatch: struct {
             expected: Variant.ResourceKind,
             got: Variant.ResourceKind,
@@ -138,6 +140,9 @@ pub const PageAnalysisError = struct {
             ref: []const u8,
             kind: enum { site, page, build },
         },
+        build_asset_missing_install_path: struct {
+            ref: []const u8,
+        },
         unknown_language: struct {
             lang: []const u8,
         },
@@ -148,6 +153,8 @@ pub const PageAnalysisError = struct {
 
     pub fn title(err: PageAnalysisError) []const u8 {
         return switch (err.kind) {
+            .not_a_section => "this page has no subpages (page is not a section)",
+            .no_parent_section => "the root index page has no parent section",
             .resource_kind_mismatch => "wrong resource kind",
             .unknown_page => "unknown page",
             .unknown_language => "unknown language code",
@@ -158,6 +165,7 @@ pub const PageAnalysisError = struct {
                 .page => "missing page asset",
                 .build => "missing build asset",
             },
+            .build_asset_missing_install_path => "build asset missing install path",
         };
     }
 };
@@ -521,14 +529,11 @@ pub const Footnote = struct {
                 const ast = f._page._meta.ast.?;
                 const node = ast.footnotes.values()[f._idx].node;
 
-                const variant_id = f._page._scan.variant_id;
-                const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
-
                 try render.html(
                     gpa,
-                    ast,
+                    ctx,
+                    f._page,
                     node,
-                    if (f._page != ctx.page) host_url else null,
                     buf.writer(),
                 );
                 return String.init(try buf.toOwnedSlice());
@@ -684,9 +689,7 @@ pub const Builtins = struct {
                 if (v.urls.get(pn)) |hint| {
                     switch (hint.kind) {
                         .page_asset => {
-                            const self_id = @divExact(@intFromPtr(p) - @intFromPtr(v.pages.items.ptr), @sizeOf(Page));
-
-                            if (hint.id != self_id) {
+                            if (hint.id != p._scan.page_id) {
                                 const other_page = &v.pages.items[hint.id];
                                 const page_pn: PathName = .{
                                     .path = other_page._scan.md_path,
@@ -706,7 +709,7 @@ pub const Builtins = struct {
                             ._meta = .{
                                 .ref = context.stripTrailingSlash(ref),
                                 .url = pn,
-                                .kind = .{ .site = p._scan.variant_id },
+                                .kind = .{ .page = p._scan.variant_id },
                             },
                         },
                     };
@@ -792,6 +795,7 @@ pub const Builtins = struct {
             const vv = ctx._meta.build.variants[other_variant_id];
             const path = vv.path_table.getPathNoName(
                 &vv.string_table,
+                &.{},
                 page_url,
             ) orelse return Value.errFmt(
                 gpa,
@@ -877,6 +881,7 @@ pub const Builtins = struct {
             const vv = ctx._meta.build.variants[other_variant_id];
             const path = vv.path_table.getPathNoName(
                 &vv.string_table,
+                &.{},
                 page_url,
             ) orelse return Optional.Null;
 
@@ -928,6 +933,7 @@ pub const Builtins = struct {
             for (ctx._meta.build.variants) |vv| {
                 const path = vv.path_table.getPathNoName(
                     &vv.string_table,
+                    &.{},
                     page_url,
                 ) orelse continue;
 
@@ -1290,19 +1296,18 @@ pub const Builtins = struct {
             const empty_path: Path = @enumFromInt(0);
             const path = p._scan.md_path;
             if (path != empty_path) {
-                try w.print("/{s}", .{
+                try w.print("{s}/", .{
                     p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
                 });
             }
 
             const name = p._scan.md_name;
             if (name != index_smd) {
-                try w.print("/{s}", .{
+                try w.print("{s}/", .{
                     std.fs.path.stem(p._scan.md_name.slice(&v.string_table)),
                 });
             }
 
-            try buf.append(gpa, '/');
             return String.init(buf.items);
         }
     };
@@ -1427,17 +1432,11 @@ pub const Builtins = struct {
             var buf = std.ArrayList(u8).init(gpa);
             const ast = p._meta.ast orelse unreachable;
 
-            const variant_id = p._scan.variant_id;
-            const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
-
             try render.html(
                 gpa,
-                ast,
+                ctx,
+                p,
                 ast.md.root,
-                // We print host URLs also for pages in the same variant if
-                // the page is being rendered from a different page. This
-                // makes RSS feeds behave correctly without any user input needed.
-                if (p != ctx.page) host_url else null,
                 buf.writer(),
             );
             return String.init(try buf.toOwnedSlice());
@@ -1492,14 +1491,11 @@ pub const Builtins = struct {
                 );
             }
 
-            const variant_id = p._scan.variant_id;
-            const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
-
             try render.html(
                 gpa,
-                ast,
+                ctx,
+                p,
                 node,
-                if (p != ctx.page) host_url else null,
                 buf.writer(),
             );
             return String.init(try buf.toOwnedSlice());
@@ -1792,14 +1788,11 @@ pub const ContentSection = struct {
 
                 log.debug("rendering content section [#{s}]", .{cs.id});
 
-                const variant_id = cs._page._scan.variant_id;
-                const host_url = ctx._meta.sites.entries.items(.value)[variant_id].host_url;
-
                 try render.html(
                     gpa,
-                    cs._page._meta.ast.?,
+                    ctx,
+                    cs._page,
                     cs._node,
-                    if (cs._page != ctx.page) host_url else null,
                     buf.writer(),
                 );
                 return String.init(try buf.toOwnedSlice());
