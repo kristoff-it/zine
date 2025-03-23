@@ -502,29 +502,23 @@ fn analyzeContent(
                         // This value is only expected for Link directives.
                         if (@TypeOf(val.*) != supermd.context.Link) continue :outer;
 
-                        // page: struct {
-                        //     kind: enum {
-                        //         absolute,
-                        //         sub,
-                        //         sibling,
-                        //     },
-                        //     ref: []const u8,
-                        //     locale: ?[]const u8 = null,
-                        //        resolved: struct {
-                        //            page_id: u32,
-                        //            variant_id: u32,
-                        //            path: u32,
-                        //        } = undefined,
-                        // },
-                        //
-
                         const path: Path = switch (p.kind) {
                             .absolute => blk: {
+                                log.debug("absolute page link '{s}'", .{p.ref});
                                 if (variant.path_table.getPathNoName(
                                     &variant.string_table,
                                     &.{},
                                     p.ref,
                                 )) |path| break :blk path;
+                                log.debug("page link '{s}': path not found", .{p.ref});
+                                if (builtin.mode == .Debug) {
+                                    var it = std.mem.tokenizeScalar(u8, p.ref, '/');
+                                    while (it.next()) |c| {
+                                        log.debug("'{s}' -> [{?d}]", .{
+                                            c, variant.string_table.get(c),
+                                        });
+                                    }
+                                }
 
                                 try errors.append(gpa, .{
                                     .node = n,
@@ -607,6 +601,9 @@ fn analyzeContent(
 
                         const pn: PathName = .{ .path = path, .name = index_html };
                         const hint = variant.urls.get(pn) orelse {
+                            log.debug("absolute page link '{s}': hint not found", .{
+                                p.ref,
+                            });
                             try errors.append(gpa, .{
                                 .node = n,
                                 .kind = .{
@@ -618,9 +615,11 @@ fn analyzeContent(
                             continue :outer;
                         };
 
+                        log.debug("absolute page link '{s}' hint: {any}", .{ p.ref, hint });
                         switch (hint.kind) {
                             .page_main => {},
                             else => {
+                                log.debug("absolute page link '{s}' wrong kint kind: {any}", .{ p.ref, hint.kind });
                                 try errors.append(gpa, .{
                                     .node = n,
                                     .kind = .{
@@ -646,6 +645,10 @@ fn analyzeContent(
                         };
 
                         if (val.alternative) |alt_name| {
+                            log.debug("absolute page link '{s}' has alternative: {s}", .{
+                                p.ref,
+                                alt_name,
+                            });
                             for (other_page.alternatives) |alt| {
                                 if (std.mem.eql(u8, alt.name, alt_name)) {
                                     // TODO: semantics for relative output paths
@@ -679,8 +682,6 @@ fn analyzeContent(
                                 continue :outer;
                             }
                         }
-
-                        continue :outer;
                     },
 
                     .page_asset => |*pa| {

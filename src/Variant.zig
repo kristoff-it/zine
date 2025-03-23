@@ -330,6 +330,13 @@ pub fn scanContentDir(
                 p._debug = .{ .stage = .init(.scanned) };
             }
 
+            // If we don't do this here, later on the call to f.slice might
+            // return a pointer that gets invalidated when the string table
+            // is expanded.
+            try string_table.string_bytes.ensureUnusedCapacity(
+                gpa,
+                f.slice(&string_table).len + 1,
+            );
             const page_path = try path_table.internExtend(
                 gpa,
                 content_sub_path,
@@ -338,6 +345,14 @@ pub fn scanContentDir(
                     std.fs.path.stem(f.slice(&string_table)), // TODO: extensionless page names?
                 ),
             );
+
+            log.debug("'{s}/{s}' -> [{d}] -> [{d}]", .{
+                dir_entry.path,
+                f.slice(&string_table),
+                page_path,
+                page_path.slice(&path_table),
+            });
+
             const pn: PathName = .{ .path = page_path, .name = index_html };
             const lh: LocationHint = .{ .id = @intCast(idx), .kind = .page_main };
             const gop = urls.getOrPutAssumeCapacity(pn);
