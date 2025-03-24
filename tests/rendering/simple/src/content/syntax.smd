@@ -1,0 +1,52 @@
+---
+.title = "Sections",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.draft = false,
+--- 
+
+# [Zig Code]($section.id('zig'))
+```zig
+const Sample = struct {
+    a: i32,
+    b: i32,
+};
+
+pub extern "sampleLibrary" fn SampleFunction(
+    arg1: i32,
+    arg2: *Sample,
+) callconv(WINAPI) BOOL;
+
+pub inline fn main() anyerror!void {
+    var sample = Sample{ .a = 1, .b = 2 };
+    SampleFunction(1, &sample);
+}
+```
+
+# [Rust Code]($section.id('rust'))
+```rust
+#[derive(Debug, Clone, PartialEq)]
+pub struct ComplexData<'a, T: 'a + Display> {
+    #[serde(rename = "identifier")]
+    id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<HashMap<String, T>>,
+    #[serde(default)]
+    references: Vec<&'a RefCell<T>>,
+    timestamp: SystemTime,
+    data: Box<dyn Iterator<Item = T> + 'a>,
+}
+
+impl<'a, T: Display> ComplexData<'a, T> {
+    pub fn new(id: &'a str) -> Result<Self, Box<dyn Error + 'a>> {
+        Ok(Self {
+            id,
+            metadata: None,
+            references: Vec::new(),
+            timestamp: SystemTime::now(),
+            data: Box::new(std::iter::empty()),
+        })
+    }
+}
+```

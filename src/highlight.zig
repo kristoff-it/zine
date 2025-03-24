@@ -6,11 +6,11 @@ const HtmlSafe = @import("superhtml").HtmlSafe;
 
 const log = std.log.scoped(.highlight);
 
-pub const DotsToSpaces = struct {
+pub const DotsToUnderscores = struct {
     bytes: []const u8,
 
     pub fn format(
-        self: DotsToSpaces,
+        self: DotsToUnderscores,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
         out_stream: anytype,
@@ -19,7 +19,7 @@ pub const DotsToSpaces = struct {
         _ = fmt;
         for (self.bytes) |b| {
             switch (b) {
-                '.' => try out_stream.writeAll(" "),
+                '.' => try out_stream.writeAll("_"),
                 else => try out_stream.writeByte(b),
             }
         }
@@ -30,6 +30,75 @@ var query_cache: syntax.QueryCache = .{
     .allocator = @import("main.zig").gpa,
     .mutex = std.Thread.Mutex{},
 };
+
+const ClassSet = struct {
+    classes: std.StringHashMap(void),
+
+    const Self = @This();
+
+    pub fn init(allocator: std.mem.Allocator) ClassSet {
+        return .{
+            .classes = std.StringHashMap(void).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.classes.deinit();
+    }
+
+    pub fn addClass(self: *Self, class: []const u8) !void {
+        try self.classes.put(class, {});
+    }
+
+    pub fn removeClass(self: *Self, class: []const u8) void {
+        _ = self.classes.remove(class);
+    }
+
+    pub fn getClasses(self: Self, result: *std.ArrayList([]const u8)) !void {
+        result.clearRetainingCapacity();
+        var it = self.classes.keyIterator();
+        while (it.next()) |key| try result.append(key.*);
+    }
+};
+
+const ClassChange = struct {
+    position: usize,
+    is_add: bool,
+    class: []const u8,
+
+    pub fn lessThan(_: void, a: ClassChange, b: ClassChange) bool {
+        return a.position < b.position;
+    }
+};
+
+fn printSpan(
+    writer: anytype,
+    code: []const u8,
+    start: usize,
+    end: usize,
+    classes: []const []const u8,
+    arena: std.mem.Allocator,
+) !void {
+    if (classes.len == 0) {
+        try writer.print("{s}", .{HtmlSafe{ .bytes = code[start..end] }});
+        return;
+    }
+
+    var class_str = std.ArrayList(u8).init(arena);
+    defer class_str.deinit();
+
+    for (classes, 0..) |class, i| {
+        if (i > 0) try class_str.append(' ');
+        try class_str.appendSlice(class);
+    }
+
+    try writer.print(
+        \\<span class="{s}">{s}</span>
+    , .{
+        DotsToUnderscores{ .bytes = class_str.items },
+        HtmlSafe{ .bytes = code[start..end] },
+    });
+}
 
 pub fn highlightCode(
     arena: std.mem.Allocator,
@@ -86,31 +155,56 @@ pub fn highlightCode(
     defer match_zone.end();
 
     var print_cursor: usize = 0;
+    cursor.execute(lang.query, tree.getRootNode());
+
+    var changes = std.ArrayList(ClassChange).init(arena);
+
     while (cursor.nextMatch()) |match| {
-        var idx: usize = 0;
         for (match.captures()) |capture| {
-            const capture_name = lang.query.getCaptureNameForId(capture.id);
             const range = capture.node.getRange();
+            const capture_name = lang.query.getCaptureNameForId(capture.id);
 
-            if (range.start_byte < print_cursor) continue;
-
-            if (range.start_byte > print_cursor) {
-                try writer.print("{s}", .{HtmlSafe{ .bytes = code[print_cursor..range.start_byte] }});
-            }
-
-            try writer.print(
-                \\<span class="{s}">{s}</span>
-            , .{
-                DotsToSpaces{ .bytes = capture_name },
-                HtmlSafe{ .bytes = code[range.start_byte..range.end_byte] },
+            try changes.append(ClassChange{
+                .position = range.start_byte,
+                .is_add = true,
+                .class = capture_name,
             });
 
-            print_cursor = range.end_byte;
-            idx += 1;
+            try changes.append(ClassChange{
+                .position = range.end_byte,
+                .is_add = false,
+                .class = capture_name,
+            });
         }
     }
 
-    if (code.len > print_cursor) {
-        try writer.print("{s}", .{HtmlSafe{ .bytes = code[print_cursor..] }});
+    std.sort.insertion(ClassChange, changes.items, {}, ClassChange.lessThan);
+
+    var current_classes = ClassSet.init(arena);
+    defer current_classes.deinit();
+
+    var class_list = std.ArrayList([]const u8).init(arena);
+    defer class_list.deinit();
+
+    var current_pos: usize = 0;
+
+    for (changes.items) |change| {
+        if (change.position > current_pos) {
+            try current_classes.getClasses(&class_list);
+            try printSpan(writer, code, current_pos, change.position, class_list.items, arena);
+            current_pos = change.position;
+        }
+
+        if (change.is_add) {
+            try current_classes.addClass(change.class);
+            continue;
+        }
+
+        current_classes.removeClass(change.class);
+    }
+
+    if (current_pos < code.len) {
+        try current_classes.getClasses(&class_list);
+        try printSpan(writer, code, current_pos, code.len, class_list.items, arena);
     }
 }
