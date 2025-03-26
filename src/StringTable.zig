@@ -13,9 +13,12 @@ pub const empty: StringTable = .{
     .string_map = .empty,
 };
 
-pub fn deinit(st: *StringTable, gpa: Allocator) void {
-    st.string_bytes.deinit(gpa);
-    st.string_map.deinit(gpa);
+pub fn deinit(st: *const StringTable, gpa: Allocator) void {
+    var sb = st.string_bytes;
+    sb.deinit(gpa);
+
+    var sm = st.string_map;
+    sm.deinit(gpa);
 }
 
 pub fn get(st: *const StringTable, bytes: []const u8) ?String {

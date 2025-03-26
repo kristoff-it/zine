@@ -5,15 +5,15 @@ const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
 const tracy = @import("tracy");
 const syntax = @import("syntax");
-const fatal = @import("../fatal.zig");
-const context = @import("../context.zig");
-const Build = @import("../Build.zig");
-const StringTable = @import("../StringTable.zig");
-const PathTable = @import("../PathTable.zig");
-const Variant = @import("../Variant.zig");
-const Template = @import("../Template.zig");
-const highlight = @import("../highlight.zig");
-const main = @import("../main.zig");
+const fatal = @import("fatal.zig");
+const context = @import("context.zig");
+const Build = @import("Build.zig");
+const StringTable = @import("StringTable.zig");
+const PathTable = @import("PathTable.zig");
+const Variant = @import("Variant.zig");
+const Template = @import("Template.zig");
+const highlight = @import("highlight.zig");
+const main = @import("main.zig");
 const Channel = @import("channel.zig").Channel;
 const String = StringTable.String;
 const Path = PathTable.Path;
@@ -31,6 +31,7 @@ var ch: Channel(Job) = .init(&ch_buf);
 var wg: std.Thread.WaitGroup = .{};
 var threads: []std.Thread = &.{};
 
+pub var started = false;
 pub threadlocal var cmark: supermd.Ast.CmarkParser = undefined;
 pub const extensions: [*]supermd.c.cmark_llist = undefined;
 
@@ -84,7 +85,9 @@ pub const Job = union(enum) {
 };
 
 pub fn start() void {
-    std.debug.assert(threads.len == 0);
+    assert(!started);
+    started = true;
+
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
@@ -238,11 +241,15 @@ fn analyzePage(
         error.OutOfMemory => fatal.oom(),
     };
 
-    try analyzeFrontmatter(page);
-    try analyzeContent(arena, build, variant_id, page);
+    var arena_state = page._parse.arena.promote(gpa);
+    defer page._parse.arena = arena_state.state;
+    const page_arena = arena_state.allocator();
+
+    try analyzeFrontmatter(page_arena, page);
+    try analyzeContent(page_arena, arena, build, variant_id, page);
 }
 
-fn analyzeFrontmatter(p: *Page) error{OutOfMemory}!void {
+fn analyzeFrontmatter(page_arena: Allocator, p: *Page) error{OutOfMemory}!void {
     // We don't validate layout because it will be validated
     // later on by the main function where we will also check
     // if the file exists or not. Leaving this check here
@@ -256,7 +263,7 @@ fn analyzeFrontmatter(p: *Page) error{OutOfMemory}!void {
             if (!std.ascii.isAscii(c)) break false;
         } else true;
 
-        if (a.len == 0 or !is_ascii) try errors.append(gpa, .{
+        if (a.len == 0 or !is_ascii) try errors.append(page_arena, .{
             .alias = @intCast(aidx),
         });
     }
@@ -266,14 +273,14 @@ fn analyzeFrontmatter(p: *Page) error{OutOfMemory}!void {
             if (!std.ascii.isAscii(c)) break false;
         } else true;
 
-        if (alt.output.len == 0 or !is_ascii) try errors.append(gpa, .{
+        if (alt.output.len == 0 or !is_ascii) try errors.append(page_arena, .{
             .alternative = .{
                 .id = @intCast(aidx),
                 .kind = .path,
             },
         });
 
-        if (alt.name.len == 0) try errors.append(gpa, .{
+        if (alt.name.len == 0) try errors.append(page_arena, .{
             .alternative = .{
                 .id = @intCast(aidx),
                 .kind = .name,
@@ -283,7 +290,8 @@ fn analyzeFrontmatter(p: *Page) error{OutOfMemory}!void {
 }
 
 fn analyzeContent(
-    arena: Allocator,
+    page_arena: Allocator,
+    scratch: Allocator,
     b: *const Build,
     variant_id: u32,
     page: *Page,
@@ -304,7 +312,7 @@ fn analyzeContent(
             const lang = fence_it.next() orelse break :blk;
 
             if (!languageExists(lang)) {
-                try errors.append(gpa, .{
+                try errors.append(page_arena, .{
                     .node = n,
                     .kind = .{
                         .unknown_language = .{
@@ -329,7 +337,7 @@ fn analyzeContent(
                         var buf: std.ArrayListUnmanaged(String) = .empty;
 
                         try buf.appendSlice(
-                            arena,
+                            scratch,
                             page._scan.md_path.slice(&variant.path_table),
                         );
 
@@ -338,7 +346,7 @@ fn analyzeContent(
                                 &variant.string_table,
                             );
 
-                            try buf.append(arena, variant.string_table.get(
+                            try buf.append(scratch, variant.string_table.get(
                                 std.fs.path.stem(name_bytes),
                             ).?);
                         }
@@ -348,7 +356,7 @@ fn analyzeContent(
                             const component = variant.string_table.get(
                                 component_bytes,
                             ) orelse {
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .missing_asset = .{
@@ -359,7 +367,7 @@ fn analyzeContent(
                                 });
                                 continue :outer;
                             };
-                            try buf.append(arena, component);
+                            try buf.append(scratch, component);
                         }
 
                         const path_strings = buf.items[0 .. buf.items.len - 1];
@@ -370,7 +378,7 @@ fn analyzeContent(
                                 switch (hint.kind) {
                                     .page_asset => {
                                         break :blk .{ try std.fmt.allocPrint(
-                                            arena,
+                                            scratch,
                                             "{}",
                                             .{
                                                 pn.fmt(
@@ -385,7 +393,7 @@ fn analyzeContent(
                             }
                         }
 
-                        try errors.append(gpa, .{
+                        try errors.append(page_arena, .{
                             .node = n,
                             .kind = .{
                                 .missing_asset = .{
@@ -398,7 +406,7 @@ fn analyzeContent(
                     },
                     .build_asset => |ba| blk: {
                         const asset = b.cli.build_assets.get(ba.ref) orelse {
-                            try errors.append(gpa, .{
+                            try errors.append(page_arena, .{
                                 .node = n,
                                 .kind = .{
                                     .missing_asset = .{
@@ -423,7 +431,7 @@ fn analyzeContent(
                             }
                         }
 
-                        try errors.append(gpa, .{
+                        try errors.append(page_arena, .{
                             .node = n,
                             .kind = .{
                                 .missing_asset = .{
@@ -436,13 +444,13 @@ fn analyzeContent(
                     },
                 };
                 const src = base_dir.readFileAlloc(
-                    gpa,
+                    page_arena,
                     path,
                     std.math.maxInt(u32),
                 ) catch |err| fatal.file(path, err);
 
                 if (!languageExists(code.language)) {
-                    try errors.append(gpa, .{
+                    try errors.append(page_arena, .{
                         .node = n,
                         .kind = .{
                             .unknown_language = .{
@@ -471,7 +479,7 @@ fn analyzeContent(
                                     break;
                                 }
                             } else {
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .unknown_alternative = .{
@@ -485,7 +493,7 @@ fn analyzeContent(
 
                         if (val.ref) |ref| {
                             if (!val.ref_unsafe and !ast.ids.contains(ref) and ref.len > 0) {
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .unknown_ref = .{
@@ -520,7 +528,7 @@ fn analyzeContent(
                                     }
                                 }
 
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .unknown_page = .{
@@ -536,7 +544,7 @@ fn analyzeContent(
                                 // a section except the root index page.
                                 const section_id = page._scan.parent_section_id;
                                 if (section_id == 0) {
-                                    try errors.append(gpa, .{
+                                    try errors.append(page_arena, .{
                                         .node = n,
                                         .kind = .no_parent_section,
                                     });
@@ -552,7 +560,7 @@ fn analyzeContent(
                                     p.ref,
                                 )) |path| break :blk path;
 
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .unknown_page = .{
@@ -569,7 +577,7 @@ fn analyzeContent(
                                 // are sections, which means that the page
                                 // is guaranteed to be named `index.smd`.
                                 if (page._scan.md_name != index_smd) {
-                                    try errors.append(gpa, .{
+                                    try errors.append(page_arena, .{
                                         .node = n,
                                         .kind = .not_a_section,
                                     });
@@ -577,7 +585,7 @@ fn analyzeContent(
                                 }
 
                                 var buf: std.ArrayListUnmanaged(String) = .empty;
-                                try buf.appendSlice(arena, page._scan.md_path.slice(
+                                try buf.appendSlice(scratch, page._scan.md_path.slice(
                                     &variant.path_table,
                                 ));
 
@@ -587,7 +595,7 @@ fn analyzeContent(
                                     p.ref,
                                 )) |path| break :blk path;
 
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .unknown_page = .{
@@ -604,7 +612,7 @@ fn analyzeContent(
                             log.debug("absolute page link '{s}': hint not found", .{
                                 p.ref,
                             });
-                            try errors.append(gpa, .{
+                            try errors.append(page_arena, .{
                                 .node = n,
                                 .kind = .{
                                     .unknown_page = .{
@@ -620,7 +628,7 @@ fn analyzeContent(
                             .page_main => {},
                             else => {
                                 log.debug("absolute page link '{s}' wrong kint kind: {any}", .{ p.ref, hint.kind });
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .resource_kind_mismatch = .{
@@ -657,7 +665,7 @@ fn analyzeContent(
                                     break;
                                 }
                             } else {
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .unknown_alternative = .{
@@ -671,7 +679,7 @@ fn analyzeContent(
 
                         if (val.ref) |ref| {
                             if (!val.ref_unsafe and !other_page._parse.ast.ids.contains(ref)) {
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .unknown_ref = .{
@@ -689,7 +697,7 @@ fn analyzeContent(
                         var buf: std.ArrayListUnmanaged(String) = .empty;
 
                         try buf.appendSlice(
-                            arena,
+                            scratch,
                             page._scan.md_path.slice(&variant.path_table),
                         );
 
@@ -698,7 +706,7 @@ fn analyzeContent(
                                 &variant.string_table,
                             );
 
-                            try buf.append(arena, variant.string_table.get(
+                            try buf.append(scratch, variant.string_table.get(
                                 std.fs.path.stem(name_bytes),
                             ).?);
                         }
@@ -708,7 +716,7 @@ fn analyzeContent(
                             const component = variant.string_table.get(
                                 component_bytes,
                             ) orelse {
-                                try errors.append(gpa, .{
+                                try errors.append(page_arena, .{
                                     .node = n,
                                     .kind = .{
                                         .missing_asset = .{
@@ -719,7 +727,7 @@ fn analyzeContent(
                                 });
                                 continue :outer;
                             };
-                            try buf.append(arena, component);
+                            try buf.append(scratch, component);
                         }
 
                         const path_strings = buf.items[0 .. buf.items.len - 1];
@@ -743,7 +751,7 @@ fn analyzeContent(
                             }
                         }
 
-                        try errors.append(gpa, .{
+                        try errors.append(page_arena, .{
                             .node = n,
                             .kind = .{
                                 .missing_asset = .{
@@ -777,7 +785,7 @@ fn analyzeContent(
                             }
                         }
 
-                        try errors.append(gpa, .{
+                        try errors.append(page_arena, .{
                             .node = n,
                             .kind = .{
                                 .missing_asset = .{
@@ -790,7 +798,7 @@ fn analyzeContent(
                     },
                     .build_asset => |*ba| {
                         const asset = b.cli.build_assets.getPtr(ba.ref) orelse {
-                            try errors.append(gpa, .{
+                            try errors.append(page_arena, .{
                                 .node = n,
                                 .kind = .{
                                     .missing_asset = .{
@@ -805,7 +813,7 @@ fn analyzeContent(
                         _ = asset.rc.fetchAdd(1, .acq_rel);
 
                         const install_path = asset.install_path orelse {
-                            try errors.append(gpa, .{
+                            try errors.append(page_arena, .{
                                 .node = n,
                                 .kind = .{
                                     .build_asset_missing_install_path = .{
@@ -849,7 +857,6 @@ fn renderPage(
     const zone = tracy.trace(@src());
     defer zone.end();
 
-    _ = gpa;
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
@@ -983,6 +990,7 @@ fn renderPage(
     const out = out_buf.writer();
 
     var err_buf = std.ArrayList(u8).init(gpa);
+    defer err_buf.deinit();
 
     var super_vm = SuperVM.init(
         arena,

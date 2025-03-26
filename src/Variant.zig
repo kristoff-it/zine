@@ -6,7 +6,7 @@ const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
-const worker = @import("standalone/worker.zig");
+const worker = @import("worker.zig");
 const context = @import("context.zig");
 const Build = @import("Build.zig");
 const StringTable = @import("StringTable.zig");
@@ -40,6 +40,7 @@ collisions: std.ArrayListUnmanaged(Collision),
 i18n: context.Map.ZiggyMap,
 i18n_src: [:0]const u8,
 i18n_diag: ziggy.Diagnostic,
+i18n_arena: std.heap.ArenaAllocator.State,
 
 const Collision = struct {
     url: PathName,
@@ -114,6 +115,13 @@ pub const Section = struct {
     index: u32, // index into pages
     pages: std.ArrayListUnmanaged(u32) = .empty, // indices into pages
 
+    pub fn deinit(s: *const Section, gpa: Allocator) void {
+        {
+            var p = s.pages;
+            p.deinit(gpa);
+        }
+    }
+
     pub fn activate(
         s: *Section,
         gpa: Allocator,
@@ -142,6 +150,36 @@ pub const Section = struct {
         std.sort.insertion(u32, s.pages.items, ctx, Ctx.lessThan);
     }
 };
+
+pub fn deinit(v: *const Variant, gpa: Allocator) void {
+    {
+        var dir = v.content_dir;
+        dir.close();
+    }
+    // content_dir_path is in cfg_arena
+    // gpa.free(v.content_dir_path);
+    v.string_table.deinit(gpa);
+    v.path_table.deinit(gpa);
+    for (v.sections.items) |s| s.deinit(gpa);
+    {
+        var s = v.sections;
+        s.deinit(gpa);
+    }
+    for (v.pages.items) |p| p.deinit(gpa);
+    {
+        var p = v.pages;
+        p.deinit(gpa);
+    }
+    {
+        var u = v.urls;
+        u.deinit(gpa);
+    }
+    {
+        var c = v.collisions;
+        c.deinit(gpa);
+    }
+    v.i18n_arena.promote(gpa).deinit();
+}
 
 pub const MultilingualScanParams = struct {
     i18n_dir: std.fs.Dir,
@@ -418,11 +456,16 @@ pub fn scanContentDir(
     var i18n: context.Map.ZiggyMap = .{};
     var i18n_src: [:0]const u8 = "";
     var i18n_diag: ziggy.Diagnostic = .{ .path = null };
+    var i18n_arena = std.heap.ArenaAllocator.init(gpa);
     // Present when in a multilingual site
     if (multilingual) |ml| {
-        const name = try std.fmt.allocPrint(gpa, "{s}.ziggy", .{ml.locale_code});
+        const name = try std.fmt.allocPrint(
+            i18n_arena.allocator(),
+            "{s}.ziggy",
+            .{ml.locale_code},
+        );
         i18n_src = ml.i18n_dir.readFileAllocOptions(
-            gpa,
+            i18n_arena.allocator(),
             name,
             ziggy.max_size,
             0,
@@ -431,9 +474,12 @@ pub fn scanContentDir(
         ) catch |err| fatal.file(name, err);
 
         i18n_diag.path = name;
-        i18n = ziggy.parseLeaky(context.Map.ZiggyMap, gpa, i18n_src, .{
-            .diagnostic = &i18n_diag,
-        }) catch |err| switch (err) {
+        i18n = ziggy.parseLeaky(
+            context.Map.ZiggyMap,
+            i18n_arena.allocator(),
+            i18n_src,
+            .{ .diagnostic = &i18n_diag },
+        ) catch |err| switch (err) {
             error.OpenFrontmatter, error.MissingFrontmatter => unreachable,
             error.Overflow, error.OutOfMemory => return error.OutOfMemory,
             error.Syntax => .{
@@ -456,6 +502,7 @@ pub fn scanContentDir(
         .i18n = i18n,
         .i18n_src = i18n_src,
         .i18n_diag = i18n_diag,
+        .i18n_arena = i18n_arena.state,
     };
 }
 

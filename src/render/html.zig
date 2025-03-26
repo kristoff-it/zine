@@ -43,8 +43,8 @@ pub fn html(
     var table_alignments: []const u8 = &.{};
     var table_cell_id: usize = 0;
     while (event) |ev| : (event = it.next()) {
-        const loop_zone = tracy.traceNamed(@src(), "html-event");
-        defer loop_zone.end();
+        // const loop_zone = tracy.traceNamed(@src(), "html-event");
+        // defer loop_zone.end();
 
         const node = ev.node;
         const node_is_section = if (node.getDirective()) |d|
@@ -52,11 +52,11 @@ pub fn html(
         else
             false;
 
-        var buf: [1024]u8 = undefined;
-        tracy.messageCopy(std.fmt.bufPrint(&buf, "{} {s}", .{
-            node.nodeType(),
-            @tagName(ev.dir),
-        }) catch unreachable);
+        // var buf: [1024]u8 = undefined;
+        // tracy.messageCopy(std.fmt.bufPrint(&buf, "{} {s}", .{
+        //     node.nodeType(),
+        //     @tagName(ev.dir),
+        // }) catch unreachable);
 
         log.debug("node ({}, {s}, {?s}) = {} {s} \n({*} == {*} {})", .{
             node_is_section,

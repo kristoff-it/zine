@@ -46,7 +46,7 @@ const CommitDate = struct {
 
 pub fn init(gpa: Allocator, path: []const u8) !Git {
     var p = path;
-    const git_dir = while (true) {
+    var git_dir = while (true) {
         var dir = try std.fs.openDirAbsolute(p, .{});
         defer dir.close();
         break dir.openDir(".git", .{}) catch |err| switch (err) {
@@ -57,6 +57,7 @@ pub fn init(gpa: Allocator, path: []const u8) !Git {
             else => return err,
         };
     };
+    defer git_dir.close();
 
     const head = readHead(gpa, git_dir) catch return Git{};
 

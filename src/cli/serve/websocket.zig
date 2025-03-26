@@ -4,7 +4,6 @@ const log = std.log.scoped(.websockets);
 
 pub const Connection = struct {
     stream: std.net.Stream,
-    write_lock: std.Thread.Mutex = .{},
     closed: bool = false,
 
     pub fn init(request: *std.http.Server.Request) !Connection {
@@ -80,9 +79,6 @@ pub const Connection = struct {
     fn writeWithHeader(conn: *Connection, header: Header, payload: []const u8) !void {
         const writer = conn.stream.writer();
 
-        conn.write_lock.lock();
-        defer conn.write_lock.unlock();
-
         if (conn.closed) {
             return error.ConnectionClosed;
         }
@@ -141,9 +137,6 @@ pub const Connection = struct {
     }
 
     pub fn close(conn: *Connection) void {
-        conn.write_lock.lock();
-        defer conn.write_lock.unlock();
-
         if (!conn.closed) {
             conn.stream.close();
             conn.closed = true;

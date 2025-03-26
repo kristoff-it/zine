@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head id="head">
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1">
+    <title :text="$site.title"></title>
+    <link type="text/css" rel="stylesheet" href="$site.asset('style.css').link()">
+    <link type="text/css" rel="stylesheet" href="$site.asset('highlight.css').link()">
+    <super>
+  </head>
+  <body id="body">
+    <h1 class="site-title" :text="$site.title"></h1>
+    <nav>
+      <a href="$site.page('').link()">Home</a>
+      	&nbsp; • &nbsp;
+      <a href="$site.page('about').link()">About</a>
+      	&nbsp; • &nbsp;
+      <a href="$site.page('blog').link()">Blog</a>
+      	&nbsp; • &nbsp;
+      <a href="$site.page('blog').link()">Devlog</a>
+    </nav>
+    <super>
+  </body>
+</html>

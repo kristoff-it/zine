@@ -16,9 +16,12 @@ pub const empty: PathTable = .{
     .path_map = .empty,
 };
 
-pub fn deinit(pt: *PathTable, gpa: Allocator) void {
-    pt.path_components.deinit(gpa);
-    pt.path_map.deinit(gpa);
+pub fn deinit(pt: *const PathTable, gpa: Allocator) void {
+    var pc = pt.path_components;
+    pc.deinit(gpa);
+
+    var pm = pt.path_map;
+    pm.deinit(gpa);
 }
 
 pub const PathName = packed struct {

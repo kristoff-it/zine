@@ -1,0 +1,12 @@
+---
+.title = "Blog",
+.date = @date("1990-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "blog.shtml",
+.draft = false,
+--- 
+
+
+# The blog section.
+
+

@@ -1,26 +1,28 @@
 const Build = @This();
 
 const std = @import("std");
+const tracy = @import("tracy");
 const ziggy = @import("ziggy");
 const fatal = @import("fatal.zig");
 const Variant = @import("Variant.zig");
 const Template = @import("Template.zig");
 const PathTable = @import("PathTable.zig");
 const StringTable = @import("StringTable.zig");
-const main = @import("main.zig");
+const root = @import("root.zig");
 const Path = PathTable.Path;
 const String = StringTable.String;
 const PathName = PathTable.PathName;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Git = @import("standalone/Git.zig");
+const Git = @import("Git.zig");
 
 const log = std.log.scoped(.build);
 const config_file_basename = "zine.ziggy";
 const cache_dir_basename = ".zine-cache";
 
 cfg: Config,
+cfg_arena: std.heap.ArenaAllocator.State,
 cli: CliOptions,
 base_dir_path: []const u8,
 base_dir: std.fs.Dir,
@@ -205,6 +207,11 @@ pub const CliOptions = struct {
     output_dir_path: ?[]const u8 = null,
     build_assets: std.StringArrayHashMapUnmanaged(BuildAsset),
 
+    pub fn deinit(co: *const CliOptions, gpa: Allocator) void {
+        var ba = co.build_assets;
+        ba.deinit(gpa);
+    }
+
     pub fn parse(gpa: Allocator, args: []const []const u8) !CliOptions {
         var output_dir_path: ?[]const u8 = null;
         var build_assets: std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
@@ -284,6 +291,42 @@ pub const CliOptions = struct {
     }
 };
 
+pub fn deinit(b: *const Build, gpa: Allocator) void {
+    b.cfg_arena.promote(gpa).deinit();
+    b.cli.deinit(gpa);
+    gpa.free(b.base_dir_path);
+    {
+        var dir = b.base_dir;
+        dir.close();
+    }
+    b.st.deinit(gpa);
+    b.pt.deinit(gpa);
+    for (b.variants) |v| v.deinit(gpa);
+    gpa.free(b.variants);
+    {
+        var dir = b.layouts_dir;
+        dir.close();
+    }
+    for (b.templates.entries.items(.value)) |t| t.deinit(gpa);
+    {
+        var ts = b.templates;
+        ts.deinit(gpa);
+    }
+    {
+        var dir = b.site_assets_dir;
+        dir.close();
+    }
+    {
+        var dir = b.install_dir;
+        dir.close();
+    }
+
+    if (b.cfg == .Multilingual) {
+        var dir = b.i18n_dir;
+        dir.close();
+    }
+}
+
 /// Tries to load a zine.ziggy config file by searching
 /// recursivly upwards from cwd. Once the config file is found,
 /// it ensures the existence of all required directories and
@@ -301,6 +344,7 @@ pub fn load(gpa: Allocator, arena: Allocator, args: []const []const u8) Build {
         });
     };
 
+    var cfg_arena = std.heap.ArenaAllocator.init(gpa);
     var base_dir_path: []const u8 = cwd_path;
     while (true) {
         const joined_path = try std.fs.path.join(arena, &.{
@@ -308,7 +352,7 @@ pub fn load(gpa: Allocator, arena: Allocator, args: []const []const u8) Build {
         });
 
         const data = std.fs.cwd().readFileAllocOptions(
-            gpa,
+            cfg_arena.allocator(),
             joined_path,
             1024 * 1024,
             null,
@@ -330,7 +374,7 @@ pub fn load(gpa: Allocator, arena: Allocator, args: []const []const u8) Build {
         };
 
         var diag: ziggy.Diagnostic = .{ .path = joined_path };
-        const cfg = ziggy.parseLeaky(Build.Config, gpa, data, .{
+        const cfg = ziggy.parseLeaky(Build.Config, cfg_arena.allocator(), data, .{
             .diagnostic = &diag,
             .copy_strings = .to_unescape,
         }) catch {
@@ -381,9 +425,10 @@ pub fn load(gpa: Allocator, arena: Allocator, args: []const []const u8) Build {
 
         return .{
             .cfg = cfg,
+            .cfg_arena = cfg_arena.state,
             .cli = cli,
             .base_dir = base_dir,
-            .base_dir_path = base_dir_path,
+            .base_dir_path = try gpa.dupe(u8, base_dir_path),
             .layouts_dir = layouts_dir,
             .site_assets_dir = assets_dir,
             .st = table,
@@ -424,13 +469,16 @@ pub fn scanSiteAssets(
     gpa: Allocator,
     arena: Allocator,
 ) !void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     var dir_stack: std.ArrayListUnmanaged([]const u8) = .empty;
     try dir_stack.append(arena, "");
 
     const empty_path: Path = @enumFromInt(0);
     assert(b.pt.get(&.{}) == empty_path);
 
-    var progress = main.progress.start("Scan templates", 0);
+    var progress = root.progress.start("Scan templates", 0);
     defer progress.end();
 
     while (dir_stack.pop()) |dir_entry| {
@@ -487,10 +535,13 @@ pub fn scanSiteAssets(
 }
 
 pub fn scanTemplates(b: *Build, gpa: Allocator) !void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
+
     const layouts_dir_path = b.cfg.getLayoutsDirPath();
 
     log.debug("scanTemplates('{s}')", .{layouts_dir_path});
-    var progress = main.progress.start("Scan templates", 0);
+    var progress = root.progress.start("Scan templates", 0);
     defer progress.end();
 
     var layouts_it = b.layouts_dir.iterateAssumeFirstIteration();

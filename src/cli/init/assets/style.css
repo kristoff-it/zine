@@ -1,0 +1,68 @@
+h1,
+h2,
+h3,
+h4 {
+  color: #ddd;
+  font-family: "Verdana", sans-serif;
+}
+
+b,
+strong {
+  color: #fff;
+}
+
+a {
+  color: #eee;
+}
+
+html {
+  color: #ccc;
+  font-family: "Georgia", serif;
+  font-size: 1.2em;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  background-color: #111;
+}
+
+body {
+  width: 800px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-title {
+  font-size: 2.5em;
+  margin-bottom: 10px;
+  /* text-align: center; */
+}
+
+nav {
+  display: flex;
+  flex-direction: row;
+  justify-content: left;
+  font-size: 1.2em;
+  margin-bottom: 20px;
+}
+
+.block {
+  border: 1px dotted white;
+  padding: 5px 15px;
+  margin: 0 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.block h1 {
+  font-size: 1em;
+  text-align: center;
+  margin-bottom: 0;
+}
+
+
+.small {
+  font-size: 0.8em;
+}

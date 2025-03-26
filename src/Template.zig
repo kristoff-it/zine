@@ -4,7 +4,7 @@ const std = @import("std");
 const superhtml = @import("superhtml");
 const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
-const worker = @import("standalone/worker.zig");
+const worker = @import("worker.zig");
 const Build = @import("Build.zig");
 const StringTable = @import("StringTable.zig");
 const String = StringTable.String;
@@ -35,6 +35,12 @@ pub const TaggedName = packed struct {
         return @enumFromInt(tn.name);
     }
 };
+
+pub fn deinit(t: *const Template, gpa: Allocator) void {
+    gpa.free(t.src);
+    t.html_ast.deinit(gpa);
+    t.ast.deinit(gpa);
+}
 
 pub fn parse(
     t: *Template,

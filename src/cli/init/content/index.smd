@@ -1,0 +1,79 @@
+---
+.title = "Homepage",
+.date = @date("1990-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.draft = false,
+--- 
+
+
+This sample website showcases:
+
+- A couple simple pages
+  - `content/index.smd`
+  - `content/about.smd`
+- A blog
+  - `content/blog/index.smd`
+  - `content/blog/first-post.smd`
+  - `content/blog/second-post/index.smd`
+- A devlog [(more on this later)]($text.attrs('small'))
+  - `content/devlog/index.smd`
+  - `content/devlog/archive/index.smd`
+
+The blog and the devlog have each a dedicated RSS feed generated in the output directory:
+- `public/blog/index.xml`
+- `public/devlog/index.xml` 
+
+In Zine, RSS feeds are considered "alternative" versions of an existing page. In concrete terms `blog/index.smd`, which is the page that defines the blog subsection and that lists all pages in it, is rendered in two versions: HTML for human readers, and XML for RSS readers. 
+
+This is the SuperMD frontmatter code that defines RSS feeds for those pages:
+
+```ziggy
+.alternatives = [{ 
+    .name = "rss",
+    .layout = "rss.xml", 
+    .output = "index.xml",
+}],
+```
+[(btw syntax highlighting is done statically in Zine, no need for javascript libraries, unless you want to)]($text.attrs('small'))
+
+
+## About Devlogs
+
+While a blog has each entry be a separate page, a devlog is one single page with
+a list of smaller entries in it, making it a form of microblogging. The relative
+RSS feed will generate a separate item per devlog entry, creating a
+"twitter-like" feed.
+
+This can be a useful pattern for thoughts that are too small for a full blog post
+so consider giving it a try!
+
+Some examples of devlogs:
+ - https://zine-ssg.io/log/
+ - https://ziglang.org/devlog/
+
+
+## Next steps
+
+Make sure to read the [official Zine docs](https://zine-ssg.io/documentation/)
+and then start editing this website!
+
+Start by putting the correct information in `zine.ziggy` and then start editing
+the existing pages. Before deleting existing copy consider giving it a brief
+look as it will show you some SuperMD specific syntax.
+
+HTML markup in Zine is defined via SuperHTML templates:
+- layouts/index.shtml
+- layouts/page.shtml
+- layouts/templates/base.shtml
+
+**If you're running `zine serve`, then all changes you make will be picked up
+immediately, causing the website to rebuild and the page in your browser to
+refresh**.
+
+You can learn more about SuperMD and SuperHTML in [/about/](/about/).
+
+
+
+
+

@@ -72,6 +72,9 @@ _scan: struct {
 /// All top-level fields are also available if status == success.
 _parse: struct {
     active: bool,
+
+    // Stores everything in parse except the cmark ast
+    arena: std.heap.ArenaAllocator.State,
     full_src: [:0]const u8,
     status: union(enum) {
         /// File is empty
@@ -97,7 +100,7 @@ _parse: struct {
     ast: supermd.Ast,
 } = undefined,
 
-// Valid if parse.status == .ok
+// Valid if parse.active = true and parse.status == .parsed
 _analysis: struct {
     frontmatter: std.ArrayListUnmanaged(FrontmatterAnalysisError) = .empty,
     page: std.ArrayListUnmanaged(PageAnalysisError) = .empty,
@@ -311,6 +314,10 @@ pub const FrontmatterAnalysisError = union(enum) {
     };
 };
 
+pub fn deinit(p: *const Page, gpa: Allocator) void {
+    p._parse.arena.promote(gpa).deinit();
+}
+
 pub fn parse(
     p: *Page,
     gpa: Allocator,
@@ -320,11 +327,6 @@ pub fn parse(
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
-
-    if (builtin.mode == .Debug) {
-        const last = p._debug.stage.swap(.parsed, .acq_rel);
-        assert(last == .scanned);
-    }
 
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
@@ -339,12 +341,22 @@ pub fn parse(
         p._scan.md_name,
     )];
 
+    if (builtin.mode == .Debug) {
+        const last = p._debug.stage.swap(.parsed, .acq_rel);
+        assert(last == .scanned);
+
+        tracy.messageCopy(path_bytes);
+    }
+
     const maybe_pr = if (progress) |parent| parent.start(path_bytes, 1) else null;
     defer if (maybe_pr) |pr| pr.end();
 
+    var arena_state = std.heap.ArenaAllocator.init(gpa);
+    const arena = arena_state.allocator();
+
     const max = std.math.maxInt(u32);
     const full_src = variant.content_dir.readFileAllocOptions(
-        gpa,
+        arena,
         path_bytes,
         max,
         null,
@@ -354,6 +366,7 @@ pub fn parse(
 
     if (full_src.len == 0) {
         p._parse = .{
+            .arena = arena_state.state,
             .active = true,
             .full_src = full_src,
             .status = .empty,
@@ -374,7 +387,7 @@ pub fn parse(
 
     var fm: ziggy.FrontmatterMeta = .{};
     var diag: ziggy.Diagnostic = .{ .path = null };
-    p.* = ziggy.parseLeaky(Page, gpa, full_src, .{
+    p.* = ziggy.parseLeaky(Page, arena, full_src, .{
         .diagnostic = &diag,
         .frontmatter_meta = &fm,
     }) catch |err| switch (err) {
@@ -382,6 +395,7 @@ pub fn parse(
         error.MissingFrontmatter, error.OpenFrontmatter => |fm_err| {
             p._parse = .{
                 .active = true,
+                .arena = arena_state.state,
                 .full_src = full_src,
                 .fm = fm,
                 .status = .{ .frontmatter = fm_err },
@@ -392,6 +406,7 @@ pub fn parse(
         error.Syntax => {
             p._parse = .{
                 .active = true,
+                .arena = arena_state.state,
                 .full_src = full_src,
                 .fm = fm,
                 .status = .{ .ziggy = diag },
@@ -409,6 +424,7 @@ pub fn parse(
 
     p._parse = .{
         .active = !p.draft,
+        .arena = arena_state.state,
         .full_src = full_src,
         .fm = fm,
         .ast = ast,

@@ -1,0 +1,8 @@
+Site {
+    .title = "Welcome to Zine!",
+    .host_url = "https://kristoff.it",
+    .content_dir_path = "content",
+    .layouts_dir_path = "layouts",
+    .assets_dir_path = "assets",
+    .static_assets = [],
+}

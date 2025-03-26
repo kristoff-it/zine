@@ -127,6 +127,12 @@ pub fn build(b: *std.Build) !void {
     });
     const ts = syntax.builder.dependency("tree_sitter", mode);
     const treez = ts.module("treez");
+
+    const mime = b.dependency("mime", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     // const wuffs = b.dependency("wuffs", mode);
 
     // const zine = b.addModule("zine", .{
@@ -176,6 +182,10 @@ pub fn build(b: *std.Build) !void {
         .sanitize_thread = tsan,
     });
 
+    if (target.result.os.tag == .macos) {
+        zine_exe.linkFramework("CoreServices");
+    }
+
     // zine_exe.root_module.addImport("zine", zine);
     zine_exe.root_module.addImport("ziggy", ziggy);
     zine_exe.root_module.addImport("scripty", scripty);
@@ -186,6 +196,7 @@ pub fn build(b: *std.Build) !void {
     zine_exe.root_module.addImport("treez", treez);
     zine_exe.root_module.addImport("options", options);
     zine_exe.root_module.addImport("tracy", tracy.module("tracy"));
+    zine_exe.root_module.addImport("mime", mime.module("mime"));
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);

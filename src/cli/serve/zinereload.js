@@ -13,6 +13,10 @@ function zineConnect() {
   socket.addEventListener("message", (event) => {
     const msg = JSON.parse(event.data);
 
+    if (msg.command == "reload_all") {
+      location.reload();
+    }
+
     if (msg.command == "reload") {
       log("reload", msg.path);
 

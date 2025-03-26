@@ -38,16 +38,16 @@
             .hash = "tracy-0.0.0-4Xw-1pwwAABTfMgoDP1unCbZDZhJEfict7XCBGF6IdIn",
         },
         .flow_syntax = .{
-            .url = "git+https://github.com/kristoff-it/flow-syntax?ref=fix-cache#2459748eebfad0977ceeb680584cbd18aacb57c4",
-            .hash = "flow_syntax-0.1.0-X8jOoYmxAACQQh9mujHiGTBVi-tWKJKr4-mMaKxImV0I",
-        },
-        .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#fc7c594f52528e4a4a08671137850143d55a5bf2",
-            .hash = "superhtml-0.4.0-Y7MdPF6WDQDa7hxWC6LpPwxXo4YA2OJzNEE5jsaCROLX",
+            .url = "git+https://github.com/neurocyte/flow-syntax#d231728c92cb3c5a7139cb0d75a321a119b8e777",
+            .hash = "flow_syntax-0.1.0-X8jOoUX-AADI9WdOuVSYK9yjyBOTFj4UicSapF7QQssd",
         },
         .supermd = .{
             .url = "git+https://github.com/kristoff-it/supermd#f357ecca639e4941b0b0977d5e09d129f294cb6f",
             .hash = "supermd-0.1.0-3Mco3BRtWAA_P6X97kpttAXYjZNsC2nx5YRHwGrgmTK4",
+        },
+        .superhtml = .{
+            .url = "git+https://github.com/kristoff-it/superhtml#f8cfcf64d01c17516ad1cfd7b17ecd05b68a4d6b",
+            .hash = "superhtml-0.4.0-Y7MdPHuXDQBRx4nLuYB_f4MNMjoDC9ImTdBMYUMsF_Pw",
         },
     },
     .paths = .{"."},

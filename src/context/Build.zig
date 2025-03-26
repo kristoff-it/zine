@@ -4,7 +4,6 @@ const std = @import("std");
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
-const DepWriter = @import("../root.zig").DepWriter;
 const Signature = @import("doctypes.zig").Signature;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
@@ -15,18 +14,15 @@ pub const dot = scripty.defaultDot(Build, Value, false);
 pub const PassByRef = true;
 
 generated: context.DateTime,
-_dep_writer: DepWriter,
 _git_data_path: []const u8,
 _git: context.Git,
 
 pub fn init(
-    dep_writer: DepWriter,
     git_data_path: []const u8,
     git: context.Git,
 ) Build {
     return .{
         .generated = context.DateTime.initNow(),
-        ._dep_writer = dep_writer,
         ._git_data_path = git_data_path,
         ._git = git,
     };
@@ -115,8 +111,6 @@ pub const Builtins = struct {
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
-
-            build._dep_writer.writePrereq(build._git_data_path) catch @panic("unexpected error while addind a dependency");
 
             return if (build._git._in_repo) .{
                 .git = build._git,
