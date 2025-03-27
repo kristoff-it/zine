@@ -319,6 +319,17 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
             std.debug.print("error: static asset '{s}' does not exist\n", .{
                 path,
             });
+
+            if (build.mode == .memory) {
+                try build.mode.memory.errors.append(gpa, .{
+                    .ref = "",
+                    .msg = try std.fmt.allocPrint(
+                        gpa,
+                        "error: static asset '{s}' does not exist\n",
+                        .{path},
+                    ),
+                });
+            }
         }
 
         worker.wait(); // variants done scanning their content + i18n ziggy file
@@ -343,6 +354,16 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
                 v.i18n_diag.path = path;
                 std.debug.print("{}\n\n", .{v.i18n_diag.fmt(v.i18n_src)});
+                if (build.mode == .memory) {
+                    try build.mode.memory.errors.append(gpa, .{
+                        .ref = "",
+                        .msg = try std.fmt.allocPrint(
+                            gpa,
+                            "{}\n\n",
+                            .{v.i18n_diag.fmt(v.i18n_src)},
+                        ),
+                    });
+                }
                 continue;
             }
 
@@ -502,6 +523,16 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                             \\   {s}
                             \\
                         , .{ path, p._parse.fm.lines, note });
+                        if (build.mode == .memory) {
+                            try build.mode.memory.errors.append(gpa, .{
+                                .ref = "",
+                                .msg = try std.fmt.allocPrint(gpa,
+                                    \\{s}:{}:1 error: frontmatter framing error
+                                    \\   {s}
+                                    \\
+                                , .{ path, p._parse.fm.lines, note }),
+                            });
+                        }
                         continue;
                     },
 
@@ -521,6 +552,16 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
                         diag.path = path;
                         std.debug.print("{}\n\n", .{diag.fmt(p._parse.full_src)});
+                        if (build.mode == .memory) {
+                            try build.mode.memory.errors.append(gpa, .{
+                                .ref = "",
+                                .msg = try std.fmt.allocPrint(
+                                    gpa,
+                                    "{}\n\n",
+                                    .{diag.fmt(p._parse.full_src)},
+                                ),
+                            });
+                        }
                         continue;
                     },
 
@@ -608,7 +649,9 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         p._scan.md_name,
                     )];
                     printSuperMdErrors(
+                        gpa,
                         arena,
+                        &build,
                         v.content_dir_path,
                         path,
                         &p._parse.ast,
@@ -705,6 +748,21 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         v.content_dir_path, path,      sel.start.line, sel.start.col,
                         err.title(),        line_trim, highlight,
                     });
+                    if (build.mode == .memory) {
+                        try build.mode.memory.errors.append(gpa, .{
+                            .ref = "",
+                            .msg = try std.fmt.allocPrint(gpa,
+                                \\{s}/{s}:{}:{}: error: {s}
+                                \\|    {s}
+                                \\|    {s}
+                                \\
+                                \\
+                            , .{
+                                v.content_dir_path, path,      sel.start.line, sel.start.col,
+                                err.title(),        line_trim, highlight,
+                            }),
+                        });
+                    }
                 }
             }
 
@@ -769,6 +827,22 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         n.startColumn(),    err.title(), line_trim,
                         highlight,
                     });
+                    if (build.mode == .memory) {
+                        try build.mode.memory.errors.append(gpa, .{
+                            .ref = "",
+                            .msg = try std.fmt.allocPrint(gpa,
+                                \\{s}/{s}:{}:{}: error: {s}
+                                \\|    {s}
+                                \\|    {s}
+                                \\
+                                \\
+                            , .{
+                                v.content_dir_path, path,        fm_lines + n.startLine(),
+                                n.startColumn(),    err.title(), line_trim,
+                                highlight,
+                            }),
+                        });
+                    }
                 }
             }
         }
@@ -935,6 +1009,22 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     c.previous.fmt(&v.string_table, &v.path_table, v.pages.items),
                     c.loc.fmt(&v.string_table, &v.path_table, v.pages.items),
                 });
+                if (build.mode == .memory) {
+                    try build.mode.memory.errors.append(gpa, .{
+                        .ref = "",
+                        .msg = try std.fmt.allocPrint(gpa,
+                            \\{s}: error: output url collision detected
+                            \\   between  {}
+                            \\   and      {}
+                            \\
+                            \\
+                        , .{
+                            c.url.fmt(&v.string_table, &v.path_table),
+                            c.previous.fmt(&v.string_table, &v.path_table, v.pages.items),
+                            c.loc.fmt(&v.string_table, &v.path_table, v.pages.items),
+                        }),
+                    });
+                }
             }
         }
     }
@@ -995,6 +1085,18 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
             , .{
                 path, parent_name,
             });
+            if (build.mode == .memory) {
+                try build.mode.memory.errors.append(gpa, .{
+                    .ref = "",
+                    .msg = try std.fmt.allocPrint(gpa,
+                        \\{s}: error: extending a template that doesn't exist 
+                        \\   template '{s}' does not exist
+                        \\
+                    , .{
+                        path, parent_name,
+                    }),
+                });
+            }
         }
     }
 
@@ -1012,10 +1114,10 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         defer tracy_frame.end();
         for (build.variants) |*v| {
             for (v.pages.items) |*p| {
-                // This seems a clear case where active should be
-                // stored in a more compact fashion.
                 if (!p._parse.active) continue;
                 if (p._parse.status != .parsed) continue;
+                if (p._analysis.frontmatter.items.len > 0) continue;
+                if (p._analysis.page.items.len > 0) continue;
 
                 pages_to_render += 1;
 
@@ -1113,7 +1215,9 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 }
 
 fn printSuperMdErrors(
+    gpa: Allocator,
     arena: Allocator,
+    build: *Build,
     content_dir_path: []const u8,
     md_path: []const u8,
     ast: *const supermd.Ast,
@@ -1203,6 +1307,21 @@ fn printSuperMdErrors(
             content_dir_path, md_path, fm_lines + range.start.row, range.start.col,
             tag_name,         msg,     line_trim,                  highlight,
         });
+        if (build.mode == .memory) {
+            try build.mode.memory.errors.append(gpa, .{
+                .ref = "",
+                .msg = try std.fmt.allocPrint(gpa,
+                    \\{s}/{s}:{}:{}: [{s}] {s}
+                    \\|    {s}
+                    \\|    {s}
+                    \\
+                    \\
+                , .{
+                    content_dir_path, md_path, fm_lines + range.start.row, range.start.col,
+                    tag_name,         msg,     line_trim,                  highlight,
+                }),
+            });
+        }
     }
 }
 

@@ -50,10 +50,19 @@ i18n_dir: std.fs.Dir,
 mode: Mode,
 
 pub const Mode = union(enum) {
-    memory,
+    memory: struct {
+        // Errors that don't already have a natural storage location
+        // (eg page errors are stored in the page itself)
+        errors: std.ArrayListUnmanaged(Error) = .empty,
+    },
     disk: struct {
         install_dir: std.fs.Dir,
     },
+
+    const Error = struct {
+        ref: []const u8, // the file this error relates to
+        msg: []const u8,
+    };
 };
 
 pub const Assets = std.AutoArrayHashMapUnmanaged(PathName, std.atomic.Value(u32));
@@ -127,7 +136,7 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
     _ = try path_table.intern(gpa, &.{});
 
     const mode: Mode = switch (opts.mode) {
-        .memory => .memory,
+        .memory => .{ .memory = .{} },
         .disk => |disk| blk: {
             const install_base_dir = if (disk.output_dir_path == null)
                 base_dir

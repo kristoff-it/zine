@@ -19,6 +19,7 @@ const assert = std.debug.assert;
 
 const zinereload_js = @embedFile("serve/zinereload.js");
 const not_found_html = @embedFile("serve/404.html");
+const error_html = @embedFile("serve/error.html");
 const Watcher = switch (builtin.target.os.tag) {
     .linux => @import("serve/watcher/LinuxWatcher.zig"),
     .macos => @import("serve/watcher/MacosWatcher.zig"),
@@ -166,6 +167,60 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
             },
             .connect => |conn| {
                 try websockets.put(gpa, conn.stream.handle, conn);
+                // We don't lock build because this thread is the only writer
+
+                for (build.mode.memory.errors.items) |build_err| {
+                    const bytes = try std.json.stringifyAlloc(
+                        gpa,
+                        .{
+                            .command = "build",
+                            .err = build_err.msg,
+                        },
+                        .{},
+                    );
+
+                    defer gpa.free(bytes);
+
+                    conn.writeMessage(bytes, .text) catch |err| {
+                        log.debug(
+                            "error writing to ws: {s}",
+                            .{@errorName(err)},
+                        );
+                    };
+                }
+
+                if (build.any_rendering_error.load(.acquire)) {
+                    outer: for (build.variants) |*v| {
+                        for (v.pages.items) |*p| {
+                            if (!p._parse.active) continue;
+                            if (p._parse.status != .parsed) continue;
+                            if (p._analysis.frontmatter.items.len > 0) continue;
+                            if (p._analysis.page.items.len > 0) continue;
+
+                            if (p._render.errors.len > 0) {
+                                const bytes = try std.json.stringifyAlloc(
+                                    gpa,
+                                    .{
+                                        .command = "build",
+                                        .err = p._render.errors,
+                                    },
+                                    .{},
+                                );
+
+                                defer gpa.free(bytes);
+
+                                conn.writeMessage(bytes, .text) catch |err| {
+                                    log.debug(
+                                        "error writing to ws: {s}",
+                                        .{@errorName(err)},
+                                    );
+                                };
+
+                                break :outer;
+                            }
+                        }
+                    }
+                }
             },
             .disconnect => |conn| {
                 // the server thread will take care of closing the connection
@@ -474,7 +529,7 @@ pub const Server = struct {
             try req.respond(zinereload_js, .{
                 .extra_headers = &.{
                     .{ .name = "content-type", .value = "text/javascript" },
-                    .{ .name = "connection", .value = "close" },
+                    // .{ .name = "connection", .value = "close" },
                 },
             });
 
@@ -493,6 +548,12 @@ pub const Server = struct {
 
         server.build_lock.lockShared();
         defer server.build_lock.unlockShared();
+
+        if (server.build.any_prerendering_error) return sendError(
+            arena,
+            req,
+            "No page was built because of a pre-rendering error.",
+        );
 
         // Site asset search
         not_found: {
@@ -532,6 +593,38 @@ pub const Server = struct {
             switch (hint.kind) {
                 .page_main => {
                     const page = &v.pages.items[hint.id];
+
+                    if (!page._parse.active) return sendError(
+                        arena,
+                        req,
+                        "This page is not active",
+                    );
+
+                    if (page._parse.status != .parsed) return sendError(
+                        arena,
+                        req,
+                        "This page failed to parse",
+                    );
+
+                    if (page._analysis.frontmatter.items.len > 0) return sendError(
+                        arena,
+                        req,
+                        "This page has frontmatter errors",
+                    );
+
+                    if (page._analysis.page.items.len > 0) return sendError(
+                        arena,
+                        req,
+                        "This page contains SuperMD errors",
+                    );
+
+                    // TODO: why not just send the error directly for good measure?
+                    if (page._render.errors.len > 0) return sendError(
+                        arena,
+                        req,
+                        "This page contains rendering errors",
+                    );
+
                     return sendHtml(
                         arena,
                         req,
@@ -628,6 +721,22 @@ pub const Server = struct {
         });
     }
 
+    fn sendError(
+        arena: Allocator,
+        req: *std.http.Server.Request,
+        msg: []const u8,
+    ) !void {
+        const data = try std.fmt.allocPrint(arena, error_html, .{msg});
+
+        try req.respond(data, .{
+            .status = .not_found,
+            .extra_headers = &.{
+                .{ .name = "content-type", .value = "text/html" },
+                // .{ .name = "connection", .value = "close" },
+            },
+        });
+        log.debug("not found", .{});
+    }
     fn sendNotFound(
         arena: Allocator,
         req: *std.http.Server.Request,

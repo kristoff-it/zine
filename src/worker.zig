@@ -930,7 +930,7 @@ fn renderPage(
 
     var out_buf: std.ArrayListUnmanaged(u8) = .empty;
     var err_buf: std.ArrayListUnmanaged(u8) = .empty;
-    defer err_buf.deinit(gpa);
+    defer if (build.mode == .disk) err_buf.deinit(gpa);
 
     var super_vm = SuperVM.init(
         arena,
@@ -951,6 +951,12 @@ fn renderPage(
         error.Fatal => {
             std.debug.print("{s}\n", .{err_buf.items});
             build.any_rendering_error.store(true, .release);
+            if (build.mode == .memory) {
+                page._render = .{
+                    .out = "",
+                    .errors = err_buf.items,
+                };
+            }
             return;
         },
         error.OutOfMemory => fatal.oom(),
@@ -983,7 +989,10 @@ fn renderPage(
     };
 
     switch (build.mode) {
-        .memory => page._render = .{ .out = out_buf.items },
+        .memory => page._render = .{
+            .out = out_buf.items,
+            .errors = err_buf.items,
+        },
         .disk => |disk| {
             defer out_buf.deinit(gpa);
             const out_raw = switch (kind) {

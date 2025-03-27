@@ -110,6 +110,7 @@ _analysis: struct {
 // Valid if analysis contains no errors and build mode == .memory
 _render: struct {
     out: []const u8,
+    errors: []const u8,
 } = undefined,
 
 _meta: struct {

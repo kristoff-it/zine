@@ -79,8 +79,10 @@ function zineConnect() {
           box.style = "position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;color: white; background-color: black;z-index:100; overflow-y: scroll; margin: 0; padding: 5px; font-family: monospace;";
           box.id = id;
           document.body.appendChild(box); 
+          box.innerHTML = "<h1 style=\"color: red\">ZINE BUILD ERROR</h1>" ;
         }
-        box.innerHTML = "<h1 style=\"color: red\">ZINE BUILD ERROR</h1>" + msg.err;
+
+        box.innerHTML += "\n\n" + msg.err;
       } else {
         let box = document.getElementById(id);
         if (box != null) box.remove();
