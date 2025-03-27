@@ -2,7 +2,8 @@ const WindowsWatcher = @This();
 
 const std = @import("std");
 const windows = std.os.windows;
-const Reloader = @import("../Reloader.zig");
+const fatal = @import("../../../fatal.zig");
+const Debouncer = @import("../../serve.zig").Debouncer;
 
 const log = std.log.scoped(.watcher);
 
@@ -17,35 +18,35 @@ const notify_filter = windows.FileNotifyChangeFilter{
     .security = false,
 };
 
-const Error = error{ InvalidHandle, QueueFailed, WaitFailed };
-
 const CompletionKey = usize;
 /// Values should be a multiple of `ReadBufferEntrySize`
 const ReadBufferIndex = u32;
 const ReadBufferEntrySize = 1024;
 
 const WatchEntry = struct {
-    kind: Kind,
-
     dir_path: [:0]const u8,
     dir_handle: windows.HANDLE,
 
     overlap: windows.OVERLAPPED = std.mem.zeroes(windows.OVERLAPPED),
     buf_idx: ReadBufferIndex,
-
-    pub const Kind = enum { input, output };
 };
 
+debouncer: *Debouncer,
 iocp_port: windows.HANDLE,
 entries: std.AutoHashMap(CompletionKey, WatchEntry),
 read_buffer: []u8,
 
 pub fn init(
     gpa: std.mem.Allocator,
-    out_dir_path: []const u8,
-    in_dir_paths: []const []const u8,
-) !WindowsWatcher {
+    debouncer: *Debouncer,
+    dir_paths: []const []const u8,
+) WindowsWatcher {
+    errdefer |err| fatal.msg("error: unable to start the file watcher: {s}", .{
+        @errorName(err),
+    });
+
     var watcher = WindowsWatcher{
+        .debouncer = debouncer,
         .iocp_port = windows.INVALID_HANDLE_VALUE,
         .entries = std.AutoHashMap(CompletionKey, WatchEntry).init(gpa),
         .read_buffer = undefined,
@@ -62,20 +63,11 @@ pub fn init(
     // Doubles as the number of WatchEntries
     var comp_key: CompletionKey = 0;
 
-    {
-        const out_path = try gpa.dupeZ(u8, out_dir_path);
-        try watcher.entries.putNoClobber(
-            comp_key,
-            try addPath(out_path, comp_key, .output, &watcher.iocp_port),
-        );
-        comp_key += 1;
-    }
-
-    for (in_dir_paths) |path| {
+    for (dir_paths) |path| {
         const in_path = try gpa.dupeZ(u8, path);
         try watcher.entries.putNoClobber(
             comp_key,
-            try addPath(in_path, comp_key, .input, &watcher.iocp_port),
+            try addPath(in_path, comp_key, &watcher.iocp_port),
         );
         comp_key += 1;
     }
@@ -97,8 +89,10 @@ pub fn init(
             &entry.overlap,
             null,
         ) == 0) {
-            log.err("ReadDirectoryChanges error: {s}", .{@tagName(windows.kernel32.GetLastError())});
-            return Error.QueueFailed;
+            log.err("ReadDirectoryChanges error: {s}", .{
+                @tagName(windows.kernel32.GetLastError()),
+            });
+            return error.QueueFailed;
         }
     }
     return watcher;
@@ -108,7 +102,6 @@ fn addPath(
     path: [:0]const u8,
     /// Assumed to increment by 1 after each invocation, starting at 0.
     key: CompletionKey,
-    io: WatchEntry.Kind,
     port: *windows.HANDLE,
 ) !WatchEntry {
     const dir_handle = CreateFileA(
@@ -125,7 +118,7 @@ fn addPath(
             "Unable to open directory {s}: {s}",
             .{ path, @tagName(windows.kernel32.GetLastError()) },
         );
-        return Error.InvalidHandle;
+        return error.InvalidHandle;
     }
 
     if (port.* == windows.INVALID_HANDLE_VALUE) {
@@ -135,20 +128,18 @@ fn addPath(
     }
 
     return .{
-        .kind = io,
         .dir_path = path,
         .dir_handle = dir_handle,
         .buf_idx = @intCast(ReadBufferEntrySize * key),
     };
 }
 
-pub fn listen(
-    self: *WindowsWatcher,
-    gpa: std.mem.Allocator,
-    reloader: *Reloader,
-) !void {
-    _ = gpa;
+pub fn start(watcher: *WindowsWatcher) !void {
+    const t = try std.Thread.spawn(.{}, WindowsWatcher.listen, .{watcher});
+    t.detach();
+}
 
+pub fn listen(watcher: *WindowsWatcher) !void {
     var dont_care: struct {
         bytes_transferred: windows.DWORD = undefined,
         overlap: ?*windows.OVERLAPPED = undefined,
@@ -159,7 +150,7 @@ pub fn listen(
         // Waits here until any of the directory handles associated with the iocp port
         // have been updated.
         const wait_result = windows.GetQueuedCompletionStatus(
-            self.iocp_port,
+            watcher.iocp_port,
             &dont_care.bytes_transferred,
             &key,
             &dont_care.overlap,
@@ -167,13 +158,13 @@ pub fn listen(
         );
         if (wait_result != .Normal) {
             log.err("GetQueuedCompletionStatus error: {s}", .{@tagName(wait_result)});
-            return Error.WaitFailed;
+            return error.WaitFailed;
         }
 
-        const entry = self.entries.getPtr(key) orelse @panic("Invalid CompletionKey");
+        const entry = watcher.entries.getPtr(key) orelse @panic("Invalid CompletionKey");
 
         var info_iter = windows.FileInformationIterator(FILE_NOTIFY_INFORMATION){
-            .buf = self.read_buffer[entry.buf_idx..][0..ReadBufferEntrySize],
+            .buf = watcher.read_buffer[entry.buf_idx..][0..ReadBufferEntrySize],
         };
         var path_buf: [windows.MAX_PATH]u8 = undefined;
         while (info_iter.next()) |info| {
@@ -185,26 +176,23 @@ pub fn listen(
                 break :blk path_buf[0..n];
             };
 
-            const args = .{ @tagName(entry.kind), entry.dir_path, filename };
+            const args = .{ entry.dir_path, filename };
             switch (info.Action) {
-                windows.FILE_ACTION_ADDED => log.debug("added ({s}) {s}/{s}", args),
-                windows.FILE_ACTION_REMOVED => log.debug("removed ({s}) {s}/{s}", args),
-                windows.FILE_ACTION_MODIFIED => log.debug("modified ({s}) {s}/{s}", args),
-                windows.FILE_ACTION_RENAMED_OLD_NAME => log.debug("renamed_old_name ({s}) {s}/{s}", args),
-                windows.FILE_ACTION_RENAMED_NEW_NAME => log.debug("renamed_new_name ({s}) {s}/{s}", args),
-                else => log.debug("Unknown Action ({s}) {s}/{s}", args),
+                windows.FILE_ACTION_ADDED => log.debug("added  {s}/{s}", args),
+                windows.FILE_ACTION_REMOVED => log.debug("removed  {s}/{s}", args),
+                windows.FILE_ACTION_MODIFIED => log.debug("modified  {s}/{s}", args),
+                windows.FILE_ACTION_RENAMED_OLD_NAME => log.debug("renamed_old_name {s}/{s}", args),
+                windows.FILE_ACTION_RENAMED_NEW_NAME => log.debug("renamed_new_name  {s}/{s}", args),
+                else => log.debug("Unknown Action {s}/{s}", args),
             }
 
-            switch (entry.kind) {
-                .input => reloader.onInputChange(entry.dir_path, filename),
-                .output => reloader.onOutputChange(entry.dir_path, filename),
-            }
+            watcher.debouncer.newEvent();
         }
 
         // Re-queue the directory entry
         if (windows.kernel32.ReadDirectoryChangesW(
             entry.dir_handle,
-            @ptrCast(@alignCast(&self.read_buffer[entry.buf_idx])),
+            @ptrCast(@alignCast(&watcher.read_buffer[entry.buf_idx])),
             ReadBufferEntrySize,
             @intFromBool(true),
             notify_filter,
@@ -213,7 +201,7 @@ pub fn listen(
             null,
         ) == 0) {
             log.err("ReadDirectoryChanges error: {s}", .{@tagName(windows.kernel32.GetLastError())});
-            return Error.QueueFailed;
+            return error.QueueFailed;
         }
     }
 }

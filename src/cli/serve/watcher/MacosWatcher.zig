@@ -2,10 +2,7 @@ const MacosWatcher = @This();
 
 const std = @import("std");
 const fatal = @import("../../../fatal.zig");
-const Channel = @import("../../../channel.zig").Channel;
-const serve = @import("../../serve.zig");
-const ServeEvent = serve.ServeEvent;
-const Debouncer = serve.Debouncer;
+const Debouncer = @import("../../serve.zig").Debouncer;
 
 const c = @cImport({
     @cInclude("CoreServices/CoreServices.h");
@@ -16,24 +13,22 @@ const log = std.log.scoped(.watcher);
 gpa: std.mem.Allocator,
 debouncer: *Debouncer,
 dir_paths: []const []const u8,
-file_paths: []const []const u8,
 
 pub fn init(
     gpa: std.mem.Allocator,
     debouncer: *Debouncer,
     dir_paths: []const []const u8,
-    file_paths: []const []const u8,
 ) MacosWatcher {
     return .{
         .gpa = gpa,
         .debouncer = debouncer,
         .dir_paths = dir_paths,
-        .file_paths = file_paths,
     };
 }
 
 pub fn start(watcher: *MacosWatcher) !void {
-    _ = try std.Thread.spawn(.{}, MacosWatcher.listen, .{watcher});
+    const t = try std.Thread.spawn(.{}, MacosWatcher.listen, .{watcher});
+    t.detach();
 }
 
 pub fn listen(watcher: *MacosWatcher) void {

@@ -19,13 +19,12 @@ const assert = std.debug.assert;
 
 const zinereload_js = @embedFile("serve/zinereload.js");
 const not_found_html = @embedFile("serve/404.html");
-const Watcher = @import("serve/watcher/MacosWatcher.zig");
-// const Watcher = switch (builtin.target.os.tag) {
-//     .linux => @import("exes/server/watcher/LinuxWatcher.zig"),
-//     .macos => @import("exes/server/watcher/MacosWatcher.zig"),
-//     .windows => @import("exes/server/watcher/WindowsWatcher.zig"),
-//     else => @compileError("unsupported platform"),
-// };
+const Watcher = switch (builtin.target.os.tag) {
+    .linux => @import("serve/watcher/LinuxWatcher.zig"),
+    .macos => @import("serve/watcher/MacosWatcher.zig"),
+    .windows => @import("serve/watcher/WindowsWatcher.zig"),
+    else => @compileError("unsupported platform"),
+};
 
 const log = std.log.scoped(.serve);
 
@@ -71,20 +70,35 @@ pub fn serve(gpa: Allocator, args: []const []const u8) void {
     try dirs_to_watch.appendSlice(
         gpa,
         &.{
-            try gpa.dupe(u8, cfg.getAssetsDirPath()),
-            try gpa.dupe(u8, cfg.getLayoutsDirPath()),
+            try std.fs.path.join(gpa, &.{
+                base_dir_path,
+                cfg.getAssetsDirPath(),
+            }),
+            try std.fs.path.join(gpa, &.{
+                base_dir_path,
+                cfg.getLayoutsDirPath(),
+            }),
         },
     );
     switch (cfg) {
         .Site => |s| try dirs_to_watch.append(
             gpa,
-            try gpa.dupe(u8, s.content_dir_path),
+            try std.fs.path.join(gpa, &.{
+                base_dir_path,
+                s.content_dir_path,
+            }),
         ),
         .Multilingual => |ml| {
-            try dirs_to_watch.append(gpa, try gpa.dupe(u8, ml.i18n_dir_path));
+            try dirs_to_watch.append(gpa, try std.fs.path.join(gpa, &.{
+                base_dir_path,
+                ml.i18n_dir_path,
+            }));
             for (ml.locales) |l| try dirs_to_watch.append(
                 gpa,
-                try gpa.dupe(u8, l.content_dir_path),
+                try std.fs.path.join(gpa, &.{
+                    base_dir_path,
+                    l.content_dir_path,
+                }),
             );
         },
     }
@@ -93,7 +107,6 @@ pub fn serve(gpa: Allocator, args: []const []const u8) void {
         gpa,
         &debouncer,
         dirs_to_watch.items,
-        &.{},
     );
 
     watcher.start() catch |err| fatal.msg(
