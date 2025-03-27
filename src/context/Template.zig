@@ -49,8 +49,8 @@ pub fn printLinkPrefix(
             if (force_host_url) try w.print("{s}", .{
                 ctx._meta.build.cfg.Site.host_url,
             });
-            if (url_path_prefix) |upp| {
-                try w.print("/{s}/", .{upp});
+            if (url_path_prefix.len > 0) {
+                try w.print("/{s}/", .{url_path_prefix});
             } else {
                 try w.writeAll("/");
             }

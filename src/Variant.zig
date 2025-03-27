@@ -19,6 +19,7 @@ const String = StringTable.String;
 const Path = PathTable.Path;
 const PathName = PathTable.PathName;
 
+output_path_prefix: []const u8,
 /// Open for the full duration of the program.
 content_dir: std.fs.Dir,
 content_dir_path: []const u8,
@@ -194,6 +195,7 @@ pub fn scanContentDir(
     content_dir_path: []const u8,
     variant_id: u32,
     multilingual: ?MultilingualScanParams,
+    output_path_prefix: []const u8,
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
@@ -490,6 +492,7 @@ pub fn scanContentDir(
     }
 
     variant.* = .{
+        .output_path_prefix = output_path_prefix,
         .content_dir = content_dir,
         .content_dir_path = content_dir_path,
         .string_table = string_table,

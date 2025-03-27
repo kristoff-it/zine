@@ -3,7 +3,9 @@ const MacosWatcher = @This();
 const std = @import("std");
 const fatal = @import("../../../fatal.zig");
 const Channel = @import("../../../channel.zig").Channel;
-const ServeEvent = @import("../../serve.zig").ServeEvent;
+const serve = @import("../../serve.zig");
+const ServeEvent = serve.ServeEvent;
+const Debouncer = serve.Debouncer;
 
 const c = @cImport({
     @cInclude("CoreServices/CoreServices.h");
@@ -12,19 +14,19 @@ const c = @cImport({
 const log = std.log.scoped(.watcher);
 
 gpa: std.mem.Allocator,
-channel: *Channel(ServeEvent),
+debouncer: *Debouncer,
 dir_paths: []const []const u8,
 file_paths: []const []const u8,
 
 pub fn init(
     gpa: std.mem.Allocator,
-    channel: *Channel(ServeEvent),
+    debouncer: *Debouncer,
     dir_paths: []const []const u8,
     file_paths: []const []const u8,
 ) MacosWatcher {
     return .{
         .gpa = gpa,
-        .channel = channel,
+        .debouncer = debouncer,
         .dir_paths = dir_paths,
         .file_paths = file_paths,
     };
@@ -112,7 +114,6 @@ pub fn macosCallback(
         // var base_path = path[0 .. path.len - basename.len];
         // if (std.mem.endsWith(u8, base_path, "/"))
         //     base_path = base_path[0 .. base_path.len - 1];
-
-        watcher.channel.put(.change);
+        watcher.debouncer.newEvent();
     }
 }

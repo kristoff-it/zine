@@ -74,7 +74,7 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const ok = ctx._meta.build.cli.build_assets.contains(ref);
+            const ok = ctx._meta.build.build_assets.contains(ref);
             if (!ok) return Value.errFmt(gpa, "unknown build asset '{s}'", .{
                 ref,
             });

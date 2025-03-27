@@ -603,11 +603,11 @@ pub fn printAssetUrlPrefix(
                 try w.print("{}/", .{
                     std.fs.path.fmtJoin(&.{
                         ctx.site.host_url,
-                        url_prefix_path orelse "",
+                        url_prefix_path,
                     }),
                 });
-            } else if (url_prefix_path) |upp| {
-                try w.print("/{s}/", .{upp});
+            } else if (url_prefix_path.len > 0) {
+                try w.print("/{s}/", .{url_prefix_path});
             } else {
                 try w.writeAll("/");
             }

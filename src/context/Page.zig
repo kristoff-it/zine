@@ -34,6 +34,7 @@ pub const ziggy_options = struct {
         ._scan,
         ._parse,
         ._analysis,
+        ._render,
         ._meta,
     };
 };
@@ -105,6 +106,11 @@ _analysis: struct {
     frontmatter: std.ArrayListUnmanaged(FrontmatterAnalysisError) = .empty,
     page: std.ArrayListUnmanaged(PageAnalysisError) = .empty,
 } = .{},
+
+// Valid if analysis contains no errors and build mode == .memory
+_render: struct {
+    out: []const u8,
+} = undefined,
 
 _meta: struct {
     site: *const context.Site = undefined,

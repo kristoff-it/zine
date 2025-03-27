@@ -110,7 +110,7 @@ pub const Builtins = struct {
                 },
                 .build => {
                     try html.printAssetUrlPrefix(ctx, ctx.page, w);
-                    const ba = ctx._meta.build.cli.build_assets.getPtr(
+                    const ba = ctx._meta.build.build_assets.getPtr(
                         asset._meta.ref,
                     ).?;
 
@@ -234,7 +234,7 @@ pub const Builtins = struct {
                     return Value.from(gpa, data);
                 },
                 .build => {
-                    const ba = ctx._meta.build.cli.build_assets.getPtr(
+                    const ba = ctx._meta.build.build_assets.getPtr(
                         asset._meta.ref,
                     ).?;
 
