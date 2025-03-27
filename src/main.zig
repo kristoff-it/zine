@@ -33,7 +33,6 @@ pub const gpa = if (builtin.single_threaded)
 else
     std.heap.smp_allocator;
 
-pub var exit_code: std.atomic.Value(u8) = .{ .raw = 0 };
 pub fn main() u8 {
     errdefer |err| switch (err) {
         error.OutOfMemory, error.Overflow => fatal.oom(),
@@ -112,23 +111,16 @@ pub fn main() u8 {
         fatalHelp();
     };
 
-    switch (cmd) {
+    const any_error = switch (cmd) {
         .init => @import("cli/init.zig").init(gpa, args[2..]),
         .serve => @import("cli/serve.zig").serve(gpa, args[2..]),
         .release => @import("cli/release.zig").release(gpa, args[2..]),
         .tree => @panic("TODO"),
         .help, .@"-h", .@"--help" => fatalHelp(),
         .version, .@"-v", .@"--version" => printVersion(),
-    }
+    };
 
-    if (tracy.enable) {
-        tracy.frameMarkNamed("waiting for tracy");
-        var progress_tracy = root.progress.start("Tracy", 0);
-        std.Thread.sleep(100 * std.time.ns_per_ms);
-        progress_tracy.end();
-    }
-
-    return exit_code.load(.acquire);
+    return @intFromBool(any_error);
 }
 
 // pub fn showTree(

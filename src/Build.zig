@@ -23,6 +23,8 @@ const cache_dir_basename = ".zine-cache";
 
 cfg: *const root.Config,
 build_assets: *const std.StringArrayHashMapUnmanaged(BuildAsset),
+any_prerendering_error: bool = false,
+any_rendering_error: std.atomic.Value(bool) = .{ .raw = false },
 
 base_dir_path: []const u8,
 base_dir: std.fs.Dir,

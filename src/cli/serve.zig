@@ -34,7 +34,7 @@ pub const ServeEvent = union(enum) {
     disconnect: ws.Connection,
 };
 
-pub fn serve(gpa: Allocator, args: []const []const u8) void {
+pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     if (builtin.single_threaded) fatal.msg(
         "error: single-threaded zine does not yet support the 'serve' command, sorry",
         .{},

@@ -7,7 +7,7 @@ const worker = @import("../worker.zig");
 const Allocator = std.mem.Allocator;
 const BuildAsset = root.BuildAsset;
 
-pub fn release(gpa: Allocator, args: []const []const u8) void {
+pub fn release(gpa: Allocator, args: []const []const u8) bool {
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
@@ -18,7 +18,7 @@ pub fn release(gpa: Allocator, args: []const []const u8) void {
     worker.start();
     defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit();
 
-    const b = root.run(gpa, &cfg, .{
+    const build = root.run(gpa, &cfg, .{
         .base_dir_path = base_dir_path,
         .build_assets = &cmd.build_assets,
         .mode = .{
@@ -28,7 +28,22 @@ pub fn release(gpa: Allocator, args: []const []const u8) void {
         },
     });
 
-    if (builtin.mode == .Debug) b.deinit(gpa);
+    defer if (builtin.mode == .Debug) build.deinit(gpa);
+
+    if (tracy.enable) {
+        tracy.frameMarkNamed("waiting for tracy");
+        var progress_tracy = root.progress.start("Tracy", 0);
+        std.Thread.sleep(100 * std.time.ns_per_ms);
+        progress_tracy.end();
+    }
+
+    if (build.any_prerendering_error or
+        build.any_rendering_error.load(.acquire))
+    {
+        return true;
+    }
+
+    return false;
 }
 
 pub const Command = struct {

@@ -1001,14 +1001,9 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
     if (static_assets_errors or i18n_errors or collision_errors or
         parse_errors or analysis_errors or template_errors)
     {
-        // std.process.exit(1);
+        build.any_prerendering_error = true;
         return build;
     }
-
-    // if (cmd == .tree) {
-    //     try showTree(arena, &build);
-    //     std.process.exit(0);
-    // }
 
     var pages_to_render: usize = 0;
     var progress_page_render = progress.start("Render pages", 0);

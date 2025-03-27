@@ -6,7 +6,7 @@ const Allocator = std.mem.Allocator;
 
 const log = std.log.scoped(.init);
 
-pub fn init(gpa: Allocator, args: []const []const u8) void {
+pub fn init(gpa: Allocator, args: []const []const u8) bool {
     const cmd: Command = .parse(args);
     if (cmd.multilingual) @panic("TODO: multilingual init");
 
@@ -112,6 +112,8 @@ pub fn init(gpa: Allocator, args: []const []const u8) void {
         \\Read https://zine-ssg.io/documentation/ to learn more about Zine.
         \\
     , .{});
+
+    return false;
 }
 
 const Command = struct {

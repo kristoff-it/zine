@@ -70,7 +70,7 @@ pub const Job = union(enum) {
     },
     page_render: struct {
         progress: std.Progress.Node,
-        build: *const Build,
+        build: *Build,
         sites: *const std.StringArrayHashMapUnmanaged(context.Site),
         page: *Page,
         kind: RenderJobKind,
@@ -851,7 +851,7 @@ const SuperVM = superhtml.VM(context.Template, context.Value);
 fn renderPage(
     arena: Allocator,
     progress: std.Progress.Node,
-    build: *const Build,
+    build: *Build,
     sites: *const std.StringArrayHashMapUnmanaged(context.Site),
     page: *Page,
     kind: RenderJobKind,
@@ -950,7 +950,7 @@ fn renderPage(
         error.Done => break,
         error.Fatal => {
             std.debug.print("{s}\n", .{err_buf.items});
-            main.exit_code.store(1, .release);
+            build.any_rendering_error.store(true, .release);
             return;
         },
         error.OutOfMemory => fatal.oom(),
