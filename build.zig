@@ -183,6 +183,10 @@ pub fn build(b: *std.Build) !void {
     });
 
     if (target.result.os.tag == .macos) {
+        const frameworks = b.lazyDependency("frameworks", .{}) orelse return;
+        zine_exe.addIncludePath(frameworks.path("include"));
+        zine_exe.addFrameworkPath(frameworks.path("Frameworks"));
+        zine_exe.addLibraryPath(frameworks.path("lib"));
         zine_exe.linkFramework("CoreServices");
     }
 

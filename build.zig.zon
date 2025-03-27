@@ -49,6 +49,11 @@
             .url = "git+https://github.com/kristoff-it/superhtml#28dcf0edf98d491d47bacb65dc49b6fb979b444c",
             .hash = "superhtml-0.4.0-Y7MdPG-XDQCj1Lq3XsL5yOYfRqOXq7YWDey8XZGjnTE0",
         },
+        .frameworks = .{
+            .url = "git+https://github.com/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
+            .hash = "N-V-__8AALShqgXkvqYU6f__FrA22SMWmi2TXCJjNTO1m8XJ",
+            .lazy = true,
+        },
     },
     .paths = .{"."},
 }
