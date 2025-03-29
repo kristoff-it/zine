@@ -7,6 +7,7 @@ const scripty = @import("scripty");
 const supermd = @import("supermd");
 const utils = @import("utils.zig");
 const tracy = @import("tracy");
+const root = @import("../root.zig");
 const fatal = @import("../fatal.zig");
 const render = @import("../render.zig");
 const Signature = @import("doctypes.zig").Signature;
@@ -702,7 +703,7 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (context.pathValidationError(ref, .{})) |err| return err;
+            if (root.validatePathMessage(ref, .{})) |msg| return .{ .err = msg };
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const st = &v.string_table;

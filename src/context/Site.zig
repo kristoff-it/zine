@@ -169,7 +169,7 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (context.pathValidationError(ref, .{})) |err| return err;
+            if (root.validatePathMessage(ref, .{})) |msg| return .{ .err = msg };
 
             const st = &ctx._meta.build.st;
             const pt = &ctx._meta.build.pt;
@@ -229,7 +229,9 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (context.pathValidationError(ref, .{ .empty = true })) |err| return err;
+            if (root.validatePathMessage(ref, .{ .empty = true })) |msg| return .{
+                .err = msg,
+            };
 
             const variant = &ctx._meta.build.variants[site._meta.variant_id];
 

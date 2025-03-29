@@ -135,8 +135,7 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
         \\Run `zine release` to build your website in 'public/'.
         \\Run `zine help` for more commands and options.
         \\
-        \\Edit 'zine.ziggy' to change your website's main config.
-        \\Read https://zine-ssg.io/documentation/ to learn more about Zine.
+        \\Read https://zine-ssg.io/docs/ to learn more about Zine.
         \\
     , .{});
 

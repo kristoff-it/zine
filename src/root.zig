@@ -51,7 +51,7 @@ pub const Site = struct {
 
 pub const MultilingualSite = struct {
     /// URL where the website will be hosted.
-    /// It must not contain a path other than `/`.
+    /// It must not contain a path other than '/'.
     host_url: []const u8,
     /// Directory that contains mappings from placeholders to translations,
     /// expressed as Ziggy files.
@@ -105,7 +105,7 @@ pub const Locale = struct {
     /// Set to a non-null value when deploying this locale from a dedicated
     /// host (e.g. 'https://us.site.com', 'http://de.site.com').
     ///
-    /// It must not contain a subpath.
+    /// It must not contain a path other than '/'.
     host_url_override: ?[]const u8 = null,
     /// |  output_ |     host_     |     resulting    |    resulting    |
     /// |  prefix_ |      url_     |        url       |      path       |
@@ -160,7 +160,7 @@ pub const Config = union(enum) {
                         fatal.msg(
                             \\Unable to find a 'zine.ziggy' config file in this directory or any of its parents.
                             \\
-                            \\TODO: implement `zine init` and suggest its usage here
+                            \\Run `zine init` in an empty directory to bootstrap a Zine website.
                             \\
                         , .{});
                     };
@@ -183,7 +183,157 @@ pub const Config = union(enum) {
                 , .{diag.fmt(data)});
             };
 
+            cfg.validate();
+
             return .{ cfg, base_dir_path };
+        }
+    }
+
+    pub fn validate(cfg: *const Config) void {
+        switch (cfg.*) {
+            .Site => |s| {
+                const u = std.Uri.parse(s.host_url) catch |err| {
+                    fatal.msg("error: host url '{s}' in zine.ziggy is invalid: {s}", .{
+                        s.host_url, @errorName(err),
+                    });
+                };
+
+                if (!u.path.isEmpty()) blk: {
+                    switch (u.path) {
+                        .raw => {},
+                        .percent_encoded => |p| {
+                            if (std.mem.eql(u8, p, "/")) break :blk;
+                        },
+                    }
+                    fatal.msg(
+                        "error: 'host_url' in zine.ziggy must not contain a path (but contains '{path}'), set 'url_path_prefix' instead",
+                        .{u.path},
+                    );
+                }
+
+                if (u.query) |q| fatal.msg(
+                    "error: 'host_url' in zine.ziggy must not contain a query (but contains '{query}')",
+                    .{q},
+                );
+
+                if (u.fragment) |f| fatal.msg(
+                    "error: 'host_url' in zine.ziggy must not contain a fragment (but contains '{fragment}')",
+                    .{f},
+                );
+
+                const paths: []const []const u8 = &.{
+                    s.content_dir_path,
+                    s.assets_dir_path,
+                    s.layouts_dir_path,
+                };
+
+                for (paths) |p| if (validatePathMessage(p, .{})) |msg| fatal.msg(
+                    "error: path '{s}' in zine.ziggy: {s}\n",
+                    .{ p, msg },
+                );
+
+                if (validatePathMessage(
+                    s.url_path_prefix,
+                    .{ .empty = true },
+                )) |msg| fatal.msg(
+                    "error: url_path_prefix '{s}' in zine.ziggy: {s}\n",
+                    .{ s.url_path_prefix, msg },
+                );
+            },
+            .Multilingual => |ml| {
+                const u = std.Uri.parse(ml.host_url) catch |err| {
+                    fatal.msg("error: host_url '{s}' in zine.ziggy is invalid: {s}", .{
+                        ml.host_url, @errorName(err),
+                    });
+                };
+
+                if (!u.path.isEmpty()) blk: {
+                    switch (u.path) {
+                        .raw => {},
+                        .percent_encoded => |p| {
+                            if (std.mem.eql(u8, p, "/")) break :blk;
+                        },
+                    }
+                    fatal.msg(
+                        "error: host_url in zine.ziggy must not contain a path (but contains '{path}'), set 'url_path_prefix' instead",
+                        .{u.path},
+                    );
+                }
+
+                if (u.query) |q| fatal.msg(
+                    "error: host_url in zine.ziggy must not contain a query (but contains '{query}')",
+                    .{q},
+                );
+
+                if (u.fragment) |f| fatal.msg(
+                    "error: host_url in zine.ziggy must not contain a fragment (but contains '{fragment}')",
+                    .{f},
+                );
+
+                const paths: []const []const u8 = &.{
+                    ml.i18n_dir_path,
+                    ml.assets_dir_path,
+                    ml.layouts_dir_path,
+                };
+
+                for (paths) |p| if (validatePathMessage(p, .{})) |msg| fatal.msg(
+                    "error: path '{s}' in zine.ziggy: {s}\n",
+                    .{ p, msg },
+                );
+
+                for (ml.locales) |locale| {
+                    if (locale.code.len == 0) fatal.msg(
+                        "error: empty locale code found in zine.ziggy",
+                        .{},
+                    );
+
+                    if (validatePathMessage(
+                        locale.content_dir_path,
+                        .{},
+                    )) |msg| fatal.msg(
+                        "error: content_dir_path '{s}' in locale '{s}' in zine.ziggy: {s}\n",
+                        .{ locale.content_dir_path, locale.code, msg },
+                    );
+
+                    if (locale.host_url_override) |url| {
+                        const lu = std.Uri.parse(url) catch |err| {
+                            fatal.msg("error: host_url_override '{s}' in locale '{s}' in zine.ziggy is invalid: {s}", .{
+                                url, locale.code, @errorName(err),
+                            });
+                        };
+
+                        if (!lu.path.isEmpty()) blk: {
+                            switch (lu.path) {
+                                .raw => {},
+                                .percent_encoded => |p| {
+                                    if (std.mem.eql(u8, p, "/")) break :blk;
+                                },
+                            }
+                            fatal.msg(
+                                "error: host_url_override in locale '{s}' in zine.ziggy must not contain a path (but contains '{path}'), set 'url_path_prefix' instead",
+                                .{ locale.code, lu.path },
+                            );
+                        }
+
+                        if (lu.query) |q| fatal.msg(
+                            "error: host_url_override in locale '{s}' in zine.ziggy must not contain a query (but contains '{query}')",
+                            .{ locale.code, q },
+                        );
+
+                        if (lu.fragment) |f| fatal.msg(
+                            "error: host_url_override in locale '{s}' in zine.ziggy must not contain a fragment (but contains '{fragment}')",
+                            .{ locale.code, f },
+                        );
+                    }
+
+                    if (locale.output_prefix_override) |opo| {
+                        if (validatePathMessage(opo, .{ .empty = true })) |msg| fatal.msg(
+                            "error: output_prefix_override '{s}' in locale '{s}' in zine.ziggy: {s}\n",
+                            .{ opo, locale.code, msg },
+                        );
+                    }
+                }
+            },
         }
     }
 
@@ -1429,4 +1579,55 @@ pub fn join(allocator: std.mem.Allocator, paths: []const []const u8) ![]u8 {
 
     // No need for shrink since buf is exactly the correct size.
     return buf;
+}
+
+//NOTE: this must be kept in sync with SuperMD
+pub const PathValidationOptions = struct { empty: bool = false };
+pub fn validatePathMessage(
+    path: []const u8,
+    // Toggle checks
+    options: PathValidationOptions,
+) ?[]const u8 {
+    validatePath(path, options) catch |err| return switch (err) {
+        error.Spaces => "remove whitespace surrounding path",
+        error.Empty => "this builtin does not accept empty paths",
+        error.AbsolutePath => "absolute paths are not allowed here",
+        error.Backslash => "use '/' instead of '\\' as the path component separator",
+        error.Dots => "'.' and '..' are not allowed",
+        error.EmptyComponent => "empty component in path",
+    };
+
+    return null;
+}
+
+//NOTE: this must be kept in sync with SuperMD
+pub fn validatePath(
+    path: []const u8,
+    // Toggle checks
+    options: PathValidationOptions,
+) !void {
+    // Paths must not have spaces around them
+    const spaces = std.mem.trim(u8, path, &std.ascii.whitespace);
+    if (spaces.len != path.len) return error.Spaces;
+
+    // Paths cannot be empty unless we allow it
+    if (path.len == 0 and options.empty) return;
+    if (path.len == 0) return error.Empty;
+
+    // All paths must be relative
+    if (path[0] == '/') return error.AbsolutePath;
+
+    // Paths cannot contain Windows-style separators
+    if (std.mem.indexOfScalar(u8, path, '\\') != null) return error.Backslash;
+
+    // Path cannot contain any relative component (. or ..)
+    var it = std.mem.splitScalar(u8, path, '/');
+    while (it.next()) |c| {
+        if (std.mem.eql(u8, c, ".") or
+            std.mem.eql(u8, c, "..")) return error.Dots;
+
+        if (c.len == 0) {
+            if (it.next() != null) return error.EmptyComponent;
+        }
+    }
 }

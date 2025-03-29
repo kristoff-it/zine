@@ -4,6 +4,7 @@ const std = @import("std");
 const scripty = @import("scripty");
 const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
+const root = @import("root.zig");
 const doctypes = @import("context/doctypes.zig");
 const Variant = @import("Variant.zig");
 const Allocator = std.mem.Allocator;
@@ -206,50 +207,6 @@ pub const Value = union(enum) {
 };
 
 //NOTE: this must be kept in sync with SuperMD
-pub fn pathValidationError(
-    path: []const u8,
-    // Toggle checks
-    options: struct { empty: bool = false },
-) ?context.Value {
-    // Paths must not have spaces around them
-    const spaces = std.mem.trim(u8, path, &std.ascii.whitespace);
-    if (spaces.len != path.len) return .{
-        .err = "remove whitespace surrounding path",
-    };
-
-    // Paths cannot be empty unless we allow it
-    if (path.len == 0 and options.empty) return null;
-    if (path.len == 0) return .{
-        .err = "this builtin does not accept empty paths",
-    };
-
-    // All paths must be relative
-    if (path[0] == '/') return .{
-        .err = "this builtin does not accept absolute paths",
-    };
-
-    // Paths cannot contain Windows-style separators
-    if (std.mem.indexOfScalar(u8, path, '\\') != null) return .{
-        .err = "use '/' instead of '\\' as the path component separator",
-    };
-
-    // Path cannot contain any relative component (. or ..)
-    var it = std.mem.splitScalar(u8, path, '/');
-    while (it.next()) |c| {
-        if (std.mem.eql(u8, c, ".") or
-            std.mem.eql(u8, c, "..")) return .{
-            .err = "'.' and '..' are not allowed in paths, use the appropriate builtin instead",
-        };
-
-        if (c.len == 0) {
-            if (it.next() != null) return .{
-                .err = "empty component in path",
-            };
-        }
-    }
-
-    return null;
-}
 
 pub fn stripTrailingSlash(path: []const u8) []const u8 {
     if (path[path.len - 1] == '/') return path[0 .. path.len - 1];
