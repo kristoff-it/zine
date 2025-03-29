@@ -82,7 +82,7 @@ function zineConnect() {
           box.innerHTML = "<h1 style=\"color: red\">ZINE BUILD ERROR</h1>" ;
         }
 
-        box.innerHTML += "\n\n" + msg.err;
+        box.innerHTML += "\n\n" + msg.err.replace(/</g, "&lt;");
       } else {
         let box = document.getElementById(id);
         if (box != null) box.remove();

@@ -34,7 +34,6 @@ of authoring languages:
   ># [NOTE]($block)
   >The correct file extension for SuperMD pages is `.smd`.
 
-
 ## Zine is alpha software
 
 Zine is not yet complete. The main functionality is present and you will be able
@@ -44,6 +43,12 @@ That said using Zine today does imply participating in the development process
 to some degree, which usually means inquiring about the development status of
 a feature you need, or reporting a bug.
 
+
+Here are some quicklinks related to Zine:
+
+- Official Website: https://zine-ssg.io/
+- Source Code: https://github.com/kristoff-it/zine/
+- Discord: https://discord.com/invite/B73sGxF
   
 
 

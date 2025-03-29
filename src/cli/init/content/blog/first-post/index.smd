@@ -1,0 +1,110 @@
+---
+.title = "First Post: What's A Zine?",
+.date = @date("1990-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "post.shtml",
+.draft = false,
+--- 
+
+This is a sample first post for your blog.
+
+This post is defined in `content/blog/first-post/` and contains the following
+files:
+
+- `index.smd`
+- `fanzine.jpg`
+
+Another interesting thing about this post is that it uses the `layouts/post.shtml`
+template which adds at the bottom page navigation within the blog section.
+
+Enough about Zine, let's talk about zines.
+
+## Fanzines
+
+A zine (short for *fanzine*, from "fan" + "magazine") is a non-professional
+publication created by people that want to express themselves in paper form,
+usually in relation to a cultural phenomenon of some kind.
+
+[An example of zine from 1976.](<$image.asset("fanzine.jpg").alt("A photo of a black and white flyer. The main title reads 'A night of pure energy' and the rest of the page contains a mix of pictures of guitarists interleaved with other text snippets, some seemingly taken from a professional publication of some kind, and some handwritten to announce concert night dates, presumably for the musicians in the picture.")>)
+
+## Zines in the digital era
+
+In the digital age, some of the cultural impetus behind zines got redirected to
+personal blogs and similar digital, non-professional publications. The 90's and
+early 00's are famous for their whacky websites full of clip art, wordart text
+and "under construction" animated gifs.
+
+This initial organic exploration didn't last for too long as the rise of social
+media diverted a lot of self-expression energy towards walled gardens, a change
+that was also fueled by the much tighter and intense feedback loop that those
+platform enable.
+
+In the 90's the stongest dopamine hit you could get was adding a visit counter
+to your altavista website and watch it go up, slowly, mostly because of your own
+accesses. In modern times views are almost meaningless and interactions such as
+*likes*, *retweets* and *comments* provide much stronger positive feedback.
+
+An unfortunate side effect of this new cultural wave centered around social media
+is that not only you end up gifting your content to platform owners, but you also
+participate in a system where the *language* of the social media site shapes your
+thoughts and experience in specific, and often user-hostile, ways.
+
+Art, just like liquids, takes the shape of the container you put it in. A mobile
+game that lives off of in app purchases will never be truly great because of the
+tension between making the game entertaining enough to keep players engaged, and
+the need to make it boring enough so that they will want to buy upgrades to make
+the game more fun.
+
+Similarly, self-expression on Twitter is encouraged to take the shape of short,
+hyperbolic hot takes that forgo nuance in order to create catchy quips that can
+be used for hasty decision making.
+
+Likewise, [corpowave]($text.attrs('wave')) never goes out of style on LinkedIn.
+Spend enough time in there and you will become a character from Severance.
+
+## We're not in 1990 anymore
+
+Despite all the issues with social media, there is no point in thinking of the
+90's as a better time. It was not. And despite the winks at the past, Zine is
+not a tool for indulging in nostalgia.
+
+**The goal is to make art**: the act of inducing a change in others through
+our self-expression.
+
+You could argue that the 90's excelled at self-expression, but in doing so you
+would also have to accept that social media is infinitely more effective at
+inducing change in others (albeit at the expense of freedom of expression).
+
+Once you realize that, the path forward is clear:
+
+1. Own your content.
+2. Create new social systems that optimize for creating art over engagement.
+
+Owning your content means that you will be unaffected by enshittification of
+platforms that would otherwise keep your data hostage. It also is the single
+most effective thing you can do as an individual to take power away from
+platforms, all while protecting your own immediate interests.
+
+Creation of new social systems is a *slightly more hairy* problem than self
+hosting a static website, but it's something that can be done. Over the years
+we've had plenty of social outlets that have allowed people to socialize through
+their homemade games, music, drawings, fanfics, etc; and chances are that we
+have yet many more of these outlets ahead of us to create.
+
+Zine gives you a small puzzle piece to help you inch closer toward a better
+future, partially by providing you with a new iteration over tried and true
+patterns (e.g. by facilitating content creation by separating content from
+layouting concerns as much as possible), and also by being a bit experimental
+with the concept of a devlog, something that you wouldn't normally expect to
+find on a static website.
+
+Lastly, Zine makes sure your content (both blog and devlog, but also any
+other content format you might come up with yourself) is available via RSS
+syndication. RSS feeds are far from a winning technology in the fight against
+the ebb and *enshitty*flow of social media, but they are another small puzzle
+piece that costs nothing to maintain and that might turn out to be critical once
+enough other preconditions are met.
+
+With that in mind, **go make art with your words**.
+
+-- Loris

@@ -16,9 +16,16 @@
       <a href="$site.page('about').link()">About</a>
       	&nbsp; • &nbsp;
       <a href="$site.page('blog').link()">Blog</a>
-      	&nbsp; • &nbsp;
-      <a href="$site.page('blog').link()">Devlog</a>
+      <ctx :if="$site.page('devlog').subpages().first?()">
+        	&nbsp; • &nbsp;
+        <a href="$if.link()">Devlog</a>
+      </ctx>
     </nav>
     <super>
+    <footer>
+      <hr>
+      <h5>SITE UNDER CONSTRUCTION</h5>
+      <img src="$site.asset('under-construction.gif').link()" width=90>
+    </footer>
   </body>
 </html>

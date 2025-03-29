@@ -6,7 +6,6 @@
 .draft = false,
 --- 
 
-
 This sample website showcases:
 
 - A couple simple pages
@@ -14,28 +13,13 @@ This sample website showcases:
   - `content/about.smd`
 - A blog
   - `content/blog/index.smd`
-  - `content/blog/first-post.smd`
-  - `content/blog/second-post/index.smd`
-- A devlog [(more on this later)]($text.attrs('small'))
+  - `content/blog/first-post/index.smd`
+  - `content/blog/second-post.smd`
+- A devlog 
   - `content/devlog/index.smd`
-  - `content/devlog/archive/index.smd`
+  - `content/devlog/1990.smd`
+  - `content/devlog/1989.smd`
 
-The blog and the devlog have each a dedicated RSS feed generated in the output directory:
-- `public/blog/index.xml`
-- `public/devlog/index.xml` 
-
-In Zine, RSS feeds are considered "alternative" versions of an existing page. In concrete terms `blog/index.smd`, which is the page that defines the blog subsection and that lists all pages in it, is rendered in two versions: HTML for human readers, and XML for RSS readers. 
-
-This is the SuperMD frontmatter code that defines RSS feeds for those pages:
-
-```ziggy
-.alternatives = [{ 
-    .name = "rss",
-    .layout = "rss.xml", 
-    .output = "index.xml",
-}],
-```
-[(btw syntax highlighting is done statically in Zine, no need for javascript libraries, unless you want to)]($text.attrs('small'))
 
 
 ## About Devlogs
@@ -48,7 +32,16 @@ RSS feed will generate a separate item per devlog entry, creating a
 This can be a useful pattern for thoughts that are too small for a full blog post
 so consider giving it a try!
 
-Some examples of devlogs:
+The name "devlog" comes from the fact that this kind of microblogging feed works
+well when you have an open source project and you want to give small updates to
+your users, but it might work equally well for other domains, depending on your
+interests and audience. Maybe a "foodlog", a "catlog" or a "treklog" could also
+work well.
+
+The devlog section contains more information about how devlogs can be implemented
+in Zine.
+
+Some examples of devlogs in the wild:
  - https://zine-ssg.io/log/
  - https://ziglang.org/devlog/
 
@@ -63,9 +56,15 @@ the existing pages. Before deleting existing copy consider giving it a brief
 look as it will show you some SuperMD specific syntax.
 
 HTML markup in Zine is defined via SuperHTML templates:
-- layouts/index.shtml
-- layouts/page.shtml
-- layouts/templates/base.shtml
+- `layouts/index.shtml`
+- `layouts/page.shtml`
+- `layouts/post.shtml`
+- `layouts/blog.shtml`
+- `layouts/blog.xml`
+- `layouts/devlog.shtml`
+- `layouts/devlog.xml`
+- `layouts/devlog-archive.shtml`
+- `layouts/templates/base.shtml`
 
 **If you're running `zine serve`, then all changes you make will be picked up
 immediately, causing the website to rebuild and the page in your browser to
@@ -73,7 +72,14 @@ refresh**.
 
 You can learn more about SuperMD and SuperHTML in [/about/](/about/).
 
+Lastly, this sample website also includes the following asset files:
 
+- `assets/style.css`
+- `assets/hightlight.css`
+- `assets/under-construction.gif`
+- `content/blog/first-post/fanzine.jpg`
 
+The first three asset files are **site assets**, while the last is a **page asset** that belongs to the "first post" page.
 
+The Zine docs contain more information about [dealing with assets](https://zine-ssg.io/docs/assets/).
 

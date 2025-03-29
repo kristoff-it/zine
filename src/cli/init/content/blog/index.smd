@@ -3,10 +3,38 @@
 .date = @date("1990-01-01T00:00:00"),
 .author = "Sample Author",
 .layout = "blog.shtml",
+.alternatives = [{ 
+    .name = "rss",
+    .layout = "blog.xml", 
+    .output = "index.xml",
+}],
 .draft = false,
 --- 
 
+This page defines the blog section and lists all posts in it.
 
-# The blog section.
+A "site section" in Zine is a group of pages that form a logical subtree of the
+website. It's related to directory structure, but it's not an entirely 1:1 mapping.
 
+What defines a site section in Zine is the presence of `index.smd` files. You
+can learn more [in the official Zine docs](https://zine-ssg.io/docs/).
 
+Take also a look at `layouts/blog.shtml` to get an idea of how to render a page
+list in a SuperHTML template.
+
+The blog section also has an [RSS feed]($link.alternative('rss')).
+
+In Zine, RSS feeds are considered "alternative" versions of an existing page. In
+concrete defines the blog section and that lists all pages in it, is rendered in
+two versions: HTML for human readers, and XML for RSS readers.
+
+This is the SuperMD frontmatter code that defines the RSS feed:
+
+```ziggy
+.alternatives = [{ 
+    .name = "rss",
+    .layout = "rss.xml", 
+    .output = "index.xml",
+}],
+```
+[(btw syntax highlighting is done statically in Zine, no need for javascript libraries, unless you want to)]($text.attrs('small'))

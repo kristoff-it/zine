@@ -1,0 +1,32 @@
+---
+.title = "Devlog Archive",
+.date = @date("1990-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "devlog-archive.shtml",
+.alternatives = [{ 
+    .name = "rss",
+    .layout = "devlog.xml", 
+    .output = "index.xml",
+}],
+.draft = false,
+--- 
+
+This page lists all the devlog years that are present on this site.
+Note how the top navigation menu doesn't link to this page, but instead links
+to the latest devlog year directly.
+
+The reason for adopting this structure is to make sure that links that exist in
+the wild to entries to our devlog don't become invalidated when a new year comes
+around and we rotate the devlog feed.
+
+Devlog rotation ensures that you don't have a single page that grows
+indefinitely, eventually compromising your editing expreience and worsening your
+user's browsing experience. You can use any arbitrary policy (even deleting old
+entries if you are fine with having a more ephemeral devlog), but cutting them
+by year is a good default option. 
+
+When rotating a devlog all you have to do is create a new page with a newer
+date set in the frontmatter `date` field, and update the page description to let
+people know that this page is not the current year's devlog anymore.
+
+The latest devlog year is also available [via RSS feed]($link.alternative('rss')).

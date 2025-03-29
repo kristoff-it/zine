@@ -1,0 +1,18 @@
+---
+.title = "Devlog - 1989",
+.date = @date("1989-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "devlog.shtml",
+.draft = false,
+--- 
+[]($section.id('about'))
+## About this Devlog
+This is a non-exhaustive, curated list of changes meant to help users quickly see what has improved since they last checked.
+
+You can [subscribe the latest devlog via RSS]($link.page('devlog').alternative('rss')).
+
+This page lists entries for the year 1989, for past or future entries consult the
+[devlog archive](/devlog/).
+
+## [Hello 1989]($section.id("1989-01-01T00:00:00"))
+This is a sample entry.

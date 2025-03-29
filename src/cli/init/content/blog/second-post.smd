@@ -1,0 +1,12 @@
+---
+.title = "Second Post",
+.date = @date("1990-01-02T00:00:00"),
+.author = "Sample Author",
+.layout = "post.shtml",
+.draft = false,
+--- 
+
+This second post is here just to show you that you can also create single file
+posts for convenience.
+
+The first post contains more interesting content.

@@ -1,0 +1,38 @@
+---
+.title = "Devlog - 1990",
+.date = @date("1990-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "devlog.shtml",
+.draft = false,
+--- 
+[]($section.id('about'))
+## About this Devlog
+
+This is where you should describe to your users what your devlog is about.
+Refer to the corresponding section in the home page to learn more about devlogs.
+
+For example this is how the Zine devlog describes itself:
+
+> This is a non-exhaustive, curated list of changes meant to help users quickly see what has improved since they last checked.
+>
+> You can [subscribe to this page via RSS]($link.page('devlog').alternative('rss')).
+>
+> This page lists entries for the current year, for past entries consult the
+[devlog archive](/devlog/).
+
+Feel free to tweak it to your specific use case or replace it entirely as you
+see fit.
+
+Regardless of what you decide, you might want to make sure you preserve the
+links to the RSS feed and to the devlog archive from the copy above.
+
+
+## [Third Entry]($section.id("1990-01-03T00:00:00"))
+This is the third entry.
+
+## [Second Entry]($section.id("1990-01-02T00:00:00"))
+This is the second entry.
+
+## [Hello Zine]($section.id("1990-01-01T00:00:00"))
+This is the first entry in this year's devlog created with
+[Zine](https://zine-ssg.io)!

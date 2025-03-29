@@ -7,46 +7,17 @@ const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.init);
 
 pub fn init(gpa: Allocator, args: []const []const u8) bool {
+    _ = gpa;
+
     const cmd: Command = .parse(args);
     if (cmd.multilingual) @panic("TODO: multilingual init");
 
-    // zine.ziggy
-    blk: {
-        const zine_ziggy =
-            \\Site {{
-            \\    .title = "{0s}",
-            \\    .host_url = "https://{0s}",
-            \\    .content_dir_path = "content",
-            \\    .layouts_dir_path = "layouts",
-            \\    .assets_dir_path = "assets",
-            \\}}
-            \\
-        ;
-
-        const name = std.fs.path.basename(
-            std.process.getCwdAlloc(gpa) catch "sample-site.com",
-        );
-        const f = std.fs.cwd().createFile("zine.ziggy", .{
-            .exclusive = true,
-        }) catch |err| switch (err) {
-            else => fatal.file("zine.ziggy", err),
-            error.PathAlreadyExists => {
-                std.debug.print(
-                    "WARNING: 'zine.ziggy' already exists, skipping.\n",
-                    .{},
-                );
-                break :blk;
-            },
-        };
-        std.debug.print("Created: zine.ziggy\n", .{});
-        f.writer().print(
-            zine_ziggy,
-            .{name},
-        ) catch |err| fatal.file("zine.ziggy", err);
-    }
-
     const File = struct { path: []const u8, src: []const u8 };
     const files = [_]File{
+        .{
+            .path = "zine.ziggy",
+            .src = @embedFile("init/zine.ziggy"),
+        },
         .{
             .path = "content/index.smd",
             .src = @embedFile("init/content/index.smd"),
@@ -56,12 +27,32 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
             .src = @embedFile("init/content/about.smd"),
         },
         .{
-            .path = "content/blog/first-post.smd",
-            .src = @embedFile("init/content/blog/first-post.smd"),
+            .path = "content/blog/index.smd",
+            .src = @embedFile("init/content/blog/index.smd"),
         },
         .{
-            .path = "content/blog/second-post/index.smd",
-            .src = @embedFile("init/content/blog/second-post/index.smd"),
+            .path = "content/blog/first-post/index.smd",
+            .src = @embedFile("init/content/blog/first-post/index.smd"),
+        },
+        .{
+            .path = "content/blog/first-post/fanzine.jpg",
+            .src = @embedFile("init/content/blog/first-post/fanzine.jpg"),
+        },
+        .{
+            .path = "content/blog/second-post.smd",
+            .src = @embedFile("init/content/blog/second-post.smd"),
+        },
+        .{
+            .path = "content/devlog/index.smd",
+            .src = @embedFile("init/content/devlog/index.smd"),
+        },
+        .{
+            .path = "content/devlog/1990.smd",
+            .src = @embedFile("init/content/devlog/1990.smd"),
+        },
+        .{
+            .path = "content/devlog/1989.smd",
+            .src = @embedFile("init/content/devlog/1989.smd"),
         },
         .{
             .path = "layouts/index.shtml",
@@ -72,8 +63,44 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
             .src = @embedFile("init/layouts/page.shtml"),
         },
         .{
+            .path = "layouts/post.shtml",
+            .src = @embedFile("init/layouts/post.shtml"),
+        },
+        .{
+            .path = "layouts/blog.shtml",
+            .src = @embedFile("init/layouts/blog.shtml"),
+        },
+        .{
+            .path = "layouts/blog.xml",
+            .src = @embedFile("init/layouts/blog.xml"),
+        },
+        .{
+            .path = "layouts/devlog.shtml",
+            .src = @embedFile("init/layouts/devlog.shtml"),
+        },
+        .{
+            .path = "layouts/devlog.xml",
+            .src = @embedFile("init/layouts/devlog.xml"),
+        },
+        .{
+            .path = "layouts/devlog-archive.shtml",
+            .src = @embedFile("init/layouts/devlog-archive.shtml"),
+        },
+        .{
             .path = "layouts/templates/base.shtml",
             .src = @embedFile("init/layouts/templates/base.shtml"),
+        },
+        .{
+            .path = "assets/style.css",
+            .src = @embedFile("init/assets/style.css"),
+        },
+        .{
+            .path = "assets/highlight.css",
+            .src = @embedFile("init/assets/highlight.css"),
+        },
+        .{
+            .path = "assets/under-construction.gif",
+            .src = @embedFile("init/assets/under-construction.gif"),
         },
     };
 

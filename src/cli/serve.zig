@@ -218,6 +218,30 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
 
                                 break :outer;
                             }
+
+                            for (p._render.alternatives) |alt| {
+                                if (alt.errors.len > 0) {
+                                    const bytes = try std.json.stringifyAlloc(
+                                        gpa,
+                                        .{
+                                            .command = "build",
+                                            .err = alt.errors,
+                                        },
+                                        .{},
+                                    );
+
+                                    defer gpa.free(bytes);
+
+                                    conn.writeMessage(bytes, .text) catch |err| {
+                                        log.debug(
+                                            "error writing to ws: {s}",
+                                            .{@errorName(err)},
+                                        );
+                                    };
+
+                                    break :outer;
+                                }
+                            }
                         }
                     }
                 }
@@ -526,12 +550,15 @@ pub const Server = struct {
         }
 
         if (std.mem.eql(u8, path, "/__zine/zinereload.js")) {
-            try req.respond(zinereload_js, .{
+            req.respond(zinereload_js, .{
                 .extra_headers = &.{
                     .{ .name = "content-type", .value = "text/javascript" },
                     // .{ .name = "connection", .value = "close" },
                 },
-            });
+            }) catch |err| log.debug(
+                "error while sending http response: {}",
+                .{err},
+            );
 
             log.debug("sent livereload script", .{});
             return;
@@ -576,7 +603,7 @@ pub const Server = struct {
                 req,
                 server.build.site_assets_dir,
                 mime_type,
-                path,
+                path[1..],
             ) catch |err| fatal.file(path, err);
         }
 
@@ -590,62 +617,61 @@ pub const Server = struct {
                 subpath,
             ) orelse continue) orelse continue;
 
+            const page = &v.pages.items[hint.id];
+            if (hint.kind != .page_asset) {
+                if (!page._parse.active) return sendError(
+                    arena,
+                    req,
+                    "This page is not active",
+                );
+
+                if (page._parse.status != .parsed) return sendError(
+                    arena,
+                    req,
+                    "This page failed to parse",
+                );
+
+                if (page._analysis.frontmatter.items.len > 0) return sendError(
+                    arena,
+                    req,
+                    "This page has frontmatter errors",
+                );
+
+                if (page._analysis.page.items.len > 0) return sendError(
+                    arena,
+                    req,
+                    "This page contains SuperMD errors",
+                );
+
+                // TODO: why not just send the error directly for good measure?
+                if (page._render.errors.len > 0) return sendError(
+                    arena,
+                    req,
+                    "This page contains rendering errors",
+                );
+            }
+
             switch (hint.kind) {
-                .page_main => {
-                    const page = &v.pages.items[hint.id];
-
-                    if (!page._parse.active) return sendError(
-                        arena,
-                        req,
-                        "This page is not active",
-                    );
-
-                    if (page._parse.status != .parsed) return sendError(
-                        arena,
-                        req,
-                        "This page failed to parse",
-                    );
-
-                    if (page._analysis.frontmatter.items.len > 0) return sendError(
-                        arena,
-                        req,
-                        "This page has frontmatter errors",
-                    );
-
-                    if (page._analysis.page.items.len > 0) return sendError(
-                        arena,
-                        req,
-                        "This page contains SuperMD errors",
-                    );
-
-                    // TODO: why not just send the error directly for good measure?
-                    if (page._render.errors.len > 0) return sendError(
-                        arena,
-                        req,
-                        "This page contains rendering errors",
-                    );
-
+                .page_main, .page_alias => {
                     return sendHtml(
                         arena,
                         req,
                         page._render.out,
                     ) catch |err| fatal.file(path, err);
                 },
-                .page_alias => {
-                    const page = &v.pages.items[hint.id];
-                    return sendHtml(
-                        arena,
-                        req,
-                        page._render.out,
-                    ) catch |err| fatal.file(path, err);
-                },
-                .page_alternative => {
+                .page_alternative => |name| {
+                    const idx = for (page.alternatives, 0..) |alt, idx| {
+                        if (std.mem.eql(u8, alt.name, name)) {
+                            break idx;
+                        }
+                    } else unreachable;
+
                     // NOTE: some alternatives might be XML!
-                    const page = &v.pages.items[hint.id];
-                    return sendHtml(
+                    return sendAlternative(
                         arena,
                         req,
-                        page._render.out,
+                        subpath,
+                        page._render.alternatives[idx].out,
                     ) catch |err| fatal.file(path, err);
                 },
                 .page_asset => |pa| {
@@ -695,6 +721,31 @@ pub const Server = struct {
         }
     }
 
+    fn sendAlternative(
+        arena: Allocator,
+        req: *std.http.Server.Request,
+        path: []const u8,
+        src: []const u8,
+    ) !void {
+        const ext = std.fs.path.extension(path);
+        const mime_type = mime.extension_map.get(ext) orelse
+            .@"application/octet-stream";
+
+        if (mime_type == .@"text/html") {
+            return sendHtml(arena, req, src);
+        }
+
+        req.respond(src, .{
+            .status = .ok,
+            .extra_headers = &.{
+                .{ .name = "content-type", .value = @tagName(mime_type) },
+            },
+        }) catch |err| log.debug(
+            "error while sending http response: {}",
+            .{err},
+        );
+    }
+
     fn sendHtml(
         arena: Allocator,
         req: *std.http.Server.Request,
@@ -712,13 +763,15 @@ pub const Server = struct {
             src[head_pos..],
         });
 
-        try req.respond(injected, .{
+        req.respond(injected, .{
             .status = .ok,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "text/html" },
-                .{ .name = "connection", .value = "close" },
             },
-        });
+        }) catch |err| log.debug(
+            "error while sending http response: {}",
+            .{err},
+        );
     }
 
     fn sendError(
@@ -728,13 +781,15 @@ pub const Server = struct {
     ) !void {
         const data = try std.fmt.allocPrint(arena, error_html, .{msg});
 
-        try req.respond(data, .{
+        req.respond(data, .{
             .status = .not_found,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "text/html" },
-                // .{ .name = "connection", .value = "close" },
             },
-        });
+        }) catch |err| log.debug(
+            "error while sending http response: {}",
+            .{err},
+        );
         log.debug("not found", .{});
     }
     fn sendNotFound(
@@ -751,13 +806,16 @@ pub const Server = struct {
 
         const data = try std.fmt.allocPrint(arena, not_found_html, .{msg});
 
-        try req.respond(data, .{
+        req.respond(data, .{
             .status = .not_found,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = "text/html" },
                 // .{ .name = "connection", .value = "close" },
             },
-        });
+        }) catch |err| log.debug(
+            "error while sending http response: {}",
+            .{err},
+        );
         log.debug("not found", .{});
     }
 
@@ -768,11 +826,11 @@ pub const Server = struct {
         mime_type: mime.Type,
         file_path: []const u8,
     ) !void {
-        assert(file_path[0] == '/');
+        assert(file_path[0] != '/');
 
         const contents = try dir.readFileAlloc(
             arena,
-            file_path[1..],
+            file_path,
             std.math.maxInt(usize),
         );
 
@@ -780,13 +838,16 @@ pub const Server = struct {
             return sendHtml(arena, req, contents);
         }
 
-        try req.respond(contents, .{
+        req.respond(contents, .{
             .status = .ok,
             .extra_headers = &.{
                 .{ .name = "content-type", .value = @tagName(mime_type) },
                 // .{ .name = "connection", .value = "close" },
             },
-        });
+        }) catch |err| log.debug(
+            "error while sending http response: {}",
+            .{err},
+        );
     }
 
     fn appendSlashRedirect(
@@ -802,14 +863,17 @@ pub const Server = struct {
             .{ path_with_query[0..query_start], path_with_query[query_start..] },
         );
 
-        try req.respond(not_found_html, .{
+        req.respond(not_found_html, .{
             .status = .see_other,
             .extra_headers = &.{
                 .{ .name = "location", .value = location },
                 .{ .name = "content-type", .value = "text/html" },
                 .{ .name = "connection", .value = "close" },
             },
-        });
+        }) catch |err| log.debug(
+            "error while sending http response: {}",
+            .{err},
+        );
         log.debug("append final slash redirect", .{});
     }
 

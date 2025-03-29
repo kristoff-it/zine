@@ -661,8 +661,6 @@ fn analyzeContent(
                             });
                             for (other_page.alternatives) |alt| {
                                 if (std.mem.eql(u8, alt.name, alt_name)) {
-                                    // TODO: semantics for relative output paths
-                                    assert(std.mem.startsWith(u8, alt.output, "/"));
                                     p.resolved.alt = alt.output;
                                     break;
                                 }
@@ -898,14 +896,14 @@ fn renderPage(
     const p = progress.start(progress_name, 0);
     defer p.end();
 
-    page._meta = .{
-        // .is_root = true,
-        .src = page._parse.full_src[page._parse.fm.offset..],
-        .ast = page._parse.ast,
-        .word_count = @intCast(page._parse.full_src[page._parse.fm.offset..].len / 6),
-        // .index_in_section = 0,
-        // .parent_section_path = "",
-    };
+    // page._meta = .{
+    //     // .is_root = true,
+    //     .src = page._parse.full_src[page._parse.fm.offset..],
+    //     .ast = page._parse.ast,
+    //     .word_count = @intCast(page._parse.full_src[page._parse.fm.offset..].len / 6),
+    //     // .index_in_section = 0,
+    //     // .parent_section_path = "",
+    // };
 
     var ctx: context.Template = .{
         .site = &sites.entries.items(.value)[variant_id],
@@ -952,10 +950,10 @@ fn renderPage(
             std.debug.print("{s}\n", .{err_buf.items});
             build.any_rendering_error.store(true, .release);
             if (build.mode == .memory) {
-                page._render = .{
-                    .out = "",
-                    .errors = err_buf.items,
-                };
+                switch (kind) {
+                    .main => page._render.errors = err_buf.items,
+                    .alternative => |aidx| page._render.alternatives[aidx].errors = err_buf.items,
+                }
             }
             return;
         },
@@ -989,9 +987,15 @@ fn renderPage(
     };
 
     switch (build.mode) {
-        .memory => page._render = .{
-            .out = out_buf.items,
-            .errors = err_buf.items,
+        .memory => switch (kind) {
+            .main => {
+                page._render.out = out_buf.items;
+                page._render.errors = "";
+            },
+            .alternative => |aidx| {
+                page._render.alternatives[aidx].out = out_buf.items;
+                page._render.alternatives[aidx].errors = "";
+            },
         },
         .disk => |disk| {
             defer out_buf.deinit(gpa);
@@ -1031,22 +1035,20 @@ fn renderPage(
                 },
 
                 .alternative => |idx| blk: {
-                    const out_path = page.alternatives[idx].output;
-                    if (out_path[0] != '/') {
-                        std.debug.panic("Output paths for alternatives must be absolute (i.e. start with a '/'). Previously Zine interpreted the path as relative from the output root dir no matter what, but I would like to let users define also relative paths if they want to. That said, at the moment only absolute paths are implemented. The page that triggered this panic: '{s}/{s}'", .{
-                            page_path,
-                            page._scan.md_name.slice(&variant.string_table),
-                        });
-                    }
+                    const raw_path = page.alternatives[idx].output;
+                    const out_path = if (raw_path[0] == '/') raw_path[1..] else try std.fs.path.join(
+                        arena,
+                        &.{ page_path, raw_path },
+                    );
 
                     if (std.fs.path.dirnamePosix(out_path)) |path| {
                         disk.install_dir.makePath(
-                            path[1..],
+                            path,
                         ) catch |err| fatal.dir(path, err);
                     }
 
                     break :blk disk.install_dir.createFile(
-                        out_path[1..],
+                        out_path,
                         .{},
                     ) catch |err| fatal.file("index.html", err);
                 },

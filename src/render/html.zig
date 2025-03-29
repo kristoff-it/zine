@@ -3,6 +3,7 @@ const supermd = @import("supermd");
 const tracy = @import("tracy");
 const hl = @import("../highlight.zig");
 const context = @import("../context.zig");
+const StringTable = @import("../StringTable.zig");
 const PathTable = @import("../PathTable.zig");
 const Path = PathTable.Path;
 const PathName = PathTable.PathName;
@@ -531,9 +532,37 @@ fn printUrl(
     src: supermd.context.Src,
     w: anytype,
 ) !void {
+    const index_smd: StringTable.String = @enumFromInt(1);
     switch (src) {
         .url => |url| try w.writeAll(url),
-        .self_page => |alt| if (alt) |a| try w.writeAll(a),
+        .self_page => |alt| if (alt) |a| {
+            try ctx.printLinkPrefix(
+                w,
+                page._scan.variant_id,
+                // We are not checking the variant id so two different pages
+                // might have the same id in different variant arrays, but we
+                // don't care because, when the variant is different, the full
+                // host url will be printed anyway.
+                // NOTE: `p.resolved.page_id` is not the same as `page._scan.page_id`
+                page != ctx.page,
+            );
+
+            if (a[0] != '/') {
+                const v = ctx._meta.build.variants[page._scan.variant_id];
+                try w.print("{s}", .{page._scan.md_path.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    true,
+                )});
+
+                if (page._scan.md_name != index_smd) {
+                    const name = page._scan.md_name.slice(&v.string_table);
+                    try w.print("{s}/", .{std.fs.path.stem(name)});
+                }
+            }
+
+            try w.writeAll(a);
+        },
         .page => |p| {
             try ctx.printLinkPrefix(
                 w,
@@ -546,11 +575,18 @@ fn printUrl(
                 page != ctx.page,
             );
 
+            const path: Path = @enumFromInt(p.resolved.path);
+            const v = ctx._meta.build.variants[p.resolved.variant_id];
             if (p.resolved.alt) |a| {
+                if (a[0] != '/') {
+                    try w.print("{s}", .{path.fmt(
+                        &v.string_table,
+                        &v.path_table,
+                        true,
+                    )});
+                }
                 try w.writeAll(a);
             } else {
-                const path: Path = @enumFromInt(p.resolved.path);
-                const v = ctx._meta.build.variants[p.resolved.variant_id];
                 try w.print("{}", .{path.fmt(&v.string_table, &v.path_table, true)});
             }
         },

@@ -1,7 +1,8 @@
 h1,
 h2,
 h3,
-h4 {
+h4,
+h5 {
   color: #ddd;
   font-family: "Verdana", sans-serif;
 }
@@ -62,7 +63,23 @@ nav {
   margin-bottom: 0;
 }
 
-
 .small {
   font-size: 0.8em;
+}
+
+.wave {
+  background: #111;
+  color: #fff;
+  text-shadow: 1px 1px 10px #fff, 1px 1px 10px #ccc;
+}
+
+footer {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+footer hr {
+  width: 100%;
 }

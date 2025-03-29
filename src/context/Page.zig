@@ -35,7 +35,7 @@ pub const ziggy_options = struct {
         ._parse,
         ._analysis,
         ._render,
-        ._meta,
+        // ._meta,
     };
 };
 
@@ -109,27 +109,31 @@ _analysis: struct {
 
 // Valid if analysis contains no errors and build mode == .memory
 _render: struct {
-    out: []const u8,
-    errors: []const u8,
+    out: []const u8 = "",
+    errors: []const u8 = "",
+    alternatives: []struct {
+        out: []const u8,
+        errors: []const u8,
+    },
 } = undefined,
 
-_meta: struct {
-    site: *const context.Site = undefined,
-    md_path: []const u8 = "",
-    md_rel_path: []const u8 = "",
-    md_asset_dir_path: []const u8 = "",
-    md_asset_dir_rel_path: []const u8 = "",
+// _meta: struct {
+//     site: *const context.Site = undefined,
+//     md_path: []const u8 = "",
+//     md_rel_path: []const u8 = "",
+//     md_asset_dir_path: []const u8 = "",
+//     md_asset_dir_rel_path: []const u8 = "",
 
-    // true when this page has not been loaded via Scripty
-    is_root: bool = false,
-    parent_section_path: ?[]const u8 = null,
-    index_in_section: ?usize = null,
-    word_count: u64 = 0,
-    is_section: bool = false,
-    key_variants: []const Translation = &.{},
-    src: []const u8 = "",
-    ast: ?supermd.Ast = null,
-} = .{},
+//     // true when this page has not been loaded via Scripty
+//     is_root: bool = false,
+//     parent_section_path: ?[]const u8 = null,
+//     index_in_section: ?usize = null,
+//     word_count: u64 = 0,
+//     is_section: bool = false,
+//     key_variants: []const Translation = &.{},
+//     src: []const u8 = "",
+//     ast: ?supermd.Ast = null,
+// } = .{},
 
 pub const PageAnalysisError = struct {
     node: supermd.Node,
@@ -549,7 +553,7 @@ pub const Footnote = struct {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
                 var buf = std.ArrayList(u8).init(gpa);
-                const ast = f._page._meta.ast.?;
+                const ast = f._page._parse.ast;
                 const node = ast.footnotes.values()[f._idx].node;
 
                 try render.html(
@@ -652,12 +656,12 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return Bool.init(p._meta.is_root);
+            return Bool.init(p == ctx.page);
         }
     };
 
@@ -688,10 +692,6 @@ pub const Builtins = struct {
             ctx: *const context.Template,
             args: []const Value,
         ) !Value {
-            if (!p._meta.is_root) return .{
-                .err = "accessing assets of other pages has not been implemented yet, sorry!",
-            };
-
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -986,14 +986,18 @@ pub const Builtins = struct {
             \\<div :loop="$page.wordCount()"></div>
         ;
         pub fn call(
-            self: *const Page,
+            page: *const Page,
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return .{ .int = .{ .value = @intCast(self._meta.word_count) } };
+            return .{
+                .int = .{
+                    .value = @intCast(page._parse.full_src[page._parse.fm.offset..].len / 6),
+                },
+            };
         }
     };
 
@@ -1039,14 +1043,14 @@ pub const Builtins = struct {
             \\$page.isSection()
         ;
         pub fn call(
-            self: *const Page,
+            page: *const Page,
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
         ) !Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
-            return Bool.init(self._meta.is_section);
+            return Bool.init(page._scan.subsection_id != 0);
         }
     };
 
@@ -1357,7 +1361,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) !Value {
             const bad_arg: Value = .{
@@ -1370,28 +1374,39 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const ast = p._meta.ast.?;
+            const ast = p._parse.ast;
             if (!ast.ids.contains(elem_id)) return Value.errFmt(
                 gpa,
-                "cannot find id ='{s}' in the content page",
+                "cannot find id '{s}' in the content page",
                 .{elem_id},
             );
 
-            const relp = p._meta.md_rel_path;
-            const path = switch (p._meta.is_section) {
-                true => relp[0 .. relp.len - "index.smd".len],
-                false => relp[0 .. relp.len - ".smd".len],
-            };
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+            const index_smd: StringTable.String = @enumFromInt(1);
 
-            const fragment = try std.fmt.allocPrint(gpa, "#{s}", .{elem_id});
-            const result = try join(gpa, &.{
-                "/",
-                // p._meta.site._meta.url_path_prefix,
-                path,
-                fragment,
-            });
+            var buf: std.ArrayListUnmanaged(u8) = .empty;
+            const w = buf.writer(gpa);
 
-            return String.init(result);
+            try ctx.printLinkPrefix(w, p._scan.variant_id, false);
+
+            const empty_path: Path = @enumFromInt(0);
+            const path = p._scan.md_path;
+            if (path != empty_path) {
+                try w.print("{s}/", .{
+                    p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
+                });
+            }
+
+            const name = p._scan.md_name;
+            if (name != index_smd) {
+                try w.print("{s}/", .{
+                    std.fs.path.stem(p._scan.md_name.slice(&v.string_table)),
+                });
+            }
+
+            try w.print("#{s}", .{elem_id});
+
+            return String.init(buf.items);
         }
     };
 
@@ -1453,7 +1468,7 @@ pub const Builtins = struct {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             var buf = std.ArrayList(u8).init(gpa);
-            const ast = p._meta.ast orelse unreachable;
+            const ast = p._parse.ast;
 
             try render.html(
                 gpa,
@@ -1493,9 +1508,7 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const ast = p._meta.ast orelse return .{
-                .err = "only the main page can be rendered for now",
-            };
+            const ast = p._parse.ast;
             var buf = std.ArrayList(u8).init(gpa);
 
             const node = ast.ids.get(section_id) orelse {
@@ -1552,9 +1565,8 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            const ast = p._meta.ast orelse return .{
-                .err = "only the main page can be rendered for now",
-            };
+            const ast = p._parse.ast;
+
             // a true value indicates that `contentSection` will not error
             const has_section = blk: {
                 const section = ast.ids.get(section_id) orelse break :blk false;
@@ -1591,7 +1603,7 @@ pub const Builtins = struct {
             };
             if (args.len != 0) return bad_arg;
 
-            const ast = p._meta.ast.?;
+            const ast = p._parse.ast;
 
             var sections = std.ArrayList(ContentSection).init(gpa);
             var it = ast.ids.iterator();
@@ -1642,7 +1654,7 @@ pub const Builtins = struct {
             };
             if (args.len != 0) return bad_arg;
 
-            const ast = p._meta.ast.?;
+            const ast = p._parse.ast;
             if (ast.footnotes.count() == 0) {
                 return Optional.Null;
             }
@@ -1678,9 +1690,7 @@ pub const Builtins = struct {
             };
             if (args.len != 0) return bad_arg;
 
-            const ast = p._meta.ast orelse return .{
-                .err = "only the main page can be rendered for now",
-            };
+            const ast = p._parse.ast;
             var buf = std.ArrayList(u8).init(gpa);
             try render.htmlToc(ast, buf.writer());
 
@@ -1736,18 +1746,6 @@ pub const ContentSection = struct {
                     return err;
                 }
 
-                // const link_node = cs._node.firstChild() orelse {
-                //     return err;
-                // };
-
-                // const text_node = link_node.firstChild() orelse {
-                //     return err;
-                // };
-
-                // const text = text_node.literal() orelse {
-                //     return err;
-                // };
-
                 const text = try cs._node.renderPlaintext();
 
                 return String.init(text);
@@ -1777,13 +1775,7 @@ pub const ContentSection = struct {
                     return Optional.Null;
                 }
 
-                const link_node = cs._node.firstChild() orelse {
-                    return Optional.Null;
-                };
-
-                const text = link_node.literal() orelse {
-                    return Optional.Null;
-                };
+                const text = try cs._node.renderPlaintext();
 
                 return Optional.init(gpa, String.init(text));
             }
@@ -1818,6 +1810,48 @@ pub const ContentSection = struct {
                     cs._node,
                     buf.writer(),
                 );
+                return String.init(try buf.toOwnedSlice());
+            }
+        };
+
+        pub const htmlNoHeading = struct {
+            pub const signature: Signature = .{ .ret = .String };
+            pub const docs_description =
+                \\Renders the section but omits the section heading if present.
+            ;
+            pub const examples =
+                \\<div :html="$loop.it.htmlNoHeading()"></div>
+            ;
+            pub fn call(
+                cs: ContentSection,
+                gpa: Allocator,
+                ctx: *const context.Template,
+                args: []const Value,
+            ) !Value {
+                const bad_arg: Value = .{
+                    .err = "expected 0 arguments",
+                };
+                if (args.len != 0) return bad_arg;
+
+                var buf = std.ArrayList(u8).init(gpa);
+
+                log.debug("rendering content section [#{s}]", .{cs.id});
+
+                const node = switch (cs._node.nodeType()) {
+                    .HEADING => cs._node.nextSibling() orelse {
+                        return String.init("");
+                    },
+                    else => cs._node,
+                };
+
+                try render.html(
+                    gpa,
+                    ctx,
+                    cs._page,
+                    node,
+                    buf.writer(),
+                );
+
                 return String.init(try buf.toOwnedSlice());
             }
         };

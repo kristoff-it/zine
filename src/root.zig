@@ -959,10 +959,24 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         '.',
                     ) == null);
 
+                    const prefix = if (alt.output[0] == '/') &.{} else blk: {
+                        const index_smd: String = @enumFromInt(1);
+
+                        const slice = p._scan.md_path.slice(&v.path_table);
+                        if (p._scan.md_name == index_smd) {
+                            break :blk slice;
+                        } else {
+                            const extended = try arena.alloc(String, slice.len + 1);
+                            @memcpy(extended.ptr, slice);
+                            extended[slice.len] = p._scan.md_name;
+                            break :blk extended;
+                        }
+                    };
+
                     const path, const name = try v.path_table.internPathWithName(
                         gpa,
                         &v.string_table,
-                        &.{},
+                        prefix,
                         alt.output,
                     );
 
@@ -1046,10 +1060,23 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
             std.debug.lockStdErr();
             defer std.debug.unlockStdErr();
-            template.html_ast.printErrors(
+
+            var buf: std.ArrayListUnmanaged(u8) = .empty;
+            defer if (build.mode != .memory) buf.deinit(gpa);
+
+            try template.html_ast.printErrors(
                 template.src,
                 path,
+                buf.writer(gpa),
             );
+
+            std.debug.print("{s}", .{buf.items});
+            if (build.mode == .memory) {
+                try build.mode.memory.errors.append(gpa, .{
+                    .ref = "",
+                    .msg = buf.items,
+                });
+            }
             continue;
         }
 
@@ -1063,12 +1090,22 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 name.toString().slice(&build.st),
             });
 
-            std.debug.lockStdErr();
-            defer std.debug.unlockStdErr();
-            template.ast.printErrors(
+            var buf: std.ArrayListUnmanaged(u8) = .empty;
+            defer if (build.mode != .memory) buf.deinit(gpa);
+
+            try template.ast.printErrors(
                 template.src,
                 path,
+                buf.writer(gpa),
             );
+
+            std.debug.print("{s}", .{buf.items});
+            if (build.mode == .memory) {
+                try build.mode.memory.errors.append(gpa, .{
+                    .ref = "",
+                    .msg = buf.items,
+                });
+            }
         }
 
         if (template.missing_parent) {
@@ -1127,6 +1164,16 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         .name = p._scan.md_name,
                     }).fmt(&v.string_table, &v.path_table),
                 });
+
+                p._render = .{
+                    .out = undefined,
+                    .errors = undefined,
+                    .alternatives = try gpa.alloc(
+                        @typeInfo(@TypeOf(p._render.alternatives)).pointer.child,
+                        p.alternatives.len,
+                    ),
+                };
+
                 worker.addJob(.{
                     .page_render = .{
                         .progress = progress_page_render,
