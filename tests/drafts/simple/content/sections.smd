@@ -1,0 +1,20 @@
+---
+.title = "Sections",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "sections.shtml",
+.draft = false,
+--- 
+
+# [H1]($section.id('h1'))
+Lorem Ipsum 1
+
+## [H2]($section.id('h2'))
+Lorem Ipsum 2
+
+### [H3]($section.id('h3'))
+Lorem Ipsum 3
+
+This is a footnote[^1]
+
+[^1]: That should not break this page

@@ -1,0 +1,19 @@
+---
+.title = "Homepage",
+.date = @date("2020-07-06T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.draft = false,
+--- 
+Your **SuperMD** content goes here.
+
+
+# H1
+Lorem Ipsum 1
+
+## H2
+Lorem Ipsum 2
+
+#### H3
+Lorem Ipsum 3
+
