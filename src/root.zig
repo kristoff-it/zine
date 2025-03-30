@@ -567,7 +567,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 assert(v.string_table.get("index.smd").? == index_smd);
                 for (s.pages.items) |page_index| {
                     const p = &v.pages.items[page_index];
-                    if (p._scan.md_name == index_smd) continue; // already parsed
+                    if (p._scan.file.name == index_smd) continue; // already parsed
                     worker.addJob(.{
                         .page_parse = .{
                             .progress = progress_parse,
@@ -636,16 +636,14 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 // only if the frontmatter has been correctly identifed as well.
                 switch (p._parse.status) {
                     .empty => {
-                        var buf: [std.fs.max_path_bytes]u8 = undefined;
-                        const path = buf[0..p._scan.md_path.bytesSlice(
-                            &v.string_table,
-                            &v.path_table,
-                            &buf,
-                            std.fs.path.sep,
-                            p._scan.md_name,
-                        )];
                         // Page is empty, print warning and skip it
-                        std.debug.print("WARNING: Ignoring empty file '{s}'\n", .{path});
+                        std.debug.print("WARNING: Ignoring empty file '{}'\n", .{
+                            p._scan.file.fmt(
+                                &v.string_table,
+                                &v.path_table,
+                                v.content_dir_path,
+                            ),
+                        });
                         continue;
                     },
 
@@ -654,33 +652,40 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                             parse_errors = true;
                         }
 
-                        var buf: [std.fs.max_path_bytes]u8 = undefined;
-                        const path = buf[0..p._scan.md_path.bytesSlice(
-                            &v.string_table,
-                            &v.path_table,
-                            &buf,
-                            std.fs.path.sep,
-                            p._scan.md_name,
-                        )];
-
                         const note = switch (err) {
                             error.MissingFrontmatter => "the document doesn't start with '---' (a frontmatter frame delimiter)",
                             error.OpenFrontmatter => "the frontmatter is missing a closing '---' frontmatter delimiter",
                         };
 
                         std.debug.print(
-                            \\{s}:{}:1 error: frontmatter framing error
+                            \\{}:{}:1 error: frontmatter framing error
                             \\   {s}
                             \\
-                        , .{ path, p._parse.fm.lines, note });
+                        , .{
+                            p._scan.file.fmt(
+                                &v.string_table,
+                                &v.path_table,
+                                v.content_dir_path,
+                            ),
+                            p._parse.fm.lines,
+                            note,
+                        });
                         if (build.mode == .memory) {
                             try build.mode.memory.errors.append(gpa, .{
                                 .ref = "",
                                 .msg = try std.fmt.allocPrint(gpa,
-                                    \\{s}:{}:1 error: frontmatter framing error
+                                    \\{}:{}:1 error: frontmatter framing error
                                     \\   {s}
                                     \\
-                                , .{ path, p._parse.fm.lines, note }),
+                                , .{
+                                    p._scan.file.fmt(
+                                        &v.string_table,
+                                        &v.path_table,
+                                        v.content_dir_path,
+                                    ),
+                                    p._parse.fm.lines,
+                                    note,
+                                }),
                             });
                         }
                         continue;
@@ -692,13 +697,13 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         }
 
                         var buf: [std.fs.max_path_bytes]u8 = undefined;
-                        const path = buf[0..p._scan.md_path.bytesSlice(
-                            &v.string_table,
-                            &v.path_table,
-                            &buf,
-                            std.fs.path.sep,
-                            p._scan.md_name,
-                        )];
+                        const path = std.fmt.bufPrint(&buf, "{}", .{
+                            p._scan.file.fmt(
+                                &v.string_table,
+                                &v.path_table,
+                                v.content_dir_path,
+                            ),
+                        }) catch unreachable;
 
                         diag.path = path;
                         std.debug.print("{}\n\n", .{diag.fmt(p._parse.full_src)});
@@ -790,20 +795,13 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     if (!parse_errors) {
                         parse_errors = true;
                     }
-                    var buf: [std.fs.max_path_bytes]u8 = undefined;
-                    const path = buf[0..p._scan.md_path.bytesSlice(
-                        &v.string_table,
-                        &v.path_table,
-                        &buf,
-                        std.fs.path.sep,
-                        p._scan.md_name,
-                    )];
+
                     printSuperMdErrors(
                         gpa,
                         arena,
                         &build,
-                        v.content_dir_path,
-                        path,
+                        v,
+                        p._scan.file,
                         &p._parse.ast,
                         p._parse.full_src[p._parse.fm.offset..],
                         p._parse.fm.lines,
@@ -847,15 +845,6 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     analysis_errors = true;
                 }
 
-                var buf: [std.fs.max_path_bytes]u8 = undefined;
-                const path = buf[0..p._scan.md_path.bytesSlice(
-                    &v.string_table,
-                    &v.path_table,
-                    &buf,
-                    std.fs.path.sep,
-                    p._scan.md_name,
-                )];
-
                 const full_src = p._parse.full_src;
                 const ast = ziggy.Ast.init(
                     arena,
@@ -889,27 +878,43 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     } else "";
 
                     std.debug.print(
-                        \\{s}/{s}:{}:{}: error: {s}
+                        \\{}:{}:{}: error: {s}
                         \\|    {s}
                         \\|    {s}
                         \\
                         \\
                     , .{
-                        v.content_dir_path, path,      sel.start.line, sel.start.col,
-                        err.title(),        line_trim, highlight,
+                        p._scan.file.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            v.content_dir_path,
+                        ),
+                        sel.start.line,
+                        sel.start.col,
+                        err.title(),
+                        line_trim,
+                        highlight,
                     });
                     if (build.mode == .memory) {
                         try build.mode.memory.errors.append(gpa, .{
                             .ref = "",
                             .msg = try std.fmt.allocPrint(gpa,
-                                \\{s}/{s}:{}:{}: error: {s}
+                                \\{}:{}:{}: error: {s}
                                 \\|    {s}
                                 \\|    {s}
                                 \\
                                 \\
                             , .{
-                                v.content_dir_path, path,      sel.start.line, sel.start.col,
-                                err.title(),        line_trim, highlight,
+                                p._scan.file.fmt(
+                                    &v.string_table,
+                                    &v.path_table,
+                                    v.content_dir_path,
+                                ),
+                                sel.start.line,
+                                sel.start.col,
+                                err.title(),
+                                line_trim,
+                                highlight,
                             }),
                         });
                     }
@@ -923,15 +928,6 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 }
 
                 for (page_errors.items) |err| {
-                    var buf: [std.fs.max_path_bytes]u8 = undefined;
-                    const path = buf[0..p._scan.md_path.bytesSlice(
-                        &v.string_table,
-                        &v.path_table,
-                        &buf,
-                        std.fs.path.sep,
-                        p._scan.md_name,
-                    )];
-
                     const n = err.node;
                     const range = n.range();
                     const md_src = p._parse.full_src[p._parse.fm.offset..];
@@ -967,28 +963,42 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
                     const fm_lines = p._parse.fm.lines;
                     std.debug.print(
-                        \\{s}/{s}:{}:{}: error: {s}
+                        \\{}:{}:{}: error: {s}
                         \\|    {s}
                         \\|    {s}
                         \\
                         \\
                     , .{
-                        v.content_dir_path, path,        fm_lines + n.startLine(),
-                        n.startColumn(),    err.title(), line_trim,
+                        p._scan.file.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            v.content_dir_path,
+                        ),
+                        fm_lines + n.startLine(),
+                        n.startColumn(),
+                        err.title(),
+                        line_trim,
                         highlight,
                     });
                     if (build.mode == .memory) {
                         try build.mode.memory.errors.append(gpa, .{
                             .ref = "",
                             .msg = try std.fmt.allocPrint(gpa,
-                                \\{s}/{s}:{}:{}: error: {s}
+                                \\{}:{}:{}: error: {s}
                                 \\|    {s}
                                 \\|    {s}
                                 \\
                                 \\
                             , .{
-                                v.content_dir_path, path,        fm_lines + n.startLine(),
-                                n.startColumn(),    err.title(), line_trim,
+                                p._scan.file.fmt(
+                                    &v.string_table,
+                                    &v.path_table,
+                                    v.content_dir_path,
+                                ),
+                                fm_lines + n.startLine(),
+                                n.startColumn(),
+                                err.title(),
+                                line_trim,
                                 highlight,
                             }),
                         });
@@ -1109,20 +1119,16 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         '.',
                     ) == null);
 
-                    const prefix = if (alt.output[0] == '/') &.{} else blk: {
-                        const index_smd: String = @enumFromInt(1);
-
-                        const slice = p._scan.md_path.slice(&v.path_table);
-                        if (p._scan.md_name == index_smd) {
-                            break :blk slice;
-                        } else {
-                            const extended = try arena.alloc(String, slice.len + 1);
-                            @memcpy(extended.ptr, slice);
-                            extended[slice.len] = p._scan.md_name;
-                            break :blk extended;
-                        }
+                    const prefix = if (alt.output[0] == '/')
+                        &.{}
+                    else blk: {
+                        const prefix = p._scan.url.slice(&v.path_table);
+                        try v.path_table.path_components.ensureUnusedCapacity(
+                            gpa,
+                            prefix.len + std.mem.count(u8, alt.output, "/"),
+                        );
+                        break :blk prefix;
                     };
-
                     const path, const name = try v.path_table.internPathWithName(
                         gpa,
                         &v.string_table,
@@ -1163,13 +1169,13 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
             }
             for (v.collisions.items) |c| {
                 std.debug.print(
-                    \\{s}: error: output url collision detected
+                    \\{}: error: output url collision detected
                     \\   between  {}
                     \\   and      {}
                     \\
                     \\
                 , .{
-                    c.url.fmt(&v.string_table, &v.path_table),
+                    c.url.fmt(&v.string_table, &v.path_table, null),
                     c.previous.fmt(&v.string_table, &v.path_table, v.pages.items),
                     c.loc.fmt(&v.string_table, &v.path_table, v.pages.items),
                 });
@@ -1177,13 +1183,13 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     try build.mode.memory.errors.append(gpa, .{
                         .ref = "",
                         .msg = try std.fmt.allocPrint(gpa,
-                            \\{s}: error: output url collision detected
+                            \\{}: error: output url collision detected
                             \\   between  {}
                             \\   and      {}
                             \\
                             \\
                         , .{
-                            c.url.fmt(&v.string_table, &v.path_table),
+                            c.url.fmt(&v.string_table, &v.path_table, null),
                             c.previous.fmt(&v.string_table, &v.path_table, v.pages.items),
                             c.loc.fmt(&v.string_table, &v.path_table, v.pages.items),
                         }),
@@ -1386,13 +1392,21 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         var site_it = build.site_assets.iterator();
         while (site_it.next()) |entry| {
             const key = entry.key_ptr.*;
-            const path = buf[0..key.path.bytesSlice(
-                &build.st,
-                &build.pt,
-                &buf,
-                std.fs.path.sep,
-                key.name,
-            )];
+            // const path = buf[0..key.path.bytesSlice(
+            //     &build.st,
+            //     &build.pt,
+            //     &buf,
+            //     std.fs.path.sep,
+            //     key.name,
+            // )];
+
+            const path = std.fmt.bufPrint(&buf, "{}", .{
+                key.fmt(
+                    &build.st,
+                    &build.pt,
+                    null,
+                ),
+            }) catch unreachable;
 
             if (entry.value_ptr.raw > 0) {
                 _ = build.site_assets_dir.updateFile(
@@ -1415,8 +1429,8 @@ fn printSuperMdErrors(
     gpa: Allocator,
     arena: Allocator,
     build: *Build,
-    content_dir_path: []const u8,
-    md_path: []const u8,
+    v: *Variant,
+    file: PathName,
     ast: *const supermd.Ast,
     md_src: []const u8,
     fm_lines: usize,
@@ -1495,36 +1509,75 @@ fn printSuperMdErrors(
             else => @tagName(err.kind),
         };
         std.debug.print(
-            \\{s}/{s}:{}:{}: [{s}] {s}
+            \\{}:{}:{}: [{s}] {s}
             \\|    {s}
             \\|    {s}
             \\
             \\
         , .{
-            content_dir_path, md_path, fm_lines + range.start.row, range.start.col,
-            tag_name,         msg,     line_trim,                  highlight,
+            file.fmt(&v.string_table, &v.path_table, v.content_dir_path),
+            fm_lines + range.start.row,
+            range.start.col,
+            tag_name,
+            msg,
+            line_trim,
+            highlight,
         });
         if (build.mode == .memory) {
             try build.mode.memory.errors.append(gpa, .{
                 .ref = "",
                 .msg = try std.fmt.allocPrint(gpa,
-                    \\{s}/{s}:{}:{}: [{s}] {s}
+                    \\{}:{}:{}: [{s}] {s}
                     \\|    {s}
                     \\|    {s}
                     \\
                     \\
                 , .{
-                    content_dir_path, md_path, fm_lines + range.start.row, range.start.col,
-                    tag_name,         msg,     line_trim,                  highlight,
+                    file.fmt(&v.string_table, &v.path_table, v.content_dir_path),
+                    fm_lines + range.start.row,
+                    range.start.col,
+                    tag_name,
+                    msg,
+                    line_trim,
+                    highlight,
                 }),
             });
         }
     }
 }
 
-pub fn join(allocator: std.mem.Allocator, paths: []const []const u8) ![]u8 {
-    const separator = '/';
+pub fn fmtJoin(paths: []const []const u8) std.fmt.Formatter(formatJoin) {
+    return .{ .data = paths };
+}
 
+fn formatJoin(paths: []const []const u8, comptime fmt: []const u8, options: std.fmt.FormatOptions, w: anytype) !void {
+    _ = options;
+    comptime assert(std.mem.eql(u8, fmt, "/") or std.mem.eql(u8, fmt, "\\"));
+    const separator = fmt[0];
+
+    const first_path_idx = for (paths, 0..) |p, idx| {
+        if (p.len != 0) break idx;
+    } else return;
+
+    try w.writeAll(paths[first_path_idx]); // first component
+    var prev_path = paths[first_path_idx];
+    for (paths[first_path_idx + 1 ..]) |this_path| {
+        if (this_path.len == 0) continue; // skip empty components
+        const prev_sep = prev_path[prev_path.len - 1] == separator;
+        const this_sep = this_path[0] == separator;
+        if (!prev_sep and !this_sep) {
+            try w.writeByte(separator);
+        }
+        if (prev_sep and this_sep) {
+            try w.writeAll(this_path[1..]); // skip redundant separator
+        } else {
+            try w.writeAll(this_path);
+        }
+        prev_path = this_path;
+    }
+}
+
+pub fn join(allocator: std.mem.Allocator, paths: []const []const u8, separator: u8) ![]u8 {
     // Find first non-empty path index.
     const first_path_index = blk: {
         for (paths, 0..) |path, index| {

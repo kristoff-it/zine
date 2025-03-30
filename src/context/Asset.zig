@@ -93,8 +93,8 @@ pub const Builtins = struct {
 
                     const st = &v.string_table;
                     const pt = &v.path_table;
-                    try w.print("{s}", .{
-                        asset._meta.url.fmt(st, pt),
+                    try w.print("{/}", .{
+                        asset._meta.url.fmt(st, pt, null),
                     });
                 },
                 .site => {
@@ -104,8 +104,8 @@ pub const Builtins = struct {
 
                     const st = &ctx._meta.build.st;
                     const pt = &ctx._meta.build.pt;
-                    try w.print("{s}", .{
-                        asset._meta.url.fmt(st, pt),
+                    try w.print("{/}", .{
+                        asset._meta.url.fmt(st, pt, null),
                     });
                 },
                 .build => {
@@ -148,13 +148,13 @@ pub const Builtins = struct {
             switch (asset._meta.kind) {
                 .page => |variant_id| {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &v.string_table,
-                        &v.path_table,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     const stat = v.content_dir.statFile(path) catch {
                         return .{ .err = "i/o error while reading asset file" };
@@ -162,13 +162,13 @@ pub const Builtins = struct {
                     return Int.init(@intCast(stat.size));
                 },
                 .site => {
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &ctx._meta.build.st,
-                        &ctx._meta.build.pt,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &ctx._meta.build.st,
+                            &ctx._meta.build.pt,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     const stat = ctx._meta.build.site_assets_dir.statFile(path) catch {
                         return .{ .err = "i/o error while reading asset file" };
@@ -199,13 +199,13 @@ pub const Builtins = struct {
             switch (asset._meta.kind) {
                 .page => |variant_id| {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &v.string_table,
-                        &v.path_table,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     const data = v.content_dir.readFileAlloc(
                         gpa,
@@ -217,13 +217,13 @@ pub const Builtins = struct {
                     return Value.from(gpa, data);
                 },
                 .site => {
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &ctx._meta.build.st,
-                        &ctx._meta.build.pt,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &ctx._meta.build.st,
+                            &ctx._meta.build.pt,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     const data = ctx._meta.build.site_assets_dir.readFileAlloc(
                         gpa,
@@ -269,13 +269,13 @@ pub const Builtins = struct {
             const data = switch (asset._meta.kind) {
                 .page => |variant_id| blk: {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &v.string_table,
-                        &v.path_table,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     break :blk v.content_dir.readFileAlloc(
                         gpa,
@@ -286,13 +286,13 @@ pub const Builtins = struct {
                     };
                 },
                 .site => blk: {
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &ctx._meta.build.st,
-                        &ctx._meta.build.pt,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &ctx._meta.build.st,
+                            &ctx._meta.build.pt,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     break :blk ctx._meta.build.site_assets_dir.readFileAlloc(
                         gpa,
@@ -339,13 +339,13 @@ pub const Builtins = struct {
             const data = switch (asset._meta.kind) {
                 .page => |variant_id| blk: {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &v.string_table,
-                        &v.path_table,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     break :blk v.content_dir.readFileAllocOptions(
                         gpa,
@@ -359,13 +359,13 @@ pub const Builtins = struct {
                     };
                 },
                 .site => blk: {
-                    const path = buf[0..asset._meta.url.path.bytesSlice(
-                        &ctx._meta.build.st,
-                        &ctx._meta.build.pt,
-                        &buf,
-                        std.fs.path.sep,
-                        asset._meta.url.name,
-                    )];
+                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                        asset._meta.url.fmt(
+                            &ctx._meta.build.st,
+                            &ctx._meta.build.pt,
+                            null,
+                        ),
+                    }) catch unreachable;
 
                     break :blk ctx._meta.build.site_assets_dir.readFileAllocOptions(
                         gpa,

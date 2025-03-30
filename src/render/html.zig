@@ -1,6 +1,7 @@
 const std = @import("std");
 const supermd = @import("supermd");
 const tracy = @import("tracy");
+const root = @import("../root.zig");
 const hl = @import("../highlight.zig");
 const context = @import("../context.zig");
 const StringTable = @import("../StringTable.zig");
@@ -30,8 +31,8 @@ pub fn html(
     // Footnotes are disconnected from the main ast tree so we cannot
     // start an iterator from the document's root node when rendering
     // one (which happens on-demand by pointing `start` at a footnote node).
-    const root = if (start.nodeType() == .FOOTNOTE_DEFINITION) start else ast.md.root;
-    var it = Iter.init(root);
+    const root_node = if (start.nodeType() == .FOOTNOTE_DEFINITION) start else ast.md.root;
+    var it = Iter.init(root_node);
 
     const full_page = start.n == ast.md.root.n;
     var event: ?Iter.Event = if (!full_page) blk: {
@@ -532,7 +533,6 @@ fn printUrl(
     src: supermd.context.Src,
     w: anytype,
 ) !void {
-    const index_smd: StringTable.String = @enumFromInt(1);
     switch (src) {
         .url => |url| try w.writeAll(url),
         .self_page => |alt| if (alt) |a| {
@@ -549,16 +549,12 @@ fn printUrl(
 
             if (a[0] != '/') {
                 const v = ctx._meta.build.variants[page._scan.variant_id];
-                try w.print("{s}", .{page._scan.md_path.fmt(
+                try w.print("{}", .{page._scan.url.fmt(
                     &v.string_table,
                     &v.path_table,
+                    null,
                     true,
                 )});
-
-                if (page._scan.md_name != index_smd) {
-                    const name = page._scan.md_name.slice(&v.string_table);
-                    try w.print("{s}/", .{std.fs.path.stem(name)});
-                }
             }
 
             try w.writeAll(a);
@@ -579,15 +575,21 @@ fn printUrl(
             const v = ctx._meta.build.variants[p.resolved.variant_id];
             if (p.resolved.alt) |a| {
                 if (a[0] != '/') {
-                    try w.print("{s}", .{path.fmt(
+                    try w.print("{}", .{path.fmt(
                         &v.string_table,
                         &v.path_table,
+                        null,
                         true,
                     )});
                 }
                 try w.writeAll(a);
             } else {
-                try w.print("{}", .{path.fmt(&v.string_table, &v.path_table, true)});
+                try w.print("{}", .{path.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    null,
+                    true,
+                )});
             }
         },
         .page_asset => |pa| {
@@ -603,9 +605,10 @@ fn printUrl(
             };
 
             const v = ctx._meta.build.variants[page._scan.variant_id];
-            try w.print("{}", .{pn.fmt(
+            try w.print("{/}", .{pn.fmt(
                 &v.string_table,
                 &v.path_table,
+                null,
             )});
         },
         .site_asset => |sa| {
@@ -616,9 +619,10 @@ fn printUrl(
                 .name = @enumFromInt(sa.resolved.name),
             };
 
-            try w.print("{}", .{pn.fmt(
+            try w.print("{/}", .{pn.fmt(
                 &ctx._meta.build.st,
                 &ctx._meta.build.pt,
+                null,
             )});
         },
         .build_asset => |ba| {
@@ -636,8 +640,8 @@ pub fn printAssetUrlPrefix(
     switch (ctx.site._meta.kind) {
         .simple => |url_prefix_path| {
             if (ctx.page != page) {
-                try w.print("{}/", .{
-                    std.fs.path.fmtJoin(&.{
+                try w.print("{/}/", .{
+                    root.fmtJoin(&.{
                         ctx.site.host_url,
                         url_prefix_path,
                     }),
@@ -651,7 +655,7 @@ pub fn printAssetUrlPrefix(
         .multi => |locale| {
             const assets_prefix_path = ctx._meta.build.cfg.Multilingual.assets_prefix_path;
             if (ctx.page != page or locale.host_url_override != null) {
-                try w.print("{}", .{
+                try w.print("{/}", .{
                     std.fs.path.fmtJoin(&.{
                         ctx.site.host_url,
                         assets_prefix_path,

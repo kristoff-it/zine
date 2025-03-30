@@ -206,8 +206,6 @@ pub const Value = union(enum) {
     }
 };
 
-//NOTE: this must be kept in sync with SuperMD
-
 pub fn stripTrailingSlash(path: []const u8) []const u8 {
     if (path[path.len - 1] == '/') return path[0 .. path.len - 1];
     return path;

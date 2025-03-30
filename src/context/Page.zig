@@ -36,7 +36,6 @@ pub const ziggy_options = struct {
         ._parse,
         ._analysis,
         ._render,
-        // ._meta,
     };
 };
 
@@ -62,8 +61,8 @@ _debug: if (builtin.mode != .Debug) void else struct {
 
 /// Fields populated after scanning a variant.
 _scan: struct {
-    md_path: PathTable.Path,
-    md_name: StringTable.String,
+    file: PathName,
+    url: PathTable.Path,
     page_id: u32,
     subsection_id: u32, // 0 means no subsection
     parent_section_id: u32, // 0 means no parent section (only true for root index)
@@ -117,24 +116,6 @@ _render: struct {
         errors: []const u8,
     },
 } = undefined,
-
-// _meta: struct {
-//     site: *const context.Site = undefined,
-//     md_path: []const u8 = "",
-//     md_rel_path: []const u8 = "",
-//     md_asset_dir_path: []const u8 = "",
-//     md_asset_dir_rel_path: []const u8 = "",
-
-//     // true when this page has not been loaded via Scripty
-//     is_root: bool = false,
-//     parent_section_path: ?[]const u8 = null,
-//     index_in_section: ?usize = null,
-//     word_count: u64 = 0,
-//     is_section: bool = false,
-//     key_variants: []const Translation = &.{},
-//     src: []const u8 = "",
-//     ast: ?supermd.Ast = null,
-// } = .{},
 
 pub const PageAnalysisError = struct {
     node: supermd.Node,
@@ -345,13 +326,21 @@ pub fn parse(
     };
 
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    const path_bytes = buf[0..p._scan.md_path.bytesSlice(
-        &variant.string_table,
-        &variant.path_table,
-        &buf,
-        std.fs.path.sep,
-        p._scan.md_name,
-    )];
+    // const path_bytes = buf[0..p._scan.path.bytesSlice(
+    //     &variant.string_table,
+    //     &variant.path_table,
+    //     &buf,
+    //     std.fs.path.sep,
+    //     p._scan.name,
+    // )];
+
+    const path_bytes = std.fmt.bufPrint(&buf, "{}", .{
+        p._scan.file.fmt(
+            &variant.string_table,
+            &variant.path_table,
+            null,
+        ),
+    }) catch unreachable;
 
     if (builtin.mode == .Debug) {
         const last = p._debug.stage.swap(.parsed, .acq_rel);
@@ -454,7 +443,13 @@ pub const Alternative = struct {
     layout: []const u8,
     output: []const u8,
     type: []const u8 = "",
-    _prefix: []const u8 = "",
+    _page: *const Page = undefined,
+
+    pub const ziggy_options = struct {
+        pub const skip_fields: []const std.meta.FieldEnum(Alternative) = &.{
+            ._page,
+        };
+    };
 
     pub const dot = scripty.defaultDot(Alternative, Value, false);
     // pub const PassByRef = true;
@@ -501,19 +496,31 @@ pub const Alternative = struct {
             pub fn call(
                 alt: Alternative,
                 gpa: Allocator,
-                _: *const context.Template,
+                ctx: *const context.Template,
                 args: []const Value,
             ) !Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-                const result = try join(gpa, &.{
-                    "/",
-                    alt._prefix,
-                    alt.output,
-                    "/",
+                const p = alt._page;
+                const v = &ctx._meta.build.variants[p._scan.variant_id];
+
+                var buf: std.ArrayListUnmanaged(u8) = .empty;
+                const w = buf.writer(gpa);
+
+                try ctx.printLinkPrefix(w, p._scan.variant_id, false);
+
+                if (alt.output[0] != '/') try w.print("{}", .{
+                    p._scan.url.fmt(
+                        &v.string_table,
+                        &v.path_table,
+                        null,
+                        true,
+                    ),
                 });
 
-                return String.init(result);
+                try w.writeAll(alt.output);
+
+                return String.init(buf.items);
             }
         };
     };
@@ -715,14 +722,9 @@ pub const Builtins = struct {
                         .page_asset => {
                             if (hint.id != p._scan.page_id) {
                                 const other_page = &v.pages.items[hint.id];
-                                const page_pn: PathName = .{
-                                    .path = other_page._scan.md_path,
-                                    .name = other_page._scan.md_name,
-                                };
-
-                                return Value.errFmt(gpa, "page asset '{s}' exists but belongs to page '{s}', to reference an asset that belongs to another page you must access it through that page (see page accessing functions in SuperHTML Scripty docs)", .{
+                                return Value.errFmt(gpa, "page asset '{s}' exists but belongs to page '{}', to reference an asset that belongs to another page you must access it through that page (see page accessing functions in SuperHTML Scripty docs)", .{
                                     ref,
-                                    page_pn.fmt(st, pt),
+                                    other_page._scan.file.fmt(st, pt, v.content_dir_path),
                                 });
                             }
                         },
@@ -800,20 +802,18 @@ pub const Builtins = struct {
                 .{code},
             );
 
-            const index_smd: StringTable.String = @enumFromInt(1);
             const index_html: StringTable.String = @enumFromInt(11);
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const page_url = std.fmt.bufPrint(&buf, "{}/{s}", .{
-                p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
-                if (p._scan.md_name != index_smd)
-                    std.fs.path.stem(p._scan.md_name.slice(
-                        &v.string_table,
-                    ))
-                else
-                    "",
+            const page_url = std.fmt.bufPrint(&buf, "{}", .{
+                p._scan.url.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    null,
+                    false,
+                ),
             }) catch unreachable;
 
             const vv = ctx._meta.build.variants[other_variant_id];
@@ -886,20 +886,17 @@ pub const Builtins = struct {
                 .{code},
             );
 
-            const index_smd: StringTable.String = @enumFromInt(1);
             const index_html: StringTable.String = @enumFromInt(11);
-
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const page_url = std.fmt.bufPrint(&buf, "{}/{s}", .{
-                p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
-                if (p._scan.md_name != index_smd)
-                    std.fs.path.stem(p._scan.md_name.slice(
-                        &v.string_table,
-                    ))
-                else
-                    "",
+            const page_url = std.fmt.bufPrint(&buf, "{}", .{
+                p._scan.url.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    null,
+                    false,
+                ),
             }) catch unreachable;
 
             const vv = ctx._meta.build.variants[other_variant_id];
@@ -936,20 +933,18 @@ pub const Builtins = struct {
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const index_smd: StringTable.String = @enumFromInt(1);
             const index_html: StringTable.String = @enumFromInt(11);
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const page_url = std.fmt.bufPrint(&buf, "{}/{s}", .{
-                p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
-                if (p._scan.md_name != index_smd)
-                    std.fs.path.stem(p._scan.md_name.slice(
-                        &v.string_table,
-                    ))
-                else
-                    "",
+            const page_url = std.fmt.bufPrint(&buf, "{}", .{
+                p._scan.url.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    null,
+                    false,
+                ),
             }) catch unreachable;
 
             var pages: std.ArrayListUnmanaged(Value) = .empty;
@@ -1314,27 +1309,20 @@ pub const Builtins = struct {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
-            const index_smd: StringTable.String = @enumFromInt(1);
 
             var buf: std.ArrayListUnmanaged(u8) = .empty;
             const w = buf.writer(gpa);
 
             try ctx.printLinkPrefix(w, p._scan.variant_id, false);
 
-            const empty_path: Path = @enumFromInt(0);
-            const path = p._scan.md_path;
-            if (path != empty_path) {
-                try w.print("{s}/", .{
-                    p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
-                });
-            }
-
-            const name = p._scan.md_name;
-            if (name != index_smd) {
-                try w.print("{s}/", .{
-                    std.fs.path.stem(p._scan.md_name.slice(&v.string_table)),
-                });
-            }
+            try w.print("{}", .{
+                p._scan.url.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    null,
+                    true,
+                ),
+            });
 
             return String.init(buf.items);
         }
@@ -1383,27 +1371,20 @@ pub const Builtins = struct {
             );
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
-            const index_smd: StringTable.String = @enumFromInt(1);
 
             var buf: std.ArrayListUnmanaged(u8) = .empty;
             const w = buf.writer(gpa);
 
             try ctx.printLinkPrefix(w, p._scan.variant_id, false);
 
-            const empty_path: Path = @enumFromInt(0);
-            const path = p._scan.md_path;
-            if (path != empty_path) {
-                try w.print("{s}/", .{
-                    p._scan.md_path.fmt(&v.string_table, &v.path_table, false),
-                });
-            }
-
-            const name = p._scan.md_name;
-            if (name != index_smd) {
-                try w.print("{s}/", .{
-                    std.fs.path.stem(p._scan.md_name.slice(&v.string_table)),
-                });
-            }
+            try w.print("{}", .{
+                p._scan.url.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    null,
+                    true,
+                ),
+            });
 
             try w.print("#{s}", .{elem_id});
 

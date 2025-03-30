@@ -28,8 +28,13 @@ pub const PathName = packed struct {
     path: Path,
     name: String,
 
-    pub fn fmt(u: PathName, st: *const StringTable, pt: *const PathTable) PathName.Formatter {
-        return .{ .u = u, .st = st, .pt = pt };
+    pub fn fmt(
+        u: PathName,
+        st: *const StringTable,
+        pt: *const PathTable,
+        prefix: ?[]const u8,
+    ) PathName.Formatter {
+        return .{ .u = u, .st = st, .pt = pt, .prefix = prefix };
     }
 
     pub const empty_name: String = @enumFromInt(0);
@@ -56,18 +61,34 @@ pub const PathName = packed struct {
         u: PathName,
         st: *const StringTable,
         pt: *const PathTable,
+        prefix: ?[]const u8,
 
         pub fn format(
             f: PathName.Formatter,
-            comptime _: []const u8,
+            comptime maybe_sep: []const u8,
             options: std.fmt.FormatOptions,
             writer: anytype,
         ) !void {
+            comptime assert(maybe_sep.len < 2);
+            const sep = if (maybe_sep.len == 0) "/" else blk: {
+                comptime assert(maybe_sep[0] == '/' or maybe_sep[0] == '\\');
+                break :blk maybe_sep;
+            };
             _ = options;
+
+            if (f.prefix) |p| {
+                if (p.len > 0) {
+                    try writer.writeAll(p);
+                    if (p[p.len - 1] != sep[0]) {
+                        try writer.writeAll(sep);
+                    }
+                }
+            }
+
             const path_slice = f.u.path.slice(f.pt);
             for (path_slice) |c| {
                 try writer.writeAll(c.slice(f.st));
-                try writer.writeAll("/");
+                try writer.writeAll(sep);
             }
 
             try writer.writeAll(f.u.name.slice(f.st));
@@ -82,7 +103,7 @@ pub fn getPathNoName(
     prefix: []const String,
     path: []const u8,
 ) ?Path {
-    var it = std.mem.tokenizeScalar(u8, path, std.fs.path.sep);
+    var it = std.mem.tokenizeScalar(u8, path, '/');
     const component_count = blk: {
         var count: u32 = 0;
         while (it.next() != null) count += 1;
@@ -326,49 +347,69 @@ pub const Path = enum(u32) {
         return start_slice[0..mem.indexOfScalar(String, start_slice, @enumFromInt(0)).?];
     }
 
-    pub fn bytesSlice(
-        index: Path,
-        st: *const StringTable,
-        pt: *const PathTable,
-        buf: []u8,
-        sep: u8,
-        // extra path component to add at the end
-        name: ?StringTable.String,
-    ) usize {
-        var out = std.ArrayListUnmanaged(u8).initBuffer(buf);
-        const components = index.slice(pt);
-        for (components) |c| {
-            const bytes = c.slice(st);
-            out.appendSliceAssumeCapacity(bytes);
-            out.appendAssumeCapacity(sep);
-        }
+    // pub fn bytesSlice(
+    //     index: Path,
+    //     st: *const StringTable,
+    //     pt: *const PathTable,
+    //     buf: []u8,
+    //     sep: u8,
+    //     // extra path component to add at the end
+    //     name: ?StringTable.String,
+    // ) usize {
+    //     var out = std.ArrayListUnmanaged(u8).initBuffer(buf);
+    //     const components = index.slice(pt);
+    //     for (components) |c| {
+    //         const bytes = c.slice(st);
+    //         out.appendSliceAssumeCapacity(bytes);
+    //         out.appendAssumeCapacity(sep);
+    //     }
 
-        if (name) |n| out.appendSliceAssumeCapacity(n.slice(st));
-        return out.items.len;
-    }
+    //     if (name) |n| out.appendSliceAssumeCapacity(n.slice(st));
+    //     return out.items.len;
+    // }
 
     pub fn fmt(
         p: Path,
         st: *const StringTable,
         pt: *const PathTable,
+        prefix: ?[]const u8,
         trailing_slash: bool,
     ) Path.Formatter {
-        return .{ .p = p, .st = st, .pt = pt, .slash = trailing_slash };
+        return .{
+            .p = p,
+            .st = st,
+            .pt = pt,
+            .prefix = prefix,
+            .slash = trailing_slash,
+        };
     }
 
     pub const Formatter = struct {
         p: Path,
         st: *const StringTable,
         pt: *const PathTable,
+        prefix: ?[]const u8,
         slash: bool,
 
         pub fn format(
             f: Path.Formatter,
-            comptime _: []const u8,
+            comptime arg: []const u8,
             options: std.fmt.FormatOptions,
             writer: anytype,
         ) !void {
+            if (arg.len > 0) @compileError("path.fmt wants no format specifier");
+
             _ = options;
+
+            if (f.prefix) |p| {
+                if (p.len > 0) {
+                    try writer.writeAll(p);
+                    if (p[p.len - 1] != '/') {
+                        try writer.writeAll("/");
+                    }
+                }
+            }
+
             const path_slice = f.p.slice(f.pt);
             for (path_slice, 0..) |c, idx| {
                 try writer.writeAll(c.slice(f.st));

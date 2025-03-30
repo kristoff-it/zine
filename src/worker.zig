@@ -5,6 +5,7 @@ const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
 const tracy = @import("tracy");
 const syntax = @import("syntax");
+const root = @import("root.zig");
 const fatal = @import("fatal.zig");
 const context = @import("context.zig");
 const Build = @import("Build.zig");
@@ -232,7 +233,17 @@ fn analyzePage(
         assert(last == .parsed);
     }
 
-    const p = progress.start(page._scan.md_name.slice(&build.variants[variant_id].string_table), 1);
+    const v = &build.variants[variant_id];
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const page_path = std.fmt.bufPrint(&buf, "{}", .{
+        page._scan.file.fmt(
+            &v.string_table,
+            &v.path_table,
+            v.content_dir_path,
+        ),
+    }) catch unreachable;
+
+    const p = progress.start(page_path, 1);
     defer p.end();
 
     // We do not set all of analysis because it might contain a missing
@@ -338,20 +349,9 @@ fn analyzeContent(
                         assert(std.mem.indexOfScalar(u8, pa.ref, '\\') == null);
                         var buf: std.ArrayListUnmanaged(String) = .empty;
 
-                        try buf.appendSlice(
-                            scratch,
-                            page._scan.md_path.slice(&variant.path_table),
-                        );
-
-                        if (page._scan.md_name != index_smd) {
-                            const name_bytes = page._scan.md_name.slice(
-                                &variant.string_table,
-                            );
-
-                            try buf.append(scratch, variant.string_table.get(
-                                std.fs.path.stem(name_bytes),
-                            ).?);
-                        }
+                        try buf.appendSlice(scratch, page._scan.url.slice(
+                            &variant.path_table,
+                        ));
 
                         var it = std.mem.tokenizeScalar(u8, pa.ref, '/');
                         while (it.next()) |component_bytes| {
@@ -379,16 +379,16 @@ fn analyzeContent(
                             if (variant.urls.getPtr(pn)) |hint| {
                                 switch (hint.kind) {
                                     .page_asset => {
-                                        break :blk .{ try std.fmt.allocPrint(
-                                            scratch,
-                                            "{}",
-                                            .{
+                                        break :blk .{
+                                            try std.fmt.allocPrint(scratch, "{}", .{
                                                 pn.fmt(
                                                     &variant.string_table,
                                                     &variant.path_table,
+                                                    null,
                                                 ),
-                                            },
-                                        ), variant.content_dir };
+                                            }),
+                                            variant.content_dir,
+                                        };
                                     },
                                     else => {},
                                 }
@@ -578,7 +578,7 @@ fn analyzeContent(
                                 // It also is only available on pages that
                                 // are sections, which means that the page
                                 // is guaranteed to be named `index.smd`.
-                                if (page._scan.md_name != index_smd) {
+                                if (page._scan.file.name != index_smd) {
                                     try errors.append(page_arena, .{
                                         .node = n,
                                         .kind = .not_a_section,
@@ -587,7 +587,7 @@ fn analyzeContent(
                                 }
 
                                 var buf: std.ArrayListUnmanaged(String) = .empty;
-                                try buf.appendSlice(scratch, page._scan.md_path.slice(
+                                try buf.appendSlice(scratch, page._scan.file.path.slice(
                                     &variant.path_table,
                                 ));
 
@@ -698,18 +698,8 @@ fn analyzeContent(
 
                         try buf.appendSlice(
                             scratch,
-                            page._scan.md_path.slice(&variant.path_table),
+                            page._scan.url.slice(&variant.path_table),
                         );
-
-                        if (page._scan.md_name != index_smd) {
-                            const name_bytes = page._scan.md_name.slice(
-                                &variant.string_table,
-                            );
-
-                            try buf.append(scratch, variant.string_table.get(
-                                std.fs.path.stem(name_bytes),
-                            ).?);
-                        }
 
                         var it = std.mem.tokenizeScalar(u8, pa.ref, '/');
                         while (it.next()) |component_bytes| {
@@ -864,21 +854,14 @@ fn renderPage(
     const variant_id = page._scan.variant_id;
     const variant = &build.variants[variant_id];
 
-    const md_name = page._scan.md_name.slice(&variant.string_table);
-    // const md_name = if (locale_code) |lc| try std.fmt.allocPrint(
-    //     arena,
-    //     "{s} ({s})",
-    //     .{ md_rel_path, lc },
-    // ) else md_rel_path;
-
-    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const page_path = path_buf[0..page._scan.md_path.bytesSlice(
-        &variant.string_table,
-        &variant.path_table,
-        &path_buf,
-        std.fs.path.sep,
-        null,
-    )];
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const page_path = std.fmt.bufPrint(&buf, "{}", .{
+        page._scan.file.fmt(
+            &variant.string_table,
+            &variant.path_table,
+            variant.content_dir_path,
+        ),
+    }) catch unreachable;
 
     tracy.messageCopy(page_path);
 
@@ -939,7 +922,7 @@ fn renderPage(
         layout.html_ast,
         layout.ast,
         std.mem.endsWith(u8, layout_path, ".xml"),
-        md_name,
+        page_path,
         out_buf.writer(gpa),
         err_buf.writer(gpa),
     );
@@ -1001,23 +984,22 @@ fn renderPage(
             defer out_buf.deinit(gpa);
             const out_raw = switch (kind) {
                 .main => blk: {
-                    const index_smd: String = @enumFromInt(1);
-
                     const out_dir_path = switch (build.cfg.*) {
-                        .Site => try std.fs.path.join(arena, &.{
-                            page_path,
-                            if (page._scan.md_name != index_smd)
-                                std.fs.path.stem(md_name)
-                            else
-                                "",
+                        .Site => |s| try std.fmt.allocPrint(arena, "{}index.html", .{
+                            page._scan.url.fmt(
+                                &variant.string_table,
+                                &variant.path_table,
+                                s.url_path_prefix,
+                                true,
+                            ),
                         }),
-                        .Multilingual => try std.fs.path.join(arena, &.{
-                            variant.output_path_prefix,
-                            page_path,
-                            if (page._scan.md_name != index_smd)
-                                std.fs.path.stem(md_name)
-                            else
-                                "",
+                        .Multilingual => try std.fmt.allocPrint(arena, "{}index.html", .{
+                            page._scan.url.fmt(
+                                &variant.string_table,
+                                &variant.path_table,
+                                variant.output_path_prefix,
+                                true,
+                            ),
                         }),
                     };
 
@@ -1036,9 +1018,10 @@ fn renderPage(
 
                 .alternative => |idx| blk: {
                     const raw_path = page.alternatives[idx].output;
-                    const out_path = if (raw_path[0] == '/') raw_path[1..] else try std.fs.path.join(
+                    const out_path = if (raw_path[0] == '/') raw_path[1..] else try root.join(
                         arena,
                         &.{ page_path, raw_path },
+                        std.fs.path.sep,
                     );
 
                     if (std.fs.path.dirnamePosix(out_path)) |path| {
@@ -1055,7 +1038,7 @@ fn renderPage(
             };
             defer out_raw.close();
             out_raw.writeAll(out_buf.items) catch |err| fatal.file(
-                md_name,
+                page_path,
                 err,
             );
         },
