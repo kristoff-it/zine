@@ -73,8 +73,10 @@ pub fn main() u8 {
             \\|            WARNING: TRACING ENABLED           |
             \\|-----------------------------------------------|
             \\| Tracing introduces a significant performance  |
-            \\| overhead. If you're not interested in tracing |
-            \\| Zine, remove `-Dtracy` when building again    |
+            \\| overhead.                                     |
+            \\|                                               |
+            \\| If you're not interested in tracing Zine,     |
+            \\| remove `-Dtracy` when building again.         |
             \\*-----------------------------------------------*
             \\
             \\

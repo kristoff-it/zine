@@ -154,7 +154,6 @@ pub fn highlightCode(
     const match_zone = tracy.traceNamed(@src(), "render");
     defer match_zone.end();
 
-    var print_cursor: usize = 0;
     cursor.execute(lang.query, tree.getRootNode());
 
     var changes = std.ArrayList(ClassChange).init(arena);
