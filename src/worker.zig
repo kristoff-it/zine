@@ -1031,11 +1031,26 @@ fn renderPage(
 
                 .alternative => |idx| blk: {
                     const raw_path = page.alternatives[idx].output;
-                    const out_path = if (raw_path[0] == '/') raw_path[1..] else try root.join(
-                        arena,
-                        &.{ page_path, raw_path },
-                        std.fs.path.sep,
-                    );
+                    const out_path = if (raw_path[0] == '/') raw_path[1..] else switch (build.cfg.*) {
+                        .Site => |s| try std.fmt.allocPrint(arena, "{}{s}", .{
+                            page._scan.url.fmt(
+                                &variant.string_table,
+                                &variant.path_table,
+                                s.url_path_prefix,
+                                true,
+                            ),
+                            raw_path,
+                        }),
+                        .Multilingual => try std.fmt.allocPrint(arena, "{}{s}", .{
+                            page._scan.url.fmt(
+                                &variant.string_table,
+                                &variant.path_table,
+                                variant.output_path_prefix,
+                                true,
+                            ),
+                            raw_path,
+                        }),
+                    };
 
                     if (std.fs.path.dirnamePosix(out_path)) |path| {
                         disk.install_dir.makePath(

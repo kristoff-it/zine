@@ -63,7 +63,26 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         .{@errorName(err)},
     );
 
-    const cfg, const base_dir_path = root.Config.load(gpa);
+    var cfg, const base_dir_path = root.Config.load(gpa);
+    switch (cfg) {
+        .Site => |*s| s.host_url = try std.fmt.allocPrint(
+            gpa,
+            "http://{s}:{}/",
+            .{ cmd.host, cmd.port },
+        ),
+
+        .Multilingual => |*ml| {
+            ml.host_url = try std.fmt.allocPrint(
+                gpa,
+                "http://{s}:{}/",
+                .{ cmd.host, cmd.port },
+            );
+
+            for (ml.locales) |l| if (l.host_url_override != null) {
+                fatal.msg("error: host_url_override is not yet supported by the zine live server, sorry!", .{});
+            };
+        },
+    }
 
     var dirs_to_watch: std.ArrayListUnmanaged([]const u8) = .empty;
     defer if (builtin.mode == .Debug) dirs_to_watch.deinit(gpa);
@@ -128,11 +147,12 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         "error: unable to start live webserver: {s}",
         .{@errorName(err)},
     );
+    _ = listen_address;
 
     const node = root.progress.start(try std.fmt.allocPrint(
         gpa,
-        "Listening at http://{any}/",
-        .{listen_address},
+        "Listening at http://{s}:{}/",
+        .{ cmd.host, cmd.port },
     ), 0);
     defer node.end();
 
