@@ -15,3 +15,8 @@ Lorem Ipsum 2
 ### [H3]($section.id('h3'))
 Lorem Ipsum 3
 
+
+```zig++ wrong
+```
+
+[](<$code.siteAsset('code.zig').language('zig++')>) //wrong

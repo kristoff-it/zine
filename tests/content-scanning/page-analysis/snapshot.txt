@@ -19,51 +19,112 @@
 |                                               |
 *-----------------------------------------------*
 
+content/parse.smd:11:1: [html_is_forbidden] 
+|    <div>wrong block-level html</div>
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-[scripty] path must be relative, use the appropriate builtin if necessary
-parse.smd:144:1: 
-    []($link.page('/other'))  //wrong
-    ^^^^^^^^^^^^^^^^^^^^^^^
+content/parse.smd:13:1: [scripty] syntax error
+|    []($link.page(/other))  //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^
 
-[scripty] '.' and '..' are not allowed in paths, use the appropriate builtin instead
-parse.smd:147:1: 
-    []($link.page('./other')) //wrong
-    ^^^^^^^^^^^^^^^^^^^^^^^^
-index.smd:5:1: error: missing site asset
-|    []($image.siteAsset('doesntexist.jpg')) //wrong
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+content/parse.smd:17:1: [scripty] path must be relative
+|    []($link.page('/other'))  //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^
 
-index.smd:11:1: error: unknown alternative
-|    []($link.alternative('doesntexist-alternative')) //wrong
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+content/parse.smd:20:1: [scripty] '.' and '..' are not allowed in paths
+|    []($link.page('./other')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-index.smd:23:1: error: unknown page
-|    []($link.page('doesntexist')) //wrong
+content/parse.smd:23:1: [scripty] empty component in path
+|    []($link.page('foo//bar')) //wrong 1/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:25:1: [scripty] '.' and '..' are not allowed in paths
+|    []($link.page('foo/./bar')) //wrong 2/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:27:1: [scripty] '.' and '..' are not allowed in paths
+|    []($link.page('foo/../bar')) //wrong 3/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-index.smd:26:1: error: unknown alternative
+content/parse.smd:29:1: [scripty] '.' and '..' are not allowed in paths
+|    []($link.page('foo/.')) //wrong 4/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:31:1: [scripty] '.' and '..' are not allowed in paths
+|    []($link.page('foo/..')) //wrong 5/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:33:1: [scripty] empty component in path
+|    []($link.page('a//foo/./bar')) //wrong 6/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:35:1: [scripty] empty component in path
+|    []($link.page('a//foo/../bar')) //wrong 7/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:37:1: [scripty] empty component in path
+|    []($link.page('a//foo/.')) //wrong 8/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:39:1: [scripty] empty component in path
+|    []($link.page('a//foo/..')) //wrong 9/9
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/code.smd:19:3: [erroneous_end_tag] 
+|    </span> wrong!
+|      ^^^^
+
+content/index.smd:18:1: error: missing site asset
+|    []($image.siteAsset('doesntexist.jpg')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/index.smd:24:1: error: unknown alternative
+|    []($link.alternative('doesntexist-alternative')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/index.smd:36:1: error: unknown page
+|    []($link.page('doesntexist')) //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/index.smd:39:1: error: unknown alternative
 |    []($link.page('other').alternative('doesntexist')) // wrong
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-index.smd:29:1: error: missing site asset
+content/index.smd:42:1: error: missing site asset
 |    ![](/bad.jpg) //wrong
-|    ^^^^^^^^^^^^
-
-index.smd:30:1: error: missing page asset
-|    ![](./bad.jpg) //wrong
 |    ^^^^^^^^^^^^^
 
-index.smd:31:1: error: missing page asset
+content/index.smd:43:1: error: missing site asset
+|    ![](./bad.jpg) //wrong
+|    ^^^^^^^^^^^^^^
+
+content/index.smd:44:1: error: missing site asset
 |    ![](bad.jpg) // wrong
-|    ^^^^^^^^^^^
+|    ^^^^^^^^^^^^
 
-code.smd:11:1: error: unknown language code
-|    ```zig++
-|    ^^^^^^^^
+content/other.smd:20:1: error: unknown language code
+|    ```zig++ wrong
+|    ^^^^^^^^^^^^^^^
 
-code.smd:16:1: error: unknown language code
+content/other.smd:23:1: error: unknown language code
 |    [](<$code.siteAsset('code.zig').language('zig++')>) //wrong
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+----------------------------
+       -- VARIANT --
+----------------------------
+.id = 0,
+.content_dir_path = content
+
+  ------- SECTION -------
+.index = 1,
+.section_path = content/,
+.pages = [
+   content/parse.smd -> content/parse/index.html
+   content/other.smd -> content/other/index.html
+   content/code.smd -> content/code/index.html
+],
 
 
 

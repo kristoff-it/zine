@@ -115,12 +115,12 @@ pub const Builtins = struct {
                     ).?;
 
                     _ = ba.rc.fetchAdd(1, .acq_rel);
-                    const ip = ba.install_path orelse return Value.errFmt(
+                    const op = ba.output_path orelse return Value.errFmt(
                         gpa,
                         "unable to install build asset '{s}' as it does not specify an install path",
                         .{asset._meta.ref},
                     );
-                    try w.print("{s}", .{ip});
+                    try w.print("{s}", .{op});
                 },
             }
 

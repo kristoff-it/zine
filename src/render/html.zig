@@ -656,7 +656,7 @@ pub fn printAssetUrlPrefix(
             const assets_prefix_path = ctx._meta.build.cfg.Multilingual.assets_prefix_path;
             if (ctx.page != page or locale.host_url_override != null) {
                 try w.print("{/}", .{
-                    std.fs.path.fmtJoin(&.{
+                    root.fmtJoin(&.{
                         ctx.site.host_url,
                         assets_prefix_path,
                     }),

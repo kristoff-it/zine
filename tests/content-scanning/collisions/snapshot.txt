@@ -19,17 +19,17 @@
 |                                               |
 *-----------------------------------------------*
 
-index.smd:15:12: error: invalid value in alternatives
-|    .output = "nested/path/page/README.html",
-|              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+content/index.smd:16:12: error: invalid layout in alternatives
+|    .layout = "",
+|              ^^
 
-page.smd:15:13: error: invalid value in alternatives
-|    .output = "README.html",
-|              ^^^^^^^^^^^^^
+content/page.smd:16:13: error: invalid layout in alternatives
+|    .layout = "",
+|              ^^
 
-nested/path/page.smd:14:12: error: invalid value in alternatives
-|    .output = "README.html",
-|              ^^^^^^^^^^^^^
+content/nested/path/page.smd:15:12: error: invalid layout in alternatives
+|    .layout = "",
+|              ^^
 
 page/index.html: error: output url collision detected
    between  page.smd (main output)
@@ -55,10 +55,6 @@ nested/path/page/index.html: error: output url collision detected
    between  nested/path/page.smd (main output)
    and      page.smd (page alias)
 
-README.html: error: output url collision detected
-   between  index.smd (page alias)
-   and      page.smd (page alternative 'readme')
-
 another_index.html: error: output url collision detected
    between  index.smd (page alias)
    and      nested/path/page.smd (page alias)
@@ -71,9 +67,31 @@ foo/bar.html: error: output url collision detected
    between  index.smd (page alias)
    and      nested/path/page.smd (page alias)
 
-README.html: error: output url collision detected
-   between  index.smd (page alias)
+nested/path/page/README.html: error: output url collision detected
+   between  index.smd (page alternative 'readme')
    and      nested/path/page.smd (page alternative 'readme')
+
+----------------------------
+       -- VARIANT --
+----------------------------
+.id = 0,
+.content_dir_path = content
+
+  ------- SECTION -------
+.index = 1,
+.section_path = content/,
+.pages = [
+   content/page.smd -> content/page/index.html
+   content/nested/path/page.smd -> content/nested/path/page/index.html
+   content/page/index.smd -> content/page/index.html #2
+],
+
+
+  ------- SECTION -------
+.index = 2,
+.section_path = content/page/,
+.pages = [
+],
 
 
 

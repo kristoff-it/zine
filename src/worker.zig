@@ -57,9 +57,11 @@ pub const Job = union(enum) {
         variant: *const Variant,
         section: *Variant.Section,
         page: *Page,
+        drafts: bool,
     },
     page_parse: struct {
         progress: std.Progress.Node,
+        drafts: bool,
         variant: *const Variant,
         page: *Page,
     },
@@ -191,8 +193,15 @@ inline fn runOneJob(
             gpa,
             ap.variant,
             ap.page,
+            ap.drafts,
         ),
-        .page_parse => |pp| pp.page.parse(gpa, cmark, pp.progress, pp.variant),
+        .page_parse => |pp| pp.page.parse(
+            gpa,
+            cmark,
+            pp.progress,
+            pp.variant,
+            pp.drafts,
+        ),
         .page_render => |pr| renderPage(
             arena,
             pr.progress,
@@ -802,7 +811,7 @@ fn analyzeContent(
 
                         _ = asset.rc.fetchAdd(1, .acq_rel);
 
-                        const install_path = asset.install_path orelse {
+                        const output_path = asset.output_path orelse {
                             try errors.append(page_arena, .{
                                 .node = n,
                                 .kind = .{
@@ -814,7 +823,7 @@ fn analyzeContent(
                             continue :outer;
                         };
 
-                        ba.ref = install_path;
+                        ba.ref = output_path;
                     },
 
                     // Asset was found successfully.
@@ -946,11 +955,15 @@ fn renderPage(
         error.WantSnippet => @panic("TODO: looad snippet"),
         error.WantTemplate => {
             const template_name = super_vm.wantedTemplateName();
-            const template_path = try std.fs.path.join(arena, &.{
-                build.cfg.getLayoutsDirPath(),
-                "templates",
-                template_name,
-            });
+            const template_path = try root.join(
+                arena,
+                &.{
+                    build.cfg.getLayoutsDirPath(),
+                    "templates",
+                    template_name,
+                },
+                '/',
+            );
 
             log.debug("loading template = '{s}'", .{template_path});
 
@@ -985,7 +998,7 @@ fn renderPage(
             const out_raw = switch (kind) {
                 .main => blk: {
                     const out_dir_path = switch (build.cfg.*) {
-                        .Site => |s| try std.fmt.allocPrint(arena, "{}index.html", .{
+                        .Site => |s| try std.fmt.allocPrint(arena, "{}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,
@@ -993,7 +1006,7 @@ fn renderPage(
                                 true,
                             ),
                         }),
-                        .Multilingual => try std.fmt.allocPrint(arena, "{}index.html", .{
+                        .Multilingual => try std.fmt.allocPrint(arena, "{}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,
@@ -1033,7 +1046,7 @@ fn renderPage(
                     break :blk disk.install_dir.createFile(
                         out_path,
                         .{},
-                    ) catch |err| fatal.file("index.html", err);
+                    ) catch |err| fatal.file(out_path, err);
                 },
             };
             defer out_raw.close();
@@ -1058,9 +1071,9 @@ pub fn languageExists(language: ?[]const u8) bool {
             "file.{s}",
             .{lang},
         ) catch "<lang name too long>";
-        if (syntax.FileType.guess(filename, "") == null) {
-            return false;
-        }
+
+        const guess = syntax.FileType.guess(filename, "") orelse return false;
+        log.debug("guessed '{?s}' as '{s}'", .{ language, guess.name });
     }
 
     return true;

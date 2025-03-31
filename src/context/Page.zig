@@ -317,6 +317,7 @@ pub fn parse(
     cmark: supermd.Ast.CmarkParser,
     progress: ?std.Progress.Node,
     variant: *const @import("../Variant.zig"),
+    drafts: bool,
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
@@ -424,7 +425,7 @@ pub fn parse(
     const ast = try supermd.Ast.init(gpa, full_src[fm.offset..], cmark);
 
     p._parse = .{
-        .active = !p.draft,
+        .active = !p.draft or drafts,
         .arena = arena_state.state,
         .full_src = full_src,
         .fm = fm,

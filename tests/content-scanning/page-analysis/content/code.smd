@@ -25,10 +25,3 @@ correct!
 ```zig
 // correct
 ```
-
-```zig++
-// wrong
-```
-
-[](<$code.siteAsset('code.zig').language('zig')>) //correct
-[](<$code.siteAsset('code.zig').language('zig++')>) //wrong

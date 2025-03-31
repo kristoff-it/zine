@@ -375,8 +375,8 @@ pub const Config = union(enum) {
 // Mirrors closely the corresponding type in build.zig
 pub const BuildAsset = struct {
     input_path: []const u8,
-    install_path: ?[]const u8 = null,
-    install_always: bool = false,
+    output_path: ?[]const u8 = null,
+    output_always: bool = false,
     rc: std.atomic.Value(u32),
 };
 
@@ -384,6 +384,7 @@ pub const Options = struct {
     build_assets: *const std.StringArrayHashMapUnmanaged(BuildAsset),
     base_dir_path: []const u8,
     mode: Mode,
+    drafts: bool,
 
     pub const Mode = union(enum) {
         memory,
@@ -497,7 +498,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 i18n_errors = true;
 
                 var buf: [std.fs.max_path_bytes]u8 = undefined;
-                const path = std.fmt.bufPrint(&buf, "{}", .{std.fs.path.fmtJoin(&.{
+                const path = std.fmt.bufPrint(&buf, "{/}", .{fmtJoin(&.{
                     build.cfg.Multilingual.i18n_dir_path,
                     v.i18n_diag.path.?,
                 })}) catch v.i18n_diag.path.?;
@@ -524,6 +525,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         .variant = v,
                         .section = s,
                         .page = &v.pages.items[s.index],
+                        .drafts = options.drafts,
                     },
                 });
             }
@@ -571,6 +573,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     worker.addJob(.{
                         .page_parse = .{
                             .progress = progress_parse,
+                            .drafts = options.drafts,
                             .variant = v,
                             .page = p,
                         },

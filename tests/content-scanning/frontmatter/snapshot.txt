@@ -19,31 +19,45 @@
 |                                               |
 *-----------------------------------------------*
 
-wrong-syntax.smd:18:2:
+content/wrong-syntax.smd:18:2:
     .layout = "foo.html",
      ^
 unexpected '.', expected: ',' or '}'
 
 
-index.smd:5:11: error: missing layout file
+content/index.smd:5:11: error: missing layout file
 |    .layout = "",
 |              ^^
 
-validation-errors.smd:5:11: error: missing layout file
+content/validation-errors.smd:5:11: error: missing layout file
 |    .layout = "",
 |              ^^
 
-validation-errors.smd:9:4: error: invalid value in 'aliases'
+content/validation-errors.smd:9:4: error: invalid value in 'aliases'
 |    "bad path 💩",
 |    ^^^^^^^^^^^^^^^
 
-validation-errors.smd:16:10: error: invalid value in alternatives
+content/validation-errors.smd:16:10: error: invalid name in alternatives
 |    .name = "",
 |            ^^
 
-validation-errors.smd:21:12: error: invalid value in alternatives
+content/validation-errors.smd:21:12: error: invalid path in alternatives
 |    .output = "",
 |              ^^
+
+----------------------------
+       -- VARIANT --
+----------------------------
+.id = 0,
+.content_dir_path = content
+
+  ------- SECTION -------
+.index = 1,
+.section_path = content/,
+.pages = [
+   content/validation-errors.smd -> content/validation-errors/index.html
+   content/wrong-syntax.smd -> content/wrong-syntax/index.html
+],
 
 
 

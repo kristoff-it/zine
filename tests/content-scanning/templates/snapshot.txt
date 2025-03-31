@@ -20,7 +20,7 @@
 *-----------------------------------------------*
 
 WARNING: found plain HTML file layouts/oops.html, did you mean to give it a shtml extension?
-another.smd:5:11: error: missing layout file
+content/another.smd:5:11: error: missing layout file
 |    .layout = "doesntexist-layout.shtml",
 |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -32,6 +32,23 @@ layouts/badshtml.shtml:2:3: super_parent_element_missing_id
 layouts/badshtml.shtml:8:3: unexpected_extend
 layouts/badshtml.shtml:10:1: top_level_super
 layouts/badshtml.shtml:6:4: super_under_branching
+----------------------------
+       -- VARIANT --
+----------------------------
+.id = 0,
+.content_dir_path = content
+
+  ------- SECTION -------
+.index = 1,
+.section_path = content/,
+.pages = [
+   content/page.smd -> content/page/index.html
+   content/badshtml.smd -> content/badshtml/index.html
+   content/badhtml.smd -> content/badhtml/index.html
+   content/badextend.smd -> content/badextend/index.html
+   content/another.smd -> content/another/index.html
+],
+
 
 
  ----- EXIT CODE: 1 -----

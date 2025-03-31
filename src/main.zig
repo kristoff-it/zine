@@ -18,7 +18,7 @@ const Command = enum {
     init,
     serve,
     release,
-    tree,
+    debug,
     help,
     @"-h",
     @"--help",
@@ -117,7 +117,7 @@ pub fn main() u8 {
         .init => @import("cli/init.zig").init(gpa, args[2..]),
         .serve => @import("cli/serve.zig").serve(gpa, args[2..]),
         .release => @import("cli/release.zig").release(gpa, args[2..]),
-        .tree => @panic("TODO"),
+        .debug => @import("cli/debug.zig").debug(gpa, args[2..]),
         .help, .@"-h", .@"--help" => fatalHelp(),
         .version, .@"-v", .@"--version" => printVersion(),
     };
@@ -125,11 +125,6 @@ pub fn main() u8 {
     return @intFromBool(any_error);
 }
 
-// pub fn showTree(
-//     arena: Allocator,
-//     build: *const Build,
-// ) !void {
-//     const sep = std.fs.path.sep;
 //     for (build.variants, 0..) |variant, vidx| {
 //         std.debug.print(
 //             \\----------------------------
@@ -205,7 +200,6 @@ pub fn fatalHelp() noreturn {
         \\  init          Initialize a zine site in the current directory
         \\  serve         Start the development server
         \\  release       Create a release of a Zine website
-        \\  tree          Show the content tree for the site
         \\  help          Show this menu and exit
         \\  version       Print the Zine version and exit
         \\

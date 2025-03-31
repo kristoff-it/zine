@@ -122,12 +122,13 @@ pub const Section = struct {
         gpa: Allocator,
         variant: *const Variant,
         index: *Page,
+        drafts: bool,
     ) void {
         const zone = tracy.trace(@src());
         defer zone.end();
 
-        index.parse(gpa, worker.cmark, null, variant);
-        s.active = !index.draft;
+        index.parse(gpa, worker.cmark, null, variant, drafts);
+        s.active = index._parse.active;
     }
 
     pub fn sortPages(

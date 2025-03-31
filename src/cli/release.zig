@@ -21,6 +21,7 @@ pub fn release(gpa: Allocator, args: []const []const u8) bool {
     const build = root.run(gpa, &cfg, .{
         .base_dir_path = base_dir_path,
         .build_assets = &cmd.build_assets,
+        .drafts = cmd.drafts,
         .mode = .{
             .disk = .{
                 .output_dir_path = cmd.output_dir_path,
@@ -47,8 +48,9 @@ pub fn release(gpa: Allocator, args: []const []const u8) bool {
 }
 
 pub const Command = struct {
-    output_dir_path: ?[]const u8 = null,
+    output_dir_path: ?[]const u8,
     build_assets: std.StringArrayHashMapUnmanaged(BuildAsset),
+    drafts: bool,
 
     pub fn deinit(co: *const Command, gpa: Allocator) void {
         var ba = co.build_assets;
@@ -58,6 +60,7 @@ pub const Command = struct {
     pub fn parse(gpa: Allocator, args: []const []const u8) !Command {
         var output_dir_path: ?[]const u8 = null;
         var build_assets: std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
+        var drafts = false;
 
         const eql = std.mem.eql;
         const startsWith = std.mem.startsWith;
@@ -66,15 +69,15 @@ pub const Command = struct {
             const arg = args[idx];
             if (eql(u8, arg, "-h") or eql(u8, arg, "--help")) {
                 fatal.msg(help_message, .{});
-            } else if (eql(u8, arg, "-o") or eql(u8, arg, "--output")) {
+            } else if (eql(u8, arg, "-i") or eql(u8, arg, "--install")) {
                 idx += 1;
                 if (idx >= args.len) fatal.msg(
                     "error: missing argument to '{s}'",
                     .{arg},
                 );
                 output_dir_path = args[idx];
-            } else if (startsWith(u8, arg, "--output=")) {
-                output_dir_path = arg["--output=".len..];
+            } else if (startsWith(u8, arg, "--install=")) {
+                output_dir_path = arg["--install=".len..];
             } else if (startsWith(u8, arg, "--build-asset=")) {
                 const name = arg["--build-asset=".len..];
 
@@ -87,15 +90,15 @@ pub const Command = struct {
                 const input_path = args[idx];
 
                 idx += 1;
-                var install_path: ?[]const u8 = null;
-                var install_always = false;
+                var output_path: ?[]const u8 = null;
+                var output_always = false;
                 if (idx < args.len) {
                     const next = args[idx];
-                    if (startsWith(u8, next, "--install=")) {
-                        install_path = next["--install=".len..];
-                    } else if (startsWith(u8, next, "--install-always=")) {
-                        install_always = true;
-                        install_path = next["--install-always=".len..];
+                    if (startsWith(u8, next, "--output=")) {
+                        output_path = next["--output=".len..];
+                    } else if (startsWith(u8, next, "--output-always=")) {
+                        output_always = true;
+                        output_path = next["--output-always=".len..];
                     } else {
                         idx -= 1;
                     }
@@ -109,10 +112,12 @@ pub const Command = struct {
 
                 gop.value_ptr.* = .{
                     .input_path = input_path,
-                    .install_path = install_path,
-                    .install_always = install_always,
-                    .rc = .{ .raw = @intFromBool(install_always) },
+                    .output_path = output_path,
+                    .output_always = output_always,
+                    .rc = .{ .raw = @intFromBool(output_always) },
                 };
+            } else if (eql(u8, arg, "--drafts")) {
+                drafts = true;
             } else {
                 fatal.msg("error: unexpected cli argument '{s}'\n", .{arg});
             }
@@ -121,6 +126,7 @@ pub const Command = struct {
         return .{
             .output_dir_path = output_dir_path,
             .build_assets = build_assets,
+            .drafts = drafts,
         };
     }
 };

@@ -119,6 +119,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     var build = root.run(gpa, &cfg, .{
         .base_dir_path = base_dir_path,
         .build_assets = &cmd.build_assets,
+        .drafts = cmd.drafts,
         .mode = .memory,
     });
 
@@ -150,6 +151,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                 build = root.run(gpa, &cfg, .{
                     .base_dir_path = base_dir_path,
                     .build_assets = &cmd.build_assets,
+                    .drafts = cmd.drafts,
                     .mode = .memory,
                 });
                 build_lock.unlock();
@@ -260,6 +262,7 @@ pub const Command = struct {
     port: u16,
     debounce: u16,
     build_assets: std.StringArrayHashMapUnmanaged(BuildAsset),
+    drafts: bool,
 
     fn parseAddress(arg: []const u8) struct { []const u8, ?u16 } {
         var it = std.mem.tokenizeScalar(u8, arg, ':');
@@ -283,18 +286,19 @@ pub const Command = struct {
         var port: ?u16 = null;
         var debounce: ?u16 = null;
         var build_assets: std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
+        var drafts: ?bool = null;
 
         var idx: usize = 0;
         while (idx < args.len) : (idx += 1) {
             const arg = args[idx];
-            if (std.mem.startsWith(u8, arg, "--address=")) {
-                const suffix = arg["--address=".len..];
+            if (std.mem.startsWith(u8, arg, "--host=")) {
+                const suffix = arg["--host=".len..];
                 host, const maybe_port = parseAddress(suffix);
                 if (maybe_port) |p| port = p;
-            } else if (std.mem.eql(u8, arg, "--address")) {
+            } else if (std.mem.eql(u8, arg, "--host")) {
                 idx += 1;
                 if (idx >= args.len) fatal.msg(
-                    "error: missing argument to '--address'",
+                    "error: missing argument to '--host'",
                     .{},
                 );
                 host, const maybe_port = parseAddress(args[idx]);
@@ -348,15 +352,15 @@ pub const Command = struct {
                 const input_path = args[idx];
 
                 idx += 1;
-                var install_path: ?[]const u8 = null;
-                var install_always = false;
+                var output_path: ?[]const u8 = null;
+                var output_always = false;
                 if (idx < args.len) {
                     const next = args[idx];
-                    if (std.mem.startsWith(u8, next, "--install=")) {
-                        install_path = next["--install=".len..];
-                    } else if (std.mem.startsWith(u8, next, "--install-always=")) {
-                        install_always = true;
-                        install_path = next["--install-always=".len..];
+                    if (std.mem.startsWith(u8, next, "--output=")) {
+                        output_path = next["--output=".len..];
+                    } else if (std.mem.startsWith(u8, next, "--output-always=")) {
+                        output_always = true;
+                        output_path = next["--output-always=".len..];
                     } else {
                         idx -= 1;
                     }
@@ -370,10 +374,12 @@ pub const Command = struct {
 
                 gop.value_ptr.* = .{
                     .input_path = input_path,
-                    .install_path = install_path,
-                    .install_always = install_always,
-                    .rc = .{ .raw = @intFromBool(install_always) },
+                    .output_path = output_path,
+                    .output_always = output_always,
+                    .rc = .{ .raw = @intFromBool(output_always) },
                 };
+            } else if (std.mem.eql(u8, arg, "--drafts")) {
+                drafts = true;
             } else {
                 fatal.msg("error: unexpected cli argument '{s}'", .{arg});
             }
@@ -384,18 +390,19 @@ pub const Command = struct {
             .port = port orelse 1990,
             .debounce = debounce orelse 25,
             .build_assets = build_assets,
+            .drafts = drafts orelse false,
         };
     }
 };
 /// like fs.path.dirname but ensures a final `/`
-fn dirNameWithSlash(path: []const u8) []const u8 {
-    const d = std.fs.path.dirname(path).?;
-    if (d.len > 1) {
-        return path[0 .. d.len + 1];
-    } else {
-        return "/";
-    }
-}
+// fn dirNameWithSlash(path: []const u8) []const u8 {
+//     const d = std.fs.path.dirname(path).?;
+//     if (d.len > 1) {
+//         return path[0 .. d.len + 1];
+//     } else {
+//         return "/";
+//     }
+// }
 
 pub const Server = struct {
     gpa: Allocator,
@@ -695,14 +702,14 @@ pub const Server = struct {
         }
 
         for (server.build.build_assets.entries.items(.value)) |ba| {
-            const install_path = ba.install_path orelse continue;
-            if (!std.mem.eql(u8, path, install_path)) continue;
+            const output_path = ba.output_path orelse continue;
+            if (!std.mem.eql(u8, path, output_path)) continue;
             return sendFile(
                 arena,
                 req,
                 server.build.base_dir,
                 mime_type,
-                install_path,
+                output_path,
             ) catch |err| fatal.file(path, err);
         }
 
