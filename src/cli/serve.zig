@@ -149,6 +149,13 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     );
     _ = listen_address;
 
+    std.debug.print(
+        \\Starting the Zine development server.
+        \\Run 'zine help' to learn more about available options.
+        \\
+        \\
+    , .{});
+
     const node = root.progress.start(try std.fmt.allocPrint(
         gpa,
         "Listening at http://{s}:{}/",
