@@ -279,6 +279,11 @@ pub fn html(
                             if (std.mem.eql(u8, lang_name, "=html")) {
                                 try w.writeAll(code);
                                 continue;
+                            } else if (std.mem.eql(u8, lang_name, "=katex")) {
+                                try w.writeAll("<script type=\"math/tex\">");
+                                try w.writeAll(code);
+                                try w.writeAll("</script>");
+                                continue;
                             }
 
                             try w.print("<pre><code class=\"{s}\">", .{lang_name});
@@ -377,6 +382,23 @@ fn renderDirective(
     const directive = node.getDirective() orelse return renderLink(ev, ctx, w);
     switch (directive.kind) {
         .section, .block, .heading => {},
+        .katex => |katek| switch (ev.dir) {
+            .enter => {
+                try w.writeAll("<script type=\"math/tex\"");
+                if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
+                if (directive.attrs) |attrs| {
+                    try w.writeAll(" class=\"");
+                    for (attrs) |attr| try w.print("{s} ", .{attr});
+                    try w.writeAll("\"");
+                }
+                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
+                try w.writeAll(">");
+                try w.writeAll(katek.formula);
+            },
+            .exit => {
+                try w.writeAll("</script>");
+            },
+        },
         .text => switch (ev.dir) {
             .enter => {
                 try w.print("<span", .{});
@@ -486,6 +508,18 @@ fn renderDirective(
                 if (caption != null) try w.writeAll("<figure>");
                 if (std.mem.eql(u8, code.language orelse "", "=html")) {
                     try w.writeAll(code.src.?.url);
+                } else if (std.mem.eql(u8, code.language orelse "", "=katex")) {
+                    try w.writeAll("<script type=\"math/tex\"");
+                    if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
+                    if (directive.attrs) |attrs| {
+                        if (code.language == null) try w.writeAll(" class=\"");
+                        for (attrs) |attr| try w.print("{s} ", .{attr});
+                    }
+
+                    if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
+                    try w.writeAll(">");
+                    try w.writeAll(code.src.?.url);
+                    try w.writeAll("</script>");
                 } else {
                     try w.writeAll("<pre");
                     if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});

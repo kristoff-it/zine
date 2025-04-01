@@ -102,6 +102,19 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
             .path = "assets/under-construction.gif",
             .src = @embedFile("init/assets/under-construction.gif"),
         },
+
+        .{
+            .path = "assets/katex-tag.js",
+            .src = @embedFile("init/assets/katex-tag.js"),
+        },
+        .{
+            .path = "assets/katex0.16.21.css",
+            .src = @embedFile("init/assets/katex0.16.21.css"),
+        },
+        .{
+            .path = "assets/katex0.16.21.js",
+            .src = @embedFile("init/assets/katex0.16.21.js"),
+        },
     };
 
     for (files) |file| {

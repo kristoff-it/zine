@@ -350,7 +350,7 @@ fn analyzeContent(
         const directive = n.getDirective() orelse continue;
 
         switch (directive.kind) {
-            .section, .block, .heading, .text => {},
+            .section, .block, .heading, .text, .katex => {},
             .code => |code| {
                 const path, const base_dir = switch (code.src.?) {
                     else => unreachable,
@@ -1078,6 +1078,7 @@ pub fn languageExists(language: ?[]const u8) bool {
     const lang = language orelse return true;
 
     if (std.mem.eql(u8, lang, "=html")) return true;
+    if (std.mem.eql(u8, lang, "=katex")) return true;
 
     if (syntax.FileType.get_by_name(lang) == null) {
         var buf: [1024]u8 = undefined;

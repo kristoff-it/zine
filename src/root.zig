@@ -157,12 +157,16 @@ pub const Config = union(enum) {
             ) catch |err| switch (err) {
                 error.FileNotFound => {
                     base_dir_path = std.fs.path.dirname(base_dir_path) orelse {
-                        fatal.msg(
-                            \\Unable to find a 'zine.ziggy' config file in this directory or any of its parents.
+                        std.debug.print(
+                            \\error: unable to find a 'zine.ziggy' config file in this directory or any of its parents
                             \\
-                            \\Run `zine init` in an empty directory to bootstrap a Zine website.
+                            \\note: run `zine init` in an empty directory to bootstrap a Zine website
+                            \\
+                            \\
                             \\
                         , .{});
+
+                        fatal.help();
                     };
                     continue;
                 },
@@ -1317,11 +1321,8 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
                 pages_to_render += 1;
 
-                if (builtin.single_threaded) std.debug.print("Rendering {s}...\n", .{
-                    (PathName{
-                        .path = p._scan.md_path,
-                        .name = p._scan.md_name,
-                    }).fmt(&v.string_table, &v.path_table),
+                if (builtin.single_threaded) std.debug.print("Rendering {}...\n", .{
+                    p._scan.file.fmt(&v.string_table, &v.path_table, v.content_dir_path),
                 });
 
                 p._render = .{

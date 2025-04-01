@@ -16,7 +16,6 @@ pub const std_options: std.Options = .{
 
 const Command = enum {
     init,
-    serve,
     release,
     debug,
     help,
@@ -25,6 +24,11 @@ const Command = enum {
     version,
     @"-v",
     @"--version",
+    // Because other ssgs have them:
+    serve,
+    server,
+    dev,
+    develop,
 };
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
@@ -103,110 +107,36 @@ pub fn main() u8 {
     const args = try std.process.argsAlloc(gpa);
     defer std.process.argsFree(gpa, args);
 
-    if (args.len < 2) fatalHelp();
+    const cmd = blk: {
+        if (args.len >= 2) {
+            if (std.meta.stringToEnum(Command, args[1])) |cmd| {
+                break :blk cmd;
+            }
+        }
 
-    const cmd = std.meta.stringToEnum(Command, args[1]) orelse {
-        std.debug.print(
-            "unrecognized subcommand: '{s}'\n\n",
-            .{args[1]},
-        );
-        fatalHelp();
+        @import("cli/serve.zig").serve(gpa, args[1..]);
     };
 
     const any_error = switch (cmd) {
         .init => @import("cli/init.zig").init(gpa, args[2..]),
-        .serve => @import("cli/serve.zig").serve(gpa, args[2..]),
         .release => @import("cli/release.zig").release(gpa, args[2..]),
         .debug => @import("cli/debug.zig").debug(gpa, args[2..]),
-        .help, .@"-h", .@"--help" => fatalHelp(),
+        .help, .@"-h", .@"--help" => fatal.help(),
         .version, .@"-v", .@"--version" => printVersion(),
+        .serve, .server, .dev, .develop => {
+            std.debug.print(
+                "error: run zine without subcommand to start the development web server\n\n",
+                .{},
+            );
+            fatal.help();
+        },
     };
 
     return @intFromBool(any_error);
 }
 
-//     for (build.variants, 0..) |variant, vidx| {
-//         std.debug.print(
-//             \\----------------------------
-//             \\       -- VARIANT --
-//             \\----------------------------
-//             \\.id = {},
-//             \\.content_dir_path = {s}
-//             \\
-//         , .{
-//             vidx,
-//             build.cfg.Site.content_dir_path,
-//         });
-//         for (variant.sections.items[1..], 1..) |s, idx| {
-//             var path: std.ArrayListUnmanaged(u8) = .{};
-//             {
-//                 const csp = s.content_sub_path.slice(&variant.path_table);
-//                 for (csp) |c| {
-//                     try path.appendSlice(arena, c.slice(&variant.string_table));
-//                     try path.append(arena, sep);
-//                 }
-//             }
-
-//             std.debug.print(
-//                 \\
-//                 \\  ------- SECTION -------
-//                 \\.index = {},
-//                 \\.section_path = {s},
-//                 \\.pages = [
-//                 \\
-//             , .{
-//                 idx,
-//                 path.items,
-//             });
-
-//             for (s.pages.items) |p_idx| {
-//                 const p = variant.pages.items[p_idx];
-
-//                 path.clearRetainingCapacity();
-//                 const csp = p._scan.md_path.slice(&variant.path_table);
-//                 for (csp) |c| {
-//                     try path.appendSlice(arena, c.slice(&variant.string_table));
-//                     try path.append(arena, sep);
-//                 }
-
-//                 std.debug.print("   {s}{s}", .{
-//                     path.items,
-//                     p._scan.md_name.slice(&variant.string_table),
-//                 });
-
-//                 if (p._scan.subsection_id != 0) {
-//                     std.debug.print(" #{}\n", .{p._scan.subsection_id});
-//                 } else {
-//                     std.debug.print("\n", .{});
-//                 }
-//             }
-
-//             std.debug.print("],\n\n", .{});
-//         }
-//     }
-// }
-
 fn printVersion() noreturn {
     @panic("TODO");
     // std.debug.print("{s}\n", .{build_options.version});
     // std.process.exit(0);
-}
-
-pub fn fatalHelp() noreturn {
-    std.debug.print(
-        \\Usage: zine COMMAND [OPTIONS]
-        \\
-        \\Commands:
-        \\  init          Initialize a zine site in the current directory
-        \\  serve         Start the development server
-        \\  release       Create a release of a Zine website
-        \\  help          Show this menu and exit
-        \\  version       Print the Zine version and exit
-        \\
-        \\General Options:
-        \\  --help, -h   Print command specific usage
-        \\
-        \\
-    , .{});
-    std.process.exit(1);
 }

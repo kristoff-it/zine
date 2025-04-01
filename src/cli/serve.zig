@@ -358,8 +358,7 @@ pub const Command = struct {
             } else if (std.mem.eql(u8, arg, "-h") or
                 std.mem.eql(u8, arg, "--help"))
             {
-                std.debug.print(help_message, .{});
-                std.process.exit(1);
+                fatal.help();
             } else if (std.mem.startsWith(u8, arg, "--build-asset=")) {
                 const name = arg["--build-asset=".len..];
 
@@ -401,7 +400,8 @@ pub const Command = struct {
             } else if (std.mem.eql(u8, arg, "--drafts")) {
                 drafts = true;
             } else {
-                fatal.msg("error: unexpected cli argument '{s}'", .{arg});
+                std.debug.print("error: unexpected cli argument '{s}'\n\n", .{arg});
+                fatal.help();
             }
         }
 
@@ -975,17 +975,3 @@ pub const Debouncer = struct {
         }
     }
 };
-
-const help_message =
-    \\Usage: zine serve [OPTIONS]
-    \\
-    \\Command specific options:
-    \\  --host HOST       Listening host (default 'localhost')
-    \\  --port PORT       Listening port (default 1990)
-    \\  --debounce <ms>   Delay before rebuilding after file change (default 25)
-    \\
-    \\General Options:
-    \\  --help, -h        Print command specific usage
-    \\
-    \\
-;

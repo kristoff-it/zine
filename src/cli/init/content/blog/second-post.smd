@@ -9,4 +9,13 @@
 This second post is here just to show you that you can also create single file
 posts for convenience.
 
+
+Here's a math formula defined as a code block:
+```=katex
+x+\sqrt{1-x^2}
+```
+
+This: [`x+\sqrt{1-x^2}`]($katex) is an inline formula instead!
+
+
 The first post contains more interesting content.

@@ -77,9 +77,12 @@ Lastly, this sample website also includes the following asset files:
 - `assets/style.css`
 - `assets/hightlight.css`
 - `assets/under-construction.gif`
+- `assets/katex-tag.js`
+- `assets/katex0.16.21.css`
+- `assets/katex0.16.21.js`
 - `content/blog/first-post/fanzine.jpg`
 
-The first three asset files are **site assets**, while the last is a **page asset** that belongs to the "first post" page.
+The first few asset files are **site assets**, while the last is a **page asset** that belongs to the "first post" page.
 
 The Zine docs contain more information about [dealing with assets](https://zine-ssg.io/docs/assets/).
 
