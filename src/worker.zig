@@ -998,11 +998,11 @@ fn renderPage(
             const out_raw = switch (kind) {
                 .main => blk: {
                     const out_dir_path = switch (build.cfg.*) {
-                        .Site => |s| try std.fmt.allocPrint(arena, "{}", .{
+                        .Site => try std.fmt.allocPrint(arena, "{}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,
-                                s.url_path_prefix,
+                                null,
                                 true,
                             ),
                         }),
@@ -1032,11 +1032,11 @@ fn renderPage(
                 .alternative => |idx| blk: {
                     const raw_path = page.alternatives[idx].output;
                     const out_path = if (raw_path[0] == '/') raw_path[1..] else switch (build.cfg.*) {
-                        .Site => |s| try std.fmt.allocPrint(arena, "{}{s}", .{
+                        .Site => try std.fmt.allocPrint(arena, "{}{s}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,
-                                s.url_path_prefix,
+                                null,
                                 true,
                             ),
                             raw_path,
