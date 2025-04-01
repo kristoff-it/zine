@@ -1,4 +1,5 @@
 const std = @import("std");
+const options = @import("options");
 const syntax = @import("syntax");
 const treez = @import("treez");
 const tracy = @import("tracy");
@@ -12,10 +13,9 @@ pub const DotsToUnderscores = struct {
     pub fn format(
         self: DotsToUnderscores,
         comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
+        _: std.fmt.FormatOptions,
         out_stream: anytype,
     ) !void {
-        _ = options;
         _ = fmt;
         for (self.bytes) |b| {
             switch (b) {
@@ -110,12 +110,10 @@ pub fn highlightCode(
     defer zone.end();
     tracy.messageCopy(lang_name);
 
-    // var cond = true;
-    // if (cond) {
-    //     _ = &cond;
-    //     try writer.print("{s}", .{HtmlSafe{ .bytes = code }});
-    //     return;
-    // }
+    if (!options.enable_treesitter) {
+        try writer.print("{s}", .{HtmlSafe{ .bytes = code }});
+        return;
+    }
 
     const lang = blk: {
         const query_zone = tracy.traceNamed(@src(), "syntax");

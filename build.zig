@@ -139,6 +139,14 @@ pub fn build(b: *std.Build) !void {
         // .preferred_optimize_mode = .ReleaseFast,
     });
 
+    const version: Version = if (b.option(
+        bool,
+        "preview",
+        "Make a preview release of Zine",
+    ) orelse false) .{
+        .tag = getVersion(b).commit,
+    } else getVersion(b);
+
     const tsan = b.option(
         bool,
         "tsan",
@@ -150,6 +158,12 @@ pub fn build(b: *std.Build) !void {
         "tracy",
         "Enable Tracy profiling",
     ) orelse false;
+
+    const highlight = b.option(
+        bool,
+        "highlight",
+        "Include treesitter grammars for build-time syntax highlighting (enabled by default)",
+    ) orelse true;
 
     const tracy = b.dependency("tracy", .{ .enable = enable_tracy });
 
@@ -168,9 +182,11 @@ pub fn build(b: *std.Build) !void {
             \\// module = zine
             \\const std = @import("std");
             \\pub const tsan = {};
+            \\pub const enable_treesitter = {};
+            \\pub const version = "{s}";
             \\pub const log_scope_levels: []const std.log.ScopeLevel = &.{{
             \\
-        , .{tsan});
+        , .{ tsan, highlight, version.string() });
 
         for (scopes) |l| try out.print(
             \\.{{.scope = .{s}, .level = .debug}},
@@ -216,18 +232,14 @@ pub fn build(b: *std.Build) !void {
 
     // const wuffs = b.dependency("wuffs", mode);
 
-    // const zine = b.addModule("zine", .{
-    //     .root_source_file = b.path("src/main.zig"),
-    // });
-    // zine.addImport("ziggy", ziggy);
-    // zine.addImport("scripty", scripty);
-    // zine.addImport("supermd", supermd);
-    // zine.addImport("superhtml", superhtml);
-    // zine.addImport("zeit", zeit);
-    // zine.addImport("syntax", syntax.module("syntax"));
-    // zine.addImport("treez", treez);
-
-    // setupServer(b, options, target, optimize);
+    const release = b.step("release", "Create release builds of Zine");
+    if (version == .tag) {
+        setupReleaseStep(b, release, version.string());
+    } else {
+        release.dependOn(
+            &b.addFail("error: git tag missing, cannot make release builds").step,
+        );
+    }
 
     // const shtml_docgen = b.addExecutable(.{
     //     .name = "shtml_docgen",
@@ -454,4 +466,231 @@ fn setupFuzzing(
 
     const afl_exe = afl.addInstrumentedExe(b, target, optimize, scripty_afl_obj);
     b.getInstallStep().dependOn(&b.addInstallFile(afl_exe, "scripty-afl").step);
+}
+
+fn setupReleaseStep(
+    b: *std.Build,
+    release_step: *std.Build.Step,
+    version: []const u8,
+) void {
+    const targets: []const std.Target.Query = &.{
+        .{ .cpu_arch = .aarch64, .os_tag = .macos },
+        .{ .cpu_arch = .aarch64, .os_tag = .linux, .abi = .musl },
+        .{ .cpu_arch = .x86_64, .os_tag = .macos },
+        .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .musl },
+        .{ .cpu_arch = .x86_64, .os_tag = .windows },
+        .{ .cpu_arch = .aarch64, .os_tag = .windows },
+    };
+
+    std.fs.cwd().makePath(b.pathJoin(&.{
+        b.install_prefix,
+        "releases",
+    })) catch unreachable;
+
+    for (targets) |t| {
+        const target = b.resolveTargetQuery(t);
+        const optimize = .ReleaseFast;
+
+        const tracy = b.dependency("tracy", .{ .enable = false });
+        const scripty = b.dependency("scripty", .{
+            .target = target,
+            .optimize = optimize,
+            .tracy = false,
+        }).module("scripty");
+
+        const superhtml = b.dependency("superhtml", .{
+            .target = target,
+            .optimize = optimize,
+            .tracy = false,
+        }).module("superhtml");
+
+        const ziggy = b.dependency("ziggy", .{
+            .target = target,
+            .optimize = optimize,
+        }).module("ziggy");
+
+        const supermd = b.dependency("supermd", .{
+            .target = target,
+            .optimize = optimize,
+            .tracy = false,
+        }).module("supermd");
+        supermd.addImport("scripty", scripty);
+        supermd.addImport("superhtml", superhtml);
+        supermd.addImport("ziggy", ziggy);
+
+        const zeit = b.dependency("zeit", .{
+            .target = target,
+            .optimize = optimize,
+        }).module("zeit");
+
+        const syntax = b.dependency("flow_syntax", .{
+            .target = target,
+            .optimize = optimize,
+        });
+
+        const ts = syntax.builder.dependency("tree_sitter", .{
+            .target = target,
+            .optimize = optimize,
+        });
+
+        const treez = ts.module("treez");
+
+        const mime = b.dependency("mime", .{
+            .target = target,
+            .optimize = optimize,
+        });
+
+        const options = blk: {
+            const options = b.addOptions();
+            const out = options.contents.writer();
+            out.print(
+                \\// module = zine
+                \\const std = @import("std");
+                \\pub const tsan = false;
+                \\pub const enable_treesitter = true;
+                \\pub const version = "{s}";
+                \\pub const log_scope_levels: []const std.log.ScopeLevel = &.{{}};
+                \\
+            , .{version}) catch unreachable;
+            break :blk options.createModule();
+        };
+
+        const zine_exe_release = b.addExecutable(.{
+            .name = "zine",
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+        });
+
+        zine_exe_release.root_module.addImport("options", options);
+        zine_exe_release.root_module.addImport("ziggy", ziggy);
+        zine_exe_release.root_module.addImport("scripty", scripty);
+        zine_exe_release.root_module.addImport("supermd", supermd);
+        zine_exe_release.root_module.addImport("superhtml", superhtml);
+        zine_exe_release.root_module.addImport("zeit", zeit);
+        zine_exe_release.root_module.addImport("syntax", syntax.module("syntax"));
+        zine_exe_release.root_module.addImport("treez", treez);
+        zine_exe_release.root_module.addImport("tracy", tracy.module("tracy"));
+        zine_exe_release.root_module.addImport("mime", mime.module("mime"));
+
+        if (target.result.os.tag == .macos) {
+            const frameworks = b.lazyDependency("frameworks", .{
+                .target = target,
+                .optimize = optimize,
+            }) orelse return;
+            zine_exe_release.addIncludePath(frameworks.path("include"));
+            zine_exe_release.addFrameworkPath(frameworks.path("Frameworks"));
+            zine_exe_release.addLibraryPath(frameworks.path("lib"));
+            zine_exe_release.linkFramework("CoreServices");
+        }
+
+        switch (t.os_tag.?) {
+            .macos, .windows => {
+                const archive_name = b.fmt("{s}.zip", .{
+                    t.zigTriple(b.allocator) catch unreachable,
+                });
+
+                const zip = b.addSystemCommand(&.{
+                    "zip",
+                    "-9",
+                    // "-dd",
+                    "-q",
+                    "-j",
+                });
+                const archive = zip.addOutputFileArg(archive_name);
+                zip.addDirectoryArg(zine_exe_release.getEmittedBin());
+                _ = zip.captureStdOut();
+
+                release_step.dependOn(&b.addInstallFileWithDir(
+                    archive,
+                    .{ .custom = "releases" },
+                    archive_name,
+                ).step);
+            },
+            else => {
+                const archive_name = b.fmt("{s}.tar.xz", .{
+                    t.zigTriple(b.allocator) catch unreachable,
+                });
+
+                const tar = b.addSystemCommand(&.{
+                    "tar",
+                    "-cJf",
+                });
+
+                const archive = tar.addOutputFileArg(archive_name);
+                tar.addArg("-C");
+
+                tar.addDirectoryArg(zine_exe_release.getEmittedBinDirectory());
+                tar.addArg("zine");
+                _ = tar.captureStdOut();
+
+                release_step.dependOn(&b.addInstallFileWithDir(
+                    archive,
+                    .{ .custom = "releases" },
+                    archive_name,
+                ).step);
+            },
+        }
+    }
+}
+
+const Version = union(Kind) {
+    tag: []const u8,
+    commit: []const u8,
+    // not in a git repo
+    unknown,
+
+    pub const Kind = enum { tag, commit, unknown };
+
+    pub fn string(v: Version) []const u8 {
+        return switch (v) {
+            .tag, .commit => |tc| tc,
+            .unknown => "unknown",
+        };
+    }
+};
+fn getVersion(b: *std.Build) Version {
+    const git_path = b.findProgram(&.{"git"}, &.{}) catch return .unknown;
+    var out: u8 = undefined;
+    const git_describe = std.mem.trim(
+        u8,
+        b.runAllowFail(&[_][]const u8{
+            git_path,            "-C",
+            b.build_root.path.?, "describe",
+            "--match",           "*.*.*",
+            "--tags",
+        }, &out, .Ignore) catch return .unknown,
+        " \n\r",
+    );
+
+    switch (std.mem.count(u8, git_describe, "-")) {
+        0 => return .{ .tag = git_describe },
+        2 => {
+            // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
+            var it = std.mem.splitScalar(u8, git_describe, '-');
+            const tagged_ancestor = it.next() orelse unreachable;
+            const commit_height = it.next() orelse unreachable;
+            const commit_id = it.next() orelse unreachable;
+
+            // Check that the commit hash is prefixed with a 'g'
+            // (it's a Git convention)
+            if (commit_id.len < 1 or commit_id[0] != 'g') {
+                std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
+            }
+
+            // The version is reformatted in accordance with
+            // the https://semver.org specification.
+            return .{
+                .commit = b.fmt("{s}-dev.{s}+{s}", .{
+                    tagged_ancestor,
+                    commit_height,
+                    commit_id[1..],
+                }),
+            };
+        },
+        else => std.debug.panic(
+            "Unexpected `git describe` output: {s}\n",
+            .{git_describe},
+        ),
+    }
 }

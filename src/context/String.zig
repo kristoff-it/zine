@@ -1,12 +1,14 @@
 const String = @This();
 
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const options = @import("options");
+const superhtml = @import("superhtml");
 const hl = @import("../highlight.zig");
 const utils = @import("utils.zig");
-const log = utils.log;
-const Signature = @import("doctypes.zig").Signature;
 const context = @import("../context.zig");
+const Signature = @import("doctypes.zig").Signature;
+const log = utils.log;
+const Allocator = std.mem.Allocator;
 const Value = context.Value;
 
 value: []const u8,
@@ -358,8 +360,13 @@ pub const Builtins = struct {
                 },
             };
 
-            // _ = lang;
-            // _ = str;
+            if (!options.enable_treesitter) {
+                try out.writer().print("{}", .{superhtml.HtmlSafe{
+                    .bytes = str.value,
+                }});
+                return Value.from(gpa, try out.toOwnedSlice());
+            }
+
             hl.highlightCode(gpa, lang, str.value, out.writer()) catch |err| switch (err) {
                 error.NoLanguage => return .{ .err = "unable to find a parser for the provided language" },
                 error.OutOfMemory => return error.OutOfMemory,

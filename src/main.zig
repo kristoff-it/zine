@@ -136,7 +136,6 @@ pub fn main() u8 {
 }
 
 fn printVersion() noreturn {
-    @panic("TODO");
-    // std.debug.print("{s}\n", .{build_options.version});
-    // std.process.exit(0);
+    std.debug.print("{s}\n", .{options.version});
+    std.process.exit(0);
 }
