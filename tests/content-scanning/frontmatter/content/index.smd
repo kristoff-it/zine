@@ -8,17 +8,17 @@
    "/also/good.html",
 ],
 .alternatives = [{
-	.name = "good",
-	.output = "also/good/but/not/a/collision.html",
-	.layout = "foo.html",
+    .name = "good",
+    .output = "also/good/but/not/a/collision.html",
+    .layout = "foo.html",
 },{
-	.name = "also good",
-	.output = "good/url/though.html",
-	.layout = "foo.html",
+    .name = "also good",
+    .output = "good/url/though.html",
+    .layout = "foo.html",
 },{
-	.name = "good name and good url",
-	.layout = "foo.html",
-	.output = "foobar.html",
+    .name = "good name and good url",
+    .layout = "foo.html",
+    .output = "foobar.html",
 }],
 .draft = false,
 --- 

@@ -5,15 +5,15 @@
 .layout = "index.shtml",
 .aliases = [
     "index.html",
-	"foo/bar/baz.html",
-	"foo/bar.html",
-	"README.html",
-	"another_index.html",
+    "foo/bar/baz.html",
+    "foo/bar.html",
+    "README.html",
+    "another_index.html",
 ],
 .alternatives = [{
-	.name = "readme",
-	.output = "nested/path/page/README.html",
-	.layout = "",
+    .name = "readme",
+    .output = "nested/path/page/README.html",
+    .layout = "",
 }],
 .draft = false,
 --- 

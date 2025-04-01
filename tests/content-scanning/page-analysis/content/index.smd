@@ -4,9 +4,9 @@
 .author = "Sample Author",
 .layout = "index.shtml",
 .alternatives = [{
-	.name = "correct-alt",
-	.output = "arst.html",
-	.layout = "index.shtml",
+    .name = "correct-alt",
+    .output = "arst.html",
+    .layout = "index.shtml",
 }],
 .draft = false,
 --- 

@@ -4,11 +4,11 @@
 .author = "Sample Author",
 .layout = "page.shtml",
 .aliases = [
-	"/foo/bar/baz.html",
-	"/foo/bar.html",
-	"/README.html",
-	"/another_page.html",
-	"/nested/path/page/index.html"
+    "/foo/bar/baz.html",
+    "/foo/bar.html",
+    "/README.html",
+    "/another_page.html",
+    "/nested/path/page/index.html"
 ],
 .alternatives = [{
   .name = "readme",
