@@ -144,7 +144,7 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
 
     std.debug.print(
         \\
-        \\Run `zine serve` to run the Zine development server.
+        \\Run `zine` to run the Zine development server.
         \\Run `zine release` to build your website in 'public/'.
         \\Run `zine help` for more commands and options.
         \\
