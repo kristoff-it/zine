@@ -111,22 +111,21 @@ pub fn serve(project: *std.Build, opts: Options) *std.Build.Step.Run {
 
     const run_zine = project.addRunArtifact(zine_dep.artifact("zine"));
     run_zine.setCwd(opts.website_root orelse project.path("."));
-    run_zine.addArg("serve");
 
     for (opts.build_assets) |a| {
         run_zine.addArg(project.fmt("--build-asset={s}", .{a.name}));
         run_zine.addFileArg(a.lp);
         if (a.install_always) {
             const out_path = a.install_path orelse std.debug.panic(
-                "Build assets '{s}' specifies install_always = true  " ++
+                "Build assets '{s}' specifies output_always = true  " ++
                     "but defines no install path.",
                 .{a.name},
             );
-            run_zine.addArg(project.fmt("--install-always={s}", .{
+            run_zine.addArg(project.fmt("--output-always={s}", .{
                 out_path,
             }));
         } else if (a.install_path) |ip| {
-            run_zine.addArg(project.fmt("--install={s}", .{ip}));
+            run_zine.addArg(project.fmt("--output={s}", .{ip}));
         }
     }
 
@@ -162,7 +161,7 @@ pub fn build(b: *std.Build) !void {
     const highlight = b.option(
         bool,
         "highlight",
-        "Include treesitter grammars for build-time syntax highlighting (enabled by default)",
+        "Include treesitter grammars for build-time syntax highlighting (enabled by default). Disabling reduces executable size significantly.",
     ) orelse true;
 
     const tracy = b.dependency("tracy", .{ .enable = enable_tracy });
