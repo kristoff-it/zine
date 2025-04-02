@@ -4,6 +4,8 @@ const tracy = @import("tracy");
 const fatal = @import("../fatal.zig");
 const root = @import("../root.zig");
 const worker = @import("../worker.zig");
+const Variant = @import("../Variant.zig");
+const Section = Variant.Section;
 const Allocator = std.mem.Allocator;
 const BuildAsset = root.BuildAsset;
 
@@ -31,7 +33,7 @@ pub fn debug(
 
     defer if (builtin.mode == .Debug) build.deinit(gpa);
 
-    for (build.variants, 0..) |variant, vidx| {
+    for (build.variants, 0..) |*variant, vidx| {
         std.debug.print(
             \\----------------------------
             \\       -- VARIANT --
@@ -43,7 +45,33 @@ pub fn debug(
             vidx,
             build.cfg.Site.content_dir_path,
         });
-        for (variant.sections.items[1..], 1..) |s, idx| {
+
+        std.mem.sort(Section, variant.sections.items, variant, struct {
+            pub fn lessThan(v: *Variant, lhs: Section, rhs: Section) bool {
+                var bl: [std.fs.max_path_bytes]u8 = undefined;
+                var br: [std.fs.max_path_bytes]u8 = undefined;
+                return std.mem.order(
+                    u8,
+                    std.fmt.bufPrint(&bl, "{}", .{
+                        lhs.content_sub_path.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            null,
+                            false,
+                        ),
+                    }) catch unreachable,
+                    std.fmt.bufPrint(&br, "{}", .{
+                        rhs.content_sub_path.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            null,
+                            false,
+                        ),
+                    }) catch unreachable,
+                ) == .lt;
+            }
+        }.lessThan);
+        for (variant.sections.items[1..], 1..) |*s, idx| {
             std.debug.print(
                 \\
                 \\  ------- SECTION -------

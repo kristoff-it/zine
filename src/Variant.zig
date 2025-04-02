@@ -146,14 +146,6 @@ pub const Section = struct {
                     return std.mem.order(
                         u8,
                         std.fmt.bufPrint(&bl, "{}", .{
-                            ctx.pages[lhs]._scan.url.fmt(
-                                &ctx.v.string_table,
-                                &ctx.v.path_table,
-                                null,
-                                false,
-                            ),
-                        }) catch unreachable,
-                        std.fmt.bufPrint(&br, "{}", .{
                             ctx.pages[rhs]._scan.url.fmt(
                                 &ctx.v.string_table,
                                 &ctx.v.path_table,
@@ -161,7 +153,15 @@ pub const Section = struct {
                                 false,
                             ),
                         }) catch unreachable,
-                    ) != .lt;
+                        std.fmt.bufPrint(&br, "{}", .{
+                            ctx.pages[lhs]._scan.url.fmt(
+                                &ctx.v.string_table,
+                                &ctx.v.path_table,
+                                null,
+                                false,
+                            ),
+                        }) catch unreachable,
+                    ) == .lt;
                 }
 
                 return ctx.pages[rhs].date.lessThan(ctx.pages[lhs].date);
