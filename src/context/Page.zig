@@ -711,13 +711,19 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
+            assert(std.mem.indexOf(u8, ref, "/") == null);
+
             if (root.validatePathMessage(ref, .{})) |msg| return .{ .err = msg };
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const st = &v.string_table;
             const pt = &v.path_table;
 
-            if (PathName.get(st, pt, ref)) |pn| blk: {
+            if (StringTable.get(st, ref)) |name| blk: {
+                const pn: PathName = .{
+                    .path = p._scan.url,
+                    .name = name,
+                };
                 if (v.urls.get(pn)) |hint| {
                     switch (hint.kind) {
                         .page_asset => {
