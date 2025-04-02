@@ -19,9 +19,9 @@
 |                                               |
 *-----------------------------------------------*
 
-content/wrong-syntax.smd:18:2:
+content/wrong-syntax.smd:18:5:
     .layout = "foo.html",
-     ^
+        ^
 unexpected '.', expected: ',' or '}'
 
 
@@ -37,11 +37,11 @@ content/validation-errors.smd:9:4: error: invalid value in 'aliases'
 |    "bad path 💩",
 |    ^^^^^^^^^^^^^^^
 
-content/validation-errors.smd:16:10: error: invalid name in alternatives
+content/validation-errors.smd:16:13: error: invalid name in alternatives
 |    .name = "",
 |            ^^
 
-content/validation-errors.smd:21:12: error: invalid path in alternatives
+content/validation-errors.smd:21:15: error: invalid path in alternatives
 |    .output = "",
 |              ^^
 

@@ -19,7 +19,7 @@
 |                                               |
 *-----------------------------------------------*
 
-content/index.smd:16:12: error: invalid layout in alternatives
+content/index.smd:16:15: error: invalid layout in alternatives
 |    .layout = "",
 |              ^^
 
@@ -27,7 +27,7 @@ content/page.smd:16:13: error: invalid layout in alternatives
 |    .layout = "",
 |              ^^
 
-content/nested/path/page.smd:15:12: error: invalid layout in alternatives
+content/nested/path/page.smd:15:15: error: invalid layout in alternatives
 |    .layout = "",
 |              ^^
 
