@@ -664,7 +664,7 @@ fn getVersion(b: *std.Build) Version {
 
     switch (std.mem.count(u8, git_describe, "-")) {
         0, 1 => return .{ .tag = git_describe },
-        2 => {
+        else => {
             // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
             var it = std.mem.splitScalar(u8, git_describe, '-');
             const tagged_ancestor = it.next() orelse unreachable;
@@ -687,9 +687,5 @@ fn getVersion(b: *std.Build) Version {
                 }),
             };
         },
-        else => std.debug.panic(
-            "Unexpected `git describe` output: {s}\n",
-            .{git_describe},
-        ),
     }
 }

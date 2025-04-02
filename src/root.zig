@@ -1021,7 +1021,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
     // that files always have an extension, reducing collision detection
     // to just detecting duplicate paths. This simplified version
     // of the problem can be solved with a hash map, while solving the
-    // full version will require using a tree for the `zine serve` case
+    // full version will require using a tree for the live server
     // and perhaps some clever scan algorithm in the `zine release` case.
     // Alternatively, if this algo proves to be sufficiently more efficent
     // than the tree case, we could default to this method and then only
