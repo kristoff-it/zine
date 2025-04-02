@@ -66,9 +66,9 @@ HTML markup in Zine is defined via SuperHTML templates:
 - `layouts/devlog-archive.shtml`
 - `layouts/templates/base.shtml`
 
-**If you're running `zine serve`, then all changes you make will be picked up
-immediately, causing the website to rebuild and the page in your browser to
-refresh**.
+**If you're running the Zine development server (by running `zine`), then all
+changes you make will be picked up immediately, causing the website to rebuild
+and the page in your browser to refresh**.
 
 You can learn more about SuperMD and SuperHTML in [/about/](/about/).
 

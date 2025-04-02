@@ -125,7 +125,7 @@ pub fn main() u8 {
         .version, .@"-v", .@"--version" => printVersion(),
         .serve, .server, .dev, .develop => {
             std.debug.print(
-                "error: run zine without subcommand to start the development web server\n\n",
+                "error: run zine without any subcommand to start the development web server\n\n",
                 .{},
             );
             fatal.help();

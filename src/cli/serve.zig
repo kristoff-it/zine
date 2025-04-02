@@ -36,11 +36,14 @@ pub const ServeEvent = union(enum) {
 };
 
 pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
-    if (builtin.single_threaded) fatal.msg(
-        "error: single-threaded zine does not yet support the 'serve' command, sorry",
-        .{},
-    );
+    if (builtin.single_threaded) {
+        std.debug.print(
+            "error: single-threaded zine does not yet support running the live server, sorry\n\n",
+            .{},
+        );
 
+        fatal.help();
+    }
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
