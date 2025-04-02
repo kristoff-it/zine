@@ -17,12 +17,12 @@
     <h1 class="site-title" :text="$site.title"></h1>
     <nav>
       <a href="$site.page('').link()">Home</a>
-      	&nbsp; • &nbsp;
+       &nbsp; • &nbsp;
       <a href="$site.page('about').link()">About</a>
-      	&nbsp; • &nbsp;
+       &nbsp; • &nbsp;
       <a href="$site.page('blog').link()">Blog</a>
       <ctx :if="$site.page('devlog').subpages().first?()">
-        	&nbsp; • &nbsp;
+         &nbsp; • &nbsp;
         <a href="$if.link()">Devlog</a>
       </ctx>
     </nav>

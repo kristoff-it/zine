@@ -9,17 +9,17 @@
    "bad path 💩",
 ],
 .alternatives = [{
-	.name = "good",
-	.output = "also/good/but/not/a/collision.html",
-	.layout = "foo.html",
+    .name = "good",
+    .output = "also/good/but/not/a/collision.html",
+    .layout = "foo.html",
 },{
-	.name = "",
-	.output = "good/url/though.html"
-	.layout = "foo.html",
+    .name = "",
+    .output = "good/url/though.html"
+    .layout = "foo.html",
 },{
-	.name = "good name but bad url",
-	.output = "",
-	.layout = "foo.html",
+    .name = "good name but bad url",
+    .output = "",
+    .layout = "foo.html",
 }],
 .draft = false,
 --- 
