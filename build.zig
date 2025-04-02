@@ -662,30 +662,55 @@ fn getVersion(b: *std.Build) Version {
         " \n\r",
     );
 
-    switch (std.mem.count(u8, git_describe, "-")) {
-        0, 1 => return .{ .tag = git_describe },
-        else => {
-            // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
-            var it = std.mem.splitScalar(u8, git_describe, '-');
-            const tagged_ancestor = it.next() orelse unreachable;
-            const commit_height = it.next() orelse unreachable;
-            const commit_id = it.next() orelse unreachable;
+    return .{ .commit = git_describe };
 
-            // Check that the commit hash is prefixed with a 'g'
-            // (it's a Git convention)
-            if (commit_id.len < 1 or commit_id[0] != 'g') {
-                std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
-            }
+    // switch (std.mem.count(u8, git_describe, "-")) {
+    //     0, 1 => return .{ .tag = git_describe },
+    //     2 => {
+    //         // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
+    //         var it = std.mem.splitScalar(u8, git_describe, '-');
+    //         const tagged_ancestor = it.next() orelse unreachable;
+    //         const commit_height = it.next() orelse unreachable;
+    //         const commit_id = it.next() orelse unreachable;
 
-            // The version is reformatted in accordance with
-            // the https://semver.org specification.
-            return .{
-                .commit = b.fmt("{s}-dev.{s}+{s}", .{
-                    tagged_ancestor,
-                    commit_height,
-                    commit_id[1..],
-                }),
-            };
-        },
-    }
+    //         // Check that the commit hash is prefixed with a 'g'
+    //         // (it's a Git convention)
+    //         if (commit_id.len < 1 or commit_id[0] != 'g') {
+    //             std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
+    //         }
+
+    //         // The version is reformatted in accordance with
+    //         // the https://semver.org specification.
+    //         return .{
+    //             .commit = b.fmt("{s}-dev.{s}+{s}", .{
+    //                 tagged_ancestor,
+    //                 commit_height,
+    //                 commit_id[1..],
+    //             }),
+    //         };
+    //     },
+    //     3 => {
+    //         // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
+    //         var it = std.mem.splitScalar(u8, git_describe, '-');
+    //         const tagged_ancestor = it.next() orelse unreachable;
+    //         const commit_height = it.next() orelse unreachable;
+    //         const commit_id = it.next() orelse unreachable;
+
+    //         // Check that the commit hash is prefixed with a 'g'
+    //         // (it's a Git convention)
+    //         if (commit_id.len < 1 or commit_id[0] != 'g') {
+    //             std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
+    //         }
+
+    //         // The version is reformatted in accordance with
+    //         // the https://semver.org specification.
+    //         return .{
+    //             .commit = b.fmt("{s}-dev.{s}+{s}", .{
+    //                 tagged_ancestor,
+    //                 commit_height,
+    //                 commit_id[1..],
+    //             }),
+    //         };
+    //     },
+    // }
 }
