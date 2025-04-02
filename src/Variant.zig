@@ -133,16 +133,42 @@ pub const Section = struct {
 
     pub fn sortPages(
         s: *Section,
+        v: *Variant,
         pages: []Page,
     ) void {
         const Ctx = struct {
+            v: *Variant,
             pages: []Page,
             pub fn lessThan(ctx: @This(), lhs: u32, rhs: u32) bool {
+                if (ctx.pages[rhs].date.eql(ctx.pages[lhs].date)) {
+                    var bl: [std.fs.max_path_bytes]u8 = undefined;
+                    var br: [std.fs.max_path_bytes]u8 = undefined;
+                    return std.mem.order(
+                        u8,
+                        std.fmt.bufPrint(&bl, "{}", .{
+                            ctx.pages[lhs]._scan.url.fmt(
+                                &ctx.v.string_table,
+                                &ctx.v.path_table,
+                                null,
+                                false,
+                            ),
+                        }) catch unreachable,
+                        std.fmt.bufPrint(&br, "{}", .{
+                            ctx.pages[rhs]._scan.url.fmt(
+                                &ctx.v.string_table,
+                                &ctx.v.path_table,
+                                null,
+                                false,
+                            ),
+                        }) catch unreachable,
+                    ) != .lt;
+                }
+
                 return ctx.pages[rhs].date.lessThan(ctx.pages[lhs].date);
             }
         };
 
-        const ctx: Ctx = .{ .pages = pages };
+        const ctx: Ctx = .{ .pages = pages, .v = v };
         std.sort.insertion(u32, s.pages.items, ctx, Ctx.lessThan);
     }
 };

@@ -625,7 +625,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
     // having its own waitgroup.
     for (build.variants) |*v| {
         for (v.sections.items) |*s| {
-            s.sortPages(v.pages.items);
+            s.sortPages(v, v.pages.items);
         }
     }
 

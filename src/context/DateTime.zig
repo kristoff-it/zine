@@ -282,3 +282,7 @@ pub const ziggy_options = struct {
 pub fn lessThan(self: DateTime, rhs: DateTime) bool {
     return self._inst.timestamp < rhs._inst.timestamp;
 }
+
+pub fn eql(self: DateTime, rhs: DateTime) bool {
+    return self._inst.timestamp == rhs._inst.timestamp;
+}
