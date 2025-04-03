@@ -997,36 +997,80 @@ fn renderPage(
             defer out_buf.deinit(gpa);
             const out_raw = switch (kind) {
                 .main => blk: {
-                    const out_dir_path = switch (build.cfg.*) {
-                        .Site => try std.fmt.allocPrint(arena, "{}", .{
-                            page._scan.url.fmt(
-                                &variant.string_table,
-                                &variant.path_table,
-                                null,
-                                true,
-                            ),
-                        }),
-                        .Multilingual => try std.fmt.allocPrint(arena, "{}", .{
-                            page._scan.url.fmt(
-                                &variant.string_table,
-                                &variant.path_table,
-                                variant.output_path_prefix,
-                                true,
-                            ),
-                        }),
-                    };
+                    // aliases
+                    for (page.aliases) |a| {
+                        const out_path = if (a[0] == '/') a[1..] else switch (build.cfg.*) {
+                            .Site => try std.fmt.allocPrint(arena, "{}{s}", .{
+                                page._scan.url.fmt(
+                                    &variant.string_table,
+                                    &variant.path_table,
+                                    null,
+                                    true,
+                                ),
+                                a,
+                            }),
+                            .Multilingual => try std.fmt.allocPrint(arena, "{}{s}", .{
+                                page._scan.url.fmt(
+                                    &variant.string_table,
+                                    &variant.path_table,
+                                    variant.output_path_prefix,
+                                    true,
+                                ),
+                                a,
+                            }),
+                        };
 
-                    // note: do not close build.install_dir
-                    var out_dir = if (out_dir_path.len == 0) disk.install_dir else disk.install_dir.makeOpenPath(
-                        out_dir_path,
-                        .{},
-                    ) catch |err| fatal.dir(out_dir_path, err);
-                    defer if (out_dir_path.len > 0) out_dir.close();
+                        if (std.fs.path.dirnamePosix(out_path)) |path| {
+                            disk.install_dir.makePath(
+                                path,
+                            ) catch |err| fatal.dir(path, err);
+                        }
 
-                    break :blk out_dir.createFile(
-                        "index.html",
-                        .{},
-                    ) catch |err| fatal.file("index.html", err);
+                        const f = disk.install_dir.createFile(
+                            out_path,
+                            .{},
+                        ) catch |err| fatal.file(out_path, err);
+
+                        defer f.close();
+                        f.writeAll(out_buf.items) catch |err| fatal.file(
+                            out_path,
+                            err,
+                        );
+                    }
+
+                    // main
+                    {
+                        const out_dir_path = switch (build.cfg.*) {
+                            .Site => try std.fmt.allocPrint(arena, "{}", .{
+                                page._scan.url.fmt(
+                                    &variant.string_table,
+                                    &variant.path_table,
+                                    null,
+                                    true,
+                                ),
+                            }),
+                            .Multilingual => try std.fmt.allocPrint(arena, "{}", .{
+                                page._scan.url.fmt(
+                                    &variant.string_table,
+                                    &variant.path_table,
+                                    variant.output_path_prefix,
+                                    true,
+                                ),
+                            }),
+                        };
+
+                        // note: do not close build.install_dir
+                        var out_dir = if (out_dir_path.len == 0) disk.install_dir else disk.install_dir.makeOpenPath(
+                            out_dir_path,
+                            .{},
+                        ) catch |err| fatal.dir(out_dir_path, err);
+                        defer if (out_dir_path.len > 0) out_dir.close();
+
+                        break :blk out_dir.createFile(
+                            "index.html",
+                            .{},
+                        ) catch |err| fatal.file("index.html", err);
+                    }
                 },
 
                 .alternative => |idx| blk: {
