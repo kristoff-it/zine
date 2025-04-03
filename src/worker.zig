@@ -471,8 +471,25 @@ fn analyzeContent(
                     });
                     continue :outer;
                 }
+                const snippet = if (code.lines) |lines| blk: {
+                    var line_num: usize = 1;
+                    var slice_start: usize = 0;
 
-                directive.kind.code.src = .{ .url = src };
+                    for (src, 0..) |byte, index| {
+                        if (byte == '\n') {
+                            line_num += 1;
+                            if (line_num == lines.start) {
+                                slice_start = index + 1;
+                            }
+                            if (line_num == lines.end + 1) {
+                                break :blk src[slice_start .. index + 1];
+                            }
+                        }
+                    }
+                    break :blk src[slice_start..];
+                } else src;
+
+                directive.kind.code.src = .{ .url = snippet };
             },
 
             // Link, Image, Video directives
