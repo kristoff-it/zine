@@ -20,6 +20,7 @@ const assert = std.debug.assert;
 const zinereload_js = @embedFile("serve/zinereload.js");
 const not_found_html = @embedFile("serve/404.html");
 const error_html = @embedFile("serve/error.html");
+const outside_html = @embedFile("serve/outside.html");
 const Watcher = switch (builtin.target.os.tag) {
     .linux => @import("serve/watcher/LinuxWatcher.zig"),
     .macos => @import("serve/watcher/MacosWatcher.zig"),
@@ -159,11 +160,20 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         \\
     , .{});
 
-    const node = root.progress.start(try std.fmt.allocPrint(
-        gpa,
-        "Listening at http://{s}:{}/",
-        .{ cmd.host, cmd.port },
-    ), 0);
+    const name = switch (cfg) {
+        .Site => |s| try std.fmt.allocPrint(
+            gpa,
+            "Listening at http://{s}:{}/{/}",
+            .{ cmd.host, cmd.port, root.fmtJoin(&.{ s.url_path_prefix, "/" }) },
+        ),
+        .Multilingual => try std.fmt.allocPrint(
+            gpa,
+            "Listening at http://{s}:{}/",
+            .{ cmd.host, cmd.port },
+        ),
+    };
+
+    const node = root.progress.start(name, 0);
     defer node.end();
 
     var websockets: std.AutoArrayHashMapUnmanaged(
@@ -577,6 +587,34 @@ pub const Server = struct {
             path_with_query,
             '?',
         ) orelse path_with_query.len];
+
+        switch (server.build.cfg.*) {
+            .Site => |s| {
+                if (s.url_path_prefix.len > 0) {
+                    if (!std.mem.startsWith(u8, path[1..], s.url_path_prefix)) {
+                        return sendOutsideOfPathPrefix(
+                            arena,
+                            req,
+                            s.url_path_prefix,
+                        );
+                    }
+
+                    var len = s.url_path_prefix.len;
+                    if (s.url_path_prefix[len - 1] == '/') len -= 1;
+                    path = path[1 + len ..];
+
+                    if (path.len == 0) {
+                        return appendSlashRedirect(
+                            arena,
+                            req,
+                            path_with_query,
+                        ) catch |err| fatal.file(path, err);
+                    }
+                }
+            },
+            .Multilingual => {},
+        }
+
         const path_ends_with_slash = std.mem.endsWith(u8, path, "/");
 
         if (path_ends_with_slash) {
@@ -811,6 +849,25 @@ pub const Server = struct {
         );
     }
 
+    fn sendOutsideOfPathPrefix(
+        arena: Allocator,
+        req: *std.http.Server.Request,
+        path: []const u8,
+    ) !void {
+        const data = try std.fmt.allocPrint(arena, outside_html, .{path});
+
+        req.respond(data, .{
+            .status = .not_found,
+            .extra_headers = &.{
+                .{ .name = "content-type", .value = "text/html" },
+            },
+        }) catch |err| log.debug(
+            "error while sending http response: {}",
+            .{err},
+        );
+        log.debug("outside of perfix path", .{});
+    }
+
     fn sendError(
         arena: Allocator,
         req: *std.http.Server.Request,
@@ -829,6 +886,7 @@ pub const Server = struct {
         );
         log.debug("not found", .{});
     }
+
     fn sendNotFound(
         arena: Allocator,
         req: *std.http.Server.Request,

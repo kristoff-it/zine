@@ -430,7 +430,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         .content_dir_path = s.content_dir_path,
                         .variant_id = 0,
                         .multilingual = null,
-                        .output_path_prefix = s.url_path_prefix,
+                        .output_path_prefix = "",
                     },
                 });
             },
