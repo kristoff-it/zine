@@ -91,7 +91,8 @@ pub fn debug(
             for (s.pages.items) |p_idx| {
                 const p = variant.pages.items[p_idx];
 
-                std.debug.print("   {} -> {}index.html", .{
+                std.debug.print("   ({}) {} -> {}index.html", .{
+                    p_idx,
                     p._scan.file.fmt(
                         &variant.string_table,
                         &variant.path_table,
@@ -113,6 +114,22 @@ pub fn debug(
             }
 
             std.debug.print("],\n\n", .{});
+        }
+
+        var it = variant.urls.iterator();
+        while (it.next()) |kv| {
+            const pn = kv.key_ptr;
+            const lh = kv.value_ptr;
+            if (lh.kind == .page_asset) {
+                std.debug.print("({}) {}\n", .{
+                    lh.id,
+                    pn.fmt(
+                        &variant.string_table,
+                        &variant.path_table,
+                        null,
+                    ),
+                });
+            }
         }
     }
 

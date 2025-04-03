@@ -121,11 +121,12 @@ content/other.smd:23:1: error: unknown language code
 .index = 1,
 .section_path = content/,
 .pages = [
-   content/parse.smd -> content/parse/index.html
-   content/other.smd -> content/other/index.html
-   content/code.smd -> content/code/index.html
+   (1) content/parse.smd -> content/parse/index.html
+   (2) content/other.smd -> content/other/index.html
+   (3) content/code.smd -> content/code/index.html
 ],
 
+(0) skater.webp
 
 
  ----- EXIT CODE: 1 -----

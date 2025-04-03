@@ -711,19 +711,32 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            assert(std.mem.indexOf(u8, ref, "/") == null);
-
             if (root.validatePathMessage(ref, .{})) |msg| return .{ .err = msg };
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const st = &v.string_table;
             const pt = &v.path_table;
 
-            if (StringTable.get(st, ref)) |name| blk: {
-                const pn: PathName = .{
-                    .path = p._scan.url,
-                    .name = name,
+            var buf: [512]StringTable.String = undefined;
+            const page_path = p._scan.url.slice(pt);
+            @memcpy(buf[0..].ptr, page_path);
+
+            var it = std.mem.tokenizeScalar(u8, ref, '/');
+            var idx = page_path.len;
+            while (it.next()) |c| : (idx += 1) {
+                if (idx == buf.len) return Value.errFmt(gpa, "path too long", .{});
+
+                buf[idx] = st.get(c) orelse {
+                    return Value.errFmt(gpa, "missing page asset: '{s}'", .{ref});
                 };
+            }
+
+            if (pt.get(buf[0 .. idx - 1])) |full_path| blk: {
+                const pn: PathName = .{
+                    .path = full_path,
+                    .name = buf[idx - 1],
+                };
+
                 if (v.urls.get(pn)) |hint| {
                     switch (hint.kind) {
                         .page_asset => {
@@ -731,7 +744,11 @@ pub const Builtins = struct {
                                 const other_page = &v.pages.items[hint.id];
                                 return Value.errFmt(gpa, "page asset '{s}' exists but belongs to page '{}', to reference an asset that belongs to another page you must access it through that page (see page accessing functions in SuperHTML Scripty docs)", .{
                                     ref,
-                                    other_page._scan.file.fmt(st, pt, v.content_dir_path),
+                                    other_page._scan.file.fmt(
+                                        st,
+                                        pt,
+                                        v.content_dir_path,
+                                    ),
                                 });
                             }
                         },
@@ -748,7 +765,6 @@ pub const Builtins = struct {
                     };
                 }
             }
-
             return Value.errFmt(gpa, "missing page asset: '{s}'", .{ref});
         }
     };
