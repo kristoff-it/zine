@@ -739,21 +739,21 @@ pub fn htmlToc(ast: Ast, w: anytype) !void {
                 try w.print("<ul><li>\n", .{});
             }
 
-            try tocRenderHeading(n, w);
+            try tocRenderHeading(n, w, true);
         } else if (new_lvl < lvl) {
             try w.print("</li>", .{});
             while (new_lvl < lvl) : (lvl -= 1) {
                 try w.print("</ul></li>", .{});
             }
             try w.print("<li>", .{});
-            try tocRenderHeading(n, w);
+            try tocRenderHeading(n, w, true);
         } else {
             if (first_item) {
                 try w.print("<li>", .{});
-                try tocRenderHeading(n, w);
+                try tocRenderHeading(n, w, true);
             } else {
                 try w.print("</li><li>", .{});
-                try tocRenderHeading(n, w);
+                try tocRenderHeading(n, w, true);
             }
         }
     }
@@ -765,7 +765,7 @@ pub fn htmlToc(ast: Ast, w: anytype) !void {
     try w.print("</ul>", .{});
 }
 
-fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
+fn tocRenderHeading(heading: supermd.Node, w: anytype, link: bool) !void {
     var it = Iter.init(heading);
     while (it.next()) |ev| {
         const node = ev.node;
@@ -780,13 +780,13 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
                     if (dir.id) |id| {
                         std.debug.assert(id.len > 0);
                         std.debug.assert(std.mem.trim(u8, id, "\t\n\r ").len > 0);
-                        try w.print("<a href=\"#{s}\">", .{id});
+                        if (link) try w.print("<a href=\"#{s}\">", .{id});
                     }
                 },
                 .exit => {
                     const dir = node.getDirective() orelse continue;
                     if (dir.id != null) {
-                        try w.print("</a>", .{});
+                        if (link) try w.print("</a>", .{});
                     }
                 },
             },
@@ -820,5 +820,67 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype) !void {
             },
             .LINK => {},
         }
+    }
+}
+
+pub fn htmlTocDetails(ast: Ast, w: anytype) !void {
+    var lvl: i32 = 1;
+    var first_item = true;
+    var node: ?supermd.Node = ast.md.root.firstChild();
+    while (node) |n| : (node = n.nextSibling()) {
+        if (n.nodeType() != .HEADING) continue;
+        defer first_item = false;
+
+        const new_lvl = n.headingLevel();
+        if (new_lvl > lvl) {
+            // if (lvl == 1) {
+            //     try w.print("<details>\n", .{});
+            //     lvl += 1;
+            // }
+            while (new_lvl > lvl) : (lvl += 1) {
+                try w.print("<ul><li>\n", .{});
+            }
+
+            // if (lvl == 1) try w.print("<summary>\n", .{});
+            try tocRenderHeading(n, w, true);
+            // if (lvl == 1) try w.print("</summary>\n", .{});
+        } else if (new_lvl < lvl) {
+            try w.print("</li>", .{});
+            while (new_lvl < lvl) : (lvl -= 1) {
+                try w.print("</ul></li>", .{});
+            }
+            if (lvl == 1) {
+                try w.print("</details><details><summary>", .{});
+                try tocRenderHeading(n, w, false);
+                try w.print("</summary>", .{});
+            } else {
+                try w.print("<li>", .{});
+                try tocRenderHeading(n, w, true);
+            }
+        } else {
+            if (first_item) {
+                if (lvl == 1) {
+                    try w.print("<details><summary>", .{});
+                    try tocRenderHeading(n, w, false);
+                    try w.print("</summary>", .{});
+                } else {
+                    try w.print("<li>", .{});
+                    try tocRenderHeading(n, w, true);
+                }
+            } else {
+                if (lvl == 1) {
+                    try w.print("</details><details><summary>", .{});
+                    try tocRenderHeading(n, w, false);
+                    try w.print("</summary>", .{});
+                } else {
+                    try w.print("</li><li>", .{});
+                    try tocRenderHeading(n, w, true);
+                }
+            }
+        }
+    }
+
+    while (lvl > 1) : (lvl -= 1) {
+        try w.print("</li></ul>", .{});
     }
 }

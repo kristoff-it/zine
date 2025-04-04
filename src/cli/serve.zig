@@ -163,8 +163,8 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     const name = switch (cfg) {
         .Site => |s| try std.fmt.allocPrint(
             gpa,
-            "Listening at http://{s}:{}/{/}",
-            .{ cmd.host, cmd.port, root.fmtJoin(&.{ s.url_path_prefix, "/" }) },
+            "Listening at http://{s}:{}{/}",
+            .{ cmd.host, cmd.port, root.fmtJoin(&.{ "/", s.url_path_prefix, "/" }) },
         ),
         .Multilingual => try std.fmt.allocPrint(
             gpa,
