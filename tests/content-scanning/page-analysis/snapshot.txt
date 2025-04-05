@@ -19,6 +19,10 @@
 |                                               |
 *-----------------------------------------------*
 
+content/code.smd:19:3: [erroneous_end_tag] 
+|    </span> wrong!
+|      ^^^^
+
 content/parse.smd:11:1: [html_is_forbidden] 
 |    <div>wrong block-level html</div>
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -70,10 +74,6 @@ content/parse.smd:37:1: [scripty] empty component in path
 content/parse.smd:39:1: [scripty] empty component in path
 |    []($link.page('a//foo/..')) //wrong 9/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-content/code.smd:19:3: [erroneous_end_tag] 
-|    </span> wrong!
-|      ^^^^
 
 content/index.smd:18:1: error: missing site asset
 |    []($image.siteAsset('doesntexist.jpg')) //wrong

@@ -374,6 +374,19 @@ pub fn scanContentDir(
         try section.pages.resize(gpa, section_pages_old_len + page_names.items.len);
         const pages_old_len = pages.items.len;
         try pages.resize(gpa, pages_old_len + page_names.items.len);
+
+        if (builtin.mode == .Debug) {
+            const Ctx = struct {
+                st: *StringTable,
+                pub fn lessThan(ctx: @This(), lhs: String, rhs: String) bool {
+                    return std.mem.order(u8, lhs.slice(ctx.st), rhs.slice(ctx.st)) == .lt;
+                }
+            };
+
+            const ctx: Ctx = .{ .st = &string_table };
+            std.mem.sort(String, page_names.items, ctx, Ctx.lessThan);
+        }
+
         for (
             section.pages.items[section_pages_old_len..],
             pages.items[pages_old_len..],
