@@ -24,9 +24,9 @@ content/another.smd:5:11: error: missing layout file
 |    .layout = "doesntexist-layout.shtml",
 |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-layouts/badhtml.shtml:1:4: erroneous_end_tag
 layouts/badextend.shtml: error: extending a template that doesn't exist 
    template 'doesntexist-template.shtml' does not exist
+layouts/badhtml.shtml:1:4: erroneous_end_tag
 layouts/badshtml.shtml:0:1: extend_without_template_attr
 layouts/badshtml.shtml:2:3: super_parent_element_missing_id
 layouts/badshtml.shtml:8:3: unexpected_extend
@@ -42,11 +42,11 @@ layouts/badshtml.shtml:6:4: super_under_branching
 .index = 1,
 .section_path = content/,
 .pages = [
-   (1) content/page.smd -> content/page/index.html
-   (2) content/badshtml.smd -> content/badshtml/index.html
-   (3) content/badhtml.smd -> content/badhtml/index.html
-   (4) content/badextend.smd -> content/badextend/index.html
-   (5) content/another.smd -> content/another/index.html
+    content/page.smd (1)
+    content/badshtml.smd (2)
+    content/badhtml.smd (3)
+    content/badextend.smd (4)
+    content/another.smd (5)
 ],
 
 

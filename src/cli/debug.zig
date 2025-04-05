@@ -91,23 +91,17 @@ pub fn debug(
             for (s.pages.items) |p_idx| {
                 const p = variant.pages.items[p_idx];
 
-                std.debug.print("   ({}) {} -> {}index.html", .{
-                    p_idx,
+                std.debug.print("    {} ({})", .{
                     p._scan.file.fmt(
                         &variant.string_table,
                         &variant.path_table,
                         variant.content_dir_path,
                     ),
-                    p._scan.url.fmt(
-                        &variant.string_table,
-                        &variant.path_table,
-                        variant.content_dir_path,
-                        true,
-                    ),
+                    p_idx,
                 });
 
                 if (p._scan.subsection_id != 0) {
-                    std.debug.print(" #{}\n", .{p._scan.subsection_id});
+                    std.debug.print(" [{}]\n", .{p._scan.subsection_id});
                 } else {
                     std.debug.print("\n", .{});
                 }
@@ -121,13 +115,13 @@ pub fn debug(
             const pn = kv.key_ptr;
             const lh = kv.value_ptr;
             if (lh.kind == .page_asset) {
-                std.debug.print("({}) {}\n", .{
-                    lh.id,
+                std.debug.print("{} ({})\n", .{
                     pn.fmt(
                         &variant.string_table,
                         &variant.path_table,
                         null,
                     ),
+                    lh.id,
                 });
             }
         }

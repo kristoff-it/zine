@@ -459,6 +459,21 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         // directory in this thread.
         // TODO: find a better moment for this work
         try build.scanTemplates(gpa);
+        if (builtin.mode == .Debug) {
+            const Ctx = struct {
+                b: *Build,
+                pub fn lessThan(ctx: @This(), lid: usize, rid: usize) bool {
+                    const keys = ctx.b.templates.entries.items(.key);
+                    const lhs = keys[lid].toString().slice(&ctx.b.st);
+                    const rhs = keys[rid].toString().slice(&ctx.b.st);
+
+                    if (std.mem.order(u8, lhs, rhs) == .lt) return true;
+                    return false;
+                }
+            };
+            const ctx: Ctx = .{ .b = &build };
+            build.templates.sort(ctx);
+        }
         try build.scanSiteAssets(gpa, arena);
         _ = arena_state.reset(.retain_capacity);
 

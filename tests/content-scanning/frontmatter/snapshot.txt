@@ -55,8 +55,8 @@ content/validation-errors.smd:21:15: error: invalid path in alternatives
 .index = 1,
 .section_path = content/,
 .pages = [
-   (1) content/validation-errors.smd -> content/validation-errors/index.html
-   (2) content/wrong-syntax.smd -> content/wrong-syntax/index.html
+    content/validation-errors.smd (1)
+    content/wrong-syntax.smd (2)
 ],
 
 
