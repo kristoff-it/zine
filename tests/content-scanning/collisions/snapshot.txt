@@ -81,9 +81,9 @@ nested/path/page/README.html: error: output url collision detected
 .index = 1,
 .section_path = content/,
 .pages = [
-    content/page.smd (1)
-    content/page/index.smd (3) [2]
-    content/nested/path/page.smd (2)
+    content/page.smd
+    content/page/index.smd
+    content/nested/path/page.smd
 ],
 
 

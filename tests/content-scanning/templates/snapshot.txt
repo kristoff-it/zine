@@ -42,11 +42,11 @@ layouts/badshtml.shtml:6:4: super_under_branching
 .index = 1,
 .section_path = content/,
 .pages = [
-    content/page.smd (1)
-    content/badshtml.smd (2)
-    content/badhtml.smd (3)
-    content/badextend.smd (4)
-    content/another.smd (5)
+    content/page.smd
+    content/badshtml.smd
+    content/badhtml.smd
+    content/badextend.smd
+    content/another.smd
 ],
 
 

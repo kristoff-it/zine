@@ -29,8 +29,8 @@
 .index = 1,
 .section_path = content/,
 .pages = [
-    content/sections.smd (1)
-    content/archive/index.smd (2) [2]
+    content/sections.smd
+    content/archive/index.smd
 ],
 
 
@@ -38,8 +38,8 @@
 .index = 2,
 .section_path = content/archive/,
 .pages = [
-    content/archive/2025/index.smd (5) [4]
-    content/archive/2024/index.smd (3) [3]
+    content/archive/2025/index.smd
+    content/archive/2024/index.smd
 ],
 
 
@@ -47,7 +47,7 @@
 .index = 3,
 .section_path = content/archive/2024/,
 .pages = [
-    content/archive/2024/first.smd (4)
+    content/archive/2024/first.smd
 ],
 
 
@@ -55,7 +55,7 @@
 .index = 4,
 .section_path = content/archive/2025/,
 .pages = [
-    content/archive/2025/second.smd (6)
+    content/archive/2025/second.smd
 ],
 
 
