@@ -66,7 +66,7 @@ pub const Mode = union(enum) {
 };
 
 pub const Assets = std.AutoArrayHashMapUnmanaged(PathName, std.atomic.Value(u32));
-pub const Templates = std.AutoArrayHashMapUnmanaged(Template.TaggedName, Template);
+pub const Templates = std.AutoArrayHashMapUnmanaged(PathName, Template);
 
 pub fn deinit(b: *const Build, gpa: Allocator) void {
     {
@@ -271,90 +271,79 @@ pub fn scanSiteAssets(
     }
 }
 
-pub fn scanTemplates(b: *Build, gpa: Allocator) !void {
+pub fn scanTemplates(b: *Build, gpa: Allocator, arena: Allocator) !void {
     const zone = tracy.trace(@src());
     defer zone.end();
-
-    const layouts_dir_path = b.cfg.getLayoutsDirPath();
-
-    log.debug("scanTemplates('{s}')", .{layouts_dir_path});
     var progress = root.progress.start("Scan templates", 0);
     defer progress.end();
 
-    var layouts_it = b.layouts_dir.iterateAssumeFirstIteration();
-    while (layouts_it.next() catch |err| fatal.dir(layouts_dir_path, err)) |entry| {
-        if (std.mem.startsWith(u8, entry.name, ".")) continue;
-        switch (entry.kind) {
-            else => continue,
-            .file, .sym_link => {
-                if (std.mem.endsWith(u8, entry.name, ".html")) {
-                    std.debug.print("WARNING: found plain HTML file {s}{c}{s}, did you mean to give it a shtml extension?\n", .{
-                        layouts_dir_path,
-                        std.fs.path.sep,
-                        entry.name,
-                    });
-                    continue;
-                }
-                if (std.mem.endsWith(u8, entry.name, ".shtml") or
-                    std.mem.endsWith(u8, entry.name, ".xml"))
-                {
-                    log.debug("new layout: '{s}'", .{entry.name});
-                    progress.completeOne();
-                    const str = try b.st.intern(gpa, entry.name);
-                    try b.templates.putNoClobber(gpa, .fromString(str, true), .{});
-                }
-            },
-            .directory => {
-                if (!std.mem.eql(u8, entry.name, "templates")) {
-                    fatal.msg("error: layouts directory should only contain a 'templates' subdirectory but '{s}' was found.\n", .{
-                        entry.name,
-                    });
-                }
-            },
-        }
-    }
+    const layouts_dir_path = b.cfg.getLayoutsDirPath();
+    log.debug("scanTemplates('{s}')", .{layouts_dir_path});
 
-    const templates_dir_path = try std.fs.path.join(gpa, &.{
-        layouts_dir_path,
-        "templates",
+    var dir_stack: std.ArrayListUnmanaged(struct {
+        p: Path,
+        path: []const u8,
+        templates: bool,
+    }) = .empty;
+    try dir_stack.append(arena, .{
+        .p = @enumFromInt(0),
+        .path = "",
+        .templates = false,
     });
-    var templates_dir = b.layouts_dir.openDir("templates", .{
-        .iterate = true,
-    }) catch |err| switch (err) {
-        error.FileNotFound => {
-            log.debug("could not find template dir, leaving", .{});
-            return;
-        },
-        else => fatal.dir(templates_dir_path, err),
-    };
-    defer templates_dir.close();
 
-    var templates_it = templates_dir.iterateAssumeFirstIteration();
-    while (templates_it.next() catch |err| fatal.dir(layouts_dir_path, err)) |entry| {
-        if (std.mem.startsWith(u8, entry.name, ".")) continue;
-        switch (entry.kind) {
-            else => continue,
-            .file, .sym_link => {
-                if (std.mem.endsWith(u8, entry.name, ".html")) {
-                    std.debug.print("WARNING: found plain HTML file {s}{c}{s}, did you mean to give it a shtml extension?\n", .{
-                        templates_dir_path,
-                        std.fs.path.sep,
-                        entry.name,
+    while (dir_stack.pop()) |dir_entry| {
+        var dir = if (dir_entry.path.len == 0) b.layouts_dir else b.layouts_dir.openDir(
+            dir_entry.path,
+            .{ .iterate = true },
+        ) catch |err| fatal.dir(dir_entry.path, err);
+        defer if (dir_entry.path.len > 0) dir.close();
+
+        var dir_it = dir.iterateAssumeFirstIteration();
+        while (dir_it.next() catch |err| fatal.dir(dir_entry.path, err)) |entry| {
+            if (std.mem.startsWith(u8, entry.name, ".")) continue;
+            switch (entry.kind) {
+                else => continue,
+                .file, .sym_link => {
+                    if (std.mem.endsWith(u8, entry.name, ".html")) {
+                        std.debug.print("WARNING: found plain HTML file {/}, did you mean to give it a shtml extension?\n", .{
+                            root.fmtJoin(&.{
+                                layouts_dir_path,
+                                dir_entry.path,
+                                entry.name,
+                            }),
+                        });
+                        continue;
+                    }
+                    if (std.mem.endsWith(u8, entry.name, ".shtml") or
+                        std.mem.endsWith(u8, entry.name, ".xml"))
+                    {
+                        log.debug("new layout: '{s}'", .{entry.name});
+                        progress.completeOne();
+
+                        const str = try b.st.intern(gpa, entry.name);
+                        const pn: PathName = .{
+                            .path = dir_entry.p,
+                            .name = str,
+                        };
+
+                        try b.templates.putNoClobber(gpa, pn, .{
+                            .layout = !dir_entry.templates,
+                        });
+                    }
+                },
+                .directory => {
+                    try dir_stack.append(arena, .{
+                        .path = try root.join(arena, &.{ dir_entry.path, entry.name }, '/'),
+                        .templates = dir_entry.templates or (dir_entry.path.len == 0 and
+                            std.mem.eql(u8, entry.name, "templates")),
+                        .p = try b.pt.internExtend(
+                            gpa,
+                            dir_entry.p,
+                            try b.st.intern(gpa, entry.name),
+                        ),
                     });
-                    continue;
-                }
-                if (std.mem.endsWith(u8, entry.name, ".shtml")) {
-                    progress.completeOne();
-                    log.debug("new template: '{s}'", .{entry.name});
-                    const str = try b.st.intern(gpa, entry.name);
-                    try b.templates.putNoClobber(gpa, .fromString(str, false), .{});
-                }
-            },
-            .directory => {
-                fatal.msg("error: templates subdirectory should not contain subdirectories but '{s}' was found.\n", .{
-                    entry.name,
-                });
-            },
+                },
+            }
         }
     }
 }

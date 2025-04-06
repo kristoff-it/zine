@@ -145,7 +145,7 @@ pub fn internPathWithName(
     string_table: *StringTable,
     path_prefix: []const String,
     path: []const u8,
-) !struct { Path, String } {
+) !PathName {
     assert(string_table.string_bytes.items.len > 0); // string_table must contain a zero elem
     assert(string_table.string_bytes.items[0] == 0); // the zero elem must be the empty string
 
@@ -177,7 +177,7 @@ pub fn internPathWithName(
         @as(Path.MapIndexAdapter, .{ .components = pt.path_components.items }),
         @as(Path.MapContext, .{ .components = pt.path_components.items }),
     );
-    if (gop.found_existing) return .{ gop.key_ptr.*, name };
+    if (gop.found_existing) return .{ .path = gop.key_ptr.*, .name = name };
 
     pt.path_components.items.len += path_components.len;
     pt.path_components.appendAssumeCapacity(@enumFromInt(0));
@@ -185,7 +185,7 @@ pub fn internPathWithName(
     const new_off: Path = @enumFromInt(old_len);
     gop.key_ptr.* = new_off;
 
-    return .{ new_off, name };
+    return .{ .path = new_off, .name = name };
 }
 
 pub fn internPath(

@@ -1,6 +1,6 @@
 const std = @import("std");
 const zine = @import("zine");
-const context = zine.context;
+const context = @import("context.zig");
 const Value = context.Value;
 const Template = context.Template;
 const Param = context.ScriptyParam;
@@ -88,12 +88,53 @@ pub const Reference = struct {
         _ = fmt;
         _ = options;
 
-        try out_stream.print("# [Global Scope]($section.id('global'))\n\n", .{});
+        {
+            try out_stream.print("[]($section.id('menu'))\n\n", .{});
+            try out_stream.print("># [Global Context]($block.collapsible(true))\n", .{});
+            for (r.global) |f| {
+                try out_stream.print(
+                    \\>- [`${0s}`]($link.unsafeRef("${0s}"))
+                    \\
+                , .{
+                    f.name,
+                });
+            }
+
+            for (r.values[1..]) |v| {
+                try out_stream.print(
+                    \\
+                    \\># [{0s}]($block.collapsible(false))
+                    \\>- [`description`]($link.unsafeRef("{0s}"))
+                    \\
+                , .{v.name.string(false)});
+
+                for (v.fields) |f| {
+                    try out_stream.print(
+                        \\>- [`.{s}`]($link.unsafeRef(".{0s}"))
+                        \\
+                    , .{f.name});
+                }
+
+                for (v.builtins) |b| {
+                    try out_stream.print(
+                        \\>- [`fn {s}()`]($link.ref("{s}.{s}")) 
+                        \\
+                    , .{
+                        b.name,
+                        // Type.Function
+                        v.name.string(false),
+                        b.name,
+                    });
+                }
+            }
+        }
+
+        try out_stream.print("# [Global Context]($section.id('global'))\n\n", .{});
         for (r.global) |f| {
             try out_stream.print(
-                \\## `${s}` : {s}
+                \\## [`${0s}`]($text.id('${0s}')) : {1s}
                 \\
-                \\{s}
+                \\{2s}
                 \\
                 \\
             , .{
@@ -117,9 +158,9 @@ pub const Reference = struct {
 
             for (v.fields) |f| {
                 try out_stream.print(
-                    \\### `{s}` : {s}
+                    \\### [`{0s}`]($text.id('.{0s}')) : {1s}
                     \\
-                    \\{s}
+                    \\{2s}
                     \\
                     \\
                 , .{ f.name, f.type_name.link(false), f.description });

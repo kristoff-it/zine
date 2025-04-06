@@ -458,14 +458,21 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         // Before we wait for content dirs to be scanned, we scan the layouts
         // directory in this thread.
         // TODO: find a better moment for this work
-        try build.scanTemplates(gpa);
+        try build.scanTemplates(gpa, arena);
         if (builtin.mode == .Debug) {
             const Ctx = struct {
                 b: *Build,
                 pub fn lessThan(ctx: @This(), lid: usize, rid: usize) bool {
+                    var lbuf: [std.fs.max_path_bytes]u8 = undefined;
+                    var rbuf: [std.fs.max_path_bytes]u8 = undefined;
+
                     const keys = ctx.b.templates.entries.items(.key);
-                    const lhs = keys[lid].toString().slice(&ctx.b.st);
-                    const rhs = keys[rid].toString().slice(&ctx.b.st);
+                    const lhs = std.fmt.bufPrint(&lbuf, "{/}", .{
+                        keys[lid].fmt(&ctx.b.st, &ctx.b.pt, null),
+                    }) catch unreachable;
+                    const rhs = std.fmt.bufPrint(&rbuf, "{/}", .{
+                        keys[rid].fmt(&ctx.b.st, &ctx.b.pt, null),
+                    }) catch unreachable;
 
                     if (std.mem.order(u8, lhs, rhs) == .lt) return true;
                     return false;
@@ -750,10 +757,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 // This is in some ways frontmatter analysis work but it's done
                 // here because we have to scan all pages for errors anyway.
                 layout: {
-                    const layout_name = try build.st.intern(gpa, p.layout);
-                    const layout = build.templates.getPtr(
-                        .fromString(layout_name, true),
-                    ) orelse {
+                    const layout_pn = PathName.get(&build.st, &build.pt, p.layout) orelse {
                         // We can use analysis because a page that has
                         // parse.status == ok will have initialized the field for
                         // us.
@@ -761,29 +765,33 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         break :layout;
                     };
 
-                    if (layout.rc.fetchAdd(1, .monotonic) == 0) {
-                        // We found the first active reference, submit a worker job
-                        // to load the layout.
-                        worker.addJob(.{
-                            .template_parse = .{
-                                .table = &build.st,
-                                .templates = &build.templates,
-                                .layouts_dir = build.layouts_dir,
-                                .template = layout,
-                                .name = p.layout,
-                                .is_layout = true,
-                            },
-                        });
+                    const layout = build.templates.getPtr(layout_pn) orelse {
+                        try p._analysis.frontmatter.append(gpa, .layout);
+                        break :layout;
+                    };
+
+                    if (!layout.layout) {
+                        // TODO: create a dedicated error
+                        try p._analysis.frontmatter.append(gpa, .layout);
+                        break :layout;
                     }
 
                     for (p.alternatives, 0..) |alt, aidx| {
-                        const alt_layout_name = try build.st.intern(
-                            gpa,
+                        const alt_layout_pn = PathName.get(
+                            &build.st,
+                            &build.pt,
                             alt.layout,
-                        );
-                        const alt_layout = build.templates.getPtr(
-                            .fromString(alt_layout_name, true),
                         ) orelse {
+                            try p._analysis.frontmatter.append(gpa, .{
+                                .alternative = .{
+                                    .id = @intCast(aidx),
+                                    .kind = .layout,
+                                },
+                            });
+                            break :layout;
+                        };
+
+                        const alt_layout = build.templates.getPtr(alt_layout_pn) orelse {
                             // We can use analysis because a page that has
                             // parse.status == ok will have initialized the field for
                             // us.
@@ -796,19 +804,15 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                             break :layout;
                         };
 
-                        if (alt_layout.rc.fetchAdd(1, .monotonic) == 0) {
-                            // We found the first active reference, submit a worker job
-                            // to load the layout.
-                            worker.addJob(.{
-                                .template_parse = .{
-                                    .table = &build.st,
-                                    .templates = &build.templates,
-                                    .layouts_dir = build.layouts_dir,
-                                    .template = alt_layout,
-                                    .name = alt.layout,
-                                    .is_layout = true,
+                        if (!alt_layout.layout) {
+                            // TODO: create a dedicated error
+                            try p._analysis.frontmatter.append(gpa, .{
+                                .alternative = .{
+                                    .id = @intCast(aidx),
+                                    .kind = .layout,
                                 },
                             });
+                            break :layout;
                         }
                     }
                 }
@@ -851,8 +855,18 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         }
 
         progress_page_analyze.setEstimatedTotalItems(pages_to_analyze);
-        worker.wait(); // layouts have been loaded and pages have been analyzed
+        worker.wait(); // pages have been analyzed
         progress_page_analyze.end();
+    }
+
+    for (build.templates.keys(), build.templates.values()) |tpn, *template| {
+        worker.addJob(.{
+            .template_parse = .{
+                .build = &build,
+                .template = template,
+                .pn = tpn,
+            },
+        });
     }
 
     var analysis_errors = false;
@@ -1102,17 +1116,12 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         std.fs.path.dirnamePosix(a) orelse "",
                         '.',
                     ) == null);
-                    const path, const name = try v.path_table.internPathWithName(
+                    const url = try v.path_table.internPathWithName(
                         gpa,
                         &v.string_table,
                         &.{},
                         a,
                     );
-
-                    const url: PathName = .{
-                        .path = path,
-                        .name = name,
-                    };
 
                     const loc: Variant.LocationHint = .{
                         .kind = .page_alias,
@@ -1151,17 +1160,12 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         );
                         break :blk prefix;
                     };
-                    const path, const name = try v.path_table.internPathWithName(
+                    const url = try v.path_table.internPathWithName(
                         gpa,
                         &v.string_table,
                         prefix,
                         alt.output,
                     );
-
-                    const url: PathName = .{
-                        .path = path,
-                        .name = name,
-                    };
 
                     const loc: Variant.LocationHint = .{
                         .kind = .{ .page_alternative = alt.name },
@@ -1224,16 +1228,19 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
     worker.wait(); // layouts are done loading
 
     var template_errors = false;
-    for (build.templates.keys(), build.templates.values()) |name, *template| {
+    for (build.templates.keys(), build.templates.values()) |tpn, *template| {
         if (template.rc.load(.acquire) == 0) continue;
         if (template.html_ast.errors.len > 0) {
             if (!template_errors) {
                 template_errors = true;
             }
 
-            const path = try std.fs.path.join(arena, &.{
-                build.cfg.getLayoutsDirPath(),
-                name.toString().slice(&build.st),
+            const path = try std.fmt.allocPrint(arena, "{/}", .{
+                tpn.fmt(
+                    &build.st,
+                    &build.pt,
+                    build.cfg.getLayoutsDirPath(),
+                ),
             });
 
             std.debug.lockStdErr();
@@ -1263,9 +1270,12 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 template_errors = true;
             }
 
-            const path = try std.fs.path.join(arena, &.{
-                build.cfg.getLayoutsDirPath(),
-                name.toString().slice(&build.st),
+            const path = try std.fmt.allocPrint(arena, "{/}", .{
+                tpn.fmt(
+                    &build.st,
+                    &build.pt,
+                    build.cfg.getLayoutsDirPath(),
+                ),
             });
 
             var buf: std.ArrayListUnmanaged(u8) = .empty;
@@ -1287,11 +1297,17 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         }
 
         if (template.missing_parent) {
-            const path = try std.fs.path.join(arena, &.{
-                build.cfg.getLayoutsDirPath(),
-                if (name.is_layout) "" else "templates",
-                name.toString().slice(&build.st),
+            if (!template_errors) {
+                template_errors = true;
+            }
+            const path = try std.fmt.allocPrint(arena, "{/}", .{
+                tpn.fmt(
+                    &build.st,
+                    &build.pt,
+                    build.cfg.getLayoutsDirPath(),
+                ),
             });
+
             const parent_name = template.ast.nodes[template.ast.extends_idx].templateValue().span.slice(template.src);
             std.debug.print(
                 \\{s}: error: extending a template that doesn't exist 

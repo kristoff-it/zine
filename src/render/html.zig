@@ -85,7 +85,13 @@ pub fn html(
                         continue;
                     };
 
-                    try w.print("<div", .{});
+                    if (d.kind.block.collapsible) |collap| {
+                        try w.writeAll("<details");
+                        if (collap) try w.writeAll(" open");
+                    } else {
+                        try w.writeAll("<div");
+                    }
+
                     if (d.id) |id| try w.print(" id=\"{s}\"", .{id});
                     try w.print(" class=\"block", .{});
                     if (d.attrs) |attrs| {
@@ -94,11 +100,15 @@ pub fn html(
                     try w.print("\">", .{});
                 },
                 .exit => {
-                    if (node.getDirective() == null) {
+                    if (node.getDirective()) |d| {
+                        if (d.kind.block.collapsible != null) {
+                            try w.print("</details>", .{});
+                        } else {
+                            try w.print("</div>", .{});
+                        }
+                    } else {
                         try w.print("</blockquote>", .{});
                         continue;
-                    } else {
-                        try w.print("</div>", .{});
                     }
                 },
             },
@@ -167,6 +177,15 @@ pub fn html(
             },
             .HEADING => switch (ev.dir) {
                 .enter => {
+                    if (node.parent()) |p| if (p.getDirective()) |pd| switch (pd.kind) {
+                        else => {},
+                        .block => |b| {
+                            if (b.collapsible != null and node.prevSibling() == null) {
+                                try w.writeAll("<summary>");
+                                continue;
+                            }
+                        },
+                    };
                     if (node.getDirective()) |d| switch (d.kind) {
                         else => {},
                         .heading => {
@@ -200,7 +219,18 @@ pub fn html(
 
                     try w.print("<h{}>", .{node.headingLevel()});
                 },
-                .exit => try w.print("</h{}>", .{node.headingLevel()}),
+                .exit => {
+                    if (node.parent()) |p| if (p.getDirective()) |pd| switch (pd.kind) {
+                        else => {},
+                        .block => |b| {
+                            if (b.collapsible != null and node.prevSibling() == null) {
+                                try w.writeAll("</summary>");
+                                continue;
+                            }
+                        },
+                    };
+                    try w.print("</h{}>", .{node.headingLevel()});
+                },
             },
             .THEMATIC_BREAK => switch (ev.dir) {
                 .enter => try w.print("<hr>", .{}),

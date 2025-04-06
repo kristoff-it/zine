@@ -38,12 +38,9 @@ pub const extensions: [*]supermd.c.cmark_llist = undefined;
 
 pub const Job = union(enum) {
     template_parse: struct {
-        table: *const StringTable,
-        templates: *const Build.Templates,
-        layouts_dir: std.fs.Dir,
         template: *Template,
-        name: []const u8,
-        is_layout: bool,
+        build: *const Build,
+        pn: PathName,
     },
     scan: struct {
         variant: *Variant,
@@ -174,11 +171,8 @@ inline fn runOneJob(
         .template_parse => |tp| tp.template.parse(
             gpa,
             arena,
-            tp.table,
-            tp.templates,
-            tp.layouts_dir,
-            tp.name,
-            tp.is_layout,
+            tp.build,
+            tp.pn,
         ),
         .scan => |s| s.variant.scanContentDir(
             gpa,
@@ -932,8 +926,9 @@ fn renderPage(
         .alternative => |idx| page.alternatives[idx].layout,
     };
 
-    const layout_name_str = build.st.get(layout_path).?;
-    const layout = build.templates.get(.fromString(layout_name_str, true)).?;
+    const layout_pn = PathName.get(&build.st, &build.pt, layout_path).?;
+    const layout = build.templates.get(layout_pn).?;
+    assert(layout.layout);
 
     var out_buf: std.ArrayListUnmanaged(u8) = .empty;
     var err_buf: std.ArrayListUnmanaged(u8) = .empty;
@@ -971,30 +966,34 @@ fn renderPage(
         error.Quota => super_vm.setQuota(100),
         error.WantSnippet => @panic("TODO: looad snippet"),
         error.WantTemplate => {
-            const template_name = super_vm.wantedTemplateName();
+            const template_subpath = super_vm.wantedTemplateName();
             const template_path = try root.join(
                 arena,
                 &.{
-                    build.cfg.getLayoutsDirPath(),
                     "templates",
-                    template_name,
+                    template_subpath,
                 },
                 '/',
             );
 
-            log.debug("loading template = '{s}'", .{template_path});
-
-            const t = build.templates.get(.fromString(
-                build.st.get(template_name).?,
-                false,
-            )).?;
+            const template_pn = PathName.get(&build.st, &build.pt, template_path).?;
+            const t = build.templates.get(template_pn).?;
+            assert(!t.layout);
 
             super_vm.insertTemplate(
-                template_path,
+                // full template path
+                try root.join(
+                    arena,
+                    &.{
+                        build.cfg.getLayoutsDirPath(),
+                        template_path,
+                    },
+                    '/',
+                ),
                 t.src,
                 t.html_ast,
                 t.ast,
-                std.mem.endsWith(u8, template_name, ".xml"),
+                std.mem.endsWith(u8, template_subpath, ".xml"),
             );
         },
     };

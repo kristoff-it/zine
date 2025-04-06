@@ -240,16 +240,24 @@ pub fn build(b: *std.Build) !void {
         );
     }
 
-    // const shtml_docgen = b.addExecutable(.{
-    //     .name = "shtml_docgen",
-    //     .root_source_file = b.path("src/exes/docgen.zig"),
-    //     .target = target,
-    //     .optimize = .Debug,
-    // });
-    // shtml_docgen.root_module.addImport("zine", zine);
-    // shtml_docgen.root_module.addImport("zeit", zeit);
-    // shtml_docgen.root_module.addImport("ziggy", ziggy);
-    // b.installArtifact(shtml_docgen);
+    const shtml_docgen = b.addExecutable(.{
+        .name = "shtml_docgen",
+        .root_source_file = b.path("src/docgen.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+    shtml_docgen.root_module.addImport("zeit", zeit);
+    shtml_docgen.root_module.addImport("ziggy", ziggy);
+    shtml_docgen.root_module.addImport("supermd", supermd);
+    shtml_docgen.root_module.addImport("superhtml", superhtml);
+
+    if (b.option(
+        bool,
+        "docgen",
+        "enable building the SuperHTML docgen tool",
+    ) orelse false) {
+        b.installArtifact(shtml_docgen);
+    }
 
     if (b.option(
         bool,

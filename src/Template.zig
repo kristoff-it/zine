@@ -3,11 +3,15 @@ const Template = @This();
 const std = @import("std");
 const superhtml = @import("superhtml");
 const tracy = @import("tracy");
+const root = @import("root.zig");
 const fatal = @import("fatal.zig");
 const worker = @import("worker.zig");
 const Build = @import("Build.zig");
 const StringTable = @import("StringTable.zig");
 const String = StringTable.String;
+const PathTable = @import("PathTable.zig");
+const Path = PathTable.Path;
+const PathName = PathTable.PathName;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
@@ -19,22 +23,7 @@ html_ast: superhtml.html.Ast = undefined,
 ast: superhtml.Ast = undefined,
 // Only present if ast.errors.len == 0
 missing_parent: bool = undefined,
-
-pub const TaggedName = packed struct {
-    is_layout: bool,
-    name: u31,
-
-    pub const max = std.math.maxInt(u32) / 2;
-
-    pub fn fromString(s: String, is_layout: bool) TaggedName {
-        assert(@intFromEnum(s) < max);
-        return .{ .is_layout = is_layout, .name = @intCast(@intFromEnum(s)) };
-    }
-
-    pub fn toString(tn: TaggedName) String {
-        return @enumFromInt(tn.name);
-    }
-};
+layout: bool,
 
 pub fn deinit(t: *const Template, gpa: Allocator) void {
     gpa.free(t.src);
@@ -46,61 +35,50 @@ pub fn parse(
     t: *Template,
     gpa: Allocator,
     arena: Allocator,
-    table: *const StringTable,
-    templates: *const Build.Templates,
-    layouts_dir: std.fs.Dir,
-    name: []const u8,
-    is_layout: bool,
+    build: *const Build,
+    pn: PathName,
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
 
-    assert(t.rc.load(.acquire) > 0);
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
 
-    const path = if (is_layout) name else try std.fs.path.join(arena, &.{
-        "templates",
-        name,
+    const path = try std.fmt.allocPrint(arena, "{/}", .{
+        pn.fmt(&build.st, &build.pt, null),
     });
 
     const max = std.math.maxInt(u32);
-    const src = layouts_dir.readFileAlloc(gpa, path, max) catch |err| fatal.file(name, err);
+    const src = build.layouts_dir.readFileAlloc(
+        gpa,
+        path,
+        max,
+    ) catch |err| fatal.file(path, err);
 
     t.src = src;
+
     t.html_ast = try .init(
         gpa,
         src,
-        if (std.mem.endsWith(u8, name, ".xml")) .xml else .superhtml,
+        if (std.mem.endsWith(u8, path, ".xml")) .xml else .superhtml,
     );
     if (t.html_ast.errors.len > 0) return;
+
     t.ast = try .init(gpa, t.html_ast, src);
 
     if (t.ast.errors.len == 0 and t.ast.extends_idx != 0) {
         const parent_name = t.ast.nodes[t.ast.extends_idx].templateValue().span.slice(src);
-        const parent_str = table.get(parent_name) orelse {
+        const parent_path = try root.join(arena, &.{ "templates", parent_name }, '/');
+        const parent_pn = PathName.get(&build.st, &build.pt, parent_path) orelse {
             t.missing_parent = true;
             return;
         };
-        const parent = templates.getPtr(.fromString(parent_str, false)) orelse {
+        if (!build.templates.contains(parent_pn)) {
             t.missing_parent = true;
             return;
-        };
+        }
 
         t.missing_parent = false;
-        if (parent.rc.fetchAdd(1, .acq_rel) == 0) {
-            // We were the first to activate this template
-            worker.addJob(.{
-                .template_parse = .{
-                    .table = table,
-                    .templates = templates,
-                    .layouts_dir = layouts_dir,
-                    .template = parent,
-                    .name = parent_name,
-                    .is_layout = false,
-                },
-            });
-        }
     }
 }
