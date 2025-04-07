@@ -94,11 +94,11 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     try dirs_to_watch.appendSlice(
         gpa,
         &.{
-            try std.fs.path.join(gpa, &.{
+            try std.fs.path.joinZ(gpa, &.{
                 base_dir_path,
                 cfg.getAssetsDirPath(),
             }),
-            try std.fs.path.join(gpa, &.{
+            try std.fs.path.joinZ(gpa, &.{
                 base_dir_path,
                 cfg.getLayoutsDirPath(),
             }),
@@ -107,19 +107,19 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     switch (cfg) {
         .Site => |s| try dirs_to_watch.append(
             gpa,
-            try std.fs.path.join(gpa, &.{
+            try std.fs.path.joinZ(gpa, &.{
                 base_dir_path,
                 s.content_dir_path,
             }),
         ),
         .Multilingual => |ml| {
-            try dirs_to_watch.append(gpa, try std.fs.path.join(gpa, &.{
+            try dirs_to_watch.append(gpa, try std.fs.path.joinZ(gpa, &.{
                 base_dir_path,
                 ml.i18n_dir_path,
             }));
             for (ml.locales) |l| try dirs_to_watch.append(
                 gpa,
-                try std.fs.path.join(gpa, &.{
+                try std.fs.path.joinZ(gpa, &.{
                     base_dir_path,
                     l.content_dir_path,
                 }),
