@@ -1044,22 +1044,9 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         }
     }
 
-    // Output URL collision detection.
-    // This code solves a simplified version of actual URL collision.
-    // It assumes that directories can't have dots in their name, and
-    // that files always have an extension, reducing collision detection
-    // to just detecting duplicate paths. This simplified version
-    // of the problem can be solved with a hash map, while solving the
-    // full version will require using a tree for the live server
-    // and perhaps some clever scan algorithm in the `zine release` case.
-    // Alternatively, if this algo proves to be sufficiently more efficent
-    // than the tree case, we could default to this method and then only
-    // switch to the more expensive approach if necessary.
-    if (!parse_errors) {
-        const tracy_frame = tracy.namedFrame("url collision");
-        defer tracy_frame.end();
+    if (build.cfg.* == .Multilingual) {
         for (build.variants, 0..) |*v, vidx| {
-            for (v.pages.items, 0..) |*p, pidx| {
+            for (v.pages.items) |*p| {
                 if (!p._parse.active) continue;
                 if (p._parse.status != .parsed) continue;
 
@@ -1079,6 +1066,28 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
                     locales[vidx] = p;
                 }
+            }
+        }
+    }
+
+    // Output URL collision detection.
+    // This code solves a simplified version of actual URL collision.
+    // It assumes that directories can't have dots in their name, and
+    // that files always have an extension, reducing collision detection
+    // to just detecting duplicate paths. This simplified version
+    // of the problem can be solved with a hash map, while solving the
+    // full version will require using a tree for the live server
+    // and perhaps some clever scan algorithm in the `zine release` case.
+    // Alternatively, if this algo proves to be sufficiently more efficent
+    // than the tree case, we could default to this method and then only
+    // switch to the more expensive approach if necessary.
+    if (!parse_errors) {
+        const tracy_frame = tracy.namedFrame("url collision");
+        defer tracy_frame.end();
+        for (build.variants) |*v| {
+            for (v.pages.items, 0..) |*p, pidx| {
+                if (!p._parse.active) continue;
+                if (p._parse.status != .parsed) continue;
 
                 // page_main
                 // const smd_out_dir_path: []const String = smd_out: {
