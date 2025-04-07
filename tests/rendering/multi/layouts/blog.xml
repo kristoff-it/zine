@@ -1,0 +1,19 @@
+<rss version="2.0">
+  <channel>
+    <title :text="$site.title"></title>
+    <link :text="$site.host_url"></link>
+    <description :text="$site.title.suffix(' - Blog')"></description>
+    <generator>Zine -- https://zine-ssg.io</generator>
+    <language>en-US</language>
+    <lastBuildDate :text="$build.generated.formatHTTP()"></lastBuildDate>
+    <ctx :loop="$page.subpages()">
+      <item>
+        <title :text="$loop.it.title"></title>
+        <description :text="$loop.it.content()"></description>
+        <link :text="$site.host_url.addPath($loop.it.link())"></link>
+        <pubDate :text="$loop.it.date.formatHTTP()"></pubDate>
+        <guid :text="$site.host_url.addPath($loop.it.link())"></guid>
+      </item>
+    </ctx>
+  </channel>
+</rss>

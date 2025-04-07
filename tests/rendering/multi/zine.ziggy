@@ -1,0 +1,29 @@
+Multilingual {
+    .host_url = "https://example,.org",
+    .i18n_dir_path = "i18n",
+    .layouts_dir_path = "layouts",
+    .assets_dir_path = "assets",
+    .locales = [
+        {
+            .code = "en-US",
+            .name = "English (original)",
+            .site_title = "Test",
+            .content_dir_path = "content/en-US",
+            .output_prefix_override = "",
+        },
+        {
+            .code = "it-IT",
+            .name = "Italiano",
+            .site_title = "Prova",
+            .content_dir_path = "content/it-IT",
+        },
+        {
+            .code = "de-DE",
+            .name = "German",
+            .site_title = "Test",
+            .content_dir_path = "content/de-DE",
+            // .host_url_override = "de.example.org",
+
+        },
+    ],
+}

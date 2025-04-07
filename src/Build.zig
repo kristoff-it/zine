@@ -4,6 +4,7 @@ const std = @import("std");
 const tracy = @import("tracy");
 const ziggy = @import("ziggy");
 const fatal = @import("fatal.zig");
+const context = @import("context.zig");
 const Variant = @import("Variant.zig");
 const Template = @import("Template.zig");
 const PathTable = @import("PathTable.zig");
@@ -47,6 +48,9 @@ templates: Templates = .{},
 site_assets_dir: std.fs.Dir,
 site_assets: Assets = .empty,
 i18n_dir: std.fs.Dir,
+// Translation key map. Each entry is a slice with the same length as the
+// number of variants.
+tks: std.StringHashMapUnmanaged([]?*context.Page) = .empty,
 mode: Mode,
 
 pub const Mode = union(enum) {

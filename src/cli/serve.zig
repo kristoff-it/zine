@@ -88,7 +88,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         },
     }
 
-    var dirs_to_watch: std.ArrayListUnmanaged([]const u8) = .empty;
+    var dirs_to_watch: std.ArrayListUnmanaged([:0]const u8) = .empty;
     defer if (builtin.mode == .Debug) dirs_to_watch.deinit(gpa);
 
     try dirs_to_watch.appendSlice(

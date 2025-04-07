@@ -817,6 +817,10 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
+            if (ctx._meta.build.cfg.* != .Multilingual) return .{
+                .err = "only available in a multilingual website",
+            };
+
             const other_variant_id = ctx._meta.sites.getIndex(
                 code,
             ) orelse return Value.errFmt(
@@ -824,6 +828,17 @@ pub const Builtins = struct {
                 "locale '{s}' does not exist",
                 .{code},
             );
+
+            if (p.translation_key) |tk| {
+                const list = ctx._meta.build.tks.get(tk).?;
+                const other_page = list[other_variant_id] orelse return Value.errFmt(
+                    gpa,
+                    "no page with translation key '{s}' in locale '{s}'",
+                    .{ tk, code },
+                );
+
+                return .{ .page = other_page };
+            }
 
             const index_html: StringTable.String = @enumFromInt(11);
 
@@ -901,6 +916,10 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
+            if (ctx._meta.build.cfg.* != .Multilingual) return .{
+                .err = "only available in a multilingual website",
+            };
+
             const other_variant_id = ctx._meta.sites.getIndex(
                 code,
             ) orelse return Value.errFmt(
@@ -908,6 +927,12 @@ pub const Builtins = struct {
                 "locale '{s}' does not exist",
                 .{code},
             );
+
+            if (p.translation_key) |tk| {
+                const list = ctx._meta.build.tks.get(tk).?;
+                const other_page = list[other_variant_id] orelse return Optional.Null;
+                return Optional.init(gpa, other_page);
+            }
 
             const index_html: StringTable.String = @enumFromInt(11);
             const v = &ctx._meta.build.variants[p._scan.variant_id];
@@ -936,7 +961,7 @@ pub const Builtins = struct {
 
             if (hint.kind != .page_main) return Optional.Null;
 
-            return .{ .page = &vv.pages.items[hint.id] };
+            return Optional.init(gpa, &vv.pages.items[hint.id]);
         }
     };
 
@@ -956,6 +981,21 @@ pub const Builtins = struct {
         ) !Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
+            if (ctx._meta.build.cfg.* != .Multilingual) return .{
+                .err = "only available in a multilingual website",
+            };
+
+            var pages: std.ArrayListUnmanaged(Value) = .empty;
+
+            if (p.translation_key) |tk| {
+                const list = ctx._meta.build.tks.get(tk).?;
+                for (list) |maybe_variant| if (maybe_variant) |l| try pages.append(gpa, .{
+                    .page = l,
+                });
+
+                return context.Array.init(gpa, Value, pages.items) catch unreachable;
+            }
+
             const index_html: StringTable.String = @enumFromInt(11);
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
@@ -970,9 +1010,7 @@ pub const Builtins = struct {
                 ),
             }) catch unreachable;
 
-            var pages: std.ArrayListUnmanaged(Value) = .empty;
-
-            for (ctx._meta.build.variants) |vv| {
+            for (ctx._meta.build.variants, 0..) |vv, vidx| {
                 const path = vv.path_table.getPathNoName(
                     &vv.string_table,
                     &.{},
@@ -986,7 +1024,14 @@ pub const Builtins = struct {
 
                 if (hint.kind != .page_main) continue;
 
-                try pages.append(gpa, .{ .page = &vv.pages.items[hint.id] });
+                const other_page = &vv.pages.items[hint.id];
+                if (other_page.translation_key != null) return Value.errFmt(
+                    gpa,
+                    "This page does not define a translation key, while the page in locale '{s}' does. Give a translation key to all corresponding pages otherwise you will get inconsistent behavior.",
+                    .{ctx._meta.build.cfg.Multilingual.locales[vidx].code},
+                );
+
+                try pages.append(gpa, .{ .page = other_page });
             }
 
             return context.Array.init(gpa, Value, pages.items) catch unreachable;

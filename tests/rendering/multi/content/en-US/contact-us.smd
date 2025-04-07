@@ -1,0 +1,10 @@
+---
+.title = "Contact us",
+.date = @date("1990-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "index.shtml",
+.translation_key = "contact-us-page",
+.draft = false,
+--- 
+
+## Contact us (en-US)

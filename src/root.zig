@@ -1058,10 +1058,27 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
     if (!parse_errors) {
         const tracy_frame = tracy.namedFrame("url collision");
         defer tracy_frame.end();
-        for (build.variants) |*v| {
-            for (v.pages.items, 0..) |p, pidx| {
+        for (build.variants, 0..) |*v, vidx| {
+            for (v.pages.items, 0..) |*p, pidx| {
                 if (!p._parse.active) continue;
                 if (p._parse.status != .parsed) continue;
+
+                // Translation keys
+                if (p.translation_key) |tk| {
+                    const gop = try build.tks.getOrPut(gpa, tk);
+                    const locales = if (!gop.found_existing) blk: {
+                        const locales = try gpa.alloc(?*context.Page, build.variants.len);
+                        @memset(locales, null);
+                        gop.value_ptr.* = locales;
+                        break :blk locales;
+                    } else gop.value_ptr.*;
+
+                    if (locales[vidx] != null) {
+                        @panic("TODO: a traslation key collision was found, make a nice error for it");
+                    }
+
+                    locales[vidx] = p;
+                }
 
                 // page_main
                 // const smd_out_dir_path: []const String = smd_out: {

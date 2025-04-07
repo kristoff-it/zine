@@ -271,17 +271,21 @@ pub const Builtins = struct {
 
     pub const pages = struct {
         pub const signature: Signature = .{
-            .params = &.{ .String, .{ .Many = .String } },
+            .params = &.{.{ .Many = .String }},
             .ret = .{ .Many = .Page },
         };
         pub const docs_description =
             \\Same as `page`, but accepts a variable number of page references and 
             \\loops over them in the provided order. All pages must exist.
             \\
+            \\Calling this function with no arguments will loop over all pages
+            \\of the site.
+            \\
             \\To be used in conjunction with a `loop` attribute.
         ;
         pub const examples =
             \\<ul :loop="$site.pages('a', 'b', 'c')"><li :text="$loop.it.title"></li></ul>
+            \\<ul :loop="$site.pages()"><li :text="$loop.it.title"></li></ul>
         ;
         pub fn call(
             site: *const Site,
@@ -289,11 +293,29 @@ pub const Builtins = struct {
             ctx: *const context.Template,
             args: []const Value,
         ) !Value {
-            if (args.len == 0) return .{
-                .err = "expected at least 1 string argument",
-            };
-
             const v = &ctx._meta.build.variants[site._meta.variant_id];
+
+            if (args.len == 0) {
+                const page_list = try gpa.alloc(Value, v.pages.items.len);
+                errdefer gpa.free(page_list);
+
+                var idx: usize = 0;
+                if (v.root_index) |rid| {
+                    page_list[0] = .{ .page = &v.pages.items[rid] };
+                    idx += 1;
+                }
+                for (v.sections.items[1..]) |*s| {
+                    for (s.pages.items) |pid| {
+                        page_list[idx] = .{ .page = &v.pages.items[pid] };
+                        idx += 1;
+                    }
+                }
+
+                std.debug.assert(idx == page_list.len);
+
+                return context.Array.init(gpa, Value, page_list);
+            }
+
             const page_list = try gpa.alloc(Value, args.len);
             errdefer gpa.free(page_list);
 
