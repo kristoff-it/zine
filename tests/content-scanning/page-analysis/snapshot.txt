@@ -19,59 +19,63 @@
 |                                               |
 *-----------------------------------------------*
 
-content/code.smd:19:3: [erroneous_end_tag] 
+content/code.smd:18:3: [erroneous_end_tag] 
 |    </span> wrong!
 |      ^^^^
 
-content/parse.smd:11:1: [html_is_forbidden] 
+content/parse.smd:10:1: [html_is_forbidden] 
 |    <div>wrong block-level html</div>
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:13:1: [scripty] syntax error
+content/parse.smd:12:1: [scripty] syntax error
 |    []($link.page(/other))  //wrong
 |    ^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:17:1: [scripty] path must be relative
+content/parse.smd:13:1: [scripty] syntax error
+|    []($link.page('/other))  //wrong
+|    ^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:16:1: [scripty] path must be relative
 |    []($link.page('/other'))  //wrong
 |    ^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:20:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:19:1: [scripty] '.' and '..' are not allowed in paths
 |    []($link.page('./other')) //wrong
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:23:1: [scripty] empty component in path
+content/parse.smd:22:1: [scripty] empty component in path
 |    []($link.page('foo//bar')) //wrong 1/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:25:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:24:1: [scripty] '.' and '..' are not allowed in paths
 |    []($link.page('foo/./bar')) //wrong 2/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:27:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:26:1: [scripty] '.' and '..' are not allowed in paths
 |    []($link.page('foo/../bar')) //wrong 3/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:29:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:28:1: [scripty] '.' and '..' are not allowed in paths
 |    []($link.page('foo/.')) //wrong 4/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:31:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:30:1: [scripty] '.' and '..' are not allowed in paths
 |    []($link.page('foo/..')) //wrong 5/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:33:1: [scripty] empty component in path
+content/parse.smd:32:1: [scripty] empty component in path
 |    []($link.page('a//foo/./bar')) //wrong 6/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:35:1: [scripty] empty component in path
+content/parse.smd:34:1: [scripty] empty component in path
 |    []($link.page('a//foo/../bar')) //wrong 7/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:37:1: [scripty] empty component in path
+content/parse.smd:36:1: [scripty] empty component in path
 |    []($link.page('a//foo/.')) //wrong 8/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:39:1: [scripty] empty component in path
+content/parse.smd:38:1: [scripty] empty component in path
 |    []($link.page('a//foo/..')) //wrong 9/9
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

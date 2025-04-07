@@ -110,9 +110,14 @@ pub const Reference = struct {
 
                 for (v.fields) |f| {
                     try out_stream.print(
-                        \\>- [`.{s}`]($link.unsafeRef(".{0s}"))
+                        \\>- [`.{s}`]($link.unsafeRef("{s}.{s}"))
                         \\
-                    , .{f.name});
+                    , .{
+                        f.name,
+                        // Type.Field
+                        v.name.string(false),
+                        f.name,
+                    });
                 }
 
                 for (v.builtins) |b| {
@@ -158,12 +163,17 @@ pub const Reference = struct {
 
             for (v.fields) |f| {
                 try out_stream.print(
-                    \\### [`{0s}`]($text.id('.{0s}')) : {1s}
+                    \\### [`{0s}`]($text.id('{1s}.{0s}')) : {2s}
                     \\
-                    \\{2s}
+                    \\{3s}
                     \\
                     \\
-                , .{ f.name, f.type_name.link(false), f.description });
+                , .{
+                    f.name,
+                    v.name.string(false),
+                    f.type_name.link(false),
+                    f.description,
+                });
             }
 
             if (v.builtins.len > 0)

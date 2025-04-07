@@ -44,7 +44,6 @@ pub const PathName = packed struct {
             assert(!std.mem.endsWith(u8, src, "/\\"));
             assert(st.get("") == empty_name);
             assert(pt.get(&.{}) == empty_path);
-            assert(src.len > 0);
         }
 
         const base = std.fs.path.dirnamePosix(src) orelse {
