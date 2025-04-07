@@ -15,14 +15,11 @@ const PathName = PathTable.PathName;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-/// Reference counting, all other fields are only present if rc > 0
-rc: std.atomic.Value(u32) = .init(0),
 src: []const u8 = undefined,
 html_ast: superhtml.html.Ast = undefined,
 // Only present if html_ast.errors.len == 0
 ast: superhtml.Ast = undefined,
-// Only present if ast.errors.len == 0
-missing_parent: bool = undefined,
+missing_parent: bool = false,
 layout: bool,
 
 pub fn deinit(t: *const Template, gpa: Allocator) void {
@@ -78,7 +75,5 @@ pub fn parse(
             t.missing_parent = true;
             return;
         }
-
-        t.missing_parent = false;
     }
 }

@@ -1229,7 +1229,6 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
     var template_errors = false;
     for (build.templates.keys(), build.templates.values()) |tpn, *template| {
-        if (template.rc.load(.acquire) == 0) continue;
         if (template.html_ast.errors.len > 0) {
             if (!template_errors) {
                 template_errors = true;
