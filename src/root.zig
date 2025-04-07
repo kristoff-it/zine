@@ -830,7 +830,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         p._scan.file,
                         &p._parse.ast,
                         p._parse.full_src[p._parse.fm.offset..],
-                        p._parse.fm.lines,
+                        p._parse.fm.lines - 1,
                     );
 
                     // Do not schedule the page for analysis if contains parsing
@@ -1547,7 +1547,6 @@ fn printSuperMdErrors(
             \\|    {s}
             \\|    {s}
             \\
-            \\
         , .{
             file.fmt(&v.string_table, &v.path_table, v.content_dir_path),
             fm_lines + range.start.row,
@@ -1557,6 +1556,18 @@ fn printSuperMdErrors(
             line_trim,
             highlight,
         });
+
+        switch (err.kind) {
+            .duplicate_id => |dup| {
+                std.debug.print(
+                    \\|   note: original was defined on line {}
+                    \\
+                    \\
+                , .{fm_lines + dup.original.range().start.row});
+            },
+            else => std.debug.print("\n", .{}),
+        }
+
         if (build.mode == .memory) {
             try build.mode.memory.errors.append(gpa, .{
                 .ref = "",
