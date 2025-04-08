@@ -23,7 +23,7 @@ const win = if (builtin.os.tag != .windows) void else struct {
         dwMaximumSizeHigh: windows.DWORD,
         dwMaximumSizeLow: windows.DWORD,
         lpName: ?windows.LPCSTR,
-    ) windows.HANDLE;
+    ) callconv(windows.WINAPI) windows.HANDLE;
 
     //LPVOID MapViewOfFile(
     //  [in] HANDLE hFileMappingObject,
@@ -38,14 +38,14 @@ const win = if (builtin.os.tag != .windows) void else struct {
         dwFileOffsetHigh: windows.DWORD,
         dwFileOffsetLow: windows.DWORD,
         dwNumberOfBytesToMap: windows.SIZE_T,
-    ) [*]u8;
+    ) callconv(windows.WINAPI) [*]u8;
 
     //BOOL UnmapViewOfFile(
     //  [in] LPCVOID lpBaseAddress
     //);
     extern "kernel32" fn UnmapViewOfFile(
         lpBaseAddress: windows.LPCVOID,
-    ) windows.BOOL;
+    ) callconv(windows.WINAPI) windows.BOOL;
 
     // extern "kernel32" fn CreateFileA(
     //     lpFileName: windows.LPCSTR,
@@ -95,7 +95,7 @@ pub fn setImageSize(
                     null,
                 );
 
-                const ptr = win.MapViewOfFile(file_mapping, 1 << 3, 0, 0, 0);
+                const ptr = win.MapViewOfFile(file_mapping, 1 << 2, 0, 0, 0);
                 break :winblk ptr;
             },
             else => std.posix.mmap(
