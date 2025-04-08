@@ -15,6 +15,7 @@ const Variant = @import("Variant.zig");
 const Template = @import("Template.zig");
 const highlight = @import("highlight.zig");
 const main = @import("main.zig");
+const wuffs = @import("wuffs.zig");
 const Channel = @import("channel.zig").Channel;
 const String = StringTable.String;
 const Path = PathTable.Path;
@@ -315,6 +316,7 @@ fn analyzeContent(
     const ast = &page._parse.ast;
     const errors = &page._analysis.page;
     const variant = &b.variants[variant_id];
+    const autosize = b.cfg.getImageAutosize();
     const index_smd: String = @enumFromInt(1);
     assert(variant.string_table.get("index.smd") == index_smd);
     const index_html: String = @enumFromInt(11);
@@ -754,6 +756,23 @@ fn analyzeContent(
                                             .path = @intFromEnum(path),
                                             .name = @intFromEnum(name),
                                         };
+
+                                        const bytes = try std.fmt.allocPrint(scratch, "{/}", .{
+                                            pn.fmt(
+                                                &variant.string_table,
+                                                &variant.path_table,
+                                                null,
+                                            ),
+                                        });
+
+                                        if (autosize and directive.kind == .image) {
+                                            wuffs.setImageSize(
+                                                scratch,
+                                                directive,
+                                                variant.content_dir,
+                                                bytes,
+                                            );
+                                        }
                                         continue :outer;
                                     },
                                     else => {},
@@ -790,6 +809,15 @@ fn analyzeContent(
                                         .path = @intFromEnum(path),
                                         .name = @intFromEnum(name),
                                     };
+
+                                    if (autosize and directive.kind == .image) {
+                                        wuffs.setImageSize(
+                                            scratch,
+                                            directive,
+                                            b.site_assets_dir,
+                                            sa.ref,
+                                        );
+                                    }
                                     continue :outer;
                                 }
                             }
@@ -820,6 +848,15 @@ fn analyzeContent(
                             continue :outer;
                         };
 
+                        if (autosize and directive.kind == .image) {
+                            wuffs.setImageSize(
+                                scratch,
+                                directive,
+                                b.site_assets_dir,
+                                asset.input_path,
+                            );
+                        }
+
                         _ = asset.rc.fetchAdd(1, .acq_rel);
 
                         const output_path = asset.output_path orelse {
@@ -836,18 +873,6 @@ fn analyzeContent(
 
                         ba.ref = output_path;
                     },
-
-                    // Asset was found successfully.
-
-                    // if (directive.kind == .image) blk: {
-                    // const image_handle = std.fs.cwd().openFile(path_bytes.items, .{}) catch break :blk;
-                    // defer image_handle.close();
-                    // var image_header_buf: [2048]u8 = undefined;
-                    // const image_header_len = image_handle.readAll(&image_header_buf) catch break :blk;
-                    // const image_header = image_header_buf[0..image_header_len];
-
-                    // const img_size = getImageSize(image_header) catch break :blk;
-                    // directive.kind.image.size = .{ .w = img_size.w, .h = img_size.h };
                 }
             },
         }

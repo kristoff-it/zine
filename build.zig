@@ -229,7 +229,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    // const wuffs = b.dependency("wuffs", mode);
+    const wuffs = b.dependency("wuffs", mode);
 
     const release = b.step("release", "Create release builds of Zine");
     if (version == .tag) {
@@ -301,6 +301,7 @@ pub fn build(b: *std.Build) !void {
     zine_exe.root_module.addImport("options", options);
     zine_exe.root_module.addImport("tracy", tracy.module("tracy"));
     zine_exe.root_module.addImport("mime", mime.module("mime"));
+    zine_exe.root_module.addImport("wuffs", wuffs.module("wuffs"));
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);

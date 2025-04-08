@@ -47,6 +47,18 @@ pub const Site = struct {
     /// - `favicon.ico` and other similar assets auto-discovered by browsers
     /// - `CNAME` (used by GitHub Pages when you set a custom domain)
     static_assets: []const []const u8 = &.{},
+    /// When enabled, Zine will automatically add 'width' and 'height'
+    /// attributes to <img> elements for local assets.
+    /// Be aware that setting 'width' and 'heigth' of an image will in some
+    /// circumstances cause browsers to distort images.
+    ///
+    /// This problem can be solved by adding the following CSS code to your
+    /// site:
+    ///
+    /// img {
+    ///    height: auto;
+    /// }
+    image_size_attributes: bool = false,
 };
 
 pub const MultilingualSite = struct {
@@ -89,6 +101,18 @@ pub const MultilingualSite = struct {
     ///   - `code`
     ///   - `output_prefix_override` (if set) + `host_url_override`
     locales: []const Locale,
+    /// When enabled, Zine will automatically add 'width' and 'height'
+    /// attributes to <img> elements for local assets.
+    /// Be aware that setting 'width' and 'heigth' of an image will in some
+    /// circumstances cause browsers to distort images.
+    ///
+    /// This problem can be solved by adding the following CSS code to your
+    /// site:
+    ///
+    /// img {
+    ///    height: auto;
+    /// }
+    image_size_attributes: bool = false,
 };
 
 /// A localized variant of a multilingual website
@@ -358,6 +382,13 @@ pub const Config = union(enum) {
         return switch (c.*) {
             .Site => |s| s.static_assets,
             .Multilingual => |m| m.static_assets,
+        };
+    }
+
+    pub fn getImageAutosize(c: *const Config) bool {
+        return switch (c.*) {
+            .Site => |s| s.image_size_attributes,
+            .Multilingual => |m| m.image_size_attributes,
         };
     }
 
