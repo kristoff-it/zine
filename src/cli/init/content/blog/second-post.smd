@@ -6,16 +6,23 @@
 .draft = false,
 --- 
 
-This second post is here just to show you that you can also create single file
-posts for convenience.
+This second post is mainly here to show you that you can also create single file
+posts for convenience. The first post contains more interesting content.
+
+Don't forget to read [the official SuperMD
+docs](https://zine-ssg.io/docs/supermd/) to know how to *style* your content.
 
 
-Here's a math formula defined as a code block:
-```=katex
-x+\sqrt{1-x^2}
+Btw this sample website also includes the JS/CSS dependencies required to render
+math:
+
+```=mathtex
+\begin{aligned}
+f(t) &= \int_{-\infty}^\infty F(\omega) \cdot (-1)^{2 \omega t} \mathrm{d}\omega \\
+F(\omega) &= \int_{-\infty}^\infty f(t) \div (-1)^{2 \omega t} \mathrm{d}t \\
+\end{aligned}
 ```
 
-This: [`x+\sqrt{1-x^2}`]($katex) is an inline formula instead!
+This: [`(-1)^x = \cos(\pi x) + i\sin(\pi x)`]($mathtex) is an inline equation
+instead!
 
-
-The first post contains more interesting content.

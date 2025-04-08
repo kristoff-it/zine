@@ -104,16 +104,20 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
         },
 
         .{
-            .path = "assets/katex-tag.js",
-            .src = @embedFile("init/assets/katex-tag.js"),
+            .path = "assets/render-mathtex.js",
+            .src = @embedFile("init/assets/render-mathtex.js"),
         },
         .{
-            .path = "assets/katex0.16.21.css",
-            .src = @embedFile("init/assets/katex0.16.21.css"),
+            .path = "assets/Temml-Local.css",
+            .src = @embedFile("init/assets/Temml-Local.css"),
         },
         .{
-            .path = "assets/katex0.16.21.js",
-            .src = @embedFile("init/assets/katex0.16.21.js"),
+            .path = "assets/Temml.woff2",
+            .src = @embedFile("init/assets/Temml.woff2"),
+        },
+        .{
+            .path = "assets/temml.min.js",
+            .src = @embedFile("init/assets/temml.min.js"),
         },
     };
 

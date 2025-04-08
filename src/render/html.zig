@@ -309,7 +309,7 @@ pub fn html(
                             if (std.mem.eql(u8, lang_name, "=html")) {
                                 try w.writeAll(code);
                                 continue;
-                            } else if (std.mem.eql(u8, lang_name, "=katex")) {
+                            } else if (std.mem.eql(u8, lang_name, "=mathtex")) {
                                 try w.writeAll("<script type=\"math/tex\">");
                                 try w.writeAll(code);
                                 try w.writeAll("</script>");
@@ -412,7 +412,7 @@ fn renderDirective(
     const directive = node.getDirective() orelse return renderLink(ev, ctx, w);
     switch (directive.kind) {
         .section, .block, .heading => {},
-        .katex => |katek| switch (ev.dir) {
+        .mathtex => |katek| switch (ev.dir) {
             .enter => {
                 try w.writeAll("<script type=\"math/tex\"");
                 if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
@@ -538,7 +538,7 @@ fn renderDirective(
                 if (caption != null) try w.writeAll("<figure>");
                 if (std.mem.eql(u8, code.language orelse "", "=html")) {
                     try w.writeAll(code.src.?.url);
-                } else if (std.mem.eql(u8, code.language orelse "", "=katex")) {
+                } else if (std.mem.eql(u8, code.language orelse "", "=mathtex")) {
                     try w.writeAll("<script type=\"math/tex\"");
                     if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
                     if (directive.attrs) |attrs| {

@@ -6,11 +6,11 @@
     <title :text="$site.title"></title>
     <link type="text/css" rel="stylesheet" href="$site.asset('style.css').link()">
     <link type="text/css" rel="stylesheet" href="$site.asset('highlight.css').link()">
-    <!-- katex -->
-    <link type="text/css" rel="stylesheet" href="$site.asset('katex0.16.21.css').link()">
-    <script defer src="$site.asset('katex0.16.21.js').link()"></script>
-    <script defer src="$site.asset('katex-tag.js').link()"></script>
-    <!-- /katex -->
+    <!-- mathtex -->
+    <link type="text/css" rel="stylesheet" href="$site.asset('Temml-Local.css').link()">
+    <script defer src="$site.asset('temml.min.js').link()"></script>
+    <script defer src="$site.asset('render-mathtex.js').link()"></script>
+    <!-- /mathtex -->
     <super>
   </head>
   <body id="body">
