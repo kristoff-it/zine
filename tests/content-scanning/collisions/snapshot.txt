@@ -59,14 +59,6 @@ another_index.html: error: output url collision detected
    between  index.smd (page alias)
    and      nested/path/page.smd (page alias)
 
-foo/bar/baz.html: error: output url collision detected
-   between  index.smd (page alias)
-   and      nested/path/page.smd (page alias)
-
-foo/bar.html: error: output url collision detected
-   between  index.smd (page alias)
-   and      nested/path/page.smd (page alias)
-
 nested/path/page/README.html: error: output url collision detected
    between  index.smd (page alternative 'readme')
    and      nested/path/page.smd (page alternative 'readme')
