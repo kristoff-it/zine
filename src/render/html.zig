@@ -468,7 +468,10 @@ fn renderDirective(
                 try w.writeAll("\"");
 
                 if (img.alt) |alt| try w.print(" alt=\"{s}\"", .{alt});
-                if (img.size) |size| try w.print(" width=\"{d}\" height=\"{d}\"", .{ size.w, size.h });
+                if (img.size) |size| {
+                    if (size.w > 0) try w.print(" width=\"{d}\"", .{size.w});
+                    if (size.h > 0) try w.print(" height=\"{d}\"", .{size.h});
+                }
                 try w.writeAll(">");
                 if (img.linked) |l| if (l) try w.writeAll("</a>");
                 if (caption != null) try w.writeAll("\n<figcaption>");

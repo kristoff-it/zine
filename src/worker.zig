@@ -765,7 +765,7 @@ fn analyzeContent(
                                             ),
                                         });
 
-                                        if (autosize and directive.kind == .image) {
+                                        if (autosize and directive.kind == .image and directive.kind.image.size == null) {
                                             wuffs.setImageSize(
                                                 scratch,
                                                 directive,
@@ -810,7 +810,7 @@ fn analyzeContent(
                                         .name = @intFromEnum(name),
                                     };
 
-                                    if (autosize and directive.kind == .image) {
+                                    if (autosize and directive.kind == .image and directive.kind.image.size == null) {
                                         wuffs.setImageSize(
                                             scratch,
                                             directive,
@@ -848,7 +848,7 @@ fn analyzeContent(
                             continue :outer;
                         };
 
-                        if (autosize and directive.kind == .image) {
+                        if (autosize and directive.kind == .image and directive.kind.image.size == null) {
                             wuffs.setImageSize(
                                 scratch,
                                 directive,
