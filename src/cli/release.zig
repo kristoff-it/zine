@@ -135,7 +135,7 @@ const help_message =
     \\Usage: zine release [OPTIONS]
     \\
     \\Command specific options:
-    \\  --output DIR  Directory where to install the website (default 'public/')
+    \\  --install DIR  Directory where to install the website (default 'public/')
     // \\  --build-assets FILE    Path to a file containing a list of build assets
     \\  --help, -h   Show this help menu
     \\
