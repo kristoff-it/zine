@@ -106,6 +106,41 @@ pub const Builtins = struct {
             return Value.from(gpa, result);
         }
     };
+
+    pub const startsWith = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .Bool,
+        };
+        pub const docs_description =
+            \\Returns true if the receiver starts with the provided string.
+            \\
+        ;
+        pub const examples =
+            \\$page.permalink().startsWith("/blog/")
+        ;
+        pub fn call(
+            str: String,
+            gpa: Allocator,
+            _: *const context.Template,
+            args: []const Value,
+        ) !Value {
+            const bad_arg: Value = .{
+                .err = "expected 1 string argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const needle = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            const result = std.mem.startsWith(u8, str.value, needle);
+
+            return Value.from(gpa, result);
+        }
+    };
+
     pub const eql = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
