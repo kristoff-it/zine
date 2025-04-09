@@ -51,8 +51,8 @@
             .hash = "superhtml-0.4.0-Y7MdPKeXDQD6PoBdAJL8JlNYHk8kH0rcIbRjEfmKTj5r",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#bf2e831306af97d3f728eec05d9a83b1a4b02cc2",
-            .hash = "supermd-0.1.0-3Mco3DCRWAC73BIGwYRy1xbXlDYP6FryX18DN2pYkpq6",
+            .url = "git+https://github.com/kristoff-it/supermd#a21bbe66a914f4f0b6ae365b3f2719fe92ea7fa6",
+            .hash = "supermd-0.1.0-3Mco3LySWAAfBdqAg-OQqAqbW3uQksusNi57FyQ_slJ6",
         },
     },
     .paths = .{"."},

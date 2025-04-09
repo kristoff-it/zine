@@ -1173,10 +1173,22 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         std.fs.path.dirnamePosix(a) orelse "",
                         '.',
                     ) == null);
+
+                    const prefix = if (a[0] == '/')
+                        &.{}
+                    else blk: {
+                        const prefix = p._scan.url.slice(&v.path_table);
+                        try v.path_table.path_components.ensureUnusedCapacity(
+                            gpa,
+                            prefix.len + std.mem.count(u8, a, "/"),
+                        );
+                        break :blk prefix;
+                    };
+
                     const url = try v.path_table.internPathWithName(
                         gpa,
                         &v.string_table,
-                        &.{},
+                        prefix,
                         a,
                     );
 

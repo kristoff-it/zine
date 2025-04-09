@@ -148,7 +148,7 @@ pub fn internPathWithName(
     assert(string_table.string_bytes.items.len > 0); // string_table must contain a zero elem
     assert(string_table.string_bytes.items[0] == 0); // the zero elem must be the empty string
 
-    var it = std.mem.tokenizeScalar(u8, path, std.fs.path.sep);
+    var it = std.mem.tokenizeScalar(u8, path, '/');
     const component_count = blk: {
         var count: u32 = 0;
         while (it.next() != null) count += 1;
