@@ -13,10 +13,10 @@ other contributors listed on the [official repository](https://github.com/kristo
 Zine is inspired by [Hugo](https://gohugo.io) but features an entirely custom set
 of authoring languages:
 
-- [Scripty](https://zine-ssg.io/documentation/scripty/) is the small expression
+- [Scripty](https://zine-ssg.io/docs/scripty/) is the small expression
   language that both SuperHTML and SuperMD share to express templating logic.
 
-- [SuperHTML](https://zine-ssg.io/documentation/superhtml/) is the HTML templating
+- [SuperHTML](https://zine-ssg.io/docs/superhtml/) is the HTML templating
    language used by Zine. Unlike most `{{curly braced}}` templating languages,
    SuperHTML uses valid HTML syntax to express the templating logic, adding only
    minor extensions to normal HTML.  
@@ -26,7 +26,7 @@ of authoring languages:
   ># [NOTE]($block)
   >The correct file extension for SuperHTML templates is `.shtml`.
 
-- [SuperMD](https://zine-ssg.io/documentation/supermd/) is a superset of Markdown
+- [SuperMD](https://zine-ssg.io/docs/supermd/) is a superset of Markdown
   that, instead of relying on inline HTML, offers new constructs for expressing
   content embeds without pulling into your content needless layouting concerns.
   A CLI tool and language server for SuperMD is in the works.
