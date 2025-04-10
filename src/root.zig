@@ -1225,9 +1225,9 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         const prefix = p._scan.url.slice(&v.path_table);
                         try v.path_table.path_components.ensureUnusedCapacity(
                             gpa,
-                            prefix.len + std.mem.count(u8, alt.output, "/"),
+                            prefix.len + std.mem.count(u8, alt.output, "/") + 1,
                         );
-                        break :blk prefix;
+                        break :blk p._scan.url.slice(&v.path_table);
                     };
                     const url = try v.path_table.internPathWithName(
                         gpa,
