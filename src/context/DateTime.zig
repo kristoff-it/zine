@@ -15,8 +15,9 @@ _inst: zeit.Instant,
 
 pub fn init(iso8601: []const u8) !DateTime {
     const date = try zeit.Time.fromISO8601(iso8601);
+    const inst = date.instant();
     return .{
-        ._inst = date.instant(),
+        ._inst = inst,
     };
 }
 
@@ -126,6 +127,66 @@ pub const Builtins = struct {
             return Bool.init(dt._inst.timestamp == rhs._inst.timestamp);
         }
     };
+
+    pub const in = struct {
+        pub const signature: Signature = .{
+            .params = &.{.str},
+            .ret = .Date,
+        };
+        pub const docs_description =
+            \\Change the Time Zone offset of a date with the offset
+            \\of the location provided.
+        ;
+        pub const examples =
+            \\$page.date.in("Europe/Berlin")
+        ;
+        pub fn call(
+            dt: DateTime,
+            gpa: Allocator,
+            _: *const context.Template,
+            args: []const Value,
+        ) !Value {
+            const arg_err: Value = .{
+                .err = "expected 1 string argument",
+            };
+
+            if (args.len != 1) return arg_err;
+
+            const loc_str = switch (args[0]) {
+                .string => |d| d.value,
+                else => return arg_err,
+            };
+
+            const location = std.meta.stringToEnum(
+                zeit.Location,
+                loc_str,
+            ) orelse {
+                return .errFmt(
+                    gpa,
+                    "unknown time zone location: '{s}'",
+                    .{loc_str},
+                );
+            };
+
+            if (dt._inst.timezone != &zeit.utc) {
+                return .{
+                    .err = "can only override dates that are expressed in UTC",
+                };
+            }
+
+            const tz = try gpa.create(zeit.TimeZone);
+            tz.* = zeit.loadTimeZone(gpa, location, null) catch |err| {
+                return .errFmt(
+                    gpa,
+                    "unexpected error while loading '{s}' time zone information: '{s}'",
+                    .{ loc_str, @errorName(err) },
+                );
+            };
+
+            return .{ .date = .{ ._inst = dt._inst.in(tz) } };
+        }
+    };
+
     pub const format = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
