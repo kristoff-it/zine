@@ -827,7 +827,7 @@ pub const Server = struct {
         src: []const u8,
     ) !void {
         const injection =
-            \\<script src="/__zine/zinereload.js"></script>
+            \\<script defer src="/__zine/zinereload.js"></script>
         ;
         const head = "</head>";
         const head_pos = std.mem.indexOf(u8, src, head) orelse src.len;
