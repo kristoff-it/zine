@@ -103,7 +103,7 @@ pub const Connection = struct {
                 return error.ExpectedContinuation;
             }
             const new_len = header.payload_len + current_length;
-            if (new_length > buffer.len) {
+            if (new_len > buffer.len) {
                 return error.NoSpaceLeft;
             }
             try reader.readNoEof(buffer[current_length..new_len]);
