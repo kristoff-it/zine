@@ -1493,7 +1493,9 @@ pub const Builtins = struct {
 
             for (p.alternatives) |alt| {
                 if (std.mem.eql(u8, alt.name, alt_name)) {
-                    return Value.from(gpa, alt);
+                    var a = alt;
+                    a._page = p;
+                    return Value.from(gpa, a);
                 }
             }
 

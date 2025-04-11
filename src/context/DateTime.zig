@@ -130,7 +130,7 @@ pub const Builtins = struct {
 
     pub const in = struct {
         pub const signature: Signature = .{
-            .params = &.{.str},
+            .params = &.{.String},
             .ret = .Date,
         };
         pub const docs_description =
