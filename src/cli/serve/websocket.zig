@@ -102,17 +102,18 @@ pub const Connection = struct {
             if (current_length > 0 and (header.op_code == .binary or header.op_code == .text)) {
                 return error.ExpectedContinuation;
             }
-            if (header.payload_len + current_length > buffer.len) {
+            const new_len = header.payload_len + current_length;
+            if (new_length > buffer.len) {
                 return error.NoSpaceLeft;
             }
-            try reader.readNoEof(buffer[current_length..header.payload_len]);
+            try reader.readNoEof(buffer[current_length..new_len]);
 
             if (header.mask) |mask| {
-                for (0.., buffer[current_length..header.payload_len]) |i, *b| {
+                for (0.., buffer[current_length..new_len]) |i, *b| {
                     b.* ^= mask[i % 4];
                 }
             }
-            current_length += header.payload_len;
+            current_length = new_len;
 
             switch (header.op_code) {
                 .continuation, .text, .binary => {
