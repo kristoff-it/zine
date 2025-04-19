@@ -1,0 +1,38 @@
+root = Zine
+
+
+struct Zine {
+    site: Simple | Multilingual,
+    settings: Settings = {},
+}
+
+struct Simple {
+    host_url: bytes,
+    title: bytes,
+    content_dir_path: bytes,
+    assets_dir_path: bytes,
+    layouts_dir_path: bytes,
+}
+
+struct Multilingual {
+    assets_dir_path: bytes,
+    layouts_dir_path: bytes,
+    locales: [Locale],
+}
+
+struct Locale {
+    title: bytes,
+    code: bytes,
+    content_dir_path: bytes,
+    host_url_override: ?bytes,
+}
+
+struct Settings {
+    /// Enable automatic conversion of simple quotes to left/right quotes in
+    /// SuperMD
+    autoquote: bool = false,
+    /// Enable automatic link detection in SuperMD
+    autolink: bool = false,
+    /// Enable automatic image size attributes in SuperMD
+    autosize: bool = false,
+}
