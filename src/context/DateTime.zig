@@ -187,6 +187,126 @@ pub const Builtins = struct {
         }
     };
 
+    pub const add = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .Int, .String },
+            .ret = .Date,
+        };
+        pub const docs_description =
+            \\ Add a given duration to the receiver date.
+            \\ A duration is specified as a number of units, with possible units being:
+            \\ - 'second'
+            \\ - 'minute'
+            \\ - 'hour'
+            \\ - 'day'
+        ;
+        pub const examples =
+            \\$page.date.add(1, 'day').add(1, 'hour')
+        ;
+        pub fn call(
+            dt: DateTime,
+            _: Allocator,
+            _: *const context.Template,
+            args: []const Value,
+        ) !Value {
+            const arg_err: Value = .{
+                .err = "expected 1 non-negative int and 1 string argument",
+            };
+
+            if (args.len != 2) return arg_err;
+
+            const num: usize = switch (args[0]) {
+                .int => |d| if (d.value >= 0) @intCast(d.value) else return .{
+                    .err = "number of units must be positive",
+                },
+                else => return arg_err,
+            };
+
+            const unit_str = switch (args[1]) {
+                .string => |d| d.value,
+                else => return arg_err,
+            };
+
+            const Unit = enum { second, minute, hour, day };
+            const unit = std.meta.stringToEnum(Unit, unit_str) orelse {
+                return .{ .err = "unknown duration unit" };
+            };
+
+            const d: zeit.Duration = switch (unit) {
+                .second => .{ .seconds = num },
+                .minute => .{ .minutes = num },
+                .hour => .{ .hours = num },
+                .day => .{ .days = num },
+            };
+
+            const new = dt._inst.add(d) catch return .{
+                .err = "addition caused overflow",
+            };
+
+            return .{ .date = .{ ._inst = new } };
+        }
+    };
+
+    pub const sub = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .Int, .String },
+            .ret = .Date,
+        };
+        pub const docs_description =
+            \\ Subtract a given duration to the receiver date.
+            \\ A duration is specified as a number of units, with possible units being:
+            \\ - 'second'
+            \\ - 'minute'
+            \\ - 'hour'
+            \\ - 'day'
+        ;
+        pub const examples =
+            \\$page.date.sub(1, 'hour').add(1, 'hour').eq($page.date)
+        ;
+        pub fn call(
+            dt: DateTime,
+            _: Allocator,
+            _: *const context.Template,
+            args: []const Value,
+        ) !Value {
+            const arg_err: Value = .{
+                .err = "expected 1 non-negative int and 1 string argument",
+            };
+
+            if (args.len != 2) return arg_err;
+
+            const num: usize = switch (args[0]) {
+                .int => |d| if (d.value >= 0) @intCast(d.value) else return .{
+                    .err = "number of units must be positive",
+                },
+                else => return arg_err,
+            };
+
+            const unit_str = switch (args[1]) {
+                .string => |d| d.value,
+                else => return arg_err,
+            };
+
+            const Unit = enum { second, minute, hour, day };
+            const unit = std.meta.stringToEnum(Unit, unit_str) orelse {
+                return .{ .err = "unknown duration unit" };
+            };
+
+            const d: zeit.Duration = switch (unit) {
+                .second => .{ .seconds = num },
+                .minute => .{ .minutes = num },
+                .hour => .{ .hours = num },
+                .day => .{ .days = num },
+            };
+
+            const new = dt._inst.subtract(d) catch return .{
+                .err = "subtraction caused underflow",
+            };
+
+            return .{ .date = .{ ._inst = new } };
+        }
+    };
+
     pub const format = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
