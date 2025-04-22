@@ -1460,6 +1460,107 @@ pub const Builtins = struct {
         }
     };
 
+    pub const linkText = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .String,
+        };
+        pub const docs_description =
+            \\Returns the URL of the target page, allowing you
+            \\to specify a text fragment to link to a specific
+            \\portion of text on the target page.
+            \\
+            \\The text will be checked by Zine and an error will be
+            \\reported if it does not exist.
+        ;
+        pub const examples =
+            \\$page.linkText('foo', 'bar')
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Template,
+            args: []const Value,
+        ) !Value {
+            const bad_arg: Value = .{
+                .err = "expected 2 string arguments",
+            };
+            if (args.len != 2) return bad_arg;
+
+            const text_frag_start = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            const text_frag_end = switch (args[1]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            const ast = p._parse.ast;
+            var it = supermd.Ast.Iter.init(ast.md.root);
+
+            var start_idx: ?usize = null;
+            var end_idx: ?usize = null;
+
+            while (it.next()) |ev| {
+                if (start_idx != null and end_idx != null) break;
+
+                switch (ev.node.nodeType()) {
+                    .TEXT => {
+                        switch (ev.dir) {
+                            .enter => {
+                                if (ev.node.literal()) |l| {
+                                    if (std.mem.indexOf(u8, l, text_frag_start)) |idx|
+                                        start_idx = idx;
+                                    if (start_idx) |_| {
+                                        if (std.mem.indexOf(u8, l, text_frag_end)) |idx|
+                                            end_idx = idx;
+                                    }
+                                }
+                            },
+                            .exit => {},
+                        }
+                    },
+                    else => continue,
+                }
+            }
+
+            if (start_idx == null) return Value.errFmt(
+                gpa,
+                "cannot find start text '{s}' in the content page",
+                .{text_frag_start},
+            );
+
+            if (end_idx == null) return Value.errFmt(
+                gpa,
+                "cannot find end text '{s}' after start text in the content page",
+                .{text_frag_end},
+            );
+
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+
+            var buf: std.ArrayListUnmanaged(u8) = .empty;
+            const w = buf.writer(gpa);
+
+            try ctx.printLinkPrefix(w, p._scan.variant_id, false);
+
+            try w.print("{}", .{
+                p._scan.url.fmt(
+                    &v.string_table,
+                    &v.path_table,
+                    null,
+                    true,
+                ),
+            });
+
+            // See https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments#sect
+            try w.print("#:~:text={s},{s}", .{ text_frag_start, text_frag_end });
+
+            return String.init(buf.items);
+        }
+    };
+
     pub const alternative = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
