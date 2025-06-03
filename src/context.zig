@@ -110,12 +110,7 @@ pub const Value = union(enum) {
             .bool => |b| return .{ .bool = .{ .value = b } },
             .integer => |i| return .{ .int = .{ .value = i } },
             .bytes => |s| return .{ .string = .{ .value = s } },
-            .array => |a| return .{
-                .iterator = try Value.Iterator.fromArray(
-                    gpa,
-                    (try Array.init(gpa, ziggy.dynamic.Value, a)).array,
-                ),
-            },
+            .array => |a| return Array.init(gpa, ziggy.dynamic.Value, a),
             .tag => |t| {
                 std.debug.assert(std.mem.eql(u8, t.name, "date"));
                 const date = DateTime.init(t.bytes) catch {
