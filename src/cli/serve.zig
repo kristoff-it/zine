@@ -305,16 +305,37 @@ pub const Command = struct {
     drafts: bool,
 
     fn parseAddress(arg: []const u8) struct { []const u8, ?u16 } {
-        var it = std.mem.tokenizeScalar(u8, arg, ':');
-        const host = it.next() orelse fatal.msg(
-            "error: missing argument to '--address='",
-            .{},
-        );
+        if (arg.len <= 0) {
+            fatal.msg(
+                "error: missing argument to '--host='",
+                .{},
+            );
+        }
+
+        const host = if (arg[0] == '[') ipv6: {
+            var i: usize = 1;
+            while (i < arg.len) : (i += 1) {
+                if (arg[i] == ']') {
+                    break :ipv6 arg[0 .. i + 1];
+                }
+            }
+            fatal.msg(
+                "error: unmatched '[' in '--host='",
+                .{},
+            );
+        } else arg[0 .. std.mem.indexOfScalar(u8, arg, ':') orelse arg.len];
+
         var port: ?u16 = null;
-        if (it.next()) |p| port = std.fmt.parseInt(u16, p, 10) catch |err| fatal.msg(
-            "error: bad port in '{s}': {s}",
-            .{ arg, @errorName(err) },
-        );
+        const maybe_port = arg[host.len..];
+        if (maybe_port.len > 0 and maybe_port[0] == ':') {
+            port = std.fmt.parseInt(u16, maybe_port[1..], 10) catch |err| fatal.msg(
+                \\error: bad port in '{s}': {s}
+                \\hint: if you meant to use IPv6, wrap it in square brackets, e.g. --host=[::1]
+                \\
+            ,
+                .{ arg, @errorName(err) },
+            );
+        }
 
         return .{ host, port };
     }
@@ -467,7 +488,11 @@ pub const Server = struct {
     }
 
     pub fn start(s: *Server, cmd: Command) !std.net.Address {
-        const list = try std.net.getAddressList(s.gpa, cmd.host, cmd.port);
+        const host = if (cmd.host[0] == '[')
+            cmd.host[1..][0 .. cmd.host.len - 2] // Strip brackets from IPv6
+        else
+            cmd.host;
+        const list = try std.net.getAddressList(s.gpa, host, cmd.port);
         errdefer list.deinit();
 
         if (list.addrs.len == 0) fatal.msg(
