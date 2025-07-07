@@ -54,6 +54,10 @@
             .url = "git+https://github.com/kristoff-it/supermd#48500784d7706eaba2d5e1a35332353aca3fc04e",
             .hash = "supermd-0.1.0-3Mco3MySWADIsgRWDOxCc1wMJckAQa7yVW2cFzFrL4Fn",
         },
+        .zig_afl_kit = .{
+            .url = "git+https://github.com/kristoff-it/zig-afl-kit#39c33d45dbe3605a9ef7cab863620d1ca78a3623",
+            .hash = "zig_afl_kit-0.1.0-3k74fQAdAABrirJM84Lo-lnl9mnUMwtJCSPPyIJ0OzAr",
+        },
     },
     .paths = .{"."},
 }
