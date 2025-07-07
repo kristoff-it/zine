@@ -709,7 +709,7 @@ pub const Server = struct {
 
         for (server.build.variants) |*v| {
             if (!std.mem.startsWith(u8, path[1..], v.output_path_prefix)) continue;
-            const subpath = path[1..][v.output_path_prefix.len..][@intFromBool(v.output_path_prefix.len > 0)..];
+            const subpath = path[1..][v.output_path_prefix.len..][@intFromBool(v.output_path_prefix.len > 0 and path_ends_with_slash)..];
 
             const hint = v.urls.get(PathName.get(
                 &v.string_table,
