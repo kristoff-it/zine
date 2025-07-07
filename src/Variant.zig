@@ -569,18 +569,27 @@ pub fn installAssets(
         if (hint.kind.page_asset.raw == 0) continue;
 
         var buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = std.fmt.bufPrint(&buf, "{}", .{key.fmt(
-            &v.string_table,
-            &v.path_table,
-            null,
-        )}) catch unreachable;
+        const install_path = std.fmt.bufPrint(&buf, "{s}{s}{}", .{
+            v.output_path_prefix,
+            if (v.output_path_prefix.len > 0) "/" else "",
+            key.fmt(
+                &v.string_table,
+                &v.path_table,
+                null,
+            ),
+        }) catch unreachable;
+
+        const source_path = if (v.output_path_prefix.len == 0)
+            install_path
+        else
+            install_path[v.output_path_prefix.len + 1 ..];
 
         _ = v.content_dir.updateFile(
-            path,
+            source_path,
             install_dir,
-            path,
+            install_path,
             .{},
-        ) catch |err| fatal.file(path, err);
+        ) catch |err| fatal.file(install_path, err);
 
         progress.completeOne();
     }
