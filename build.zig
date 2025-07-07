@@ -588,14 +588,15 @@ fn setupReleaseStep(
         zine_exe_release.root_module.addImport("wuffs", wuffs.module("wuffs"));
 
         if (target.result.os.tag == .macos) {
-            const frameworks = b.lazyDependency("frameworks", .{
+            if (b.lazyDependency("frameworks", .{
                 .target = target,
                 .optimize = optimize,
-            }) orelse return;
-            zine_exe_release.addIncludePath(frameworks.path("include"));
-            zine_exe_release.addFrameworkPath(frameworks.path("Frameworks"));
-            zine_exe_release.addLibraryPath(frameworks.path("lib"));
-            zine_exe_release.linkFramework("CoreServices");
+            })) |frameworks| {
+                zine_exe_release.addIncludePath(frameworks.path("include"));
+                zine_exe_release.addFrameworkPath(frameworks.path("Frameworks"));
+                zine_exe_release.addLibraryPath(frameworks.path("lib"));
+                zine_exe_release.linkFramework("CoreServices");
+            }
         }
 
         switch (t.os_tag.?) {
