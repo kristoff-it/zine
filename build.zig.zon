@@ -9,8 +9,8 @@
             .hash = "ziggy-0.1.0-kTg8vwBEBgA21d_qL5UmAoCr3bvnjkTRbF41tZzo2zuL",
         },
         .afl_kit = .{
-            .url = "git+https://github.com/kristoff-it/zig-afl-kit#68614a262c029986a3e8ff5e8dc3ed534ec92a7e",
-            .hash = "zig_afl_kit-0.1.0-3k74fQAdAAC3Dirqem0LWMirHM4UNqKEriGgVMAak9_5",
+            .url = "git+https://github.com/kristoff-it/zig-afl-kit#39c33d45dbe3605a9ef7cab863620d1ca78a3623",
+            .hash = "zig_afl_kit-0.1.0-3k74fQAdAABrirJM84Lo-lnl9mnUMwtJCSPPyIJ0OzAr",
             .lazy = true,
         },
         .lsp_kit = .{
@@ -18,8 +18,8 @@
             .hash = "lsp_kit-0.1.0-hAAxO9S9AADv_5D0iplASFtNCFXAPk54M0u-3jj2MRFk",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#57056571abcc6fe69fcb171c10b0c9e5962f53b0",
-            .hash = "scripty-0.1.0-LKK5O9jDAADwZbkwkzYcmtTD3xIStr1SNYWL0kcGf8sk",
+            .url = "git+https://github.com/kristoff-it/scripty#131704ebf9b3557c9480248787bd7b640a6ac98d",
+            .hash = "scripty-0.1.0-LKK5O83DAACoGpVDkm8JxzgevTE76bkf0n3mHyTej9nb",
         },
         .tracy = .{
             .url = "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
@@ -47,16 +47,12 @@
             .lazy = true,
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#015206b82b8706412c329d9531aa7e2fd35090f4",
-            .hash = "superhtml-0.4.0-Y7MdPI6YDQBVwww8L9pIBES63r-gfTUjz4kvpGb3Qqi4",
+            .url = "git+https://github.com/kristoff-it/superhtml#0b9bd0e8fd6284c0cfca85f7997535fe7f051046",
+            .hash = "superhtml-0.4.0-Y7MdPIOYDQAur5AdrA9FL0NNzR1yq-sWZ5bUD7yn6Wm4",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#e5c4798d5a2a31bd0257320941f3ebf8f58064d1",
-            .hash = "supermd-0.1.0-3Mco3MySWACoVIRUlhdh1uUVS9C9-nYZEv6Lyi1MYPOX",
-        },
-        .zig_afl_kit = .{
-            .url = "git+https://github.com/kristoff-it/zig-afl-kit#39c33d45dbe3605a9ef7cab863620d1ca78a3623",
-            .hash = "zig_afl_kit-0.1.0-3k74fQAdAABrirJM84Lo-lnl9mnUMwtJCSPPyIJ0OzAr",
+            .url = "git+https://github.com/kristoff-it/supermd#e153cca96a9defea46872f9a7e980008ef6c8cdb",
+            .hash = "supermd-0.1.0-3Mco3MySWAA6fMdE3cTui2uQeCwTSJ-DU3lLiDriioah",
         },
     },
     .paths = .{"."},
