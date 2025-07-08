@@ -264,7 +264,7 @@ pub fn build(b: *std.Build) !void {
         "fuzz",
         "enable building tooling for fuzz testing",
     ) orelse false) {
-        setupFuzzing(b, target, optimize);
+        // setupFuzzing(b, target, optimize);
     }
 
     // setup the Zine standalone executable
