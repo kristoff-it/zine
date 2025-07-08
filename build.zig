@@ -628,7 +628,7 @@ fn setupReleaseStep(
                 });
 
                 const tar = b.addSystemCommand(&.{
-                    "tar",
+                    "gtar",
                     "-cJf",
                 });
 
