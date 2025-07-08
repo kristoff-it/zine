@@ -1,0 +1,30 @@
+name: nix
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-nix-buildable:
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    strategy:
+        matrix:
+            os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - if: matrix.os == 'ubuntu-latest'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          determinate: true
+      - uses: DeterminateSystems/flakehub-cache-action@main
+      - run: |
+          nix build
