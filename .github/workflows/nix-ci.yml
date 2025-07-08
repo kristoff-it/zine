@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  pr:
+  check-nix-buildable:
     runs-on: ${{ matrix.os }}
 
     permissions:
