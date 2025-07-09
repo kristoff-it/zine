@@ -802,7 +802,7 @@ pub const Server = struct {
                 req,
                 server.build.base_dir,
                 mime_type,
-                output_path,
+                ba.input_path,
             ) catch |err| fatal.file(path, err);
         }
 
