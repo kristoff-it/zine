@@ -1,11 +1,15 @@
 const std = @import("std");
+const Reader = std.Io.Reader;
+const Writer = std.Io.Writer;
 
 const log = std.log.scoped(.websockets);
 
 pub const Connection = struct {
+    /// Read buffer
+    buf: []u8,
     stream: std.net.Stream,
 
-    pub fn init(request: *std.http.Server.Request) !Connection {
+    pub fn init(request: *std.http.Server.Request, buf: []u8) !Connection {
         var it = request.iterateHeaders();
         const key = while (it.next()) |header| {
             if (std.ascii.eqlIgnoreCase(header.name, "sec-websocket-key")) {
@@ -48,6 +52,7 @@ pub const Connection = struct {
         try response.flush();
 
         return .{
+            .buf = buf,
             .stream = request.server.connection.stream,
         };
     }
@@ -84,17 +89,17 @@ pub const Connection = struct {
         header: Header,
         payload: []const u8,
     ) !void {
-        const writer = conn.stream.writer();
-
-        try header.write(writer);
-        try writer.writeAll(payload);
+        var writer = conn.stream.writer(&.{});
+        try header.write(&writer.interface);
+        try writer.interface.writeAll(payload);
     }
 
     /// Not thread safe, must be only called by one thread at a time.
     pub fn readMessage(conn: *const Connection, buffer: []u8) ![]u8 {
         // NOT named `read` because websockets is a message protocol, not a stream protocol.
 
-        const reader = conn.stream.reader();
+        var stream = conn.stream.reader(conn.buf);
+        const reader = stream.interface();
 
         var current_length: u64 = 0;
         while (true) {
@@ -106,7 +111,7 @@ pub const Connection = struct {
             if (new_len > buffer.len) {
                 return error.NoSpaceLeft;
             }
-            try reader.readNoEof(buffer[current_length..new_len]);
+            try reader.readSliceAll(buffer[current_length..new_len]);
 
             if (header.mask) |mask| {
                 for (0.., buffer[current_length..new_len]) |i, *b| {
@@ -171,8 +176,8 @@ const Header = struct {
         reserved: u3,
         fin: bool,
     };
-    fn read(reader: anytype) !Header {
-        const partial: Partial = @bitCast(try reader.readInt(u16, .big));
+    fn read(reader: *Reader) !Header {
+        const partial: Partial = @bitCast(try reader.takeInt(u16, .big));
         var r: Header = undefined;
         r.finish = partial.fin;
 
@@ -186,13 +191,13 @@ const Header = struct {
         }
 
         r.payload_len = switch (partial.payload_len) {
-            .u16_len => try reader.readInt(u16, .big),
-            .u64_len => try reader.readInt(u64, .big),
+            .u16_len => try reader.takeInt(u16, .big),
+            .u64_len => try reader.takeInt(u64, .big),
             else => |v| @intFromEnum(v),
         };
 
         if (partial.masked) {
-            r.mask = try reader.readBytesNoEof(4);
+            r.mask = (try reader.takeArray(4)).*;
         } else {
             r.mask = null;
         }
@@ -200,7 +205,7 @@ const Header = struct {
         return r;
     }
 
-    fn write(h: Header, writer: anytype) !void {
+    fn write(h: Header, writer: *Writer) !void {
         var p: Partial = .{
             .payload_len = undefined,
             .masked = if (h.mask) |_| true else false,

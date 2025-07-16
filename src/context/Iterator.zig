@@ -97,7 +97,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
             return it._superhtml_context.up();

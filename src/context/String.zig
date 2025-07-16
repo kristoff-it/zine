@@ -1,6 +1,7 @@
 const String = @This();
 
 const std = @import("std");
+const Writer = std.Io.Writer;
 const options = @import("options");
 const superhtml = @import("superhtml");
 const hl = @import("../highlight.zig");
@@ -34,7 +35,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return Value.from(gpa, str.value.len);
         }
@@ -57,7 +58,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -89,7 +90,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -124,7 +125,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -158,7 +159,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -185,7 +186,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             return Value.from(gpa, std.fs.path.basename(str.value));
@@ -208,7 +209,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
             var out = std.ArrayList(u8).init(gpa);
             errdefer out.deinit();
@@ -243,7 +244,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected at least 1 string argument",
             };
@@ -284,7 +285,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "expected 1 or more argument(s)" };
             var out = std.ArrayList(u8).init(gpa);
             errdefer out.deinit();
@@ -334,7 +335,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "'path' wants at least one argument" };
             var out = std.ArrayList(u8).init(gpa);
             errdefer out.deinit();
@@ -383,9 +384,9 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 1) return .{ .err = "'syntaxHighlight' wants one argument" };
-            var out = std.ArrayList(u8).init(gpa);
+            var out: Writer.Allocating = .init(gpa);
             errdefer out.deinit();
 
             const lang = switch (args[0]) {
@@ -396,19 +397,19 @@ pub const Builtins = struct {
             };
 
             if (!options.enable_treesitter) {
-                try out.writer().print("{}", .{superhtml.HtmlSafe{
+                out.writer.print("{f}", .{superhtml.HtmlSafe{
                     .bytes = str.value,
-                }});
+                }}) catch return error.OutOfMemory;
                 return Value.from(gpa, try out.toOwnedSlice());
             }
 
-            hl.highlightCode(gpa, lang, str.value, out.writer()) catch |err| switch (err) {
+            hl.highlightCode(gpa, lang, str.value, &out.writer) catch |err| switch (err) {
                 error.NoLanguage => return .{ .err = "unable to find a parser for the provided language" },
                 error.OutOfMemory => return error.OutOfMemory,
                 else => return .{ .err = "error while syntax highlighting" },
             };
 
-            return Value.from(gpa, try out.toOwnedSlice());
+            return Value.from(gpa, out.getWritten());
         }
     };
 
@@ -426,7 +427,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const parsed = std.fmt.parseInt(i64, str.value, 10) catch |err| {
@@ -452,7 +453,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const dt = context.DateTime.init(str.value) catch |err| {
@@ -487,7 +488,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 2) return .{ .err = "expected 2 (string, int) arguments" };
 
             const split = switch (args[0]) {
@@ -524,7 +525,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const l = try gpa.dupe(u8, str.value);

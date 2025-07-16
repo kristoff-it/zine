@@ -144,7 +144,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         .build_assets = &cmd.build_assets,
         .drafts = cmd.drafts,
         .mode = .memory,
-    });
+    }) catch fatal.oom();
 
     var server: Server = .init(gpa, &channel, &build, &build_lock);
     const listen_address = server.start(cmd) catch |err| fatal.msg(
@@ -163,8 +163,8 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     const name = switch (cfg) {
         .Site => |s| try std.fmt.allocPrint(
             gpa,
-            "Listening at http://{s}:{}{/}",
-            .{ cmd.host, cmd.port, root.fmtJoin(&.{ "/", s.url_path_prefix, "/" }) },
+            "Listening at http://{s}:{}{f}",
+            .{ cmd.host, cmd.port, root.fmtJoin('/', &.{ "/", s.url_path_prefix, "/" }) },
         ),
         .Multilingual => try std.fmt.allocPrint(
             gpa,
@@ -193,7 +193,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                     .build_assets = &cmd.build_assets,
                     .drafts = cmd.drafts,
                     .mode = .memory,
-                });
+                }) catch fatal.oom();
                 build_lock.unlock();
 
                 for (websockets.entries.items(.value)) |*conn| {
@@ -514,10 +514,9 @@ pub const Server = struct {
         };
 
         const address = list.addrs[0];
-        var tcp_server = address.listen(.{
-            .reuse_port = true,
-            .reuse_address = true,
-        }) catch |err| fatal.msg(
+        var tcp_server = address.listen(
+            .{ .reuse_address = true },
+        ) catch |err| fatal.msg(
             "error: unable to bind to '{any}': {s}",
             .{ address, @errorName(err) },
         );
@@ -998,7 +997,8 @@ pub const Server = struct {
     }
 
     fn handleWebsocket(s: *Server, req: *std.http.Server.Request) void {
-        const conn = ws.Connection.init(req) catch |err| {
+        var buf: [4096]u8 = undefined;
+        const conn = ws.Connection.init(req, &buf) catch |err| {
             std.debug.print(
                 "warning: failed to establish a websocket connection: {s}\n",
                 .{@errorName(err)},
@@ -1008,8 +1008,8 @@ pub const Server = struct {
         s.channel.put(.{ .connect = conn });
 
         while (true) {
-            var buf: [1024]u8 = undefined;
-            const msg = conn.readMessage(&buf) catch |err| {
+            var buf1: [4096]u8 = undefined;
+            const msg = conn.readMessage(&buf1) catch |err| {
                 log.debug("readWs error: {s} {any}", .{ @errorName(err), conn });
                 s.channel.put(.{ .disconnect = conn });
                 return;

@@ -309,8 +309,8 @@ pub fn scanTemplates(b: *Build, gpa: Allocator, arena: Allocator) !void {
                 else => continue,
                 .file, .sym_link => {
                     if (std.mem.endsWith(u8, entry.name, ".html")) {
-                        std.debug.print("WARNING: found plain HTML file {/}, did you mean to give it a shtml extension?\n", .{
-                            root.fmtJoin(&.{
+                        std.debug.print("WARNING: found plain HTML file {f}, did you mean to give it a shtml extension?\n", .{
+                            root.fmtJoin('/', &.{
                                 layouts_dir_path,
                                 dir_entry.path,
                                 entry.name,

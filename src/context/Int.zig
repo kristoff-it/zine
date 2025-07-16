@@ -35,7 +35,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const argument_error: Value = .{ .err = "'plus' wants one int argument" };
             if (args.len != 1) return argument_error;
 
@@ -62,7 +62,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const argument_error: Value = .{ .err = "'gt' wants one int argument" };
             if (args.len != 1) return argument_error;
 
@@ -90,7 +90,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const argument_error: Value = .{ .err = "expected 1 int argument" };
             if (args.len != 1) return argument_error;
 
@@ -118,7 +118,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const argument_error: Value = .{ .err = "'div' wants one (int|float) argument" };
             if (args.len != 1) return argument_error;
 
@@ -151,7 +151,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const size: usize = if (int.value > 0) @intCast(int.value) else return Value.errFmt(
@@ -160,9 +160,11 @@ pub const Builtins = struct {
                 .{int.value},
             );
 
-            return String.init(try std.fmt.allocPrint(gpa, "{:.0}", .{
-                std.fmt.fmtIntSizeBin(size),
-            }));
+            return String.init(try std.fmt.allocPrint(
+                gpa,
+                "{Bi:.0}",
+                .{size},
+            ));
         }
     };
 
@@ -182,7 +184,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return String.init(try std.fmt.allocPrint(gpa, "{}", .{int.value}));
         }

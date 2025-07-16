@@ -43,7 +43,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 2 string arguments" };
             if (args.len != 2) return bad_arg;
 
@@ -80,7 +80,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 1 string argument" };
             if (args.len != 1) return bad_arg;
 
@@ -119,7 +119,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "'get?' wants 1 string argument" };
             if (args.len != 1) return bad_arg;
 
@@ -182,7 +182,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
 
@@ -208,7 +208,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 1 string argument" };
             if (args.len != 1) return bad_arg;
 

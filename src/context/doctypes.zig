@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const ziggy = @import("ziggy");
 const superhtml = @import("superhtml");
 const context = @import("../context.zig");
@@ -12,19 +13,19 @@ pub const Signature = struct {
         s: Signature,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
-        out_stream: anytype,
+        w: *Writer,
     ) !void {
         _ = fmt;
         _ = options;
-        try out_stream.writeAll("(");
+        try w.writeAll("(");
         for (s.params, 0..) |p, idx| {
-            try out_stream.writeAll(p.link(true));
+            try w.writeAll(p.link(true));
             if (idx < s.params.len - 1) {
-                try out_stream.writeAll(", ");
+                try w.writeAll(", ");
             }
         }
-        try out_stream.writeAll(") -> ");
-        try out_stream.writeAll(s.ret.link(false));
+        try w.writeAll(") -> ");
+        try w.writeAll(s.ret.link(false));
     }
 };
 

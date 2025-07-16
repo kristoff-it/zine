@@ -1,22 +1,23 @@
 const Site = @This();
 
 const std = @import("std");
+const log = std.log.scoped(.scripty);
+const Writer = std.Io.Writer;
+const Allocator = std.mem.Allocator;
+
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
-const StringTable = @import("../StringTable.zig");
-const PathTable = @import("../PathTable.zig");
-const root = @import("../root.zig");
-const join = root.join;
-const Signature = @import("doctypes.zig").Signature;
-const PathName = PathTable.PathName;
-const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Bool = context.Bool;
 const String = context.String;
 const Array = context.Array;
-
-const log = std.log.scoped(.scripty);
+const StringTable = @import("../StringTable.zig");
+const PathTable = @import("../PathTable.zig");
+const PathName = PathTable.PathName;
+const root = @import("../root.zig");
+const join = root.join;
+const Signature = @import("doctypes.zig").Signature;
 
 host_url: []const u8,
 title: []const u8,
@@ -63,7 +64,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
@@ -94,7 +95,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
@@ -128,17 +129,20 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = s;
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
 
-            var buf: std.ArrayListUnmanaged(u8) = .empty;
-            const w = buf.writer(gpa);
-            try ctx.printLinkPrefix(w, ctx.site._meta.variant_id, false);
-            return String.init(buf.items);
+            var aw: Writer.Allocating = .init(gpa);
+            ctx.printLinkPrefix(
+                &aw.writer,
+                ctx.site._meta.variant_id,
+                false,
+            ) catch return error.OutOfMemory;
+            return String.init(aw.getWritten());
         }
     };
 
@@ -158,7 +162,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -218,7 +222,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -292,7 +296,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const v = &ctx._meta.build.variants[site._meta.variant_id];
 
             if (args.len == 0) {
@@ -377,7 +381,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };

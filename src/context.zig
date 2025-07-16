@@ -1,14 +1,17 @@
 const context = @This();
 
 const std = @import("std");
+const Writer = std.Io.Writer;
+const Allocator = std.mem.Allocator;
 const scripty = @import("scripty");
 const superhtml = @import("superhtml");
+const Ctx = superhtml.utils.Ctx;
 const ziggy = @import("ziggy");
 const root = @import("root.zig");
 const doctypes = @import("context/doctypes.zig");
 const Variant = @import("Variant.zig");
-const Allocator = std.mem.Allocator;
-const Ctx = superhtml.utils.Ctx;
+
+pub const CallError = error{ OutOfMemory, Interrupt };
 
 pub const AssetKindUnion = union(Asset.Kind) {
     site,
@@ -71,13 +74,13 @@ pub const Value = union(enum) {
         return .{ .err = err_msg };
     }
 
-    pub fn renderForError(v: Value, arena: Allocator, w: anytype) !void {
+    pub fn renderForError(v: Value, arena: Allocator, w: *Writer) !void {
         _ = arena;
 
         w.print(
-            \\Scripty evaluated to type: {s}  
+            \\Scripty evaluated to type: {t}  
             \\
-        , .{@tagName(v)}) catch return error.ErrIO;
+        , .{v}) catch return error.ErrIO;
 
         if (v == .err) {
             w.print(

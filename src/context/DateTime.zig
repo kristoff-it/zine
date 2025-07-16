@@ -54,7 +54,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             const argument_error: Value = .{ .err = "'gt' wants one (date) argument" };
             if (args.len != 1) return argument_error;
@@ -84,7 +84,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             const argument_error: Value = .{ .err = "'lt' wants one (date) argument" };
             if (args.len != 1) return argument_error;
@@ -114,7 +114,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             const argument_error: Value = .{ .err = "'eq' wants one (date) argument" };
             if (args.len != 1) return argument_error;
@@ -145,7 +145,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const arg_err: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -208,7 +208,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const arg_err: Value = .{
                 .err = "expected 1 non-negative int and 1 string argument",
             };
@@ -268,7 +268,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const arg_err: Value = .{
                 .err = "expected 1 non-negative int and 1 string argument",
             };
@@ -333,7 +333,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const argument_error: Value = .{ .err = "expected 1 string argument" };
             if (args.len != 1) return argument_error;
 
@@ -365,7 +365,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const argument_error: Value = .{
                 .err = "'formatHTTP' wants no argument",
             };
@@ -376,7 +376,7 @@ pub const Builtins = struct {
             const weekday = zeit.weekdayFromDays(dse);
 
             const zdt = dt._inst.time();
-            const formatted_date = try std.fmt.allocPrint(
+            const formatted_date = std.fmt.allocPrint(
                 gpa,
                 "{s}, {:0>2} {s} {} {:0>2}:{:0>2}:{:0>2} +0000",
                 .{
@@ -388,7 +388,7 @@ pub const Builtins = struct {
                     zdt.minute,
                     zdt.second,
                 },
-            );
+            ) catch return error.OutOfMemory;
 
             return String.init(formatted_date);
         }

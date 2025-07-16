@@ -27,7 +27,7 @@ pub fn release(gpa: Allocator, args: []const []const u8) bool {
                 .output_dir_path = cmd.output_dir_path,
             },
         },
-    });
+    }) catch fatal.oom();
 
     defer if (builtin.mode == .Debug) build.deinit(gpa);
 

@@ -30,7 +30,7 @@ pub fn debug(
         .build_assets = &.empty,
         .drafts = false,
         .mode = .memory,
-    });
+    }) catch fatal.oom();
 
     defer if (builtin.mode == .Debug) build.deinit(gpa);
 
@@ -53,7 +53,7 @@ pub fn debug(
                 var br: [std.fs.max_path_bytes]u8 = undefined;
                 return std.mem.order(
                     u8,
-                    std.fmt.bufPrint(&bl, "{}", .{
+                    std.fmt.bufPrint(&bl, "{f}", .{
                         lhs.content_sub_path.fmt(
                             &v.string_table,
                             &v.path_table,
@@ -61,7 +61,7 @@ pub fn debug(
                             false,
                         ),
                     }) catch unreachable,
-                    std.fmt.bufPrint(&br, "{}", .{
+                    std.fmt.bufPrint(&br, "{f}", .{
                         rhs.content_sub_path.fmt(
                             &v.string_table,
                             &v.path_table,
@@ -77,7 +77,7 @@ pub fn debug(
                 \\
                 \\  ------- SECTION -------
                 \\.index = {},
-                \\.section_path = {},
+                \\.section_path = {f},
                 \\.pages = [
                 \\
             , .{
@@ -92,11 +92,12 @@ pub fn debug(
             for (s.pages.items) |p_idx| {
                 const p = variant.pages.items[p_idx];
 
-                std.debug.print("    {}", .{
+                std.debug.print("    {f}", .{
                     p._scan.file.fmt(
                         &variant.string_table,
                         &variant.path_table,
                         variant.content_dir_path,
+                        "",
                     ),
                 });
 
@@ -119,11 +120,12 @@ pub fn debug(
             const pn = kv.key_ptr;
             const lh = kv.value_ptr;
             if (lh.kind == .page_asset) {
-                std.debug.print("{} ({})\n", .{
+                std.debug.print("{f} ({})\n", .{
                     pn.fmt(
                         &variant.string_table,
                         &variant.path_table,
                         null,
+                        "",
                     ),
                     lh.id,
                 });

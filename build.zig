@@ -176,8 +176,7 @@ pub fn build(b: *std.Build) !void {
 
     const options = blk: {
         const options = b.addOptions();
-        const out = options.contents.writer();
-        try out.print(
+        try options.contents.print(b.allocator,
             \\// module = zine
             \\const std = @import("std");
             \\pub const tsan = {};
@@ -187,10 +186,10 @@ pub fn build(b: *std.Build) !void {
             \\
         , .{ tsan, highlight, version.string() });
 
-        for (scopes) |l| try out.print(
-            \\.{{.scope = .{s}, .level = .debug}},
-        , std.zig.fmtId(l));
-        try out.writeAll("};");
+        for (scopes) |l| try options.contents.print(b.allocator,
+            \\.{{.scope = .{f}, .level = .debug}},
+        , .{std.zig.fmtId(l)});
+        try options.contents.print(b.allocator, "}};", .{});
         break :blk options.createModule();
     };
 
@@ -242,9 +241,11 @@ pub fn build(b: *std.Build) !void {
 
     const shtml_docgen = b.addExecutable(.{
         .name = "shtml_docgen",
-        .root_source_file = b.path("src/docgen.zig"),
-        .target = target,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/docgen.zig"),
+            .target = target,
+            .optimize = .Debug,
+        }),
     });
     shtml_docgen.root_module.addImport("zeit", zeit);
     shtml_docgen.root_module.addImport("ziggy", ziggy);
@@ -270,24 +271,34 @@ pub fn build(b: *std.Build) !void {
     // setup the Zine standalone executable
     const zine_exe = b.addExecutable(.{
         .name = "zine",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .single_threaded = b.option(
-            bool,
-            "single-threaded",
-            "build Zine in single-threaded mode",
-        ) orelse false,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .single_threaded = b.option(
+                bool,
+                "single-threaded",
+                "build Zine in single-threaded mode",
+            ) orelse false,
 
-        .sanitize_thread = tsan,
+            .sanitize_thread = tsan,
+        }),
     });
 
-    if (target.result.os.tag == .macos) {
-        const frameworks = b.lazyDependency("frameworks", .{}) orelse return;
-        zine_exe.addIncludePath(frameworks.path("include"));
-        zine_exe.addFrameworkPath(frameworks.path("Frameworks"));
-        zine_exe.addLibraryPath(frameworks.path("lib"));
-        zine_exe.linkFramework("CoreServices");
+    switch (target.result.os.tag) {
+        else => @panic("target must be added to build.zig"),
+        .linux => {},
+
+        .windows => {
+            zine_exe.linkSystemLibrary("ws2_32");
+        },
+        .macos => {
+            const frameworks = b.lazyDependency("frameworks", .{}) orelse return;
+            zine_exe.addIncludePath(frameworks.path("include"));
+            zine_exe.addFrameworkPath(frameworks.path("Frameworks"));
+            zine_exe.addLibraryPath(frameworks.path("lib"));
+            zine_exe.linkFramework("CoreServices");
+        },
     }
 
     // zine_exe.root_module.addImport("zine", zine);
@@ -325,9 +336,11 @@ fn setupSnapshotTesting(
 
     const camera = b.addExecutable(.{
         .name = "camera",
-        .root_source_file = b.path("build/camera.zig"),
-        .target = target,
-        .optimize = .ReleaseFast,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build/camera.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+        }),
     });
 
     const diff = b.addSystemCommand(&.{
@@ -555,8 +568,7 @@ fn setupReleaseStep(
 
         const options = blk: {
             const options = b.addOptions();
-            const out = options.contents.writer();
-            out.print(
+            options.contents.print(b.allocator,
                 \\// module = zine
                 \\const std = @import("std");
                 \\pub const tsan = false;
@@ -570,9 +582,11 @@ fn setupReleaseStep(
 
         const zine_exe_release = b.addExecutable(.{
             .name = "zine",
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = .ReleaseFast,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/main.zig"),
+                .target = target,
+                .optimize = .ReleaseFast,
+            }),
         });
 
         zine_exe_release.root_module.addImport("options", options);
@@ -587,16 +601,23 @@ fn setupReleaseStep(
         zine_exe_release.root_module.addImport("mime", mime.module("mime"));
         zine_exe_release.root_module.addImport("wuffs", wuffs.module("wuffs"));
 
-        if (target.result.os.tag == .macos) {
-            if (b.lazyDependency("frameworks", .{
-                .target = target,
-                .optimize = optimize,
-            })) |frameworks| {
-                zine_exe_release.addIncludePath(frameworks.path("include"));
-                zine_exe_release.addFrameworkPath(frameworks.path("Frameworks"));
-                zine_exe_release.addLibraryPath(frameworks.path("lib"));
-                zine_exe_release.linkFramework("CoreServices");
-            }
+        switch (target.result.os.tag) {
+            else => @panic("target must be added to build.zig"),
+            .linux => {},
+            .windows => {
+                zine_exe_release.linkSystemLibrary("ws2_32");
+            },
+            .macos => {
+                if (b.lazyDependency("frameworks", .{
+                    .target = target,
+                    .optimize = optimize,
+                })) |frameworks| {
+                    zine_exe_release.addIncludePath(frameworks.path("include"));
+                    zine_exe_release.addFrameworkPath(frameworks.path("Frameworks"));
+                    zine_exe_release.addLibraryPath(frameworks.path("lib"));
+                    zine_exe_release.linkFramework("CoreServices");
+                }
+            },
         }
 
         switch (t.os_tag.?) {

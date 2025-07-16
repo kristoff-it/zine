@@ -1,26 +1,20 @@
 const std = @import("std");
+const log = std.log.scoped(.highlight);
+const Writer = std.Io.Writer;
 const options = @import("options");
 const syntax = @import("syntax");
 const treez = @import("treez");
 const tracy = @import("tracy");
 const HtmlSafe = @import("superhtml").HtmlSafe;
 
-const log = std.log.scoped(.highlight);
-
 pub const DotsToUnderscores = struct {
     bytes: []const u8,
 
-    pub fn format(
-        self: DotsToUnderscores,
-        comptime fmt: []const u8,
-        _: std.fmt.FormatOptions,
-        out_stream: anytype,
-    ) !void {
-        _ = fmt;
+    pub fn format(self: DotsToUnderscores, w: *Writer) !void {
         for (self.bytes) |b| {
             switch (b) {
-                '.' => try out_stream.writeAll("_"),
-                else => try out_stream.writeByte(b),
+                '.' => try w.writeAll("_"),
+                else => try w.writeByte(b),
             }
         }
     }
@@ -72,7 +66,7 @@ const ClassChange = struct {
 };
 
 fn printSpan(
-    writer: anytype,
+    w: *Writer,
     code: []const u8,
     start: usize,
     end: usize,
@@ -80,7 +74,7 @@ fn printSpan(
     arena: std.mem.Allocator,
 ) !void {
     if (classes.len == 0) {
-        try writer.print("{s}", .{HtmlSafe{ .bytes = code[start..end] }});
+        try w.print("{f}", .{HtmlSafe{ .bytes = code[start..end] }});
         return;
     }
 
@@ -92,8 +86,8 @@ fn printSpan(
         try class_str.appendSlice(class);
     }
 
-    try writer.print(
-        \\<span class="{s}">{s}</span>
+    try w.print(
+        \\<span class="{f}">{f}</span>
     , .{
         DotsToUnderscores{ .bytes = class_str.items },
         HtmlSafe{ .bytes = code[start..end] },
@@ -104,14 +98,14 @@ pub fn highlightCode(
     arena: std.mem.Allocator,
     lang_name: []const u8,
     code: []const u8,
-    writer: anytype,
+    w: *Writer,
 ) !void {
     const zone = tracy.traceNamed(@src(), "highlightCode");
     defer zone.end();
     tracy.messageCopy(lang_name);
 
     if (!options.enable_treesitter) {
-        try writer.print("{s}", .{HtmlSafe{ .bytes = code }});
+        try w.print("{f}", .{HtmlSafe{ .bytes = code }});
         return;
     }
 
@@ -119,7 +113,7 @@ pub fn highlightCode(
         const query_zone = tracy.traceNamed(@src(), "syntax");
         defer query_zone.end();
 
-        break :blk syntax.create_file_type(
+        break :blk syntax.create_file_type_static(
             arena,
             lang_name,
             &query_cache,
@@ -127,7 +121,7 @@ pub fn highlightCode(
             const syntax_fallback_zone = tracy.traceNamed(@src(), "syntax fallback");
             defer syntax_fallback_zone.end();
             const fake_filename = try std.fmt.allocPrint(arena, "file.{s}", .{lang_name});
-            break :blk try syntax.create_guess_file_type(arena, "", fake_filename, &query_cache);
+            break :blk try syntax.create_guess_file_type_static(arena, "", fake_filename, &query_cache);
         };
     };
 
@@ -188,7 +182,7 @@ pub fn highlightCode(
     for (changes.items) |change| {
         if (change.position > current_pos) {
             try current_classes.getClasses(&class_list);
-            try printSpan(writer, code, current_pos, change.position, class_list.items, arena);
+            try printSpan(w, code, current_pos, change.position, class_list.items, arena);
             current_pos = change.position;
         }
 
@@ -202,6 +196,6 @@ pub fn highlightCode(
 
     if (current_pos < code.len) {
         try current_classes.getClasses(&class_list);
-        try printSpan(writer, code, current_pos, code.len, class_list.items, arena);
+        try printSpan(w, code, current_pos, code.len, class_list.items, arena);
     }
 }
