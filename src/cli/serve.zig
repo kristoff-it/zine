@@ -793,9 +793,10 @@ pub const Server = struct {
             }
         }
 
+        const normalized_path = std.mem.trimLeft(u8, path, "/");
         for (server.build.build_assets.entries.items(.value)) |ba| {
             const output_path = ba.output_path orelse continue;
-            if (!std.mem.eql(u8, path, output_path)) continue;
+            if (!std.mem.eql(u8, normalized_path, output_path)) continue;
             return sendFile(
                 arena,
                 req,
