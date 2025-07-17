@@ -31,7 +31,7 @@
       }: {
         zine = env.package {
           src = lib.cleanSource ./.;
-          nativeBuildInputs = [];
+          nativeBuildInputs = [ nixpkgs.legacyPackages.${system}.autoPatchelfHook ];
           buildInputs = [];
           zigPreferMusl = false;
         };
