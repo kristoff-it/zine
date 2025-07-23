@@ -31,9 +31,7 @@
       }: {
         zine = env.package {
           src = lib.cleanSource ./.;
-          nativeBuildInputs = [];
-          buildInputs = [];
-          zigPreferMusl = false;
+          zigPreferMusl = true;
         };
         default = self.packages.${system}.zine;
       }
