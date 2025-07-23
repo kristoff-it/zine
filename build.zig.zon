@@ -2,7 +2,7 @@
     .name = .zine,
     .version = "0.10.3",
     .fingerprint = 0xa466bcb520a7eea2,
-    .minimum_zig_version = "0.15.0-dev.1048+f43f89a70",
+    .minimum_zig_version = "0.15.0-dev.1149+4e6a04929",
     .dependencies = .{
         .afl_kit = .{
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#8ef04d1db48650345dca68da1e1b8f2615125c40",
