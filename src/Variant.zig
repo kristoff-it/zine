@@ -584,7 +584,7 @@ pub fn installAssets(
         _ = v.content_dir.updateFile(
             source_path,
             install_dir,
-            install_path,
+            std.mem.trimLeft(u8, install_path, "/"),
             .{},
         ) catch |err| fatal.file(install_path, err);
 

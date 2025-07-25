@@ -793,10 +793,11 @@ pub const Server = struct {
             }
         }
 
-        const normalized_path = std.mem.trimLeft(u8, path, "/");
         for (server.build.build_assets.entries.items(.value)) |ba| {
-            const install_path = ba.install_path orelse continue;
-            if (!std.mem.eql(u8, normalized_path, install_path)) continue;
+            const raw_install_path = ba.install_path orelse continue;
+            const install_path = std.mem.trimLeft(u8, raw_install_path, "/");
+            // skip leading slash in url path
+            if (!std.mem.eql(u8, path[1..], install_path)) continue;
             return sendFile(
                 arena,
                 req,

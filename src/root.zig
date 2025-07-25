@@ -1539,7 +1539,7 @@ pub fn run(
                 _ = build.site_assets_dir.updateFile(
                     path,
                     site_assets_install_dir,
-                    path,
+                    std.mem.trimLeft(u8, path, "/"),
                     .{},
                 ) catch |err| fatal.file(path, err);
             }
@@ -1554,7 +1554,7 @@ pub fn run(
                 _ = build.base_dir.updateFile(
                     ba.input_path,
                     build.mode.disk.output_dir,
-                    ba.install_path.?,
+                    std.mem.trimLeft(u8, ba.install_path.?, "/"),
                     .{},
                 ) catch |err| fatal.file(ba.input_path, err);
             }
