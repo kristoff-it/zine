@@ -47,7 +47,7 @@ pub fn debug(
             build.cfg.Site.content_dir_path,
         });
 
-        std.mem.sort(Section, variant.sections.items, variant, struct {
+        std.mem.sort(Section, variant.sections.items[1..], variant, struct {
             pub fn lessThan(v: *Variant, lhs: Section, rhs: Section) bool {
                 var bl: [std.fs.max_path_bytes]u8 = undefined;
                 var br: [std.fs.max_path_bytes]u8 = undefined;

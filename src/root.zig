@@ -689,7 +689,7 @@ pub fn run(
     // sections for a while after this point, ideally it would require
     // having its own waitgroup.
     for (build.variants) |*v| {
-        for (v.sections.items) |*s| {
+        for (v.sections.items[1..]) |*s| {
             s.sortPages(v, v.pages.items);
         }
     }
