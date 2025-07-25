@@ -1,8 +1,8 @@
 .{
     .name = .zine,
-    .version = "0.10.3",
+    .version = "0.11.0",
     .fingerprint = 0xa466bcb520a7eea2,
-    .minimum_zig_version = "0.15.0-dev.1048+f43f89a70",
+    .minimum_zig_version = "0.15.0-dev.1222+5fb36d260",
     .dependencies = .{
         .afl_kit = .{
             .url = "git+https://github.com/kristoff-it/zig-afl-kit#8ef04d1db48650345dca68da1e1b8f2615125c40",
@@ -10,8 +10,8 @@
             .lazy = true,
         },
         .lsp_kit = .{
-            .url = "git+https://github.com/zigtools/lsp-kit#e58d398b4058eea09d984d5d039eddd243e535ad",
-            .hash = "lsp_kit-0.1.0-bi_PL5IyCgCh6ZNq1VaDklFqV0u23xNSXONjfDpYceJr",
+            .url = "git+https://github.com/zigtools/lsp-kit#4835b9d3d3cf732fe1830189d81f331c68fb3e77",
+            .hash = "lsp_kit-0.1.0-bi_PL18tCgAMyrZ0tgn_0PXnGEvxGWeNkkRygfe9pX9u",
         },
         .scripty = .{
             .url = "git+https://github.com/kristoff-it/scripty#3d56bb62a1aec0b07b634aea42ec46e72e017e33",
@@ -35,16 +35,8 @@
             .lazy = true,
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#a67317fb81afe76cc04e6d92124cfc20a903cee7",
-            .hash = "superhtml-0.4.0-Y7MdPFOGDQDNOWo-h4o8yNvX8Iys3JqU-uYBka837Ls5",
-        },
-        .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy#f3dcc37beab34478a67aa9680f581edb0bc4d482",
-            .hash = "ziggy-0.1.0-kTg8v9g9BgB0Tdid89m2yC7a-LtZB8sD3v4pWzHCp7MO",
-        },
-        .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#fa0110e2b2dcc2baa8e46672561d0064ee252276",
-            .hash = "supermd-0.1.0-3Mco3D-SWABXmj0ocbgWRwbWTmRpK8OdhRsj9NUHyDag",
+            .url = "git+https://github.com/kristoff-it/superhtml#8bb212b1044b4740c14bc73b649adab58a0cb481",
+            .hash = "superhtml-0.4.0-Y7MdPIiGDQCtVmQuV56farDTjm2AB_GyzQbM9gwJhNTL",
         },
         .zeit = .{
             .url = "git+https://github.com/kristoff-it/zeit?ref=writergate#06ec40445cc477fea5a8369f1ba3881e2a3c00eb",
@@ -53,6 +45,14 @@
         .flow_syntax = .{
             .url = "git+https://github.com/kristoff-it/flow-syntax?ref=writergate#727dfa247d6cfe99939c98e5bcb440dfeefc261d",
             .hash = "flow_syntax-0.1.0-X8jOoSUNAQD_lAmm4kWMCsqYGQNUBP6qGldpxR_6D7GC",
+        },
+        .ziggy = .{
+            .url = "git+https://github.com/kristoff-it/ziggy#e95c85cb58773c43e9d94c0b9422ae84697e68a1",
+            .hash = "ziggy-0.1.0-kTg8v0NABgAXpvuVY5f4frwE7xvH44KnARR0q6QB1_1a",
+        },
+        .supermd = .{
+            .url = "git+https://github.com/kristoff-it/supermd#a2e77c355df79c6991d13cd56904d2b7562597ef",
+            .hash = "supermd-0.1.0-3Mco3GeSWACjTJjWf3XRGAUOHVS-MZPei9wAXY4c1KNI",
         },
     },
     .paths = .{"."},

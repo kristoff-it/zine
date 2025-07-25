@@ -178,7 +178,7 @@ pub fn deinit(v: *const Variant, gpa: Allocator) void {
     // gpa.free(v.content_dir_path);
     v.string_table.deinit(gpa);
     v.path_table.deinit(gpa);
-    for (v.sections.items) |s| s.deinit(gpa);
+    for (v.sections.items[1..]) |s| s.deinit(gpa);
     {
         var s = v.sections;
         s.deinit(gpa);

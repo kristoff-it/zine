@@ -1236,6 +1236,11 @@ pub const Builtins = struct {
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
@@ -1271,6 +1276,11 @@ pub const Builtins = struct {
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
@@ -1308,6 +1318,11 @@ pub const Builtins = struct {
         ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
@@ -1344,6 +1359,11 @@ pub const Builtins = struct {
         ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];

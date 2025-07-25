@@ -863,7 +863,7 @@ fn analyzeContent(
 
                         _ = asset.rc.fetchAdd(1, .acq_rel);
 
-                        const output_path = asset.output_path orelse {
+                        const output_path = asset.install_path orelse {
                             try errors.append(page_arena, .{
                                 .node = n,
                                 .kind = .{
@@ -1067,12 +1067,12 @@ fn renderPage(
                         };
 
                         if (std.fs.path.dirnamePosix(out_path)) |path| {
-                            disk.install_dir.makePath(
+                            disk.output_dir.makePath(
                                 path,
                             ) catch |err| fatal.dir(path, err);
                         }
 
-                        const f = disk.install_dir.createFile(
+                        const f = disk.output_dir.createFile(
                             out_path,
                             .{},
                         ) catch |err| fatal.file(out_path, err);
@@ -1105,7 +1105,7 @@ fn renderPage(
                         };
 
                         // note: do not close build.install_dir
-                        var out_dir = if (out_dir_path.len == 0) disk.install_dir else disk.install_dir.makeOpenPath(
+                        var out_dir = if (out_dir_path.len == 0) disk.output_dir else disk.output_dir.makeOpenPath(
                             out_dir_path,
                             .{},
                         ) catch |err| fatal.dir(out_dir_path, err);
@@ -1142,12 +1142,12 @@ fn renderPage(
                     };
 
                     if (std.fs.path.dirnamePosix(out_path)) |path| {
-                        disk.install_dir.makePath(
+                        disk.output_dir.makePath(
                             path,
                         ) catch |err| fatal.dir(path, err);
                     }
 
-                    break :blk disk.install_dir.createFile(
+                    break :blk disk.output_dir.createFile(
                         out_path,
                         .{},
                     ) catch |err| fatal.file(out_path, err);

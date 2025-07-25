@@ -421,8 +421,8 @@ pub const Config = union(enum) {
 // Mirrors closely the corresponding type in build.zig
 pub const BuildAsset = struct {
     input_path: []const u8,
-    output_path: ?[]const u8 = null,
-    output_always: bool = false,
+    install_path: ?[]const u8 = null,
+    install_always: bool = false,
     rc: std.atomic.Value(u32),
 };
 
@@ -435,6 +435,7 @@ pub const Options = struct {
     pub const Mode = union(enum) {
         memory,
         disk: struct {
+            check_empty_output: bool,
             output_dir_path: ?[]const u8,
         },
     };
@@ -688,7 +689,7 @@ pub fn run(
     // sections for a while after this point, ideally it would require
     // having its own waitgroup.
     for (build.variants) |*v| {
-        for (v.sections.items) |*s| {
+        for (v.sections.items[1..]) |*s| {
             s.sortPages(v, v.pages.items);
         }
     }
@@ -1491,7 +1492,7 @@ pub fn run(
         worker.addJob(.{
             .variant_assets_install = .{
                 .progress = progress_install_assets,
-                .install_dir = build.mode.disk.install_dir,
+                .install_dir = build.mode.disk.output_dir,
                 .variant = v,
             },
         });
@@ -1500,12 +1501,12 @@ pub fn run(
     // install site assets
     {
         const site_assets_install_dir = switch (build.cfg.*) {
-            .Site => build.mode.disk.install_dir,
+            .Site => build.mode.disk.output_dir,
             .Multilingual => |ml| blk: {
                 if (ml.assets_prefix_path.len == 0) {
-                    break :blk build.mode.disk.install_dir;
+                    break :blk build.mode.disk.output_dir;
                 } else {
-                    break :blk build.mode.disk.install_dir.openDir(
+                    break :blk build.mode.disk.output_dir.openDir(
                         ml.assets_prefix_path,
                         .{},
                     ) catch |err| fatal.dir(ml.assets_prefix_path, err);
@@ -1552,8 +1553,8 @@ pub fn run(
             if (ba.rc.load(.acquire) > 0) {
                 _ = build.base_dir.updateFile(
                     ba.input_path,
-                    build.mode.disk.install_dir,
-                    ba.output_path.?,
+                    build.mode.disk.output_dir,
+                    ba.install_path.?,
                     .{},
                 ) catch |err| fatal.file(ba.input_path, err);
             }

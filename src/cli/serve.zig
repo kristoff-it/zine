@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const mime = @import("mime");
 const tracy = @import("tracy");
@@ -212,18 +213,17 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                 // We don't lock build because this thread is the only writer
 
                 for (build.mode.memory.errors.items) |build_err| {
-                    const bytes = try std.json.stringifyAlloc(
-                        gpa,
-                        .{
+                    var aw: Writer.Allocating = .init(gpa);
+                    defer aw.deinit();
+
+                    aw.writer.print("{f}", .{
+                        std.json.fmt(.{
                             .command = "build",
                             .err = build_err.msg,
-                        },
-                        .{},
-                    );
+                        }, .{}),
+                    }) catch return error.OutOfMemory;
 
-                    defer gpa.free(bytes);
-
-                    conn.writeMessage(bytes, .text) catch |err| {
+                    conn.writeMessage(aw.getWritten(), .text) catch |err| {
                         log.debug(
                             "error writing to ws: {s}",
                             .{@errorName(err)},
@@ -240,18 +240,20 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                             if (p._analysis.page.items.len > 0) continue;
 
                             if (p._render.errors.len > 0) {
-                                const bytes = try std.json.stringifyAlloc(
-                                    gpa,
-                                    .{
+                                var aw: Writer.Allocating = .init(gpa);
+                                defer aw.deinit();
+
+                                aw.writer.print("{f}", .{
+                                    std.json.fmt(.{
                                         .command = "build",
                                         .err = p._render.errors,
-                                    },
-                                    .{},
-                                );
+                                    }, .{}),
+                                }) catch return error.OutOfMemory;
 
-                                defer gpa.free(bytes);
-
-                                conn.writeMessage(bytes, .text) catch |err| {
+                                conn.writeMessage(
+                                    aw.getWritten(),
+                                    .text,
+                                ) catch |err| {
                                     log.debug(
                                         "error writing to ws: {s}",
                                         .{@errorName(err)},
@@ -263,18 +265,16 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
 
                             for (p._render.alternatives) |alt| {
                                 if (alt.errors.len > 0) {
-                                    const bytes = try std.json.stringifyAlloc(
-                                        gpa,
-                                        .{
+                                    var aw: Writer.Allocating = .init(gpa);
+                                    defer aw.deinit();
+
+                                    aw.writer.print("{f}", .{
+                                        std.json.fmt(.{
                                             .command = "build",
                                             .err = alt.errors,
-                                        },
-                                        .{},
-                                    );
-
-                                    defer gpa.free(bytes);
-
-                                    conn.writeMessage(bytes, .text) catch |err| {
+                                        }, .{}),
+                                    }) catch return error.OutOfMemory;
+                                    conn.writeMessage(aw.getWritten(), .text) catch |err| {
                                         log.debug(
                                             "error writing to ws: {s}",
                                             .{@errorName(err)},
@@ -412,15 +412,15 @@ pub const Command = struct {
                 const input_path = args[idx];
 
                 idx += 1;
-                var output_path: ?[]const u8 = null;
-                var output_always = false;
+                var install_path: ?[]const u8 = null;
+                var install_always = false;
                 if (idx < args.len) {
                     const next = args[idx];
-                    if (std.mem.startsWith(u8, next, "--output=")) {
-                        output_path = next["--output=".len..];
-                    } else if (std.mem.startsWith(u8, next, "--output-always=")) {
-                        output_always = true;
-                        output_path = next["--output-always=".len..];
+                    if (std.mem.startsWith(u8, next, "--install=")) {
+                        install_path = next["--install=".len..];
+                    } else if (std.mem.startsWith(u8, next, "--install-always=")) {
+                        install_always = true;
+                        install_path = next["--install-always=".len..];
                     } else {
                         idx -= 1;
                     }
@@ -434,9 +434,9 @@ pub const Command = struct {
 
                 gop.value_ptr.* = .{
                     .input_path = input_path,
-                    .output_path = output_path,
-                    .output_always = output_always,
-                    .rc = .{ .raw = @intFromBool(output_always) },
+                    .install_path = install_path,
+                    .install_always = install_always,
+                    .rc = .{ .raw = @intFromBool(install_always) },
                 };
             } else if (std.mem.eql(u8, arg, "--drafts")) {
                 drafts = true;
@@ -795,8 +795,8 @@ pub const Server = struct {
 
         const normalized_path = std.mem.trimLeft(u8, path, "/");
         for (server.build.build_assets.entries.items(.value)) |ba| {
-            const output_path = ba.output_path orelse continue;
-            if (!std.mem.eql(u8, normalized_path, output_path)) continue;
+            const install_path = ba.install_path orelse continue;
+            if (!std.mem.eql(u8, normalized_path, install_path)) continue;
             return sendFile(
                 arena,
                 req,
