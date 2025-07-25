@@ -26,7 +26,7 @@ layout: bool,
 pub fn deinit(t: *const Template, gpa: Allocator) void {
     gpa.free(t.src);
     t.html_ast.deinit(gpa);
-    t.ast.deinit(gpa);
+    if (t.html_ast.errors.len == 0) t.ast.deinit(gpa);
 }
 
 pub fn parse(

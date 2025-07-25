@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const mime = @import("mime");
 const tracy = @import("tracy");
@@ -212,18 +213,17 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                 // We don't lock build because this thread is the only writer
 
                 for (build.mode.memory.errors.items) |build_err| {
-                    const bytes = try std.json.stringifyAlloc(
-                        gpa,
-                        .{
+                    var aw: Writer.Allocating = .init(gpa);
+                    defer aw.deinit();
+
+                    aw.writer.print("{f}", .{
+                        std.json.fmt(.{
                             .command = "build",
                             .err = build_err.msg,
-                        },
-                        .{},
-                    );
+                        }, .{}),
+                    }) catch return error.OutOfMemory;
 
-                    defer gpa.free(bytes);
-
-                    conn.writeMessage(bytes, .text) catch |err| {
+                    conn.writeMessage(aw.getWritten(), .text) catch |err| {
                         log.debug(
                             "error writing to ws: {s}",
                             .{@errorName(err)},
@@ -240,18 +240,20 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                             if (p._analysis.page.items.len > 0) continue;
 
                             if (p._render.errors.len > 0) {
-                                const bytes = try std.json.stringifyAlloc(
-                                    gpa,
-                                    .{
+                                var aw: Writer.Allocating = .init(gpa);
+                                defer aw.deinit();
+
+                                aw.writer.print("{f}", .{
+                                    std.json.fmt(.{
                                         .command = "build",
                                         .err = p._render.errors,
-                                    },
-                                    .{},
-                                );
+                                    }, .{}),
+                                }) catch return error.OutOfMemory;
 
-                                defer gpa.free(bytes);
-
-                                conn.writeMessage(bytes, .text) catch |err| {
+                                conn.writeMessage(
+                                    aw.getWritten(),
+                                    .text,
+                                ) catch |err| {
                                     log.debug(
                                         "error writing to ws: {s}",
                                         .{@errorName(err)},
@@ -263,18 +265,16 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
 
                             for (p._render.alternatives) |alt| {
                                 if (alt.errors.len > 0) {
-                                    const bytes = try std.json.stringifyAlloc(
-                                        gpa,
-                                        .{
+                                    var aw: Writer.Allocating = .init(gpa);
+                                    defer aw.deinit();
+
+                                    aw.writer.print("{f}", .{
+                                        std.json.fmt(.{
                                             .command = "build",
                                             .err = alt.errors,
-                                        },
-                                        .{},
-                                    );
-
-                                    defer gpa.free(bytes);
-
-                                    conn.writeMessage(bytes, .text) catch |err| {
+                                        }, .{}),
+                                    }) catch return error.OutOfMemory;
+                                    conn.writeMessage(aw.getWritten(), .text) catch |err| {
                                         log.debug(
                                             "error writing to ws: {s}",
                                             .{@errorName(err)},
