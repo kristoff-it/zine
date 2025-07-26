@@ -240,11 +240,19 @@ pub fn build(b: *std.Build) !void {
 
     const release = b.step("release", "Create release builds of Zine");
     if (version == .tag) {
-        setupReleaseStep(b, release, version.string());
+        const zon = @import("build.zig.zon");
+        if (std.mem.eql(u8, zon.version, version.tag[1..])) {
+            setupReleaseStep(b, release, version.string());
+        } else {
+            release.dependOn(&b.addFail(b.fmt(
+                "error: git tag does not match zon package version (git: '{s}', zon: '{s}')",
+                .{ zon.version, version.tag[1..] },
+            )).step);
+        }
     } else {
-        release.dependOn(
-            &b.addFail("error: git tag missing, cannot make release builds").step,
-        );
+        release.dependOn(&b.addFail(
+            "error: git tag missing, cannot make release builds",
+        ).step);
     }
 
     const shtml_docgen = b.addExecutable(.{
