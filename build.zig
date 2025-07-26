@@ -245,7 +245,7 @@ pub fn build(b: *std.Build) !void {
             setupReleaseStep(b, release, version.string());
         } else {
             release.dependOn(&b.addFail(b.fmt(
-                "error: git tag does not match zon package version (git: '{s}', zon: '{s}')",
+                "error: git tag does not match zon package version (zon: '{s}', git: '{s}')",
                 .{ zon.version, version.tag[1..] },
             )).step);
         }
