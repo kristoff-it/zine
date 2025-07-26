@@ -625,7 +625,7 @@ fn printUrl(
                 )});
             }
 
-            try w.writeAll(a);
+            try w.writeAll(std.mem.trimLeft(u8, a, "/"));
         },
         .page => |p| {
             try ctx.printLinkPrefix(
