@@ -1,62 +1,32 @@
 {
-  "ziggy-0.1.0-kTg8vwBEBgA21d_qL5UmAoCr3bvnjkTRbF41tZzo2zuL": {
-    "name": "ziggy",
-    "url": "git+https://github.com/kristoff-it/ziggy#eeb21acc0a369dca503167fe963f4f5a7eda2659",
-    "hash": "sha256-5gW1hpJcnayA6veLWCiksGpfZBZX3UsQmYC4XlZRaEo=",
-    "rev": "eeb21acc0a369dca503167fe963f4f5a7eda2659"
-  },
-  "known_folders-0.0.0-Fy-PJtLDAADGDOwYwMkVydMSTp_aN-nfjCZw6qPQ2ECL": {
-    "name": "known_folders",
-    "url": "git+https://github.com/ziglibs/known-folders#aa24df42183ad415d10bc0a33e6238c437fc0f59",
-    "hash": "sha256-YiJ2lfG1xsGFMO6flk/BMhCqJ3kB3MnOX5fnfDEcmMY=",
-    "rev": "aa24df42183ad415d10bc0a33e6238c437fc0f59"
-  },
-  "lsp_kit-0.1.0-hAAxO8G9AACr9SwC5FsYac37Bn7yi968x2UMq4wxKlgr": {
-    "name": "lsp_kit",
-    "url": "git+https://github.com/kristoff-it/zig-lsp-kit#46e2b958c02dc4ed2d4784f8841ba7d2076da783",
-    "hash": "sha256-yfBuIUiwJbFBev1nys3hmDIzaVfeSUJre7clqQvbavw=",
-    "rev": "46e2b958c02dc4ed2d4784f8841ba7d2076da783"
-  },
-  "diffz-0.0.1-G2tlIQrOAQCfH15jdyaLyrMgV8eGPouFhkCeYFTmJaLk": {
-    "name": "diffz",
-    "url": "git+https://github.com/ziglibs/diffz.git#a20dd1f11b10819a6f570f98b42e1c91e3704357",
-    "hash": "sha256-y7Ck5XZNnHxmPPWlDAqZZ2g3n67txj5/Zq04AhuW5+M=",
-    "rev": "a20dd1f11b10819a6f570f98b42e1c91e3704357"
-  },
-  "lsp_codegen-0.1.0-CMjjo0ZXCQB-rAhPYrlfzzpU0u0u2MeGvUucZ-_g32eg": {
-    "name": "lsp_codegen",
-    "url": "git+https://github.com/zigtools/zig-lsp-codegen#063a98c13a2293d8654086140813bdd1de6501bc",
-    "hash": "sha256-KzRi/a3FCS11Mryin9skkf3rFrIuoMP8+RcU0IuYNBA=",
-    "rev": "063a98c13a2293d8654086140813bdd1de6501bc"
-  },
-  "zig_yaml-0.1.0-C1161hVrAgDsyB2EZnq-Vp-QuZ9xJm2y0dECRXGG3UaP": {
-    "name": "yaml",
-    "url": "git+https://github.com/kubkon/zig-yaml#27f63d3d2d13ed228d8fc077635205e6c2a405c7",
-    "hash": "sha256-sDQHQ7uKDqAyvnEvfPheubn8C5QVWIXT9BdtT78UKeE=",
-    "rev": "27f63d3d2d13ed228d8fc077635205e6c2a405c7"
-  },
-  "zig_afl_kit-0.1.0-3k74fQAdAABrirJM84Lo-lnl9mnUMwtJCSPPyIJ0OzAr": {
+  "afl_kit-0.1.0-NdJ3cvscAACLEvjZTB017IAks_Uq5ux1qpA-klDe384Y": {
     "name": "afl_kit",
-    "url": "git+https://github.com/kristoff-it/zig-afl-kit#39c33d45dbe3605a9ef7cab863620d1ca78a3623",
-    "hash": "sha256-wLHyZVjmUu6lNZBlGwuaX5XnKbEdMtov7YxJqn5IF3g=",
-    "rev": "39c33d45dbe3605a9ef7cab863620d1ca78a3623"
+    "url": "git+https://github.com/kristoff-it/zig-afl-kit#8ef04d1db48650345dca68da1e1b8f2615125c40",
+    "hash": "sha256-J0xbmsokjlhOav9KLlH2y4qiSgBit4nS+x6Q10L2OSA=",
+    "rev": "8ef04d1db48650345dca68da1e1b8f2615125c40"
   },
-  "AFLplusplus-4.21.0-aA1y4dFrAAB5IR-iHNHVO3lwlK3Blq2Xx-9I3vsxOKMF": {
+  "AFLplusplus-4.21.0-aA1y4UtxAABpnSIF7ARSYDMRyqNcI-2Rwa5UeSsuw70v": {
     "name": "AFLplusplus",
-    "url": "git+https://github.com/allyourcodebase/AFLplusplus#bf7d9cc91a3897c3ed9a65b04141c87dded1bfe7",
-    "hash": "sha256-INL603zLnfPYIGgUaOQ0DQBwsRQJ6L7kG61D8YosuzI=",
-    "rev": "bf7d9cc91a3897c3ed9a65b04141c87dded1bfe7"
+    "url": "git+https://github.com/allyourcodebase/AFLplusplus#a52f1376e2d49720c39e4abf4aa4944afbf82191",
+    "hash": "sha256-AlkULC20/RTGMTPk2xWcdXCQlWn3sY3VrD0NRRoTZqY=",
+    "rev": "a52f1376e2d49720c39e4abf4aa4944afbf82191"
   },
   "N-V-__8AAKE4uAAJZgEcPdaXnWqoj-IwYf3G2h9YSm-x92gg": {
     "name": "AFLplusplus",
     "url": "https://github.com/AFLplusplus/AFLplusplus/archive/v4.21c.tar.gz",
     "hash": "sha256-EffHfTfP9uf2WsfMVbq3kB4MYgjoRaOHZDlNBO1WezA="
   },
-  "scripty-0.1.0-LKK5O83DAACoGpVDkm8JxzgevTE76bkf0n3mHyTej9nb": {
+  "lsp_kit-0.1.0-bi_PL18tCgAMyrZ0tgn_0PXnGEvxGWeNkkRygfe9pX9u": {
+    "name": "lsp_kit",
+    "url": "git+https://github.com/zigtools/lsp-kit#4835b9d3d3cf732fe1830189d81f331c68fb3e77",
+    "hash": "sha256-PqTlZcOow9vGLzI40zvqDI18OhJKzMg8RFLxB4x88/c=",
+    "rev": "4835b9d3d3cf732fe1830189d81f331c68fb3e77"
+  },
+  "scripty-0.1.0-LKK5O2zEAADkO2rJa_QbMWwC_YmFnUKC384wwMeBGOQv": {
     "name": "scripty",
-    "url": "git+https://github.com/kristoff-it/scripty#131704ebf9b3557c9480248787bd7b640a6ac98d",
-    "hash": "sha256-wl9Wy/jFIv9QM9ErYpsF7teRLzzGzKneoxnwF3nwMFw=",
-    "rev": "131704ebf9b3557c9480248787bd7b640a6ac98d"
+    "url": "git+https://github.com/kristoff-it/scripty#3d56bb62a1aec0b07b634aea42ec46e72e017e33",
+    "hash": "sha256-4BAcj6UU1BpKrcmM3zGwyV5Lxah9wL8esUSucfmlHzs=",
+    "rev": "3d56bb62a1aec0b07b634aea42ec46e72e017e33"
   },
   "tracy-0.0.0-4Xw-1pwwAABTfMgoDP1unCbZDZhJEfict7XCBGF6IdIn": {
     "name": "tracy",
@@ -64,39 +34,17 @@
     "hash": "sha256-BKo1bhua/u+f5Z//ailur5aSHZWp3GiC0iwmVLrGZkE=",
     "rev": "67d2d89e351048c76fc6d161e0ac09d8a831dc60"
   },
-  "mime-2.0.1-AAAAAIQgAACQg7DEPQ9oompIp7Jq2fk7IsnP9xDHjd_r": {
+  "mime-3.0.0-zwmL--0gAAByELrj57sRm2EFBRzjKLFrMgHQcs7sFZev": {
     "name": "mime",
-    "url": "git+https://github.com/andrewrk/mime.git#0b676643886b1e2f19cf11b4e15b028768708342",
-    "hash": "sha256-FLNU5PI5O/e7RWhu4kn6wconLDPGyE4E2Bk/4ntG2FM=",
-    "rev": "0b676643886b1e2f19cf11b4e15b028768708342"
+    "url": "git+https://github.com/kristoff-it/mime#a2ed0cba3b1463217168034ffed8c1604e72598d",
+    "hash": "sha256-j/O/6pJg0hj3ytAMVBQwGjCRtaR+GYy8X7oqfIpuRi8=",
+    "rev": "a2ed0cba3b1463217168034ffed8c1604e72598d"
   },
-  "zeit-0.0.0-AAAAALZOAgDpc1fMOfT58FPHY_PsFiPgx_OZnxhXRvK9": {
-    "name": "zeit",
-    "url": "git+https://github.com/rockorager/zeit#52b100caa223d5cb1ff0d34f1b677f26e0ce8b84",
-    "hash": "sha256-cpWo2u7bpsNaNRGZTyjp9mCJOBt6s9G/p3biy5qdr0g=",
-    "rev": "52b100caa223d5cb1ff0d34f1b677f26e0ce8b84"
-  },
-  "flow_syntax-0.1.0-X8jOoUX-AADI9WdOuVSYK9yjyBOTFj4UicSapF7QQssd": {
-    "name": "flow_syntax",
-    "url": "git+https://github.com/neurocyte/flow-syntax#d231728c92cb3c5a7139cb0d75a321a119b8e777",
-    "hash": "sha256-cvp/pf3HV3Frog5z6Uh6pIcTniH2fxg1e9e6tOVAL1c=",
-    "rev": "d231728c92cb3c5a7139cb0d75a321a119b8e777"
-  },
-  "N-V-__8AACablCbp-6lsRoKDEp6Xd2dHLe4AsW81blkSQxzs": {
-    "name": "tree_sitter",
-    "url": "https://github.com/neurocyte/tree-sitter/releases/download/master-86dd4d2536f2748c5b4ea0e1e70678039a569aac/source.tar.gz",
-    "hash": "sha256-1AaipN8M3vvhj8ldPETYL3C6lyD7emUjw0F1yhx4CHM="
-  },
-  "cbor-1.0.0-RcQE_HvqAACcrLH7t3IDZOshgY2xqJA_UX330MvwSepb": {
-    "name": "cbor",
-    "url": "https://github.com/neurocyte/cbor/archive/1fccb83c70cd84e1dff57cc53f7db8fb99909a94.tar.gz",
-    "hash": "sha256-c0wlwa+jdqC2b2CfbLsb/l3vXVBnK7WkzUH7F49xqic="
-  },
-  "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgWsPAADpG9AWvKJ8ZxQ-t2IcnPEYVi_FD_o-qxjD": {
+  "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgcMFAACyPvxsC7b48pJv9dPkPa4pSrB2VFbCXTfK": {
     "name": "wuffs",
-    "url": "git+https://github.com/allyourcodebase/wuffs#3646d8efae3f042ccbf552263ac6b2af738bdaa7",
-    "hash": "sha256-G0vZdfjW6CAcjOrwaujvvn9Gxw4VxIFi2wlwu2bRLT4=",
-    "rev": "3646d8efae3f042ccbf552263ac6b2af738bdaa7"
+    "url": "git+https://github.com/allyourcodebase/wuffs#5822dc06c75b30d53082debf68c90193cb2b2608",
+    "hash": "sha256-Ung7shyFg+/I5Po393tWMp6Jb0Ia14pRJOUF36fr71c=",
+    "rev": "5822dc06c75b30d53082debf68c90193cb2b2608"
   },
   "N-V-__8AANEmUgA6aZZZKbfNMv6DSs5In7CDFU6nInu_Y6aY": {
     "name": "wuffs",
@@ -109,22 +57,69 @@
     "hash": "sha256-b1Ay3GfBHwubnrGi4lflPiaqGfzWtABEbEiE8+ZTL90=",
     "rev": "8a1cfb373587ea4c9bb1468b7c986462d8d4e10e"
   },
-  "superhtml-0.4.0-Y7MdPIOYDQAur5AdrA9FL0NNzR1yq-sWZ5bUD7yn6Wm4": {
+  "superhtml-0.4.0-Y7MdPIiGDQCtVmQuV56farDTjm2AB_GyzQbM9gwJhNTL": {
     "name": "superhtml",
-    "url": "git+https://github.com/kristoff-it/superhtml#0b9bd0e8fd6284c0cfca85f7997535fe7f051046",
-    "hash": "sha256-LydAGMEcUhT87SvD5WtmMMHtQG+x6dVoWmHJnat3jzw=",
-    "rev": "0b9bd0e8fd6284c0cfca85f7997535fe7f051046"
+    "url": "git+https://github.com/kristoff-it/superhtml#8bb212b1044b4740c14bc73b649adab58a0cb481",
+    "hash": "sha256-G7yC+YmDZsIvLW6EmeaqQlpLWhcQuHg/DiljxB2vV4Q=",
+    "rev": "8bb212b1044b4740c14bc73b649adab58a0cb481"
   },
-  "supermd-0.1.0-3Mco3MySWAA6fMdE3cTui2uQeCwTSJ-DU3lLiDriioah": {
+  "known_folders-0.0.0-Fy-PJtLDAADGDOwYwMkVydMSTp_aN-nfjCZw6qPQ2ECL": {
+    "name": "known_folders",
+    "url": "git+https://github.com/ziglibs/known-folders#aa24df42183ad415d10bc0a33e6238c437fc0f59",
+    "hash": "sha256-YiJ2lfG1xsGFMO6flk/BMhCqJ3kB3MnOX5fnfDEcmMY=",
+    "rev": "aa24df42183ad415d10bc0a33e6238c437fc0f59"
+  },
+  "zeit-0.6.0-5I6bkyJ8AgAS1_0NDvfxmFsBDTOxkZXtLUHrmPjcmt-K": {
+    "name": "zeit",
+    "url": "git+https://github.com/kristoff-it/zeit?ref=writergate#06ec40445cc477fea5a8369f1ba3881e2a3c00eb",
+    "hash": "sha256-3zhZrL1g7sIox+7+trc7dVs4Cf7SBmJM0zJy861aYuw=",
+    "rev": "06ec40445cc477fea5a8369f1ba3881e2a3c00eb"
+  },
+  "flow_syntax-0.1.0-X8jOoSUNAQD_lAmm4kWMCsqYGQNUBP6qGldpxR_6D7GC": {
+    "name": "flow_syntax",
+    "url": "git+https://github.com/kristoff-it/flow-syntax?ref=writergate#727dfa247d6cfe99939c98e5bcb440dfeefc261d",
+    "hash": "sha256-x/z/xey2RAd6n3uqlBWuoAtpzR9Fkkh9jhhK+ijJ4h0=",
+    "rev": "727dfa247d6cfe99939c98e5bcb440dfeefc261d"
+  },
+  "tree_sitter-0.22.4-150-g7e3f5726-z0LhyN88UicDHlr22vQnOZ3DW9NWN1gOhDwLuCRXvrh2": {
+    "name": "tree_sitter",
+    "url": "https://github.com/neurocyte/tree-sitter/releases/download/master-f1f032d24f621e2ee4deab1c424d3bf9fb809f6e/source.tar.gz",
+    "hash": "sha256-w0164ZvB2jHRRlumkwGsROZHInHj5z+Ny4e/x0tPrtU="
+  },
+  "cbor-1.0.0-RcQE_N3yAADXjbyvhsmTQ6lf22l1nYgePq5FT8NaC4ic": {
+    "name": "cbor",
+    "url": "git+https://github.com/neurocyte/cbor#6eccce0b984296e7d05c20d83933cb31530e4fac",
+    "hash": "sha256-bEaRaqXT4bhVp4XV1DLRwUVVo9NesKpi8qGEF1nEMO4=",
+    "rev": "6eccce0b984296e7d05c20d83933cb31530e4fac"
+  },
+  "ziggy-0.1.0-kTg8v0NABgAXpvuVY5f4frwE7xvH44KnARR0q6QB1_1a": {
+    "name": "ziggy",
+    "url": "git+https://github.com/kristoff-it/ziggy#e95c85cb58773c43e9d94c0b9422ae84697e68a1",
+    "hash": "sha256-6vqUPY/fpGuM1K4HfgpL/dRy7Na6fJ/t+Pe/12b1wqE=",
+    "rev": "e95c85cb58773c43e9d94c0b9422ae84697e68a1"
+  },
+  "supermd-0.1.0-3Mco3GeSWACjTJjWf3XRGAUOHVS-MZPei9wAXY4c1KNI": {
     "name": "supermd",
-    "url": "git+https://github.com/kristoff-it/supermd#e153cca96a9defea46872f9a7e980008ef6c8cdb",
-    "hash": "sha256-N3VUvrEJ0qiTipt8u9Zxfolr9f65HYkz20NEMppx26A=",
-    "rev": "e153cca96a9defea46872f9a7e980008ef6c8cdb"
+    "url": "git+https://github.com/kristoff-it/supermd#a2e77c355df79c6991d13cd56904d2b7562597ef",
+    "hash": "sha256-Yd1JxCDXdOvGG8hSOfzz/BZYPcCrQDsyoEbGjv9HypY=",
+    "rev": "a2e77c355df79c6991d13cd56904d2b7562597ef"
   },
-  "N-V-__8AAAyYFwBMxWQCepH-NgMp6xo8gVqjRQ1lMPQnzYG9": {
+  "cmark_gfm-0.1.0-uQgTK6WZFwCG9y7_Z0IkCINtmMTwvEZTyVh_6nsaMVPq": {
     "name": "gfm",
-    "url": "git+https://github.com/kristoff-it/cmark-gfm#675efb13f41f1dcaebfa0e9dc42d9b504e4b5508",
-    "hash": "sha256-BUcc06/zCzz42/wVcT5z45hsfcMXNog3wOOvFiuUdio=",
-    "rev": "675efb13f41f1dcaebfa0e9dc42d9b504e4b5508"
+    "url": "git+https://github.com/kristoff-it/cmark-gfm#b96c27a5152b9124d657dee7fb1186d0a13c1fe4",
+    "hash": "sha256-NlTZ5if3h1zZjJs0JTMB8SsvTQM+4OSsScvFUbfq9nQ=",
+    "rev": "b96c27a5152b9124d657dee7fb1186d0a13c1fe4"
+  },
+  "ziggy-0.1.0-kTg8v9g9BgB0Tdid89m2yC7a-LtZB8sD3v4pWzHCp7MO": {
+    "name": "ziggy",
+    "url": "git+https://github.com/kristoff-it/ziggy#f3dcc37beab34478a67aa9680f581edb0bc4d482",
+    "hash": "sha256-7vfUkgaPdM3GNaQ6Sy6PC4P/AOyBncTJC1v0p46f0is=",
+    "rev": "f3dcc37beab34478a67aa9680f581edb0bc4d482"
+  },
+  "lsp_kit-0.1.0-bi_PL5IyCgCh6ZNq1VaDklFqV0u23xNSXONjfDpYceJr": {
+    "name": "lsp_kit",
+    "url": "git+https://github.com/zigtools/lsp-kit#e58d398b4058eea09d984d5d039eddd243e535ad",
+    "hash": "sha256-0q1l1zAUC/9/bSvj0ziheVMQmsTVUPPYR3RHS+FeEs0=",
+    "rev": "e58d398b4058eea09d984d5d039eddd243e535ad"
   }
 }
