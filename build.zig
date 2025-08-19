@@ -117,7 +117,11 @@ pub fn serve(project: *std.Build, opts: Options) *std.Build.Step.Run {
         .scope = opts.debug.scopes,
     });
 
-    const run_zine = project.addRunArtifact(zine_dep.artifact("zine"));
+    const run_zine = switch (opts.zine) {
+        .source => project.addRunArtifact(zine_dep.artifact("zine")),
+        .path => |path| project.addSystemCommand(&.{path orelse "zine"}),
+    };
+
     run_zine.setCwd(opts.website_root orelse project.path("."));
 
     for (opts.build_assets) |a| {
