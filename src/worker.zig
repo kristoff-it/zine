@@ -427,7 +427,7 @@ fn analyzeContent(
                             });
                             continue :outer;
                         };
-                        break :blk .{ asset.input_path, b.site_assets_dir };
+                        break :blk .{ asset.input_path, std.fs.cwd() };
                     },
                     .site_asset => |*sa| blk: {
                         if (PathName.get(&b.st, &b.pt, sa.ref)) |pn| {
