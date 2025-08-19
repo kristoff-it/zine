@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.highlight);
 const Writer = std.Io.Writer;
 const options = @import("options");
@@ -30,9 +31,9 @@ const ClassSet = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator) ClassSet {
+    pub fn init(gpa: Allocator) ClassSet {
         return .{
-            .classes = std.StringHashMap(void).init(allocator),
+            .classes = std.StringHashMap(void).init(gpa),
         };
     }
 
@@ -48,10 +49,10 @@ const ClassSet = struct {
         _ = self.classes.remove(class);
     }
 
-    pub fn getClasses(self: Self, result: *std.ArrayList([]const u8)) !void {
+    pub fn getClasses(self: Self, gpa: Allocator, result: *std.ArrayList([]const u8)) !void {
         result.clearRetainingCapacity();
         var it = self.classes.keyIterator();
-        while (it.next()) |key| try result.append(key.*);
+        while (it.next()) |key| try result.append(gpa, key.*);
     }
 };
 
@@ -66,24 +67,24 @@ const ClassChange = struct {
 };
 
 fn printSpan(
+    arena: Allocator,
     w: *Writer,
     code: []const u8,
     start: usize,
     end: usize,
     classes: []const []const u8,
-    arena: std.mem.Allocator,
 ) !void {
     if (classes.len == 0) {
         try w.print("{f}", .{HtmlSafe{ .bytes = code[start..end] }});
         return;
     }
 
-    var class_str = std.ArrayList(u8).init(arena);
-    defer class_str.deinit();
+    var class_str: std.ArrayList(u8) = .empty;
+    defer class_str.deinit(arena);
 
     for (classes, 0..) |class, i| {
-        if (i > 0) try class_str.append(' ');
-        try class_str.appendSlice(class);
+        if (i > 0) try class_str.append(arena, ' ');
+        try class_str.appendSlice(arena, class);
     }
 
     try w.print(
@@ -95,7 +96,7 @@ fn printSpan(
 }
 
 pub fn highlightCode(
-    arena: std.mem.Allocator,
+    arena: Allocator,
     lang_name: []const u8,
     code: []const u8,
     w: *Writer,
@@ -148,20 +149,20 @@ pub fn highlightCode(
 
     cursor.execute(lang.query, tree.getRootNode());
 
-    var changes = std.ArrayList(ClassChange).init(arena);
+    var changes: std.ArrayList(ClassChange) = .empty;
 
     while (cursor.nextMatch()) |match| {
         for (match.captures()) |capture| {
             const range = capture.node.getRange();
             const capture_name = lang.query.getCaptureNameForId(capture.id);
 
-            try changes.append(ClassChange{
+            try changes.append(arena, .{
                 .position = range.start_byte,
                 .is_add = true,
                 .class = capture_name,
             });
 
-            try changes.append(ClassChange{
+            try changes.append(arena, .{
                 .position = range.end_byte,
                 .is_add = false,
                 .class = capture_name,
@@ -174,15 +175,15 @@ pub fn highlightCode(
     var current_classes = ClassSet.init(arena);
     defer current_classes.deinit();
 
-    var class_list = std.ArrayList([]const u8).init(arena);
-    defer class_list.deinit();
+    var class_list: std.ArrayList([]const u8) = .empty;
+    defer class_list.deinit(arena);
 
     var current_pos: usize = 0;
 
     for (changes.items) |change| {
         if (change.position > current_pos) {
-            try current_classes.getClasses(&class_list);
-            try printSpan(w, code, current_pos, change.position, class_list.items, arena);
+            try current_classes.getClasses(arena, &class_list);
+            try printSpan(arena, w, code, current_pos, change.position, class_list.items);
             current_pos = change.position;
         }
 
@@ -195,7 +196,7 @@ pub fn highlightCode(
     }
 
     if (current_pos < code.len) {
-        try current_classes.getClasses(&class_list);
-        try printSpan(w, code, current_pos, code.len, class_list.items, arena);
+        try current_classes.getClasses(arena, &class_list);
+        try printSpan(arena, w, code, current_pos, code.len, class_list.items);
     }
 }

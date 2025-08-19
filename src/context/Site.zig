@@ -142,7 +142,7 @@ pub const Builtins = struct {
                 ctx.site._meta.variant_id,
                 false,
             ) catch return error.OutOfMemory;
-            return String.init(aw.getWritten());
+            return String.init(aw.written());
         }
     };
 

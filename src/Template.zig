@@ -60,6 +60,7 @@ pub fn parse(
         gpa,
         src,
         if (std.mem.endsWith(u8, path, ".xml")) .xml else .superhtml,
+        false,
     );
     if (t.html_ast.errors.len > 0) return;
 

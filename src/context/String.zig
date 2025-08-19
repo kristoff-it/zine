@@ -211,20 +211,20 @@ pub const Builtins = struct {
             args: []const Value,
         ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "'suffix' wants at least one argument" };
-            var out = std.ArrayList(u8).init(gpa);
-            errdefer out.deinit();
+            var out: std.ArrayList(u8) = .empty;
+            errdefer out.deinit(gpa);
 
-            try out.appendSlice(str.value);
+            try out.appendSlice(gpa, str.value);
             for (args) |a| {
                 const fx = switch (a) {
                     .string => |s| s.value,
                     else => return .{ .err = "'suffix' arguments must be strings" },
                 };
 
-                try out.appendSlice(fx);
+                try out.appendSlice(gpa, fx);
             }
 
-            return Value.from(gpa, try out.toOwnedSlice());
+            return Value.from(gpa, try out.toOwnedSlice(gpa));
         }
     };
     pub const prefix = struct {
@@ -250,8 +250,8 @@ pub const Builtins = struct {
             };
             if (args.len == 0) return bad_arg;
 
-            var out = std.ArrayList(u8).init(gpa);
-            errdefer out.deinit();
+            var out: std.ArrayList(u8) = .empty;
+            errdefer out.deinit(gpa);
 
             for (args) |a| {
                 const fx = switch (a) {
@@ -259,12 +259,12 @@ pub const Builtins = struct {
                     else => return bad_arg,
                 };
 
-                try out.appendSlice(fx);
+                try out.appendSlice(gpa, fx);
             }
 
-            try out.appendSlice(str.value);
+            try out.appendSlice(gpa, str.value);
 
-            return Value.from(gpa, try out.toOwnedSlice());
+            return Value.from(gpa, try out.toOwnedSlice(gpa));
         }
     };
     pub const fmt = struct {
@@ -287,8 +287,8 @@ pub const Builtins = struct {
             args: []const Value,
         ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "expected 1 or more argument(s)" };
-            var out = std.ArrayList(u8).init(gpa);
-            errdefer out.deinit();
+            var out: std.ArrayList(u8) = .empty;
+            errdefer out.deinit(gpa);
 
             var it = std.mem.splitSequence(u8, str.value, "{}");
             for (args) |a| {
@@ -300,21 +300,21 @@ pub const Builtins = struct {
                     return .{ .err = "fmt: more args than placeholders" };
                 };
 
-                try out.appendSlice(before);
-                try out.appendSlice(str_arg);
+                try out.appendSlice(gpa, before);
+                try out.appendSlice(gpa, str_arg);
             }
 
             const last = it.next() orelse {
                 return .{ .err = "fmt: more args than placeholders" };
             };
 
-            try out.appendSlice(last);
+            try out.appendSlice(gpa, last);
 
             if (it.next() != null) {
                 return .{ .err = "fmt: more placeholders than args" };
             }
 
-            return Value.from(gpa, try out.toOwnedSlice());
+            return Value.from(gpa, try out.toOwnedSlice(gpa));
         }
     };
 
@@ -337,12 +337,12 @@ pub const Builtins = struct {
             args: []const Value,
         ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "'path' wants at least one argument" };
-            var out = std.ArrayList(u8).init(gpa);
-            errdefer out.deinit();
+            var out: std.ArrayList(u8) = .empty;
+            errdefer out.deinit(gpa);
 
-            try out.appendSlice(str.value);
+            try out.appendSlice(gpa, str.value);
             if (!std.mem.endsWith(u8, str.value, "/")) {
-                try out.append('/');
+                try out.append(gpa, '/');
             }
 
             for (args) |a| {
@@ -353,13 +353,13 @@ pub const Builtins = struct {
 
                 if (fx.len == 0) continue;
                 if (fx[0] == '/') {
-                    try out.appendSlice(fx[1..]);
+                    try out.appendSlice(gpa, fx[1..]);
                 } else {
-                    try out.appendSlice(fx);
+                    try out.appendSlice(gpa, fx);
                 }
             }
 
-            return Value.from(gpa, try out.toOwnedSlice());
+            return Value.from(gpa, try out.toOwnedSlice(gpa));
         }
     };
     pub const syntaxHighlight = struct {
@@ -409,7 +409,7 @@ pub const Builtins = struct {
                 else => return .{ .err = "error while syntax highlighting" },
             };
 
-            return Value.from(gpa, out.getWritten());
+            return Value.from(gpa, out.written());
         }
     };
 

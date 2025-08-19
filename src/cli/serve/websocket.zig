@@ -35,8 +35,7 @@ pub const Connection = struct {
         }
 
         var buffer: [4000]u8 = undefined;
-        var response = request.respondStreaming(.{
-            .send_buffer = &buffer,
+        var response = try request.respondStreaming(&buffer, .{
             .respond_options = .{
                 .status = .switching_protocols,
                 .extra_headers = &.{
@@ -53,7 +52,7 @@ pub const Connection = struct {
 
         return .{
             .buf = buf,
-            .stream = request.server.connection.stream,
+            .stream = request.server.stream,
         };
     }
 

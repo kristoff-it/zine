@@ -981,12 +981,12 @@ fn renderPage(
     while (true) super_vm.run() catch |err| switch (err) {
         error.Done => break,
         error.Fatal => {
-            std.debug.print("{s}\n", .{err_aw.getWritten()});
+            std.debug.print("{s}\n", .{err_aw.written()});
             build.any_rendering_error.store(true, .release);
             if (build.mode == .memory) {
                 switch (kind) {
-                    .main => page._render.errors = err_aw.getWritten(),
-                    .alternative => |aidx| page._render.alternatives[aidx].errors = err_aw.getWritten(),
+                    .main => page._render.errors = err_aw.written(),
+                    .alternative => |aidx| page._render.alternatives[aidx].errors = err_aw.written(),
                 }
             }
             return;
@@ -1031,11 +1031,11 @@ fn renderPage(
     switch (build.mode) {
         .memory => switch (kind) {
             .main => {
-                page._render.out = out_aw.getWritten();
+                page._render.out = out_aw.written();
                 page._render.errors = "";
             },
             .alternative => |aidx| {
-                page._render.alternatives[aidx].out = out_aw.getWritten();
+                page._render.alternatives[aidx].out = out_aw.written();
                 page._render.alternatives[aidx].errors = "";
             },
         },
@@ -1077,7 +1077,7 @@ fn renderPage(
                             .{},
                         ) catch |err| fatal.file(out_path, err);
                         defer f.close();
-                        f.writeAll(out_aw.getWritten()) catch |err| fatal.file(
+                        f.writeAll(out_aw.written()) catch |err| fatal.file(
                             out_path,
                             err,
                         );
@@ -1154,7 +1154,7 @@ fn renderPage(
                 },
             };
             defer out_raw.close();
-            out_raw.writeAll(out_aw.getWritten()) catch |err| fatal.file(
+            out_raw.writeAll(out_aw.written()) catch |err| fatal.file(
                 page_path,
                 err,
             );

@@ -1,6 +1,7 @@
 const DateTime = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const zeit = @import("zeit");
 const ziggy = @import("ziggy");
@@ -342,12 +343,12 @@ pub const Builtins = struct {
                 else => return argument_error,
             };
 
-            var buf = std.ArrayList(u8).init(gpa);
-            errdefer buf.deinit();
+            var w: Io.Writer.Allocating = .init(gpa);
+            errdefer w.deinit();
 
-            dt._inst.time().gofmt(buf.writer(), fmt_string) catch return error.OutOfMemory;
+            dt._inst.time().gofmt(&w.writer, fmt_string) catch return error.OutOfMemory;
 
-            return String.init(try buf.toOwnedSlice());
+            return String.init(try w.toOwnedSlice());
         }
     };
 

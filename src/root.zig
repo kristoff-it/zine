@@ -1344,11 +1344,11 @@ pub fn run(
                 &aw.writer,
             );
 
-            std.debug.print("{s}", .{aw.getWritten()});
+            std.debug.print("{s}", .{aw.written()});
             if (build.mode == .memory) {
                 try build.mode.memory.errors.append(gpa, .{
                     .ref = "",
-                    .msg = aw.getWritten(),
+                    .msg = aw.written(),
                 });
             }
             continue;
@@ -1377,11 +1377,11 @@ pub fn run(
                 &aw.writer,
             ) catch return error.OutOfMemory;
 
-            std.debug.print("{s}", .{aw.getWritten()});
+            std.debug.print("{s}", .{aw.written()});
             if (build.mode == .memory) {
                 try build.mode.memory.errors.append(gpa, .{
                     .ref = "",
-                    .msg = aw.getWritten(),
+                    .msg = aw.written(),
                 });
             }
         }

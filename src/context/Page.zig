@@ -103,8 +103,8 @@ _parse: struct {
 
 // Valid if parse.active = true and parse.status == .parsed
 _analysis: struct {
-    frontmatter: std.ArrayListUnmanaged(FrontmatterAnalysisError) = .empty,
-    page: std.ArrayListUnmanaged(PageAnalysisError) = .empty,
+    frontmatter: std.ArrayList(FrontmatterAnalysisError) = .empty,
+    page: std.ArrayList(PageAnalysisError) = .empty,
 } = .{},
 
 // Valid if analysis contains no errors and build mode == .memory
@@ -526,7 +526,7 @@ pub const Alternative = struct {
 
                 w.writeAll(alt.output) catch return error.OutOfMemory;
 
-                return String.init(buf.getWritten());
+                return String.init(buf.written());
             }
         };
     };
@@ -579,7 +579,7 @@ pub const Footnote = struct {
                     node,
                     w,
                 ) catch return error.OutOfMemory;
-                return String.init(buf.getWritten());
+                return String.init(buf.written());
             }
         };
     };
@@ -993,7 +993,7 @@ pub const Builtins = struct {
                 .err = "only available in a multilingual website",
             };
 
-            var pages: std.ArrayListUnmanaged(Value) = .empty;
+            var pages: std.ArrayList(Value) = .empty;
 
             if (p.translation_key) |tk| {
                 const list = ctx._meta.build.tks.get(tk).?;
@@ -1422,7 +1422,7 @@ pub const Builtins = struct {
                 ),
             }) catch return error.OutOfMemory;
 
-            return String.init(aw.getWritten());
+            return String.init(aw.written());
         }
     };
 
@@ -1488,7 +1488,7 @@ pub const Builtins = struct {
 
             aw.writer.print("#{s}", .{elem_id}) catch return error.OutOfMemory;
 
-            return String.init(aw.getWritten());
+            return String.init(aw.written());
         }
     };
 
@@ -1561,7 +1561,7 @@ pub const Builtins = struct {
                 ast.md.root,
                 &aw.writer,
             ) catch return error.OutOfMemory;
-            return String.init(aw.getWritten());
+            return String.init(aw.written());
         }
     };
     pub const contentSection = struct {
@@ -1620,7 +1620,7 @@ pub const Builtins = struct {
                 node,
                 w,
             ) catch return error.OutOfMemory;
-            return String.init(buf.getWritten());
+            return String.init(buf.written());
         }
     };
     pub const hasContentSection = struct {
@@ -1691,12 +1691,12 @@ pub const Builtins = struct {
 
             const ast = p._parse.ast;
 
-            var sections = std.ArrayList(ContentSection).init(gpa);
+            var sections: std.ArrayList(ContentSection) = .empty;
             var it = ast.ids.iterator();
             while (it.next()) |kv| {
                 const d = kv.value_ptr.getDirective() orelse continue;
                 if (d.kind == .section) {
-                    try sections.append(.{
+                    try sections.append(gpa, .{
                         .id = d.id orelse "",
                         .data = d.data,
                         ._node = kv.value_ptr.*,
@@ -1705,7 +1705,7 @@ pub const Builtins = struct {
                 }
             }
 
-            return Value.from(gpa, try sections.toOwnedSlice());
+            return Value.from(gpa, try sections.toOwnedSlice(gpa));
         }
     };
 
@@ -1782,7 +1782,7 @@ pub const Builtins = struct {
             const ast = p._parse.ast;
             render.htmlToc(ast, w) catch return error.OutOfMemory;
 
-            return String.init(aw.getWritten());
+            return String.init(aw.written());
         }
     };
 };
@@ -1899,7 +1899,7 @@ pub const ContentSection = struct {
                     cs._node,
                     w,
                 ) catch return error.OutOfMemory;
-                return String.init(buf.getWritten());
+                return String.init(buf.written());
             }
         };
 
@@ -1941,7 +1941,7 @@ pub const ContentSection = struct {
                     w,
                 ) catch return error.OutOfMemory;
 
-                return String.init(buf.getWritten());
+                return String.init(buf.written());
             }
         };
     };

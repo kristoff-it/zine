@@ -125,7 +125,7 @@ pub const Builtins = struct {
                 },
             }
 
-            return Value.from(gpa, buf.getWritten());
+            return Value.from(gpa, buf.written());
         }
     };
     pub const size = struct {

@@ -238,12 +238,12 @@ pub const KV = struct {
 
 fn keyValueArray(gpa: Allocator, map: Map, filter: ?[]const u8) ![]const Value {
     if (filter) |f| {
-        var buf = std.ArrayList(Value).init(gpa);
+        var buf: std.ArrayList(Value) = .empty;
         var it = map.value.fields.iterator();
 
         while (it.next()) |next| {
             if (std.mem.indexOf(u8, next.key_ptr.*, f) != null) {
-                try buf.append(.{
+                try buf.append(gpa, .{
                     .map_kv = .{
                         .key = next.key_ptr.*,
                         .value = next.value_ptr.*,
@@ -251,7 +251,7 @@ fn keyValueArray(gpa: Allocator, map: Map, filter: ?[]const u8) ![]const Value {
                 });
             }
         }
-        return buf.toOwnedSlice();
+        return buf.toOwnedSlice(gpa);
     } else {
         // no filter
         const kvs = try gpa.alloc(Value, map.value.fields.count());

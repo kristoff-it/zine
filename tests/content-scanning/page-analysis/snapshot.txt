@@ -27,11 +27,11 @@ content/parse.smd:10:1: [html_is_forbidden]
 |    <div>wrong block-level html</div>
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:12:1: [scripty] syntax error
+content/parse.smd:12:1: [scripty] unexpected token
 |    []($link.page(/other))  //wrong
 |    ^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:13:1: [scripty] syntax error
+content/parse.smd:13:1: [scripty] unexpected token
 |    []($link.page('/other))  //wrong
 |    ^^^^^^^^^^^^^^^^^^^^^^^
 

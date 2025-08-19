@@ -1,22 +1,22 @@
 const std = @import("std");
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
 const Writer = std.Io.Writer;
+const WebSocket = std.http.Server.WebSocket;
 const builtin = @import("builtin");
 const mime = @import("mime");
 const tracy = @import("tracy");
 const root = @import("../root.zig");
+const BuildAsset = root.BuildAsset;
 const worker = @import("../worker.zig");
 const fatal = @import("../fatal.zig");
-const ws = @import("serve/websocket.zig");
 const Build = @import("../Build.zig");
 const PathTable = @import("../PathTable.zig");
-const StringTable = @import("../StringTable.zig");
 const PathName = PathTable.PathName;
+const StringTable = @import("../StringTable.zig");
 const Path = PathTable.Path;
 const String = StringTable.String;
 const Channel = @import("../channel.zig").Channel;
-const Allocator = std.mem.Allocator;
-const BuildAsset = root.BuildAsset;
-const assert = std.debug.assert;
 
 const zinereload_js = @embedFile("serve/zinereload.js");
 const not_found_html = @embedFile("serve/404.html");
@@ -33,8 +33,8 @@ const log = std.log.scoped(.serve);
 
 pub const ServeEvent = union(enum) {
     change,
-    connect: ws.Connection,
-    disconnect: ws.Connection,
+    connect: WebSocket,
+    disconnect: WebSocket,
 };
 
 pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
@@ -178,8 +178,8 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     defer node.end();
 
     var websockets: std.AutoArrayHashMapUnmanaged(
-        std.posix.socket_t,
-        ws.Connection,
+        [*]const u8,
+        WebSocket,
     ) = .empty;
 
     while (true) {
@@ -208,9 +208,10 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                     };
                 }
             },
-            .connect => |conn| {
-                try websockets.put(gpa, conn.stream.handle, conn);
-                // We don't lock build because this thread is the only writer
+            .connect => |ws| {
+                var conn = ws;
+                try websockets.put(gpa, conn.key.ptr, conn);
+                // We don't lock the build because this thread is the only writer
 
                 for (build.mode.memory.errors.items) |build_err| {
                     var aw: Writer.Allocating = .init(gpa);
@@ -223,7 +224,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                         }, .{}),
                     }) catch return error.OutOfMemory;
 
-                    conn.writeMessage(aw.getWritten(), .text) catch |err| {
+                    conn.writeMessage(aw.written(), .text) catch |err| {
                         log.debug(
                             "error writing to ws: {s}",
                             .{@errorName(err)},
@@ -251,7 +252,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                                 }) catch return error.OutOfMemory;
 
                                 conn.writeMessage(
-                                    aw.getWritten(),
+                                    aw.written(),
                                     .text,
                                 ) catch |err| {
                                     log.debug(
@@ -274,7 +275,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                                             .err = alt.errors,
                                         }, .{}),
                                     }) catch return error.OutOfMemory;
-                                    conn.writeMessage(aw.getWritten(), .text) catch |err| {
+                                    conn.writeMessage(aw.written(), .text) catch |err| {
                                         log.debug(
                                             "error writing to ws: {s}",
                                             .{@errorName(err)},
@@ -291,7 +292,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
             .disconnect => |conn| {
                 // the server thread will take care of closing the connection
                 // as the corresponding thread shuts down
-                _ = websockets.swapRemove(conn.stream.handle);
+                _ = websockets.swapRemove(conn.key.ptr);
             },
         }
     }
@@ -566,13 +567,17 @@ pub const Server = struct {
     ) void {
         defer conn.stream.close();
 
-        var buffer: [max_connection_header_size]u8 = undefined;
+        var bufin: [4096 * 4]u8 = undefined;
+        var in = conn.stream.reader(&bufin);
+        var bufout: [4096]u8 = undefined;
+        var out = conn.stream.writer(&bufout);
+
         var arena_state = std.heap.ArenaAllocator.init(s.gpa);
         const arena = arena_state.allocator();
 
-        var http_server = std.http.Server.init(conn, &buffer);
+        var http_server = std.http.Server.init(in.interface(), &out.interface);
 
-        while (http_server.state == .ready) {
+        while (true) {
             var request = http_server.receiveHead() catch |err| {
                 if (err != error.HttpConnectionClosing) {
                     log.debug("connection error: {s}\n", .{@errorName(err)});
@@ -999,21 +1004,22 @@ pub const Server = struct {
     }
 
     fn handleWebsocket(s: *Server, req: *std.http.Server.Request) void {
-        var buf: [4096]u8 = undefined;
-        const conn = ws.Connection.init(req, &buf) catch |err| {
-            std.debug.print(
-                "warning: failed to establish a websocket connection: {s}\n",
-                .{@errorName(err)},
-            );
-            return;
+        const up = req.upgradeRequested();
+        const wsup = switch (up) {
+            .none, .other => return req.respond("error: must request websocket upgrade", .{
+                .status = .bad_request,
+            }) catch {},
+
+            .websocket => |wsup| wsup orelse "<no key provided>",
         };
-        s.channel.put(.{ .connect = conn });
+
+        var ws = req.respondWebSocket(.{ .key = wsup }) catch return;
+        s.channel.put(.{ .connect = ws });
 
         while (true) {
-            var buf1: [4096]u8 = undefined;
-            const msg = conn.readMessage(&buf1) catch |err| {
-                log.debug("readWs error: {s} {any}", .{ @errorName(err), conn });
-                s.channel.put(.{ .disconnect = conn });
+            const msg = ws.readSmallMessage() catch |err| {
+                log.debug("readWs error: {s} {any}", .{ @errorName(err), ws });
+                s.channel.put(.{ .disconnect = ws });
                 return;
             };
             _ = msg;
