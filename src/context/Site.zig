@@ -363,6 +363,92 @@ pub const Builtins = struct {
             return context.Array.init(gpa, Value, page_list);
         }
     };
+    pub const newest = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .Int, .String, .{ .Many = .String } },
+            .ret = .{ .Many = .Page },
+        };
+        pub const docs_description =
+            \\Returns up to the N newest sub-pages among the provided section
+            \\page paths. The number of returned pages will be lower than the
+            \\requested number if there are not enough pages.
+            \\
+            \\To be used in conjunction with a `loop` attribute.
+        ;
+        pub const examples =
+            \\<ul :loop="$site.newest(4, 'a', 'b', 'c')"><li :text="$loop.it.title"></li></ul>
+        ;
+        pub fn call(
+            site: *const Site,
+            gpa: Allocator,
+            ctx: *const context.Template,
+            args: []const Value,
+        ) context.CallError!Value {
+            const v = &ctx._meta.build.variants[site._meta.variant_id];
+
+            const bad_arg: Value = .{
+                .err = "expects a positive integer followed by one or more strings",
+            };
+
+            if (args.len < 2) return bad_arg;
+
+            const n = switch (args[0]) {
+                .int => |i| i.value,
+                else => return bad_arg,
+            };
+
+            if (n < 1) return bad_arg;
+
+            const page_list: std.ArrayListUnmanaged(Value) = .empty;
+            defer gpa.free(page_list); // on success we call toOwnedSlice
+
+            for (args[1..]) |arg| {
+                const ref = switch (arg) {
+                    .string => |s| s.value,
+                    else => return .{ .err = "not a string argument" },
+                };
+
+                const path = v.path_table.getPathNoName(
+                    &v.string_table,
+                    &.{},
+                    ref,
+                ) orelse return Value.errFmt(gpa, "page '{s}' does not exist", .{
+                    ref,
+                });
+
+                const index_html: StringTable.String = @enumFromInt(11);
+                const hint = v.urls.get(.{
+                    .path = path,
+                    .name = index_html,
+                }) orelse return Value.errFmt(gpa, "page '{s}' does not exist", .{
+                    ref,
+                });
+
+                switch (hint.kind) {
+                    .page_main => {},
+                    else => return Value.errFmt(gpa, "page '{s}' does not exist", .{
+                        ref,
+                    }),
+                }
+
+                const section = &v.pages.items[hint.id];
+                if (!section._parse.active) return Value.errFmt(
+                    gpa,
+                    "page '{s}' is a draft",
+                    .{ref},
+                );
+
+                if (section.subsection_id == 0) return Value.errFmt(
+                    gpa,
+                    "page '{s}' is not a section",
+                    .{ref},
+                );
+            }
+
+            return context.Array.init(gpa, Value, page_list);
+        }
+    };
+
     pub const locale = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
