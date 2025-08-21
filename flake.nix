@@ -20,6 +20,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
           env = zig2nix.outputs.zig-env.${system} {
             nixpkgs = nixpkgs;
+            zig = zig2nix.outputs.packages.${system}.zig-master;
           };
         });
   in {
