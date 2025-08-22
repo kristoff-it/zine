@@ -681,6 +681,61 @@ pub const Builtins = struct {
         }
     };
 
+    pub const assets = struct {
+        pub const signature: Signature = .{
+            .ret = .{ .Many = .Asset },
+        };
+        pub const docs_description =
+            \\Returns a list of all assets that belong to the page.
+            \\
+            \\Assets for a non-section page must be placed under a subdirectory
+            \\that shares the same name with the corresponding markdown file.
+            \\
+            \\(as a reminder sections are defined by pages named `index.smd`)
+        ;
+        pub const examples =
+            \\<div :loop="$page.assets()">
+            \\  <img src="$loop.it.link()">
+            \\</div>
+        ;
+        pub fn call(
+            page: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Template,
+            args: []const Value,
+        ) context.CallError!Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            const v = &ctx._meta.build.variants[page._scan.variant_id];
+            const st = &v.string_table;
+            const pt = &v.path_table;
+
+            var assets_list: std.ArrayList(Value) = .empty;
+
+            var urls = v.urls.iterator();
+            while (urls.next()) |entry| {
+                const hint = entry.value_ptr.*;
+                const pn = entry.key_ptr.*;
+
+                if (hint.kind != .page_asset or hint.id != page._scan.page_id) continue;
+
+                const p_path = pn.path.fmt(st, pt, "", true);
+                const p_name = pn.name.slice(st);
+                const full_path = try std.fmt.allocPrint(gpa, "{f}{s}", .{ p_path, p_name });
+
+                try assets_list.append(gpa, .{ .asset = .{
+                    ._meta = .{
+                        .ref = try gpa.dupe(u8, full_path),
+                        .url = pn,
+                        .kind = .{ .page = page._scan.variant_id },
+                    },
+                } });
+            }
+
+            return context.Array.init(gpa, Value, assets_list.items);
+        }
+    };
+
     pub const asset = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
