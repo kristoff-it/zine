@@ -1,21 +1,23 @@
 const Variant = @This();
-const log = std.log.scoped(.variant);
 
 const std = @import("std");
+const log = std.log.scoped(.variant);
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
+
 const builtin = @import("builtin");
 const ziggy = @import("ziggy");
+const FrontParser = ziggy.frontmatter.Parser(Page);
 const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
 const worker = @import("worker.zig");
 const context = @import("context.zig");
+const Page = context.Page;
 const Build = @import("Build.zig");
 const StringTable = @import("StringTable.zig");
-const PathTable = @import("PathTable.zig");
-const assert = std.debug.assert;
-const Allocator = std.mem.Allocator;
-const Page = context.Page;
-const FrontParser = ziggy.frontmatter.Parser(Page);
 const String = StringTable.String;
+const PathTable = @import("PathTable.zig");
 const Path = PathTable.Path;
 const PathName = PathTable.PathName;
 
@@ -75,28 +77,22 @@ pub const LocationHint = struct {
         pt: *const PathTable,
         pages: []const Page,
 
-        pub fn format(
-            f: LocationHint.Formatter,
-            comptime _: []const u8,
-            options: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            _ = options;
+        pub fn format(f: LocationHint.Formatter, w: *Writer) !void {
             const page = f.pages[f.lh.id];
-            try writer.print("{}", .{page._scan.file.fmt(f.st, f.pt, null)});
+            try w.print("{f}", .{page._scan.file.fmt(f.st, f.pt, null, "")});
 
             switch (f.lh.kind) {
                 .page_main => {
-                    try writer.writeAll(" (main output)");
+                    try w.writeAll(" (main output)");
                 },
                 .page_alias => {
-                    try writer.writeAll(" (page alias)");
+                    try w.writeAll(" (page alias)");
                 },
                 .page_alternative => |alt| {
-                    try writer.print(" (page alternative '{s}')", .{alt});
+                    try w.print(" (page alternative '{s}')", .{alt});
                 },
                 .page_asset => {
-                    try writer.writeAll(" (page asset)");
+                    try w.writeAll(" (page asset)");
                 },
             }
         }
@@ -145,7 +141,7 @@ pub const Section = struct {
                     var br: [std.fs.max_path_bytes]u8 = undefined;
                     return std.mem.order(
                         u8,
-                        std.fmt.bufPrint(&bl, "{}", .{
+                        std.fmt.bufPrint(&bl, "{f}", .{
                             ctx.pages[rhs]._scan.url.fmt(
                                 &ctx.v.string_table,
                                 &ctx.v.path_table,
@@ -153,7 +149,7 @@ pub const Section = struct {
                                 false,
                             ),
                         }) catch unreachable,
-                        std.fmt.bufPrint(&br, "{}", .{
+                        std.fmt.bufPrint(&br, "{f}", .{
                             ctx.pages[lhs]._scan.url.fmt(
                                 &ctx.v.string_table,
                                 &ctx.v.path_table,
@@ -182,7 +178,7 @@ pub fn deinit(v: *const Variant, gpa: Allocator) void {
     // gpa.free(v.content_dir_path);
     v.string_table.deinit(gpa);
     v.path_table.deinit(gpa);
-    for (v.sections.items) |s| s.deinit(gpa);
+    for (v.sections.items[1..]) |s| s.deinit(gpa);
     {
         var s = v.sections;
         s.deinit(gpa);
@@ -511,7 +507,7 @@ pub fn scanContentDir(
             name,
             ziggy.max_size,
             0,
-            1,
+            .@"1",
             0,
         ) catch |err| fatal.file(name, err);
 
@@ -569,13 +565,14 @@ pub fn installAssets(
         if (hint.kind.page_asset.raw == 0) continue;
 
         var buf: [std.fs.max_path_bytes]u8 = undefined;
-        const install_path = std.fmt.bufPrint(&buf, "{s}{s}{}", .{
+        const install_path = std.fmt.bufPrint(&buf, "{s}{s}{f}", .{
             v.output_path_prefix,
             if (v.output_path_prefix.len > 0) "/" else "",
             key.fmt(
                 &v.string_table,
                 &v.path_table,
                 null,
+                "",
             ),
         }) catch unreachable;
 
@@ -587,7 +584,7 @@ pub fn installAssets(
         _ = v.content_dir.updateFile(
             source_path,
             install_dir,
-            install_path,
+            std.mem.trimLeft(u8, install_path, "/"),
             .{},
         ) catch |err| fatal.file(install_path, err);
 

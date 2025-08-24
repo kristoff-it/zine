@@ -222,4 +222,4 @@ extern "kernel32" fn CreateFileA(
     dwCreationDisposition: windows.DWORD,
     dwFlagsAndAttributes: windows.DWORD,
     hTemplateFile: ?windows.HANDLE,
-) callconv(windows.WINAPI) windows.HANDLE;
+) callconv(.winapi) windows.HANDLE;

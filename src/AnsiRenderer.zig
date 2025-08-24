@@ -1,5 +1,8 @@
 const AnsiRenderer = @This();
+
 const std = @import("std");
+const Reader = std.Io.Reader;
+const Writer = std.Io.Writer;
 
 state: State = .normal,
 current_style: Style = .{},
@@ -28,7 +31,7 @@ const Style = struct {
         white,
     };
 
-    fn print(style: Style, out: anytype, open: bool) !void {
+    fn print(style: Style, out: *Writer, open: bool) !void {
         comptime var fields: [std.meta.fields(Style).len]std.builtin.Type.StructField = undefined;
         @memcpy(&fields, std.meta.fields(Style));
         comptime std.mem.reverse(std.builtin.Type.StructField, &fields);
@@ -57,11 +60,11 @@ const Style = struct {
         }
     }
 
-    fn printOpen(style: Style, out: anytype) !void {
+    fn printOpen(style: Style, out: *Writer) !void {
         try style.print(out, true);
     }
 
-    fn printClose(style: Style, out: anytype) !void {
+    fn printClose(style: Style, out: *Writer) !void {
         try style.print(out, false);
     }
 };
@@ -83,7 +86,7 @@ pub fn renderSlice(allocator: std.mem.Allocator, src: []const u8) ![]const u8 {
     return try out.toOwnedSlice();
 }
 
-fn render(renderer: *AnsiRenderer, reader: anytype, writer: anytype) !void {
+fn render(renderer: *AnsiRenderer, reader: *Reader, writer: *Writer) !void {
     try renderer.current_style.printOpen(writer);
 
     while (true) {

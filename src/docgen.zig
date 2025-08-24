@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const zine = @import("zine");
 const context = @import("context.zig");
 const Value = context.Value;
@@ -83,16 +84,16 @@ pub const Reference = struct {
         r: Reference,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
-        out_stream: anytype,
+        w: *Writer,
     ) !void {
         _ = fmt;
         _ = options;
 
         {
-            try out_stream.print("[]($section.id('menu'))\n\n", .{});
-            try out_stream.print("># [Global Context]($block.collapsible(true))\n", .{});
+            try w.print("[]($section.id('menu'))\n\n", .{});
+            try w.print("># [Global Context]($block.collapsible(true))\n", .{});
             for (r.global) |f| {
-                try out_stream.print(
+                try w.print(
                     \\>- [`${0s}`]($link.unsafeRef("${0s}"))
                     \\
                 , .{
@@ -101,7 +102,7 @@ pub const Reference = struct {
             }
 
             for (r.values[1..]) |v| {
-                try out_stream.print(
+                try w.print(
                     \\
                     \\># [{0s}]($block.collapsible(false))
                     \\>- [`description`]($link.unsafeRef("{0s}"))
@@ -109,7 +110,7 @@ pub const Reference = struct {
                 , .{v.name.string(false)});
 
                 for (v.fields) |f| {
-                    try out_stream.print(
+                    try w.print(
                         \\>- [`.{s}`]($link.unsafeRef("{s}.{s}"))
                         \\
                     , .{
@@ -121,7 +122,7 @@ pub const Reference = struct {
                 }
 
                 for (v.builtins) |b| {
-                    try out_stream.print(
+                    try w.print(
                         \\>- [`fn {s}()`]($link.ref("{s}.{s}")) 
                         \\
                     , .{
@@ -134,9 +135,9 @@ pub const Reference = struct {
             }
         }
 
-        try out_stream.print("# [Global Context]($section.id('global'))\n\n", .{});
+        try w.print("# [Global Context]($section.id('global'))\n\n", .{});
         for (r.global) |f| {
-            try out_stream.print(
+            try w.print(
                 \\## [`${0s}`]($text.id('${0s}')) : {1s}
                 \\
                 \\{2s}
@@ -150,7 +151,7 @@ pub const Reference = struct {
         }
 
         for (r.values[1..]) |v| {
-            try out_stream.print(
+            try w.print(
                 \\# [{s}]($section.id('{s}'))
                 \\
                 \\{s}
@@ -159,10 +160,10 @@ pub const Reference = struct {
             , .{ v.name.string(false), v.name.id(), v.description });
 
             if (v.fields.len > 0)
-                try out_stream.print("## Fields\n\n", .{});
+                try w.print("## Fields\n\n", .{});
 
             for (v.fields) |f| {
-                try out_stream.print(
+                try w.print(
                     \\### [`{0s}`]($text.id('{1s}.{0s}')) : {2s}
                     \\
                     \\{3s}
@@ -177,10 +178,10 @@ pub const Reference = struct {
             }
 
             if (v.builtins.len > 0)
-                try out_stream.print("## Functions\n\n", .{});
+                try w.print("## Functions\n\n", .{});
 
             for (v.builtins) |b| {
-                try out_stream.print(
+                try w.print(
                     \\### []($heading.id("{s}.{s}")) [`fn`]($link.ref("{s}.{s}")) {s} {s}
                     \\
                     \\{s}

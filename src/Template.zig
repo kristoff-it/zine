@@ -1,6 +1,9 @@
 const Template = @This();
 
 const std = @import("std");
+const assert = std.debug.asert;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 const superhtml = @import("superhtml");
 const tracy = @import("tracy");
 const root = @import("root.zig");
@@ -12,8 +15,6 @@ const String = StringTable.String;
 const PathTable = @import("PathTable.zig");
 const Path = PathTable.Path;
 const PathName = PathTable.PathName;
-const Allocator = std.mem.Allocator;
-const assert = std.debug.assert;
 
 src: []const u8 = undefined,
 html_ast: superhtml.html.Ast = undefined,
@@ -25,7 +26,7 @@ layout: bool,
 pub fn deinit(t: *const Template, gpa: Allocator) void {
     gpa.free(t.src);
     t.html_ast.deinit(gpa);
-    t.ast.deinit(gpa);
+    if (t.html_ast.errors.len == 0) t.ast.deinit(gpa);
 }
 
 pub fn parse(
@@ -42,8 +43,8 @@ pub fn parse(
         error.OutOfMemory => fatal.oom(),
     };
 
-    const path = try std.fmt.allocPrint(arena, "{/}", .{
-        pn.fmt(&build.st, &build.pt, null),
+    const path = try std.fmt.allocPrint(arena, "{f}", .{
+        pn.fmt(&build.st, &build.pt, null, "/"),
     });
 
     const max = std.math.maxInt(u32);
@@ -59,6 +60,7 @@ pub fn parse(
         gpa,
         src,
         if (std.mem.endsWith(u8, path, ".xml")) .xml else .superhtml,
+        false,
     );
     if (t.html_ast.errors.len > 0) return;
 

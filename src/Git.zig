@@ -1,6 +1,7 @@
 const Git = @This();
 
 const std = @import("std");
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const zeit = @import("zeit");
@@ -27,7 +28,7 @@ const CommitDate = struct {
             opts: ziggy.serializer.StringifyOptions,
             indent_level: usize,
             depth: usize,
-            writer: anytype,
+            w: *Writer,
         ) !void {
             _ = opts;
             _ = indent_level;
@@ -37,9 +38,9 @@ const CommitDate = struct {
                 .source = .{ .unix_timestamp = value.unix },
             }) catch unreachable;
 
-            try writer.print("@date(\"", .{});
-            date.time().gofmt(writer, "2006-01-02T15:04:05") catch unreachable;
-            try writer.print("\")", .{});
+            try w.print("@date(\"", .{});
+            date.time().gofmt(w, "2006-01-02T15:04:05") catch unreachable;
+            try w.print("\")", .{});
         }
     };
 };

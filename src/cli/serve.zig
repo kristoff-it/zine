@@ -1,21 +1,22 @@
 const std = @import("std");
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
+const WebSocket = std.http.Server.WebSocket;
 const builtin = @import("builtin");
 const mime = @import("mime");
 const tracy = @import("tracy");
 const root = @import("../root.zig");
+const BuildAsset = root.BuildAsset;
 const worker = @import("../worker.zig");
 const fatal = @import("../fatal.zig");
-const ws = @import("serve/websocket.zig");
 const Build = @import("../Build.zig");
 const PathTable = @import("../PathTable.zig");
-const StringTable = @import("../StringTable.zig");
 const PathName = PathTable.PathName;
+const StringTable = @import("../StringTable.zig");
 const Path = PathTable.Path;
 const String = StringTable.String;
 const Channel = @import("../channel.zig").Channel;
-const Allocator = std.mem.Allocator;
-const BuildAsset = root.BuildAsset;
-const assert = std.debug.assert;
 
 const zinereload_js = @embedFile("serve/zinereload.js");
 const not_found_html = @embedFile("serve/404.html");
@@ -32,8 +33,8 @@ const log = std.log.scoped(.serve);
 
 pub const ServeEvent = union(enum) {
     change,
-    connect: ws.Connection,
-    disconnect: ws.Connection,
+    connect: WebSocket,
+    disconnect: WebSocket,
 };
 
 pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
@@ -144,7 +145,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         .build_assets = &cmd.build_assets,
         .drafts = cmd.drafts,
         .mode = .memory,
-    });
+    }) catch fatal.oom();
 
     var server: Server = .init(gpa, &channel, &build, &build_lock);
     const listen_address = server.start(cmd) catch |err| fatal.msg(
@@ -163,8 +164,8 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     const name = switch (cfg) {
         .Site => |s| try std.fmt.allocPrint(
             gpa,
-            "Listening at http://{s}:{}{/}",
-            .{ cmd.host, cmd.port, root.fmtJoin(&.{ "/", s.url_path_prefix, "/" }) },
+            "Listening at http://{s}:{}{f}",
+            .{ cmd.host, cmd.port, root.fmtJoin('/', &.{ "/", s.url_path_prefix, "/" }) },
         ),
         .Multilingual => try std.fmt.allocPrint(
             gpa,
@@ -177,8 +178,8 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     defer node.end();
 
     var websockets: std.AutoArrayHashMapUnmanaged(
-        std.posix.socket_t,
-        ws.Connection,
+        [*]const u8,
+        WebSocket,
     ) = .empty;
 
     while (true) {
@@ -193,7 +194,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                     .build_assets = &cmd.build_assets,
                     .drafts = cmd.drafts,
                     .mode = .memory,
-                });
+                }) catch fatal.oom();
                 build_lock.unlock();
 
                 for (websockets.entries.items(.value)) |*conn| {
@@ -207,23 +208,23 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                     };
                 }
             },
-            .connect => |conn| {
-                try websockets.put(gpa, conn.stream.handle, conn);
-                // We don't lock build because this thread is the only writer
+            .connect => |ws| {
+                var conn = ws;
+                try websockets.put(gpa, conn.key.ptr, conn);
+                // We don't lock the build because this thread is the only writer
 
                 for (build.mode.memory.errors.items) |build_err| {
-                    const bytes = try std.json.stringifyAlloc(
-                        gpa,
-                        .{
+                    var aw: Writer.Allocating = .init(gpa);
+                    defer aw.deinit();
+
+                    aw.writer.print("{f}", .{
+                        std.json.fmt(.{
                             .command = "build",
                             .err = build_err.msg,
-                        },
-                        .{},
-                    );
+                        }, .{}),
+                    }) catch return error.OutOfMemory;
 
-                    defer gpa.free(bytes);
-
-                    conn.writeMessage(bytes, .text) catch |err| {
+                    conn.writeMessage(aw.written(), .text) catch |err| {
                         log.debug(
                             "error writing to ws: {s}",
                             .{@errorName(err)},
@@ -240,18 +241,20 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
                             if (p._analysis.page.items.len > 0) continue;
 
                             if (p._render.errors.len > 0) {
-                                const bytes = try std.json.stringifyAlloc(
-                                    gpa,
-                                    .{
+                                var aw: Writer.Allocating = .init(gpa);
+                                defer aw.deinit();
+
+                                aw.writer.print("{f}", .{
+                                    std.json.fmt(.{
                                         .command = "build",
                                         .err = p._render.errors,
-                                    },
-                                    .{},
-                                );
+                                    }, .{}),
+                                }) catch return error.OutOfMemory;
 
-                                defer gpa.free(bytes);
-
-                                conn.writeMessage(bytes, .text) catch |err| {
+                                conn.writeMessage(
+                                    aw.written(),
+                                    .text,
+                                ) catch |err| {
                                     log.debug(
                                         "error writing to ws: {s}",
                                         .{@errorName(err)},
@@ -263,18 +266,16 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
 
                             for (p._render.alternatives) |alt| {
                                 if (alt.errors.len > 0) {
-                                    const bytes = try std.json.stringifyAlloc(
-                                        gpa,
-                                        .{
+                                    var aw: Writer.Allocating = .init(gpa);
+                                    defer aw.deinit();
+
+                                    aw.writer.print("{f}", .{
+                                        std.json.fmt(.{
                                             .command = "build",
                                             .err = alt.errors,
-                                        },
-                                        .{},
-                                    );
-
-                                    defer gpa.free(bytes);
-
-                                    conn.writeMessage(bytes, .text) catch |err| {
+                                        }, .{}),
+                                    }) catch return error.OutOfMemory;
+                                    conn.writeMessage(aw.written(), .text) catch |err| {
                                         log.debug(
                                             "error writing to ws: {s}",
                                             .{@errorName(err)},
@@ -291,7 +292,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
             .disconnect => |conn| {
                 // the server thread will take care of closing the connection
                 // as the corresponding thread shuts down
-                _ = websockets.swapRemove(conn.stream.handle);
+                _ = websockets.swapRemove(conn.key.ptr);
             },
         }
     }
@@ -412,15 +413,15 @@ pub const Command = struct {
                 const input_path = args[idx];
 
                 idx += 1;
-                var output_path: ?[]const u8 = null;
-                var output_always = false;
+                var install_path: ?[]const u8 = null;
+                var install_always = false;
                 if (idx < args.len) {
                     const next = args[idx];
-                    if (std.mem.startsWith(u8, next, "--output=")) {
-                        output_path = next["--output=".len..];
-                    } else if (std.mem.startsWith(u8, next, "--output-always=")) {
-                        output_always = true;
-                        output_path = next["--output-always=".len..];
+                    if (std.mem.startsWith(u8, next, "--install=")) {
+                        install_path = next["--install=".len..];
+                    } else if (std.mem.startsWith(u8, next, "--install-always=")) {
+                        install_always = true;
+                        install_path = next["--install-always=".len..];
                     } else {
                         idx -= 1;
                     }
@@ -434,9 +435,9 @@ pub const Command = struct {
 
                 gop.value_ptr.* = .{
                     .input_path = input_path,
-                    .output_path = output_path,
-                    .output_always = output_always,
-                    .rc = .{ .raw = @intFromBool(output_always) },
+                    .install_path = install_path,
+                    .install_always = install_always,
+                    .rc = .{ .raw = @intFromBool(install_always) },
                 };
             } else if (std.mem.eql(u8, arg, "--drafts")) {
                 drafts = true;
@@ -514,10 +515,9 @@ pub const Server = struct {
         };
 
         const address = list.addrs[0];
-        var tcp_server = address.listen(.{
-            .reuse_port = true,
-            .reuse_address = true,
-        }) catch |err| fatal.msg(
+        var tcp_server = address.listen(
+            .{ .reuse_address = true },
+        ) catch |err| fatal.msg(
             "error: unable to bind to '{any}': {s}",
             .{ address, @errorName(err) },
         );
@@ -567,13 +567,17 @@ pub const Server = struct {
     ) void {
         defer conn.stream.close();
 
-        var buffer: [max_connection_header_size]u8 = undefined;
+        var bufin: [4096 * 4]u8 = undefined;
+        var in = conn.stream.reader(&bufin);
+        var bufout: [4096]u8 = undefined;
+        var out = conn.stream.writer(&bufout);
+
         var arena_state = std.heap.ArenaAllocator.init(s.gpa);
         const arena = arena_state.allocator();
 
-        var http_server = std.http.Server.init(conn, &buffer);
+        var http_server = std.http.Server.init(in.interface(), &out.interface);
 
-        while (http_server.state == .ready) {
+        while (true) {
             var request = http_server.receiveHead() catch |err| {
                 if (err != error.HttpConnectionClosing) {
                     log.debug("connection error: {s}\n", .{@errorName(err)});
@@ -795,14 +799,16 @@ pub const Server = struct {
         }
 
         for (server.build.build_assets.entries.items(.value)) |ba| {
-            const output_path = ba.output_path orelse continue;
-            if (!std.mem.eql(u8, path, output_path)) continue;
+            const raw_install_path = ba.install_path orelse continue;
+            const install_path = std.mem.trimLeft(u8, raw_install_path, "/");
+            // skip leading slash in url path
+            if (!std.mem.eql(u8, path[1..], install_path)) continue;
             return sendFile(
                 arena,
                 req,
                 server.build.base_dir,
                 mime_type,
-                output_path,
+                ba.input_path,
             ) catch |err| fatal.file(path, err);
         }
 
@@ -998,20 +1004,22 @@ pub const Server = struct {
     }
 
     fn handleWebsocket(s: *Server, req: *std.http.Server.Request) void {
-        const conn = ws.Connection.init(req) catch |err| {
-            std.debug.print(
-                "warning: failed to establish a websocket connection: {s}\n",
-                .{@errorName(err)},
-            );
-            return;
+        const up = req.upgradeRequested();
+        const wsup = switch (up) {
+            .none, .other => return req.respond("error: must request websocket upgrade", .{
+                .status = .bad_request,
+            }) catch {},
+
+            .websocket => |wsup| wsup orelse "<no key provided>",
         };
-        s.channel.put(.{ .connect = conn });
+
+        var ws = req.respondWebSocket(.{ .key = wsup }) catch return;
+        s.channel.put(.{ .connect = ws });
 
         while (true) {
-            var buf: [1024]u8 = undefined;
-            const msg = conn.readMessage(&buf) catch |err| {
-                log.debug("readWs error: {s} {any}", .{ @errorName(err), conn });
-                s.channel.put(.{ .disconnect = conn });
+            const msg = ws.readSmallMessage() catch |err| {
+                log.debug("readWs error: {s} {any}", .{ @errorName(err), ws });
+                s.channel.put(.{ .disconnect = ws });
                 return;
             };
             _ = msg;

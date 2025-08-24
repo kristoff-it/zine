@@ -63,7 +63,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -135,7 +135,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };

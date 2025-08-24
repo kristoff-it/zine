@@ -1,12 +1,13 @@
 const PathTable = @This();
 
 const std = @import("std");
+const assert = std.debug.assert;
+const mem = std.mem;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const StringTable = @import("StringTable.zig");
 const String = StringTable.String;
-const mem = std.mem;
-const assert = std.debug.assert;
-const Allocator = std.mem.Allocator;
 
 path_components: std.ArrayListUnmanaged(String),
 path_map: Path.Map,
@@ -33,8 +34,15 @@ pub const PathName = packed struct {
         st: *const StringTable,
         pt: *const PathTable,
         prefix: ?[]const u8,
+        maybe_sep: []const u8,
     ) PathName.Formatter {
-        return .{ .u = u, .st = st, .pt = pt, .prefix = prefix };
+        return .{
+            .u = u,
+            .st = st,
+            .pt = pt,
+            .prefix = prefix,
+            .maybe_sep = maybe_sep,
+        };
     }
 
     pub const empty_name: String = @enumFromInt(0);
@@ -61,36 +69,31 @@ pub const PathName = packed struct {
         st: *const StringTable,
         pt: *const PathTable,
         prefix: ?[]const u8,
+        maybe_sep: []const u8,
 
-        pub fn format(
-            f: PathName.Formatter,
-            comptime maybe_sep: []const u8,
-            options: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            comptime assert(maybe_sep.len < 2);
-            const sep = if (maybe_sep.len == 0) "/" else blk: {
-                comptime assert(maybe_sep[0] == '/' or maybe_sep[0] == '\\');
-                break :blk maybe_sep;
+        pub fn format(f: PathName.Formatter, w: *Writer) !void {
+            assert(f.maybe_sep.len < 2);
+            const sep = if (f.maybe_sep.len == 0) "/" else blk: {
+                assert(f.maybe_sep[0] == '/' or f.maybe_sep[0] == '\\');
+                break :blk f.maybe_sep;
             };
-            _ = options;
 
             if (f.prefix) |p| {
                 if (p.len > 0) {
-                    try writer.writeAll(p);
+                    try w.writeAll(p);
                     if (p[p.len - 1] != sep[0]) {
-                        try writer.writeAll(sep);
+                        try w.writeAll(sep);
                     }
                 }
             }
 
             const path_slice = f.u.path.slice(f.pt);
             for (path_slice) |c| {
-                try writer.writeAll(c.slice(f.st));
-                try writer.writeAll(sep);
+                try w.writeAll(c.slice(f.st));
+                try w.writeAll(sep);
             }
 
-            try writer.writeAll(f.u.name.slice(f.st));
+            try w.writeAll(f.u.name.slice(f.st));
         }
     };
 };
@@ -390,16 +393,7 @@ pub const Path = enum(u32) {
         prefix: ?[]const u8,
         slash: bool,
 
-        pub fn format(
-            f: Path.Formatter,
-            comptime arg: []const u8,
-            options: std.fmt.FormatOptions,
-            writer: anytype,
-        ) !void {
-            if (arg.len > 0) @compileError("path.fmt wants no format specifier");
-
-            _ = options;
-
+        pub fn format(f: Path.Formatter, writer: *Writer) !void {
             if (f.prefix) |p| {
                 if (p.len > 0) {
                     try writer.writeAll(p);

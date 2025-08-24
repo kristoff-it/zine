@@ -1,21 +1,22 @@
 const Asset = @This();
 
 const std = @import("std");
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 const _ziggy = @import("ziggy");
 const scripty = @import("scripty");
 const utils = @import("utils.zig");
+const log = utils.log;
 const fatal = @import("../fatal.zig");
 const context = @import("../context.zig");
+const Value = context.Value;
+const Int = context.Int;
 const PathTable = @import("../PathTable.zig");
+const PathName = PathTable.PathName;
 const html = @import("../render/html.zig");
 const join = @import("../root.zig").join;
 const Signature = @import("doctypes.zig").Signature;
-const PathName = PathTable.PathName;
-const Allocator = std.mem.Allocator;
-const Value = context.Value;
-const Int = context.Int;
-const log = utils.log;
-const assert = std.debug.assert;
 
 _meta: struct {
     ref: []const u8,
@@ -71,21 +72,21 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
             if (args.len != 0) return bad_arg;
 
-            var buf = std.ArrayList(u8).init(gpa);
+            var buf: Writer.Allocating = .init(gpa);
             errdefer buf.deinit();
 
-            const w = buf.writer();
+            const w = &buf.writer;
             switch (asset._meta.kind) {
                 .page => |variant_id| {
-                    try ctx.printLinkPrefix(
+                    ctx.printLinkPrefix(
                         w,
                         variant_id,
                         false,
-                    );
+                    ) catch return error.OutOfMemory;
                     const v = ctx._meta.build.variants[variant_id];
                     const hint = v.urls.getPtr(asset._meta.url).?;
                     assert(hint.kind == .page_asset);
@@ -93,38 +94,38 @@ pub const Builtins = struct {
 
                     const st = &v.string_table;
                     const pt = &v.path_table;
-                    try w.print("{/}", .{
-                        asset._meta.url.fmt(st, pt, null),
-                    });
+                    w.print("{f}", .{
+                        asset._meta.url.fmt(st, pt, null, "/"),
+                    }) catch return error.OutOfMemory;
                 },
                 .site => {
-                    try html.printAssetUrlPrefix(ctx, ctx.page, w);
+                    html.printAssetUrlPrefix(ctx, ctx.page, w) catch return error.OutOfMemory;
                     const rc = ctx._meta.build.site_assets.getPtr(asset._meta.url).?;
                     _ = rc.fetchAdd(1, .acq_rel);
 
                     const st = &ctx._meta.build.st;
                     const pt = &ctx._meta.build.pt;
-                    try w.print("{/}", .{
-                        asset._meta.url.fmt(st, pt, null),
-                    });
+                    w.print("{f}", .{
+                        asset._meta.url.fmt(st, pt, null, "/"),
+                    }) catch return error.OutOfMemory;
                 },
                 .build => {
-                    try html.printAssetUrlPrefix(ctx, ctx.page, w);
+                    html.printAssetUrlPrefix(ctx, ctx.page, w) catch return error.OutOfMemory;
                     const ba = ctx._meta.build.build_assets.getPtr(
                         asset._meta.ref,
                     ).?;
 
                     _ = ba.rc.fetchAdd(1, .acq_rel);
-                    const op = ba.output_path orelse return Value.errFmt(
+                    const op = ba.install_path orelse return Value.errFmt(
                         gpa,
                         "unable to install build asset '{s}' as it does not specify an install path",
                         .{asset._meta.ref},
                     );
-                    try w.print("{s}", .{op});
+                    w.print("{s}", .{op}) catch return error.OutOfMemory;
                 },
             }
 
-            return Value.from(gpa, buf.items);
+            return Value.from(gpa, buf.written());
         }
     };
     pub const size = struct {
@@ -140,7 +141,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
@@ -148,11 +149,12 @@ pub const Builtins = struct {
             switch (asset._meta.kind) {
                 .page => |variant_id| {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &v.string_table,
                             &v.path_table,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -162,11 +164,12 @@ pub const Builtins = struct {
                     return Int.init(@intCast(stat.size));
                 },
                 .site => {
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &ctx._meta.build.st,
                             &ctx._meta.build.pt,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -192,18 +195,19 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             switch (asset._meta.kind) {
                 .page => |variant_id| {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &v.string_table,
                             &v.path_table,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -217,11 +221,12 @@ pub const Builtins = struct {
                     return Value.from(gpa, data);
                 },
                 .site => {
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &ctx._meta.build.st,
                             &ctx._meta.build.pt,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -262,18 +267,19 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             const data = switch (asset._meta.kind) {
                 .page => |variant_id| blk: {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &v.string_table,
                             &v.path_table,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -286,11 +292,12 @@ pub const Builtins = struct {
                     };
                 },
                 .site => blk: {
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &ctx._meta.build.st,
                             &ctx._meta.build.pt,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -332,18 +339,19 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             const data = switch (asset._meta.kind) {
                 .page => |variant_id| blk: {
                     const v = &ctx._meta.build.variants[variant_id];
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &v.string_table,
                             &v.path_table,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -352,18 +360,19 @@ pub const Builtins = struct {
                         path,
                         std.math.maxInt(u32),
                         null,
-                        1,
+                        .@"1",
                         0,
                     ) catch {
                         return .{ .err = "i/o error while reading asset file" };
                     };
                 },
                 .site => blk: {
-                    const path = std.fmt.bufPrint(&buf, "{}", .{
+                    const path = std.fmt.bufPrint(&buf, "{f}", .{
                         asset._meta.url.fmt(
                             &ctx._meta.build.st,
                             &ctx._meta.build.pt,
                             null,
+                            "",
                         ),
                     }) catch unreachable;
 
@@ -372,7 +381,7 @@ pub const Builtins = struct {
                         path,
                         std.math.maxInt(u32),
                         null,
-                        1,
+                        .@"1",
                         0,
                     ) catch {
                         return .{ .err = "i/o error while reading asset file" };

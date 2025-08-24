@@ -23,7 +23,7 @@ const win = if (builtin.os.tag != .windows) void else struct {
         dwMaximumSizeHigh: windows.DWORD,
         dwMaximumSizeLow: windows.DWORD,
         lpName: ?windows.LPCSTR,
-    ) callconv(windows.WINAPI) windows.HANDLE;
+    ) callconv(.winapi) windows.HANDLE;
 
     //LPVOID MapViewOfFile(
     //  [in] HANDLE hFileMappingObject,
@@ -38,14 +38,14 @@ const win = if (builtin.os.tag != .windows) void else struct {
         dwFileOffsetHigh: windows.DWORD,
         dwFileOffsetLow: windows.DWORD,
         dwNumberOfBytesToMap: windows.SIZE_T,
-    ) callconv(windows.WINAPI) [*]u8;
+    ) callconv(.winapi) [*]u8;
 
     //BOOL UnmapViewOfFile(
     //  [in] LPCVOID lpBaseAddress
     //);
     extern "kernel32" fn UnmapViewOfFile(
         lpBaseAddress: windows.LPCVOID,
-    ) callconv(windows.WINAPI) windows.BOOL;
+    ) callconv(.winapi) windows.BOOL;
 
     // extern "kernel32" fn CreateFileA(
     //     lpFileName: windows.LPCSTR,
@@ -55,7 +55,7 @@ const win = if (builtin.os.tag != .windows) void else struct {
     //     dwCreationDisposition: windows.DWORD,
     //     dwFlagsAndAttributes: windows.DWORD,
     //     hTemplateFile: ?windows.HANDLE,
-    // ) callconv(windows.WINAPI) windows.HANDLE;
+    // ) callconv(.winapi) windows.HANDLE;
 };
 
 pub fn setImageSize(
@@ -179,11 +179,11 @@ fn parseImageSize(
         .h = std.math.cast(i64, g_height) orelse return error.Cast,
     };
 }
-const max_align = @alignOf(std.c.max_align_t);
+const max_align: std.mem.Alignment = .of(std.c.max_align_t);
 fn allocDecoder(
     gpa: Allocator,
     comptime name: []const u8,
-) !struct { []align(max_align) u8, *wuffs.wuffs_base__image_decoder } {
+) !struct { []align(max_align.toByteUnits()) u8, *wuffs.wuffs_base__image_decoder } {
     const size = @field(wuffs, "sizeof__wuffs_" ++
         name ++ "__decoder")();
     const init_fn = @field(wuffs, "wuffs_" ++

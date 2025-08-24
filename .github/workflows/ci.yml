@@ -28,9 +28,7 @@ jobs:
           fetch-depth: 0  # Change if you need git info
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.14.0
+        uses: mlugg/setup-zig@v2
 
       - name: Build
         run: zig build test 

@@ -7,11 +7,11 @@ pub fn Channel(comptime T: type) type {
         writeable: std.Thread.Condition = .{},
         readable: std.Thread.Condition = .{},
 
-        const Fifo = std.fifo.LinearFifo(T, .Slice);
+        const Fifo = std.ArrayList(T);
         const Self = @This();
 
         pub fn init(buffer: []T) Self {
-            return Self{ .fifo = Fifo.init(buffer) };
+            return Self{ .fifo = Fifo.initBuffer(buffer) };
         }
 
         pub fn put(self: *Self, item: T) void {
@@ -21,7 +21,7 @@ pub fn Channel(comptime T: type) type {
                 self.readable.signal();
             }
 
-            while (true) return self.fifo.writeItem(item) catch {
+            while (true) return self.fifo.appendBounded(item) catch {
                 self.writeable.wait(&self.lock);
                 continue;
             };
@@ -31,7 +31,7 @@ pub fn Channel(comptime T: type) type {
             self.lock.lock();
             defer self.lock.unlock();
 
-            try self.fifo.writeItem(item);
+            try self.fifo.appendBounded(item);
 
             // only signal on success
             self.readable.signal();
@@ -44,7 +44,7 @@ pub fn Channel(comptime T: type) type {
                 self.writeable.signal();
             }
 
-            while (true) return self.fifo.readItem() orelse {
+            while (true) return self.fifo.pop() orelse {
                 self.readable.wait(&self.lock);
                 continue;
             };
@@ -54,7 +54,7 @@ pub fn Channel(comptime T: type) type {
             self.lock.lock();
             defer self.lock.unlock();
 
-            if (self.fifo.readItem()) |item| return item;
+            if (self.fifo.pop()) |item| return item;
 
             // signal on empty queue
             self.writeable.signal();

@@ -44,7 +44,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len < 1 or args.len > 2) return .{
                 .err = "expected 1 or 2 string arguments",
             };
@@ -71,7 +71,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return b.not();
         }
@@ -94,7 +94,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "expected 1 or more boolean argument(s)" };
             for (args) |a| switch (a) {
                 .bool => {},
@@ -123,7 +123,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len == 0) return .{ .err = "'or' wants at least one argument" };
             for (args) |a| switch (a) {
                 .bool => {},

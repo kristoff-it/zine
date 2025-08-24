@@ -1,18 +1,19 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const supermd = @import("supermd");
+const c = supermd.c;
+const Ast = supermd.Ast;
+const Iter = Ast.Iter;
 const tracy = @import("tracy");
 const root = @import("../root.zig");
 const hl = @import("../highlight.zig");
+const highlightCode = hl.highlightCode;
 const context = @import("../context.zig");
 const StringTable = @import("../StringTable.zig");
 const PathTable = @import("../PathTable.zig");
 const Path = PathTable.Path;
 const PathName = PathTable.PathName;
-const c = supermd.c;
-const highlightCode = hl.highlightCode;
 const HtmlSafe = @import("superhtml").HtmlSafe;
-const Ast = supermd.Ast;
-const Iter = Ast.Iter;
 
 const log = std.log.scoped(.render);
 
@@ -21,7 +22,7 @@ pub fn html(
     ctx: *const context.Template,
     page: *const context.Page,
     start: supermd.Node,
-    w: anytype,
+    w: *Writer,
 ) !void {
     const zone = tracy.traceNamed(@src(), "html");
     defer zone.end();
@@ -279,7 +280,7 @@ pub fn html(
                 .exit => {},
             },
             .CODE => switch (ev.dir) {
-                .enter => try w.print("<code>{s}</code>", .{
+                .enter => try w.print("<code>{f}</code>", .{
                     HtmlSafe{ .bytes = node.literal() orelse "" },
                 }),
                 .exit => {},
@@ -299,7 +300,7 @@ pub fn html(
                     if (node.literal()) |code| {
                         const fence_info = node.fenceInfo() orelse "";
                         if (std.mem.trim(u8, fence_info, " \n").len == 0) {
-                            try w.print("<pre><code>{s}</code></pre>", .{
+                            try w.print("<pre><code>{f}</code></pre>", .{
                                 HtmlSafe{ .bytes = code },
                             });
                         } else {
@@ -403,7 +404,7 @@ fn renderDirective(
     page: *const context.Page,
     ast: Ast,
     ev: Iter.Event,
-    w: anytype,
+    w: *Writer,
 ) !void {
     const zone = tracy.trace(@src());
     defer zone.end();
@@ -577,7 +578,7 @@ fn renderDirective(
                             else => unreachable,
                         };
                     } else {
-                        try w.print("{s}", .{HtmlSafe{ .bytes = code.src.?.url }});
+                        try w.print("{f}", .{HtmlSafe{ .bytes = code.src.?.url }});
                     }
 
                     try w.writeAll("</code></pre>");
@@ -598,7 +599,7 @@ fn printUrl(
     ctx: *const context.Template,
     page: *const context.Page,
     src: supermd.context.Src,
-    w: anytype,
+    w: *Writer,
 ) !void {
     switch (src) {
         .url => |url| try w.writeAll(url),
@@ -616,7 +617,7 @@ fn printUrl(
 
             if (a[0] != '/') {
                 const v = ctx._meta.build.variants[page._scan.variant_id];
-                try w.print("{}", .{page._scan.url.fmt(
+                try w.print("{f}", .{page._scan.url.fmt(
                     &v.string_table,
                     &v.path_table,
                     null,
@@ -624,7 +625,7 @@ fn printUrl(
                 )});
             }
 
-            try w.writeAll(a);
+            try w.writeAll(std.mem.trimLeft(u8, a, "/"));
         },
         .page => |p| {
             try ctx.printLinkPrefix(
@@ -642,7 +643,7 @@ fn printUrl(
             const v = ctx._meta.build.variants[p.resolved.variant_id];
             if (p.resolved.alt) |a| {
                 if (a[0] != '/') {
-                    try w.print("{}", .{path.fmt(
+                    try w.print("{f}", .{path.fmt(
                         &v.string_table,
                         &v.path_table,
                         null,
@@ -651,7 +652,7 @@ fn printUrl(
                 }
                 try w.writeAll(a);
             } else {
-                try w.print("{}", .{path.fmt(
+                try w.print("{f}", .{path.fmt(
                     &v.string_table,
                     &v.path_table,
                     null,
@@ -672,10 +673,11 @@ fn printUrl(
             };
 
             const v = ctx._meta.build.variants[page._scan.variant_id];
-            try w.print("{/}", .{pn.fmt(
+            try w.print("{f}", .{pn.fmt(
                 &v.string_table,
                 &v.path_table,
                 null,
+                "/",
             )});
         },
         .site_asset => |sa| {
@@ -686,10 +688,11 @@ fn printUrl(
                 .name = @enumFromInt(sa.resolved.name),
             };
 
-            try w.print("{/}", .{pn.fmt(
+            try w.print("{f}", .{pn.fmt(
                 &ctx._meta.build.st,
                 &ctx._meta.build.pt,
                 null,
+                "/",
             )});
         },
         .build_asset => |ba| {
@@ -702,13 +705,13 @@ fn printUrl(
 pub fn printAssetUrlPrefix(
     ctx: *const context.Template,
     page: *const context.Page,
-    w: anytype,
+    w: *Writer,
 ) !void {
     switch (ctx.site._meta.kind) {
         .simple => |url_prefix_path| {
             if (ctx.page != page) {
-                try w.print("{/}/", .{
-                    root.fmtJoin(&.{
+                try w.print("{f}/", .{
+                    root.fmtJoin('/', &.{
                         ctx.site.host_url,
                         url_prefix_path,
                     }),
@@ -722,8 +725,8 @@ pub fn printAssetUrlPrefix(
         .multi => |locale| {
             const assets_prefix_path = ctx._meta.build.cfg.Multilingual.assets_prefix_path;
             if (ctx.page != page or locale.host_url_override != null) {
-                try w.print("{/}", .{
-                    root.fmtJoin(&.{
+                try w.print("{f}", .{
+                    root.fmtJoin('/', &.{
                         ctx.site.host_url,
                         assets_prefix_path,
                     }),
@@ -740,7 +743,7 @@ pub fn printAssetUrlPrefix(
 fn renderLink(
     ev: Iter.Event,
     ctx: *const context.Template,
-    w: anytype,
+    w: *Writer,
 ) !void {
     _ = ctx;
     const node = ev.node;
@@ -754,7 +757,7 @@ fn renderLink(
     }
 }
 
-pub fn htmlToc(ast: Ast, w: anytype) !void {
+pub fn htmlToc(ast: Ast, w: *Writer) !void {
     try w.print("<ul>\n", .{});
     var lvl: i32 = 1;
     var first_item = true;
@@ -798,7 +801,7 @@ pub fn htmlToc(ast: Ast, w: anytype) !void {
     try w.print("</ul>", .{});
 }
 
-fn tocRenderHeading(heading: supermd.Node, w: anytype, link: bool) !void {
+fn tocRenderHeading(heading: supermd.Node, w: *Writer, link: bool) !void {
     var it = Iter.init(heading);
     while (it.next()) |ev| {
         const node = ev.node;
@@ -838,7 +841,7 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype, link: bool) !void {
                 .exit => {},
             },
             .CODE => switch (ev.dir) {
-                .enter => try w.print("<code>{s}</code>", .{
+                .enter => try w.print("<code>{f}</code>", .{
                     HtmlSafe{ .bytes = node.literal() orelse "" },
                 }),
                 .exit => {},
@@ -856,7 +859,7 @@ fn tocRenderHeading(heading: supermd.Node, w: anytype, link: bool) !void {
     }
 }
 
-pub fn htmlTocDetails(ast: Ast, w: anytype) !void {
+pub fn htmlTocDetails(ast: Ast, w: *Writer) !void {
     var lvl: i32 = 1;
     var first_item = true;
     var node: ?supermd.Node = ast.md.root.firstChild();

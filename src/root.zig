@@ -1,4 +1,9 @@
 const std = @import("std");
+const log = std.log.scoped(.run);
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
+const Component = std.Uri.Component;
 const builtin = @import("builtin");
 const tracy = @import("tracy");
 const ziggy = @import("ziggy");
@@ -9,14 +14,11 @@ const context = @import("context.zig");
 const Build = @import("Build.zig");
 const Variant = @import("Variant.zig");
 const StringTable = @import("StringTable.zig");
-const PathTable = @import("PathTable.zig");
 const String = StringTable.String;
+const PathTable = @import("PathTable.zig");
 const Path = PathTable.Path;
 const PathName = PathTable.PathName;
-const assert = std.debug.assert;
-const Allocator = std.mem.Allocator;
 
-const log = std.log.scoped(.run);
 pub var progress_buf: [4096]u8 = undefined;
 pub var progress: std.Progress.Node = undefined;
 
@@ -176,7 +178,7 @@ pub const Config = union(enum) {
                 joined_path,
                 1024 * 1024,
                 null,
-                1,
+                .of(u8),
                 0,
             ) catch |err| switch (err) {
                 error.FileNotFound => {
@@ -205,7 +207,7 @@ pub const Config = union(enum) {
                 fatal.msg(
                     \\Error while loading the Zine config file:
                     \\
-                    \\{}
+                    \\{f}
                     \\
                     \\
                 , .{diag.fmt(data)});
@@ -234,19 +236,19 @@ pub const Config = union(enum) {
                         },
                     }
                     fatal.msg(
-                        "error: 'host_url' in zine.ziggy must not contain a path (but contains '{path}'), set 'url_path_prefix' instead",
-                        .{u.path},
+                        "error: 'host_url' in zine.ziggy must not contain a path (but contains '{f}'), set 'url_path_prefix' instead",
+                        .{std.fmt.alt(u.path, .formatPath)},
                     );
                 }
 
                 if (u.query) |q| fatal.msg(
-                    "error: 'host_url' in zine.ziggy must not contain a query (but contains '{query}')",
-                    .{q},
+                    "error: 'host_url' in zine.ziggy must not contain a query (but contains '{f}')",
+                    .{std.fmt.alt(q, .formatQuery)},
                 );
 
                 if (u.fragment) |f| fatal.msg(
-                    "error: 'host_url' in zine.ziggy must not contain a fragment (but contains '{fragment}')",
-                    .{f},
+                    "error: 'host_url' in zine.ziggy must not contain a fragment (but contains '{f}')",
+                    .{std.fmt.alt(f, .formatFragment)},
                 );
 
                 const paths: []const []const u8 = &.{
@@ -283,19 +285,19 @@ pub const Config = union(enum) {
                         },
                     }
                     fatal.msg(
-                        "error: host_url in zine.ziggy must not contain a path (but contains '{path}'), set 'url_path_prefix' instead",
-                        .{u.path},
+                        "error: host_url in zine.ziggy must not contain a path (but contains '{f}'), set 'url_path_prefix' instead",
+                        .{std.fmt.alt(u.path, .formatPath)},
                     );
                 }
 
                 if (u.query) |q| fatal.msg(
-                    "error: host_url in zine.ziggy must not contain a query (but contains '{query}')",
-                    .{q},
+                    "error: host_url in zine.ziggy must not contain a query (but contains '{f}')",
+                    .{std.fmt.alt(q, .formatQuery)},
                 );
 
                 if (u.fragment) |f| fatal.msg(
-                    "error: host_url in zine.ziggy must not contain a fragment (but contains '{fragment}')",
-                    .{f},
+                    "error: host_url in zine.ziggy must not contain a fragment (but contains '{f}')",
+                    .{std.fmt.alt(f, .formatFragment)},
                 );
 
                 const paths: []const []const u8 = &.{
@@ -338,19 +340,28 @@ pub const Config = union(enum) {
                                 },
                             }
                             fatal.msg(
-                                "error: host_url_override in locale '{s}' in zine.ziggy must not contain a path (but contains '{path}'), set 'url_path_prefix' instead",
-                                .{ locale.code, lu.path },
+                                "error: host_url_override in locale '{s}' in zine.ziggy must not contain a path (but contains '{f}'), set 'url_path_prefix' instead",
+                                .{
+                                    locale.code,
+                                    std.fmt.alt(u.path, .formatPath),
+                                },
                             );
                         }
 
                         if (lu.query) |q| fatal.msg(
-                            "error: host_url_override in locale '{s}' in zine.ziggy must not contain a query (but contains '{query}')",
-                            .{ locale.code, q },
+                            "error: host_url_override in locale '{s}' in zine.ziggy must not contain a query (but contains '{f}')",
+                            .{
+                                locale.code,
+                                std.fmt.alt(q, .formatQuery),
+                            },
                         );
 
                         if (lu.fragment) |f| fatal.msg(
-                            "error: host_url_override in locale '{s}' in zine.ziggy must not contain a fragment (but contains '{fragment}')",
-                            .{ locale.code, f },
+                            "error: host_url_override in locale '{s}' in zine.ziggy must not contain a fragment (but contains '{f}')",
+                            .{
+                                locale.code,
+                                std.fmt.alt(f, .formatFragment),
+                            },
                         );
                     }
 
@@ -410,8 +421,8 @@ pub const Config = union(enum) {
 // Mirrors closely the corresponding type in build.zig
 pub const BuildAsset = struct {
     input_path: []const u8,
-    output_path: ?[]const u8 = null,
-    output_always: bool = false,
+    install_path: ?[]const u8 = null,
+    install_always: bool = false,
     rc: std.atomic.Value(u32),
 };
 
@@ -424,17 +435,18 @@ pub const Options = struct {
     pub const Mode = union(enum) {
         memory,
         disk: struct {
+            check_empty_output: bool,
             output_dir_path: ?[]const u8,
         },
     };
 };
 
-pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
+pub fn run(
+    gpa: Allocator,
+    cfg: *const Config,
+    options: Options,
+) error{ OutOfMemory, WriteFailed }!Build {
     assert(worker.started);
-
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
 
     var arena_state = std.heap.ArenaAllocator.init(gpa);
     defer arena_state.deinit();
@@ -498,11 +510,11 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     var rbuf: [std.fs.max_path_bytes]u8 = undefined;
 
                     const keys = ctx.b.templates.entries.items(.key);
-                    const lhs = std.fmt.bufPrint(&lbuf, "{/}", .{
-                        keys[lid].fmt(&ctx.b.st, &ctx.b.pt, null),
+                    const lhs = std.fmt.bufPrint(&lbuf, "{f}", .{
+                        keys[lid].fmt(&ctx.b.st, &ctx.b.pt, null, "/"),
                     }) catch unreachable;
-                    const rhs = std.fmt.bufPrint(&rbuf, "{/}", .{
-                        keys[rid].fmt(&ctx.b.st, &ctx.b.pt, null),
+                    const rhs = std.fmt.bufPrint(&rbuf, "{f}", .{
+                        keys[rid].fmt(&ctx.b.st, &ctx.b.pt, null, "/"),
                     }) catch unreachable;
 
                     if (std.mem.order(u8, lhs, rhs) == .lt) return true;
@@ -544,7 +556,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
     }
 
-    // Activate sectinos by parsing their index.smd page
+    // Activate sections by parsing their index.smd page
     var i18n_errors = false;
     var any_content = false;
     {
@@ -555,19 +567,19 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 i18n_errors = true;
 
                 var buf: [std.fs.max_path_bytes]u8 = undefined;
-                const path = std.fmt.bufPrint(&buf, "{/}", .{fmtJoin(&.{
+                const path = std.fmt.bufPrint(&buf, "{f}", .{fmtJoin('/', &.{
                     build.cfg.Multilingual.i18n_dir_path,
                     v.i18n_diag.path.?,
                 })}) catch v.i18n_diag.path.?;
 
                 v.i18n_diag.path = path;
-                std.debug.print("{}\n\n", .{v.i18n_diag.fmt(v.i18n_src)});
+                std.debug.print("{f}\n\n", .{v.i18n_diag.fmt(v.i18n_src)});
                 if (build.mode == .memory) {
                     try build.mode.memory.errors.append(gpa, .{
                         .ref = "",
                         .msg = try std.fmt.allocPrint(
                             gpa,
-                            "{}\n\n",
+                            "{f}\n\n",
                             .{v.i18n_diag.fmt(v.i18n_src)},
                         ),
                     });
@@ -677,7 +689,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
     // sections for a while after this point, ideally it would require
     // having its own waitgroup.
     for (build.variants) |*v| {
-        for (v.sections.items) |*s| {
+        for (v.sections.items[1..]) |*s| {
             s.sortPages(v, v.pages.items);
         }
     }
@@ -697,11 +709,12 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 switch (p._parse.status) {
                     .empty => {
                         // Page is empty, print warning and skip it
-                        std.debug.print("WARNING: Ignoring empty file '{}'\n", .{
+                        std.debug.print("WARNING: Ignoring empty file '{f}'\n", .{
                             p._scan.file.fmt(
                                 &v.string_table,
                                 &v.path_table,
                                 v.content_dir_path,
+                                "",
                             ),
                         });
                         continue;
@@ -718,7 +731,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         };
 
                         std.debug.print(
-                            \\{}:{}:1 error: frontmatter framing error
+                            \\{f}:{}:1 error: frontmatter framing error
                             \\   {s}
                             \\
                         , .{
@@ -726,6 +739,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                                 &v.string_table,
                                 &v.path_table,
                                 v.content_dir_path,
+                                "",
                             ),
                             p._parse.fm.lines,
                             note,
@@ -734,7 +748,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                             try build.mode.memory.errors.append(gpa, .{
                                 .ref = "",
                                 .msg = try std.fmt.allocPrint(gpa,
-                                    \\{}:{}:1 error: frontmatter framing error
+                                    \\{f}:{}:1 error: frontmatter framing error
                                     \\   {s}
                                     \\
                                 , .{
@@ -742,6 +756,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                                         &v.string_table,
                                         &v.path_table,
                                         v.content_dir_path,
+                                        "",
                                     ),
                                     p._parse.fm.lines,
                                     note,
@@ -757,22 +772,23 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         }
 
                         var buf: [std.fs.max_path_bytes]u8 = undefined;
-                        const path = std.fmt.bufPrint(&buf, "{}", .{
+                        const path = std.fmt.bufPrint(&buf, "{f}", .{
                             p._scan.file.fmt(
                                 &v.string_table,
                                 &v.path_table,
                                 v.content_dir_path,
+                                "",
                             ),
                         }) catch unreachable;
 
                         diag.path = path;
-                        std.debug.print("{}\n\n", .{diag.fmt(p._parse.full_src)});
+                        std.debug.print("{f}\n\n", .{diag.fmt(p._parse.full_src)});
                         if (build.mode == .memory) {
                             try build.mode.memory.errors.append(gpa, .{
                                 .ref = "",
                                 .msg = try std.fmt.allocPrint(
                                     gpa,
-                                    "{}\n\n",
+                                    "{f}\n\n",
                                     .{diag.fmt(p._parse.full_src)},
                                 ),
                             });
@@ -945,7 +961,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     } else "";
 
                     std.debug.print(
-                        \\{}:{}:{}: error: {s}
+                        \\{f}:{}:{}: error: {s}
                         \\|    {s}
                         \\|    {s}
                         \\
@@ -955,6 +971,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                             &v.string_table,
                             &v.path_table,
                             v.content_dir_path,
+                            "",
                         ),
                         sel.start.line,
                         sel.start.col,
@@ -966,7 +983,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         try build.mode.memory.errors.append(gpa, .{
                             .ref = "",
                             .msg = try std.fmt.allocPrint(gpa,
-                                \\{}:{}:{}: error: {s}
+                                \\{f}:{}:{}: error: {s}
                                 \\|    {s}
                                 \\|    {s}
                                 \\
@@ -976,6 +993,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                                     &v.string_table,
                                     &v.path_table,
                                     v.content_dir_path,
+                                    "",
                                 ),
                                 sel.start.line,
                                 sel.start.col,
@@ -1030,7 +1048,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
 
                     const fm_lines = p._parse.fm.lines;
                     std.debug.print(
-                        \\{}:{}:{}: error: {s}
+                        \\{f}:{}:{}: error: {s}
                         \\|    {s}
                         \\|    {s}
                         \\
@@ -1040,6 +1058,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                             &v.string_table,
                             &v.path_table,
                             v.content_dir_path,
+                            "",
                         ),
                         fm_lines + n.startLine(),
                         n.startColumn(),
@@ -1051,7 +1070,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                         try build.mode.memory.errors.append(gpa, .{
                             .ref = "",
                             .msg = try std.fmt.allocPrint(gpa,
-                                \\{}:{}:{}: error: {s}
+                                \\{f}:{}:{}: error: {s}
                                 \\|    {s}
                                 \\|    {s}
                                 \\
@@ -1061,6 +1080,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                                     &v.string_table,
                                     &v.path_table,
                                     v.content_dir_path,
+                                    "",
                                 ),
                                 fm_lines + n.startLine(),
                                 n.startColumn(),
@@ -1264,13 +1284,13 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
             }
             for (v.collisions.items) |c| {
                 std.debug.print(
-                    \\{}: error: output url collision detected
-                    \\   between  {}
-                    \\   and      {}
+                    \\{f}: error: output url collision detected
+                    \\   between  {f}
+                    \\   and      {f}
                     \\
                     \\
                 , .{
-                    c.url.fmt(&v.string_table, &v.path_table, null),
+                    c.url.fmt(&v.string_table, &v.path_table, null, ""),
                     c.previous.fmt(&v.string_table, &v.path_table, v.pages.items),
                     c.loc.fmt(&v.string_table, &v.path_table, v.pages.items),
                 });
@@ -1278,13 +1298,13 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                     try build.mode.memory.errors.append(gpa, .{
                         .ref = "",
                         .msg = try std.fmt.allocPrint(gpa,
-                            \\{}: error: output url collision detected
-                            \\   between  {}
-                            \\   and      {}
+                            \\{f}: error: output url collision detected
+                            \\   between  {f}
+                            \\   and      {f}
                             \\
                             \\
                         , .{
-                            c.url.fmt(&v.string_table, &v.path_table, null),
+                            c.url.fmt(&v.string_table, &v.path_table, null, ""),
                             c.previous.fmt(&v.string_table, &v.path_table, v.pages.items),
                             c.loc.fmt(&v.string_table, &v.path_table, v.pages.items),
                         }),
@@ -1303,31 +1323,32 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 template_errors = true;
             }
 
-            const path = try std.fmt.allocPrint(arena, "{/}", .{
+            const path = try std.fmt.allocPrint(arena, "{f}", .{
                 tpn.fmt(
                     &build.st,
                     &build.pt,
                     build.cfg.getLayoutsDirPath(),
+                    "/",
                 ),
             });
 
             std.debug.lockStdErr();
             defer std.debug.unlockStdErr();
 
-            var buf: std.ArrayListUnmanaged(u8) = .empty;
-            defer if (build.mode != .memory) buf.deinit(gpa);
+            var aw: Writer.Allocating = .init(gpa);
+            defer if (build.mode != .memory) aw.deinit();
 
             try template.html_ast.printErrors(
                 template.src,
                 path,
-                buf.writer(gpa),
+                &aw.writer,
             );
 
-            std.debug.print("{s}", .{buf.items});
+            std.debug.print("{s}", .{aw.written()});
             if (build.mode == .memory) {
                 try build.mode.memory.errors.append(gpa, .{
                     .ref = "",
-                    .msg = buf.items,
+                    .msg = aw.written(),
                 });
             }
             continue;
@@ -1338,28 +1359,29 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 template_errors = true;
             }
 
-            const path = try std.fmt.allocPrint(arena, "{/}", .{
+            const path = try std.fmt.allocPrint(arena, "{f}", .{
                 tpn.fmt(
                     &build.st,
                     &build.pt,
                     build.cfg.getLayoutsDirPath(),
+                    "/",
                 ),
             });
 
-            var buf: std.ArrayListUnmanaged(u8) = .empty;
-            defer if (build.mode != .memory) buf.deinit(gpa);
+            var aw: Writer.Allocating = .init(gpa);
+            defer if (build.mode != .memory) aw.deinit();
 
-            try template.ast.printErrors(
+            template.ast.printErrors(
                 template.src,
                 path,
-                buf.writer(gpa),
-            );
+                &aw.writer,
+            ) catch return error.OutOfMemory;
 
-            std.debug.print("{s}", .{buf.items});
+            std.debug.print("{s}", .{aw.written()});
             if (build.mode == .memory) {
                 try build.mode.memory.errors.append(gpa, .{
                     .ref = "",
-                    .msg = buf.items,
+                    .msg = aw.written(),
                 });
             }
         }
@@ -1368,11 +1390,12 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
             if (!template_errors) {
                 template_errors = true;
             }
-            const path = try std.fmt.allocPrint(arena, "{/}", .{
+            const path = try std.fmt.allocPrint(arena, "{f}", .{
                 tpn.fmt(
                     &build.st,
                     &build.pt,
                     build.cfg.getLayoutsDirPath(),
+                    "/",
                 ),
             });
 
@@ -1469,7 +1492,7 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
         worker.addJob(.{
             .variant_assets_install = .{
                 .progress = progress_install_assets,
-                .install_dir = build.mode.disk.install_dir,
+                .install_dir = build.mode.disk.output_dir,
                 .variant = v,
             },
         });
@@ -1478,12 +1501,12 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
     // install site assets
     {
         const site_assets_install_dir = switch (build.cfg.*) {
-            .Site => build.mode.disk.install_dir,
+            .Site => build.mode.disk.output_dir,
             .Multilingual => |ml| blk: {
                 if (ml.assets_prefix_path.len == 0) {
-                    break :blk build.mode.disk.install_dir;
+                    break :blk build.mode.disk.output_dir;
                 } else {
-                    break :blk build.mode.disk.install_dir.openDir(
+                    break :blk build.mode.disk.output_dir.openDir(
                         ml.assets_prefix_path,
                         .{},
                     ) catch |err| fatal.dir(ml.assets_prefix_path, err);
@@ -1503,11 +1526,12 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
             //     key.name,
             // )];
 
-            const path = std.fmt.bufPrint(&buf, "{}", .{
+            const path = std.fmt.bufPrint(&buf, "{f}", .{
                 key.fmt(
                     &build.st,
                     &build.pt,
                     null,
+                    "",
                 ),
             }) catch unreachable;
 
@@ -1515,9 +1539,24 @@ pub fn run(gpa: Allocator, cfg: *const Config, options: Options) Build {
                 _ = build.site_assets_dir.updateFile(
                     path,
                     site_assets_install_dir,
-                    path,
+                    std.mem.trimLeft(u8, path, "/"),
                     .{},
                 ) catch |err| fatal.file(path, err);
+            }
+        }
+    }
+
+    // install build assets
+    {
+        for (build.build_assets.values()) |ba| {
+            // Avoid installing if already rc'd
+            if (ba.rc.load(.acquire) > 0) {
+                _ = build.base_dir.updateFile(
+                    ba.input_path,
+                    build.mode.disk.output_dir,
+                    std.mem.trimLeft(u8, ba.install_path.?, "/"),
+                    .{},
+                ) catch |err| fatal.file(ba.input_path, err);
             }
         }
     }
@@ -1612,12 +1651,12 @@ fn printSuperMdErrors(
             else => @tagName(err.kind),
         };
         std.debug.print(
-            \\{}:{}:{}: [{s}] {s}
+            \\{f}:{}:{}: [{s}] {s}
             \\|    {s}
             \\|    {s}
             \\
         , .{
-            file.fmt(&v.string_table, &v.path_table, v.content_dir_path),
+            file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
             fm_lines + range.start.row,
             range.start.col,
             tag_name,
@@ -1641,13 +1680,13 @@ fn printSuperMdErrors(
             try build.mode.memory.errors.append(gpa, .{
                 .ref = "",
                 .msg = try std.fmt.allocPrint(gpa,
-                    \\{}:{}:{}: [{s}] {s}
+                    \\{f}:{}:{}: [{s}] {s}
                     \\|    {s}
                     \\|    {s}
                     \\
                     \\
                 , .{
-                    file.fmt(&v.string_table, &v.path_table, v.content_dir_path),
+                    file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
                     fm_lines + range.start.row,
                     range.start.col,
                     tag_name,
@@ -1660,36 +1699,42 @@ fn printSuperMdErrors(
     }
 }
 
-pub fn fmtJoin(paths: []const []const u8) std.fmt.Formatter(formatJoin) {
-    return .{ .data = paths };
+pub fn fmtJoin(sep: u8, paths: []const []const u8) FormatJoin {
+    return .{ .paths = paths, .sep = sep };
 }
 
-fn formatJoin(paths: []const []const u8, comptime fmt: []const u8, options: std.fmt.FormatOptions, w: anytype) !void {
-    _ = options;
-    comptime assert(std.mem.eql(u8, fmt, "/") or std.mem.eql(u8, fmt, "\\"));
-    const separator = fmt[0];
+pub const FormatJoin = struct {
+    paths: []const []const u8,
+    sep: u8,
 
-    const first_path_idx = for (paths, 0..) |p, idx| {
-        if (p.len != 0) break idx;
-    } else return;
+    pub fn format(fj: FormatJoin, w: *Writer) !void {
+        assert(fj.sep == '/' or fj.sep == '\\');
 
-    try w.writeAll(paths[first_path_idx]); // first component
-    var prev_path = paths[first_path_idx];
-    for (paths[first_path_idx + 1 ..]) |this_path| {
-        if (this_path.len == 0) continue; // skip empty components
-        const prev_sep = prev_path[prev_path.len - 1] == separator;
-        const this_sep = this_path[0] == separator;
-        if (!prev_sep and !this_sep) {
-            try w.writeByte(separator);
+        const paths = fj.paths;
+        const separator = fj.sep;
+
+        const first_path_idx = for (paths, 0..) |p, idx| {
+            if (p.len != 0) break idx;
+        } else return;
+
+        try w.writeAll(paths[first_path_idx]); // first component
+        var prev_path = paths[first_path_idx];
+        for (paths[first_path_idx + 1 ..]) |this_path| {
+            if (this_path.len == 0) continue; // skip empty components
+            const prev_sep = prev_path[prev_path.len - 1] == separator;
+            const this_sep = this_path[0] == separator;
+            if (!prev_sep and !this_sep) {
+                try w.writeByte(separator);
+            }
+            if (prev_sep and this_sep) {
+                try w.writeAll(this_path[1..]); // skip redundant separator
+            } else {
+                try w.writeAll(this_path);
+            }
+            prev_path = this_path;
         }
-        if (prev_sep and this_sep) {
-            try w.writeAll(this_path[1..]); // skip redundant separator
-        } else {
-            try w.writeAll(this_path);
-        }
-        prev_path = this_path;
     }
-}
+};
 
 pub fn join(allocator: std.mem.Allocator, paths: []const []const u8, separator: u8) ![]u8 {
     // Find first non-empty path index.

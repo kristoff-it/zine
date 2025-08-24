@@ -1,4 +1,7 @@
 const std = @import("std");
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const supermd = @import("supermd");
 const superhtml = @import("superhtml");
@@ -8,22 +11,20 @@ const syntax = @import("syntax");
 const root = @import("root.zig");
 const fatal = @import("fatal.zig");
 const context = @import("context.zig");
+const Page = context.Page;
 const Build = @import("Build.zig");
 const StringTable = @import("StringTable.zig");
+const String = StringTable.String;
 const PathTable = @import("PathTable.zig");
+const Path = PathTable.Path;
+const PathName = PathTable.PathName;
 const Variant = @import("Variant.zig");
 const Template = @import("Template.zig");
 const highlight = @import("highlight.zig");
 const main = @import("main.zig");
+const gpa = main.gpa;
 const wuffs = @import("wuffs.zig");
 const Channel = @import("channel.zig").Channel;
-const String = StringTable.String;
-const Path = PathTable.Path;
-const PathName = PathTable.PathName;
-const Allocator = std.mem.Allocator;
-const Page = context.Page;
-const assert = std.debug.assert;
-const gpa = main.gpa;
 
 const log = std.log.scoped(.worker);
 
@@ -239,11 +240,12 @@ fn analyzePage(
 
     const v = &build.variants[variant_id];
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    const page_path = std.fmt.bufPrint(&buf, "{}", .{
+    const page_path = std.fmt.bufPrint(&buf, "{f}", .{
         page._scan.file.fmt(
             &v.string_table,
             &v.path_table,
             v.content_dir_path,
+            "",
         ),
     }) catch unreachable;
 
@@ -385,11 +387,12 @@ fn analyzeContent(
                                 switch (hint.kind) {
                                     .page_asset => {
                                         break :blk .{
-                                            try std.fmt.allocPrint(scratch, "{}", .{
+                                            try std.fmt.allocPrint(scratch, "{f}", .{
                                                 pn.fmt(
                                                     &variant.string_table,
                                                     &variant.path_table,
                                                     null,
+                                                    "",
                                                 ),
                                             }),
                                             variant.content_dir,
@@ -424,7 +427,7 @@ fn analyzeContent(
                             });
                             continue :outer;
                         };
-                        break :blk .{ asset.input_path, b.site_assets_dir };
+                        break :blk .{ asset.input_path, std.fs.cwd() };
                     },
                     .site_asset => |*sa| blk: {
                         if (PathName.get(&b.st, &b.pt, sa.ref)) |pn| {
@@ -757,11 +760,12 @@ fn analyzeContent(
                                             .name = @intFromEnum(name),
                                         };
 
-                                        const bytes = try std.fmt.allocPrint(scratch, "{/}", .{
+                                        const bytes = try std.fmt.allocPrint(scratch, "{f}", .{
                                             pn.fmt(
                                                 &variant.string_table,
                                                 &variant.path_table,
                                                 null,
+                                                "/",
                                             ),
                                         });
 
@@ -859,7 +863,7 @@ fn analyzeContent(
 
                         _ = asset.rc.fetchAdd(1, .acq_rel);
 
-                        const output_path = asset.output_path orelse {
+                        const output_path = asset.install_path orelse {
                             try errors.append(page_arena, .{
                                 .node = n,
                                 .kind = .{
@@ -900,11 +904,12 @@ fn renderPage(
     const variant = &build.variants[variant_id];
 
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    const page_path = std.fmt.bufPrint(&buf, "{}", .{
+    const page_path = std.fmt.bufPrint(&buf, "{f}", .{
         page._scan.file.fmt(
             &variant.string_table,
             &variant.path_table,
             variant.content_dir_path,
+            "",
         ),
     }) catch unreachable;
 
@@ -955,9 +960,9 @@ fn renderPage(
     const layout = build.templates.get(layout_pn).?;
     assert(layout.layout);
 
-    var out_buf: std.ArrayListUnmanaged(u8) = .empty;
-    var err_buf: std.ArrayListUnmanaged(u8) = .empty;
-    defer if (build.mode == .disk) err_buf.deinit(gpa);
+    var out_aw: Writer.Allocating = .init(gpa);
+    var err_aw: Writer.Allocating = .init(gpa);
+    defer if (build.mode == .disk) err_aw.deinit();
 
     var super_vm = SuperVM.init(
         arena,
@@ -969,19 +974,19 @@ fn renderPage(
         layout.ast,
         std.mem.endsWith(u8, layout_path, ".xml"),
         page_path,
-        out_buf.writer(gpa),
-        err_buf.writer(gpa),
+        &out_aw.writer,
+        &err_aw.writer,
     );
 
     while (true) super_vm.run() catch |err| switch (err) {
         error.Done => break,
         error.Fatal => {
-            std.debug.print("{s}\n", .{err_buf.items});
+            std.debug.print("{s}\n", .{err_aw.written()});
             build.any_rendering_error.store(true, .release);
             if (build.mode == .memory) {
                 switch (kind) {
-                    .main => page._render.errors = err_buf.items,
-                    .alternative => |aidx| page._render.alternatives[aidx].errors = err_buf.items,
+                    .main => page._render.errors = err_aw.written(),
+                    .alternative => |aidx| page._render.alternatives[aidx].errors = err_aw.written(),
                 }
             }
             return;
@@ -1026,22 +1031,22 @@ fn renderPage(
     switch (build.mode) {
         .memory => switch (kind) {
             .main => {
-                page._render.out = out_buf.items;
+                page._render.out = out_aw.written();
                 page._render.errors = "";
             },
             .alternative => |aidx| {
-                page._render.alternatives[aidx].out = out_buf.items;
+                page._render.alternatives[aidx].out = out_aw.written();
                 page._render.alternatives[aidx].errors = "";
             },
         },
         .disk => |disk| {
-            defer out_buf.deinit(gpa);
+            defer out_aw.deinit();
             const out_raw = switch (kind) {
                 .main => blk: {
                     // aliases
                     for (page.aliases) |a| {
                         const out_path = if (a[0] == '/') a[1..] else switch (build.cfg.*) {
-                            .Site => try std.fmt.allocPrint(arena, "{}{s}", .{
+                            .Site => try std.fmt.allocPrint(arena, "{f}{s}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1050,7 +1055,7 @@ fn renderPage(
                                 ),
                                 a,
                             }),
-                            .Multilingual => try std.fmt.allocPrint(arena, "{}{s}", .{
+                            .Multilingual => try std.fmt.allocPrint(arena, "{f}{s}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1062,18 +1067,17 @@ fn renderPage(
                         };
 
                         if (std.fs.path.dirnamePosix(out_path)) |path| {
-                            disk.install_dir.makePath(
+                            disk.output_dir.makePath(
                                 path,
                             ) catch |err| fatal.dir(path, err);
                         }
 
-                        const f = disk.install_dir.createFile(
+                        const f = disk.output_dir.createFile(
                             out_path,
                             .{},
                         ) catch |err| fatal.file(out_path, err);
-
                         defer f.close();
-                        f.writeAll(out_buf.items) catch |err| fatal.file(
+                        f.writeAll(out_aw.written()) catch |err| fatal.file(
                             out_path,
                             err,
                         );
@@ -1082,7 +1086,7 @@ fn renderPage(
                     // main
                     {
                         const out_dir_path = switch (build.cfg.*) {
-                            .Site => try std.fmt.allocPrint(arena, "{}", .{
+                            .Site => try std.fmt.allocPrint(arena, "{f}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1090,7 +1094,7 @@ fn renderPage(
                                     true,
                                 ),
                             }),
-                            .Multilingual => try std.fmt.allocPrint(arena, "{}", .{
+                            .Multilingual => try std.fmt.allocPrint(arena, "{f}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1101,7 +1105,7 @@ fn renderPage(
                         };
 
                         // note: do not close build.install_dir
-                        var out_dir = if (out_dir_path.len == 0) disk.install_dir else disk.install_dir.makeOpenPath(
+                        var out_dir = if (out_dir_path.len == 0) disk.output_dir else disk.output_dir.makeOpenPath(
                             out_dir_path,
                             .{},
                         ) catch |err| fatal.dir(out_dir_path, err);
@@ -1117,7 +1121,7 @@ fn renderPage(
                 .alternative => |idx| blk: {
                     const raw_path = page.alternatives[idx].output;
                     const out_path = if (raw_path[0] == '/') raw_path[1..] else switch (build.cfg.*) {
-                        .Site => try std.fmt.allocPrint(arena, "{}{s}", .{
+                        .Site => try std.fmt.allocPrint(arena, "{f}{s}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,
@@ -1126,7 +1130,7 @@ fn renderPage(
                             ),
                             raw_path,
                         }),
-                        .Multilingual => try std.fmt.allocPrint(arena, "{}{s}", .{
+                        .Multilingual => try std.fmt.allocPrint(arena, "{f}{s}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,
@@ -1138,19 +1142,19 @@ fn renderPage(
                     };
 
                     if (std.fs.path.dirnamePosix(out_path)) |path| {
-                        disk.install_dir.makePath(
+                        disk.output_dir.makePath(
                             path,
                         ) catch |err| fatal.dir(path, err);
                     }
 
-                    break :blk disk.install_dir.createFile(
+                    break :blk disk.output_dir.createFile(
                         out_path,
                         .{},
                     ) catch |err| fatal.file(out_path, err);
                 },
             };
             defer out_raw.close();
-            out_raw.writeAll(out_buf.items) catch |err| fatal.file(
+            out_raw.writeAll(out_aw.written()) catch |err| fatal.file(
                 page_path,
                 err,
             );
@@ -1165,7 +1169,7 @@ pub fn languageExists(language: ?[]const u8) bool {
     if (std.mem.eql(u8, lang, "=html")) return true;
     if (std.mem.eql(u8, lang, "=mathtex")) return true;
 
-    if (syntax.FileType.get_by_name(lang) == null) {
+    if (syntax.FileType.get_by_name_static(lang) == null) {
         var buf: [1024]u8 = undefined;
         const filename = std.fmt.bufPrint(
             &buf,
@@ -1173,7 +1177,7 @@ pub fn languageExists(language: ?[]const u8) bool {
             .{lang},
         ) catch "<lang name too long>";
 
-        const guess = syntax.FileType.guess(filename, "") orelse return false;
+        const guess = syntax.FileType.guess_static(filename, "") orelse return false;
         log.debug("guessed '{?s}' as '{s}'", .{ language, guess.name });
     }
 

@@ -60,7 +60,7 @@ pub const Mode = union(enum) {
         errors: std.ArrayListUnmanaged(Error) = .empty,
     },
     disk: struct {
-        install_dir: std.fs.Dir,
+        output_dir: std.fs.Dir,
     },
 
     const Error = struct {
@@ -97,7 +97,7 @@ pub fn deinit(b: *const Build, gpa: Allocator) void {
     switch (b.mode) {
         .memory => {},
         .disk => |disk| {
-            var dir = disk.install_dir;
+            var dir = disk.output_dir;
             dir.close();
         },
     }
@@ -142,19 +142,25 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
     const mode: Mode = switch (opts.mode) {
         .memory => .{ .memory = .{} },
         .disk => |disk| blk: {
-            const install_base_dir = if (disk.output_dir_path == null)
+            const output_base_dir = if (disk.output_dir_path == null)
                 base_dir
             else
                 std.fs.cwd();
-            const install_dir = install_base_dir.makeOpenPath(
+            const output_dir = output_base_dir.makeOpenPath(
                 disk.output_dir_path orelse "public",
-                .{},
+                .{ .iterate = true },
             ) catch |err| fatal.dir(
                 disk.output_dir_path orelse "public",
                 err,
             );
 
-            break :blk .{ .disk = .{ .install_dir = install_dir } };
+            if (disk.check_empty_output) ensureEmpty(
+                output_dir,
+
+                disk.output_dir_path orelse "public",
+            );
+
+            break :blk .{ .disk = .{ .output_dir = output_dir } };
         },
     };
 
@@ -162,7 +168,7 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
         .Site => undefined,
         .Multilingual => |ml| base_dir.makeOpenPath(
             ml.i18n_dir_path,
-            .{},
+            .{ .iterate = true },
         ) catch |err| fatal.dir(ml.i18n_dir_path, err),
     };
 
@@ -178,6 +184,25 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
         .mode = mode,
         .i18n_dir = i18n_dir,
     };
+}
+
+fn ensureEmpty(dir: std.fs.Dir, path: []const u8) void {
+    var it = dir.iterateAssumeFirstIteration();
+    const next = it.next() catch |err| fatal.dir(path, err);
+    if (next != null) {
+        fatal.msg(
+            \\error: the output directory is not empty
+            \\
+            \\info: the output path:
+            \\      {s}
+            \\
+            \\note: use `-f` or `--force` to output a release in
+            \\      a non-empty directory, but be aware that old 
+            \\      files will **NOT** be removed!
+            \\
+            \\
+        , .{path});
+    }
 }
 
 fn collectGitInfo(
@@ -309,8 +334,8 @@ pub fn scanTemplates(b: *Build, gpa: Allocator, arena: Allocator) !void {
                 else => continue,
                 .file, .sym_link => {
                     if (std.mem.endsWith(u8, entry.name, ".html")) {
-                        std.debug.print("WARNING: found plain HTML file {/}, did you mean to give it a shtml extension?\n", .{
-                            root.fmtJoin(&.{
+                        std.debug.print("WARNING: found plain HTML file {f}, did you mean to give it a shtml extension?\n", .{
+                            root.fmtJoin('/', &.{
                                 layouts_dir_path,
                                 dir_entry.path,
                                 entry.name,

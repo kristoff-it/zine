@@ -1,7 +1,9 @@
 const Template = @This();
 
 const std = @import("std");
+const Writer = std.Io.Writer;
 const superhtml = @import("superhtml");
+const Ctx = superhtml.utils.Ctx;
 const scripty = @import("scripty");
 const ziggy = @import("ziggy");
 const ZineBuild = @import("../Build.zig");
@@ -13,7 +15,6 @@ const Build = context.Build;
 const Map = context.Map;
 const Iterator = context.Iterator;
 const Optional = context.Optional;
-const Ctx = superhtml.utils.Ctx;
 
 site: *const Site,
 page: *const Page,
@@ -35,14 +36,14 @@ loop: ?*Iterator = null,
 
 pub fn printLinkPrefix(
     ctx: *const Template,
-    w: anytype,
+    w: *Writer,
     other_variant_id: u32,
     /// When set to true the full host url will be always printed
     /// otherwise it will only be added in multilingual websites when
     /// linking to content across variants that have different host url
     /// overrides.
     force_host_url: bool,
-) error{OutOfMemory}!void {
+) error{ OutOfMemory, WriteFailed }!void {
     const other_site = ctx._meta.sites.entries.items(.value)[other_variant_id];
     switch (other_site._meta.kind) {
         .simple => |url_path_prefix| {

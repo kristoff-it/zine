@@ -1,6 +1,10 @@
 const Page = @This();
 
 const std = @import("std");
+const log = std.log.scoped(.page);
+const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const scripty = @import("scripty");
@@ -13,21 +17,17 @@ const render = @import("../render.zig");
 const Signature = @import("doctypes.zig").Signature;
 const DateTime = @import("DateTime.zig");
 const context = @import("../context.zig");
-const Build = @import("../Build.zig");
-const Variant = @import("../Variant.zig");
-const PathTable = @import("../PathTable.zig");
-const StringTable = @import("../StringTable.zig");
-const join = @import("../root.zig").join;
-const Path = PathTable.Path;
-const PathName = PathTable.PathName;
-const assert = std.debug.assert;
-const Allocator = std.mem.Allocator;
 const Value = context.Value;
 const Optional = context.Optional;
 const Bool = context.Bool;
 const String = context.String;
-
-const log = std.log.scoped(.page);
+const Build = @import("../Build.zig");
+const Variant = @import("../Variant.zig");
+const PathTable = @import("../PathTable.zig");
+const Path = PathTable.Path;
+const PathName = PathTable.PathName;
+const StringTable = @import("../StringTable.zig");
+const join = @import("../root.zig").join;
 
 pub const ziggy_options = struct {
     pub const skip_fields: []const std.meta.FieldEnum(Page) = &.{
@@ -103,8 +103,8 @@ _parse: struct {
 
 // Valid if parse.active = true and parse.status == .parsed
 _analysis: struct {
-    frontmatter: std.ArrayListUnmanaged(FrontmatterAnalysisError) = .empty,
-    page: std.ArrayListUnmanaged(PageAnalysisError) = .empty,
+    frontmatter: std.ArrayList(FrontmatterAnalysisError) = .empty,
+    page: std.ArrayList(PageAnalysisError) = .empty,
 } = .{},
 
 // Valid if analysis contains no errors and build mode == .memory
@@ -271,7 +271,7 @@ pub const FrontmatterAnalysisError = union(enum) {
             f: Formatter,
             comptime _: []const u8,
             options: std.fmt.FormatOptions,
-            writer: anytype,
+            writer: *Writer,
         ) !void {
             _ = options;
             switch (f.err) {
@@ -335,11 +335,12 @@ pub fn parse(
     //     p._scan.name,
     // )];
 
-    const path_bytes = std.fmt.bufPrint(&buf, "{}", .{
+    const path_bytes = std.fmt.bufPrint(&buf, "{f}", .{
         p._scan.file.fmt(
             &variant.string_table,
             &variant.path_table,
             null,
+            "",
         ),
     }) catch unreachable;
 
@@ -362,7 +363,7 @@ pub fn parse(
         path_bytes,
         max,
         null,
-        1,
+        .@"1",
         0,
     ) catch |err| fatal.file(path_bytes, err);
 
@@ -499,29 +500,33 @@ pub const Alternative = struct {
                 gpa: Allocator,
                 ctx: *const context.Template,
                 args: []const Value,
-            ) !Value {
+            ) context.CallError!Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
                 const p = alt._page;
                 const v = &ctx._meta.build.variants[p._scan.variant_id];
 
-                var buf: std.ArrayListUnmanaged(u8) = .empty;
-                const w = buf.writer(gpa);
+                var buf: Writer.Allocating = .init(gpa);
+                const w = &buf.writer;
 
-                try ctx.printLinkPrefix(w, p._scan.variant_id, false);
+                ctx.printLinkPrefix(
+                    w,
+                    p._scan.variant_id,
+                    false,
+                ) catch return error.OutOfMemory;
 
-                if (alt.output[0] != '/') try w.print("{}", .{
+                if (alt.output[0] != '/') w.print("{f}", .{
                     p._scan.url.fmt(
                         &v.string_table,
                         &v.path_table,
                         null,
                         true,
                     ),
-                });
+                }) catch return error.OutOfMemory;
 
-                try w.writeAll(alt.output);
+                w.writeAll(alt.output) catch return error.OutOfMemory;
 
-                return String.init(buf.items);
+                return String.init(buf.written());
             }
         };
     };
@@ -558,21 +563,23 @@ pub const Footnote = struct {
                 gpa: Allocator,
                 ctx: *const context.Template,
                 args: []const Value,
-            ) !Value {
+            ) context.CallError!Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-                var buf = std.ArrayList(u8).init(gpa);
+                var buf: Writer.Allocating = .init(gpa);
+                const w = &buf.writer;
+
                 const ast = f._page._parse.ast;
                 const node = ast.footnotes.values()[f._idx].node;
 
-                try render.html(
+                render.html(
                     gpa,
                     ctx,
                     f._page,
                     node,
-                    buf.writer(),
-                );
-                return String.init(try buf.toOwnedSlice());
+                    w,
+                ) catch return error.OutOfMemory;
+                return String.init(buf.written());
             }
         };
     };
@@ -667,7 +674,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return Bool.init(p == ctx.page);
@@ -700,7 +707,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -742,12 +749,13 @@ pub const Builtins = struct {
                         .page_asset => {
                             if (hint.id != p._scan.page_id) {
                                 const other_page = &v.pages.items[hint.id];
-                                return Value.errFmt(gpa, "page asset '{s}' exists but belongs to page '{}', to reference an asset that belongs to another page you must access it through that page (see page accessing functions in SuperHTML Scripty docs)", .{
+                                return Value.errFmt(gpa, "page asset '{s}' exists but belongs to page '{f}', to reference an asset that belongs to another page you must access it through that page (see page accessing functions in SuperHTML Scripty docs)", .{
                                     ref,
                                     other_page._scan.file.fmt(
                                         st,
                                         pt,
                                         v.content_dir_path,
+                                        "",
                                     ),
                                 });
                             }
@@ -781,7 +789,7 @@ pub const Builtins = struct {
             _: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             const variant_id = p._scan.variant_id;
             const s = &ctx._meta.sites.entries.items(.value)[variant_id];
@@ -806,7 +814,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -845,7 +853,7 @@ pub const Builtins = struct {
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const page_url = std.fmt.bufPrint(&buf, "{}", .{
+            const page_url = std.fmt.bufPrint(&buf, "{f}", .{
                 p._scan.url.fmt(
                     &v.string_table,
                     &v.path_table,
@@ -905,7 +913,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -938,7 +946,7 @@ pub const Builtins = struct {
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const page_url = std.fmt.bufPrint(&buf, "{}", .{
+            const page_url = std.fmt.bufPrint(&buf, "{f}", .{
                 p._scan.url.fmt(
                     &v.string_table,
                     &v.path_table,
@@ -978,14 +986,14 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             if (ctx._meta.build.cfg.* != .Multilingual) return .{
                 .err = "only available in a multilingual website",
             };
 
-            var pages: std.ArrayListUnmanaged(Value) = .empty;
+            var pages: std.ArrayList(Value) = .empty;
 
             if (p.translation_key) |tk| {
                 const list = ctx._meta.build.tks.get(tk).?;
@@ -1001,7 +1009,7 @@ pub const Builtins = struct {
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const page_url = std.fmt.bufPrint(&buf, "{}", .{
+            const page_url = std.fmt.bufPrint(&buf, "{f}", .{
                 p._scan.url.fmt(
                     &v.string_table,
                     &v.path_table,
@@ -1054,7 +1062,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return .{
@@ -1081,7 +1089,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
@@ -1111,7 +1119,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return Bool.init(page._scan.subsection_id != 0);
@@ -1137,7 +1145,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             const subsection_id = p._scan.subsection_id;
             if (subsection_id == 0) return context.Array.Empty;
@@ -1175,7 +1183,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const subsection_id = p._scan.subsection_id;
@@ -1226,8 +1234,13 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
@@ -1261,8 +1274,13 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
@@ -1297,9 +1315,14 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
@@ -1333,9 +1356,14 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._scan.parent_section_id == 0) {
+                return .{
+                    .err = "The root index page has no siblings. Use `$page.subpages()` instead.",
+                };
+            }
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
             const s = v.sections.items[p._scan.parent_section_id];
@@ -1373,26 +1401,28 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
-            var buf: std.ArrayListUnmanaged(u8) = .empty;
-            const w = buf.writer(gpa);
+            var aw: Writer.Allocating = .init(gpa);
+            ctx.printLinkPrefix(
+                &aw.writer,
+                p._scan.variant_id,
+                false,
+            ) catch return error.OutOfMemory;
 
-            try ctx.printLinkPrefix(w, p._scan.variant_id, false);
-
-            try w.print("{}", .{
+            aw.writer.print("{f}", .{
                 p._scan.url.fmt(
                     &v.string_table,
                     &v.path_table,
                     null,
                     true,
                 ),
-            });
+            }) catch return error.OutOfMemory;
 
-            return String.init(buf.items);
+            return String.init(aw.written());
         }
     };
 
@@ -1420,7 +1450,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -1440,23 +1470,25 @@ pub const Builtins = struct {
 
             const v = &ctx._meta.build.variants[p._scan.variant_id];
 
-            var buf: std.ArrayListUnmanaged(u8) = .empty;
-            const w = buf.writer(gpa);
+            var aw: Writer.Allocating = .init(gpa);
+            ctx.printLinkPrefix(
+                &aw.writer,
+                p._scan.variant_id,
+                false,
+            ) catch return error.OutOfMemory;
 
-            try ctx.printLinkPrefix(w, p._scan.variant_id, false);
-
-            try w.print("{}", .{
+            aw.writer.print("{f}", .{
                 p._scan.url.fmt(
                     &v.string_table,
                     &v.path_table,
                     null,
                     true,
                 ),
-            });
+            }) catch return error.OutOfMemory;
 
-            try w.print("#{s}", .{elem_id});
+            aw.writer.print("#{s}", .{elem_id}) catch return error.OutOfMemory;
 
-            return String.init(buf.items);
+            return String.init(aw.written());
         }
     };
 
@@ -1480,7 +1512,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -1516,20 +1548,20 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            var buf = std.ArrayList(u8).init(gpa);
+            var aw: Writer.Allocating = .init(gpa);
             const ast = p._parse.ast;
 
-            try render.html(
+            render.html(
                 gpa,
                 ctx,
                 p,
                 ast.md.root,
-                buf.writer(),
-            );
-            return String.init(try buf.toOwnedSlice());
+                &aw.writer,
+            ) catch return error.OutOfMemory;
+            return String.init(aw.written());
         }
     };
     pub const contentSection = struct {
@@ -1549,7 +1581,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             ctx: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument",
             };
@@ -1561,7 +1593,9 @@ pub const Builtins = struct {
             };
 
             const ast = p._parse.ast;
-            var buf = std.ArrayList(u8).init(gpa);
+
+            var buf: Writer.Allocating = .init(gpa);
+            const w = &buf.writer;
 
             const node = ast.ids.get(section_id) orelse {
                 return Value.errFmt(
@@ -1579,14 +1613,14 @@ pub const Builtins = struct {
                 );
             }
 
-            try render.html(
+            render.html(
                 gpa,
                 ctx,
                 p,
                 node,
-                buf.writer(),
-            );
-            return String.init(try buf.toOwnedSlice());
+                w,
+            ) catch return error.OutOfMemory;
+            return String.init(buf.written());
         }
     };
     pub const hasContentSection = struct {
@@ -1606,7 +1640,7 @@ pub const Builtins = struct {
             _: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 1 string argument argument",
             };
@@ -1649,7 +1683,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
@@ -1657,12 +1691,12 @@ pub const Builtins = struct {
 
             const ast = p._parse.ast;
 
-            var sections = std.ArrayList(ContentSection).init(gpa);
+            var sections: std.ArrayList(ContentSection) = .empty;
             var it = ast.ids.iterator();
             while (it.next()) |kv| {
                 const d = kv.value_ptr.getDirective() orelse continue;
                 if (d.kind == .section) {
-                    try sections.append(.{
+                    try sections.append(gpa, .{
                         .id = d.id orelse "",
                         .data = d.data,
                         ._node = kv.value_ptr.*,
@@ -1671,7 +1705,7 @@ pub const Builtins = struct {
                 }
             }
 
-            return Value.from(gpa, try sections.toOwnedSlice());
+            return Value.from(gpa, try sections.toOwnedSlice(gpa));
         }
     };
 
@@ -1700,7 +1734,7 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
@@ -1736,17 +1770,19 @@ pub const Builtins = struct {
             gpa: Allocator,
             _: *const context.Template,
             args: []const Value,
-        ) !Value {
+        ) context.CallError!Value {
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
 
-            const ast = p._parse.ast;
-            var buf = std.ArrayList(u8).init(gpa);
-            try render.htmlToc(ast, buf.writer());
+            var aw: Writer.Allocating = .init(gpa);
+            const w = &aw.writer;
 
-            return String.init(try buf.toOwnedSlice());
+            const ast = p._parse.ast;
+            render.htmlToc(ast, w) catch return error.OutOfMemory;
+
+            return String.init(aw.written());
         }
     };
 };
@@ -1784,7 +1820,7 @@ pub const ContentSection = struct {
                 gpa: Allocator,
                 _: *const context.Template,
                 args: []const Value,
-            ) !Value {
+            ) context.CallError!Value {
                 const bad_arg: Value = .{
                     .err = "expected 0 arguments",
                 };
@@ -1817,7 +1853,7 @@ pub const ContentSection = struct {
                 gpa: Allocator,
                 _: *const context.Template,
                 args: []const Value,
-            ) !Value {
+            ) context.CallError!Value {
                 const bad_arg: Value = .{
                     .err = "expected 0 arguments",
                 };
@@ -1845,24 +1881,25 @@ pub const ContentSection = struct {
                 gpa: Allocator,
                 ctx: *const context.Template,
                 args: []const Value,
-            ) !Value {
+            ) context.CallError!Value {
                 const bad_arg: Value = .{
                     .err = "expected 0 arguments",
                 };
                 if (args.len != 0) return bad_arg;
 
-                var buf = std.ArrayList(u8).init(gpa);
+                var buf: Writer.Allocating = .init(gpa);
+                const w = &buf.writer;
 
                 log.debug("rendering content section [#{s}]", .{cs.id});
 
-                try render.html(
+                render.html(
                     gpa,
                     ctx,
                     cs._page,
                     cs._node,
-                    buf.writer(),
-                );
-                return String.init(try buf.toOwnedSlice());
+                    w,
+                ) catch return error.OutOfMemory;
+                return String.init(buf.written());
             }
         };
 
@@ -1879,14 +1916,14 @@ pub const ContentSection = struct {
                 gpa: Allocator,
                 ctx: *const context.Template,
                 args: []const Value,
-            ) !Value {
+            ) context.CallError!Value {
                 const bad_arg: Value = .{
                     .err = "expected 0 arguments",
                 };
                 if (args.len != 0) return bad_arg;
 
-                var buf = std.ArrayList(u8).init(gpa);
-
+                var buf: Writer.Allocating = .init(gpa);
+                const w = &buf.writer;
                 log.debug("rendering content section [#{s}]", .{cs.id});
 
                 const node = switch (cs._node.nodeType()) {
@@ -1896,15 +1933,15 @@ pub const ContentSection = struct {
                     else => cs._node,
                 };
 
-                try render.html(
+                render.html(
                     gpa,
                     ctx,
                     cs._page,
                     node,
-                    buf.writer(),
-                );
+                    w,
+                ) catch return error.OutOfMemory;
 
-                return String.init(try buf.toOwnedSlice());
+                return String.init(buf.written());
             }
         };
     };

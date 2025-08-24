@@ -24,10 +24,11 @@ pub fn release(gpa: Allocator, args: []const []const u8) bool {
         .drafts = cmd.drafts,
         .mode = .{
             .disk = .{
+                .check_empty_output = !cmd.force,
                 .output_dir_path = cmd.output_dir_path,
             },
         },
-    });
+    }) catch fatal.oom();
 
     defer if (builtin.mode == .Debug) build.deinit(gpa);
 
@@ -51,6 +52,7 @@ pub const Command = struct {
     output_dir_path: ?[]const u8,
     build_assets: std.StringArrayHashMapUnmanaged(BuildAsset),
     drafts: bool,
+    force: bool,
 
     pub fn deinit(co: *const Command, gpa: Allocator) void {
         var ba = co.build_assets;
@@ -61,6 +63,7 @@ pub const Command = struct {
         var output_dir_path: ?[]const u8 = null;
         var build_assets: std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
         var drafts = false;
+        var force = false;
 
         const eql = std.mem.eql;
         const startsWith = std.mem.startsWith;
@@ -69,15 +72,17 @@ pub const Command = struct {
             const arg = args[idx];
             if (eql(u8, arg, "-h") or eql(u8, arg, "--help")) {
                 fatal.msg(help_message, .{});
-            } else if (eql(u8, arg, "-i") or eql(u8, arg, "--install")) {
+            } else if (eql(u8, arg, "-f") or eql(u8, arg, "--force")) {
+                force = true;
+            } else if (eql(u8, arg, "-o") or eql(u8, arg, "--output")) {
                 idx += 1;
                 if (idx >= args.len) fatal.msg(
                     "error: missing argument to '{s}'",
                     .{arg},
                 );
                 output_dir_path = args[idx];
-            } else if (startsWith(u8, arg, "--install=")) {
-                output_dir_path = arg["--install=".len..];
+            } else if (startsWith(u8, arg, "--output=")) {
+                output_dir_path = arg["--output=".len..];
             } else if (startsWith(u8, arg, "--build-asset=")) {
                 const name = arg["--build-asset=".len..];
 
@@ -90,15 +95,15 @@ pub const Command = struct {
                 const input_path = args[idx];
 
                 idx += 1;
-                var output_path: ?[]const u8 = null;
-                var output_always = false;
+                var install_path: ?[]const u8 = null;
+                var install_always = false;
                 if (idx < args.len) {
                     const next = args[idx];
-                    if (startsWith(u8, next, "--output=")) {
-                        output_path = next["--output=".len..];
-                    } else if (startsWith(u8, next, "--output-always=")) {
-                        output_always = true;
-                        output_path = next["--output-always=".len..];
+                    if (startsWith(u8, next, "--install=")) {
+                        install_path = next["--install=".len..];
+                    } else if (startsWith(u8, next, "--install-always=")) {
+                        install_always = true;
+                        install_path = next["--install-always=".len..];
                     } else {
                         idx -= 1;
                     }
@@ -112,9 +117,9 @@ pub const Command = struct {
 
                 gop.value_ptr.* = .{
                     .input_path = input_path,
-                    .output_path = output_path,
-                    .output_always = output_always,
-                    .rc = .{ .raw = @intFromBool(output_always) },
+                    .install_path = install_path,
+                    .install_always = install_always,
+                    .rc = .{ .raw = @intFromBool(install_always) },
                 };
             } else if (eql(u8, arg, "--drafts")) {
                 drafts = true;
@@ -127,6 +132,7 @@ pub const Command = struct {
             .output_dir_path = output_dir_path,
             .build_assets = build_assets,
             .drafts = drafts,
+            .force = force,
         };
     }
 };
@@ -135,9 +141,10 @@ const help_message =
     \\Usage: zine release [OPTIONS]
     \\
     \\Command specific options:
-    \\  --install DIR  Directory where to install the website (default 'public/')
+    \\  --output, -o DIR  Directory where to output the website (default 'public/')
+    \\  --force, -f       Ignore presence of other files in the output directory
     // \\  --build-assets FILE    Path to a file containing a list of build assets
-    \\  --help, -h   Show this help menu
+    \\  --help, -h        Show this help menu
     \\
     \\
 ;

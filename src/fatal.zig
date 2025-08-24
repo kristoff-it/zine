@@ -13,15 +13,11 @@ pub fn oom() noreturn {
 }
 
 pub fn dir(path: []const u8, err: anyerror) noreturn {
-    msg("error accessing dir '{s}': {s}\n", .{
-        path, @errorName(err),
-    });
+    msg("error accessing dir '{s}': {t}\n", .{ path, err });
 }
 
 pub fn file(path: []const u8, err: anyerror) noreturn {
-    msg("error accessing file '{s}': {s}\n", .{
-        path, @errorName(err),
-    });
+    msg("error accessing file '{s}': {t}\n", .{ path, err });
 }
 
 pub fn help() noreturn {

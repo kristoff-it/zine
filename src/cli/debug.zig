@@ -30,7 +30,7 @@ pub fn debug(
         .build_assets = &.empty,
         .drafts = false,
         .mode = .memory,
-    });
+    }) catch fatal.oom();
 
     defer if (builtin.mode == .Debug) build.deinit(gpa);
 
@@ -47,13 +47,13 @@ pub fn debug(
             build.cfg.Site.content_dir_path,
         });
 
-        std.mem.sort(Section, variant.sections.items, variant, struct {
+        std.mem.sort(Section, variant.sections.items[1..], variant, struct {
             pub fn lessThan(v: *Variant, lhs: Section, rhs: Section) bool {
                 var bl: [std.fs.max_path_bytes]u8 = undefined;
                 var br: [std.fs.max_path_bytes]u8 = undefined;
                 return std.mem.order(
                     u8,
-                    std.fmt.bufPrint(&bl, "{}", .{
+                    std.fmt.bufPrint(&bl, "{f}", .{
                         lhs.content_sub_path.fmt(
                             &v.string_table,
                             &v.path_table,
@@ -61,7 +61,7 @@ pub fn debug(
                             false,
                         ),
                     }) catch unreachable,
-                    std.fmt.bufPrint(&br, "{}", .{
+                    std.fmt.bufPrint(&br, "{f}", .{
                         rhs.content_sub_path.fmt(
                             &v.string_table,
                             &v.path_table,
@@ -77,7 +77,7 @@ pub fn debug(
                 \\
                 \\  ------- SECTION -------
                 \\.index = {},
-                \\.section_path = {},
+                \\.section_path = {f},
                 \\.pages = [
                 \\
             , .{
@@ -92,11 +92,12 @@ pub fn debug(
             for (s.pages.items) |p_idx| {
                 const p = variant.pages.items[p_idx];
 
-                std.debug.print("    {}", .{
+                std.debug.print("    {f}", .{
                     p._scan.file.fmt(
                         &variant.string_table,
                         &variant.path_table,
                         variant.content_dir_path,
+                        "",
                     ),
                 });
 
@@ -119,11 +120,12 @@ pub fn debug(
             const pn = kv.key_ptr;
             const lh = kv.value_ptr;
             if (lh.kind == .page_asset) {
-                std.debug.print("{} ({})\n", .{
+                std.debug.print("{f} ({})\n", .{
                     pn.fmt(
                         &variant.string_table,
                         &variant.path_table,
                         null,
+                        "",
                     ),
                     lh.id,
                 });
@@ -174,15 +176,15 @@ pub const Command = struct {
                 const input_path = args[idx];
 
                 idx += 1;
-                var output_path: ?[]const u8 = null;
-                var output_always = false;
+                var install_path: ?[]const u8 = null;
+                var install_always = false;
                 if (idx < args.len) {
                     const next = args[idx];
-                    if (startsWith(u8, next, "--output=")) {
-                        output_path = next["--output=".len..];
-                    } else if (startsWith(u8, next, "--output-always=")) {
-                        output_always = true;
-                        output_path = next["--output-always=".len..];
+                    if (startsWith(u8, next, "--install=")) {
+                        install_path = next["--install=".len..];
+                    } else if (startsWith(u8, next, "--install-always=")) {
+                        install_always = true;
+                        install_path = next["--install-always=".len..];
                     } else {
                         idx -= 1;
                     }
@@ -196,9 +198,9 @@ pub const Command = struct {
 
                 gop.value_ptr.* = .{
                     .input_path = input_path,
-                    .output_path = output_path,
-                    .output_always = output_always,
-                    .rc = .{ .raw = @intFromBool(output_always) },
+                    .install_path = install_path,
+                    .install_always = install_always,
+                    .rc = .{ .raw = @intFromBool(install_always) },
                 };
             } else if (eql(u8, arg, "--drafts")) {
                 drafts = true;
