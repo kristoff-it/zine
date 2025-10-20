@@ -1564,6 +1564,33 @@ pub const Builtins = struct {
             return String.init(aw.written());
         }
     };
+
+    pub const rawMarkdown = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const docs_description =
+            \\Renders the page's content to Markdown.
+        ;
+        pub const examples = "";
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Template,
+            args: []const Value,
+        ) context.CallError!Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            var aw: Writer.Allocating = .init(gpa);
+            const ast = p._parse.ast;
+
+            render.markdown(
+                ctx,
+                p,
+                ast.md.root,
+                &aw.writer,
+            ) catch return error.OutOfMemory;
+            return String.init(aw.written());
+        }
+    };
     pub const contentSection = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
