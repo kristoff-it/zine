@@ -9,16 +9,10 @@ pub const Signature = struct {
     params: []const ScriptyParam = &.{},
     ret: ScriptyParam,
 
-    pub fn format(
-        s: Signature,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        w: *Writer,
-    ) !void {
-        _ = fmt;
-        _ = options;
+    pub fn format(s: Signature, w: *Writer) !void {
         try w.writeAll("(");
         for (s.params, 0..) |p, idx| {
+            @setEvalBranchQuota(1_000_000);
             try w.writeAll(p.link(true));
             if (idx < s.params.len - 1) {
                 try w.writeAll(", ");
@@ -141,9 +135,9 @@ pub const ScriptyParam = union(enum) {
                 inline else => {
                     const dots = if (is_fn_param) "..." else "";
                     return std.fmt.comptimePrint(
-                        \\[[{0s}]($link.ref("{0s}")){1s}]{2s}
+                        \\[[{0t}]($link.ref("{0t}")){1s}]{2s}
                     , .{
-                        @tagName(m), dots, if (is_fn_param or m == .any) "" else 
+                        m, dots, if (is_fn_param or m == .any) "" else 
                         \\ *(see also [[any]]($link.ref("Array")))*   
                     });
                 },
@@ -151,16 +145,16 @@ pub const ScriptyParam = union(enum) {
             inline .Opt => |o| switch (o) {
                 inline .Many => |om| switch (om) {
                     inline else => |omm| return comptime std.fmt.comptimePrint(
-                        \\?[[{0s}]($link.ref("{0s}"))]
-                    , .{@tagName(omm)}),
+                        \\?[[{0t}]($link.ref("{0t}"))]
+                    , .{omm}),
                 },
                 inline else => return comptime std.fmt.comptimePrint(
-                    \\?[{0s}]($link.ref("{0s}"))
-                , .{@tagName(o)}),
+                    \\?[{0t}]($link.ref("{0t}"))
+                , .{o}),
             },
             inline else => |_, t| return comptime std.fmt.comptimePrint(
-                \\[{0s}]($link.ref("{0s}"))
-            , .{@tagName(t)}),
+                \\[{0t}]($link.ref("{0t}"))
+            , .{t}),
         }
     }
 

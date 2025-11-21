@@ -12,11 +12,9 @@ const ref: Reference = .{
 };
 
 pub fn main() !void {
-    var gpa_impl: std.heap.GeneralPurposeAllocator(.{}) = .{};
-    var arena_impl = std.heap.ArenaAllocator.init(gpa_impl.allocator());
-    defer arena_impl.deinit();
-
-    const arena = arena_impl.allocator();
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
 
     const args = std.process.argsAlloc(arena) catch oom();
     const out_path = args[1];
@@ -29,8 +27,9 @@ pub fn main() !void {
     };
     defer out_file.close();
 
-    var buf_writer = std.io.bufferedWriter(out_file.writer());
-    const w = buf_writer.writer();
+    var buf: [4096]u8 = undefined;
+    var writer_state = out_file.writer(&buf);
+    const w = &writer_state.interface;
 
     try w.writeAll(
         \\---
@@ -43,8 +42,8 @@ pub fn main() !void {
         \\---
         \\
     );
-    try w.writeAll(std.fmt.comptimePrint("{}", .{ref}));
-    try buf_writer.flush();
+    try w.writeAll(std.fmt.comptimePrint("{f}", .{ref}));
+    try w.flush();
 }
 
 fn fatal(comptime fmt: []const u8, args: anytype) noreturn {
@@ -80,15 +79,7 @@ pub const Reference = struct {
         examples: []const u8,
     };
 
-    pub fn format(
-        r: Reference,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        w: *Writer,
-    ) !void {
-        _ = fmt;
-        _ = options;
-
+    pub fn format(r: Reference, w: *Writer) !void {
         {
             try w.print("[]($section.id('menu'))\n\n", .{});
             try w.print("># [Global Context]($block.collapsible(true))\n", .{});
@@ -182,7 +173,7 @@ pub const Reference = struct {
 
             for (v.builtins) |b| {
                 try w.print(
-                    \\### []($heading.id("{s}.{s}")) [`fn`]($link.ref("{s}.{s}")) {s} {s}
+                    \\### []($heading.id("{s}.{s}")) [`fn`]($link.ref("{s}.{s}")) {s} {f}
                     \\
                     \\{s}
                     \\
