@@ -2,6 +2,6 @@
 <head id="head">
 </head>
 <body id="body">
-  <h1 :text="$page.title"></h1>
-  <div :html="$page.content()"></div>
+	<h1 :text="$page.title"></h1>
+	<div :html="$page.content()"></div>
 </body>

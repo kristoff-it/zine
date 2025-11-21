@@ -1,36 +1,36 @@
 <!DOCTYPE html>
 <html>
-  <head id="head">
-    <meta charset="utf-8">
-    <meta name="viewport" content="initial-scale=1">
-    <title :text="$site.title"></title>
-    <link type="text/css" rel="stylesheet" href="$site.asset('style.css').link()">
-    <link type="text/css" rel="stylesheet" href="$site.asset('highlight.css').link()">
-    <!-- mathtex -->
-    <link type="text/css" rel="stylesheet" href="$site.asset('Temml-Local.css').link()">
-    <script defer src="$site.asset('temml.min.js').link()"></script>
-    <script defer src="$site.asset('render-mathtex.js').link()"></script>
-    <!-- /mathtex -->
-    <super>
-  </head>
-  <body id="body">
-    <h1 class="site-title" :text="$site.title"></h1>
-    <nav>
-      <a href="$site.page('').link()">Home</a>
-       &nbsp; • &nbsp;
-      <a href="$site.page('about').link()">About</a>
-       &nbsp; • &nbsp;
-      <a href="$site.page('blog').link()">Blog</a>
-      <ctx :if="$site.page('devlog').subpages().first?()">
-         &nbsp; • &nbsp;
-        <a href="$if.link()">Devlog</a>
-      </ctx>
-    </nav>
-    <super>
-    <footer>
-      <hr>
-      <h5>SITE UNDER CONSTRUCTION</h5>
-      <img src="$site.asset('under-construction.gif').link()" width=90>
-    </footer>
-  </body>
+	<head id="head">
+		<meta charset="utf-8">
+		<meta name="viewport" content="initial-scale=1">
+		<title :text="$site.title"></title>
+		<link type="text/css" rel="stylesheet" href="$site.asset('style.css').link()">
+		<link type="text/css" rel="stylesheet" href="$site.asset('highlight.css').link()">
+		<!-- mathtex -->
+		<link type="text/css" rel="stylesheet" href="$site.asset('Temml-Local.css').link()">
+		<script defer src="$site.asset('temml.min.js').link()"></script>
+		<script defer src="$site.asset('render-mathtex.js').link()"></script>
+		<!-- /mathtex -->
+		<super>
+	</head>
+	<body id="body">
+		<h1 class="site-title" :text="$site.title"></h1>
+		<nav>
+			<a href="$site.page('').link()">Home</a>
+			&nbsp; • &nbsp;
+			<a href="$site.page('about').link()">About</a>
+			&nbsp; • &nbsp;
+			<a href="$site.page('blog').link()">Blog</a>
+			<ctx :if="$site.page('devlog').subpages().first?()">
+				&nbsp; • &nbsp;
+				<a href="$if.link()">Devlog</a>
+			</ctx>
+		</nav>
+		<super>
+		<footer>
+			<hr>
+			<h5>SITE UNDER CONSTRUCTION</h5>
+			<img src="$site.asset('under-construction.gif').link()" width=90>
+		</footer>
+	</body>
 </html>
