@@ -1780,7 +1780,7 @@ pub const Builtins = struct {
             const w = &aw.writer;
 
             const ast = p._parse.ast;
-            render.htmlToc(ast, w) catch return error.OutOfMemory;
+            render.htmlToc(gpa, ast, w) catch return error.OutOfMemory;
 
             return String.init(aw.written());
         }
