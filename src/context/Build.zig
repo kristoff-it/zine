@@ -7,6 +7,7 @@ const context = @import("../context.zig");
 const Signature = @import("doctypes.zig").Signature;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
+const Bool = context.Bool;
 const Optional = context.Optional;
 const uninitialized = utils.uninitialized;
 
@@ -145,6 +146,33 @@ pub const Builtins = struct {
                 Optional.init(gpa, build._git)
             else
                 Optional.Null;
+        }
+    };
+
+    pub const isExportMode = struct {
+        pub const signature: Signature = .{ .ret = .Bool };
+        pub const docs_description =
+            \\Returns true if the site is being built in export mode.
+            \\
+            \\Export mode creates a single self-contained HTML file
+            \\with all CSS and images embedded.
+        ;
+        pub const examples =
+            \\<div :if="$build.isExportMode()">This only shows in export mode</div>
+            \\<div :if="$build.isExportMode().not()">This only shows in normal mode</div>
+        ;
+        pub fn call(
+            _: *const Build,
+            _: Allocator,
+            ctx: *const context.Template,
+            args: []const Value,
+        ) context.CallError!Value {
+            const bad_arg: Value = .{
+                .err = "expected 0 arguments",
+            };
+            if (args.len != 0) return bad_arg;
+
+            return Bool.init(ctx._meta.build.is_export_mode);
         }
     };
 };

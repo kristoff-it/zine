@@ -26,6 +26,7 @@ cfg: *const root.Config,
 build_assets: *const std.StringArrayHashMapUnmanaged(BuildAsset),
 any_prerendering_error: bool = false,
 any_rendering_error: std.atomic.Value(bool) = .{ .raw = false },
+is_export_mode: bool = false,
 
 base_dir_path: []const u8,
 base_dir: std.fs.Dir,
@@ -183,6 +184,7 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
         .pt = path_table,
         .mode = mode,
         .i18n_dir = i18n_dir,
+        .is_export_mode = opts.is_export_mode,
     };
 }
 

@@ -12,7 +12,7 @@ pub fn release(gpa: Allocator, args: []const []const u8) bool {
         error.OutOfMemory => fatal.oom(),
     };
 
-    const cmd: Command = try .parse(gpa, args);
+    const cmd: Command = try .parse(gpa, args, help_message);
     const cfg, const base_dir_path = root.Config.load(gpa);
 
     worker.start();
@@ -59,7 +59,7 @@ pub const Command = struct {
         ba.deinit(gpa);
     }
 
-    pub fn parse(gpa: Allocator, args: []const []const u8) !Command {
+    pub fn parse(gpa: Allocator, args: []const []const u8, help: []const u8) !Command {
         var output_dir_path: ?[]const u8 = null;
         var build_assets: std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
         var drafts = false;
@@ -71,7 +71,8 @@ pub const Command = struct {
         while (idx < args.len) : (idx += 1) {
             const arg = args[idx];
             if (eql(u8, arg, "-h") or eql(u8, arg, "--help")) {
-                fatal.msg(help_message, .{});
+                std.debug.print("{s}", .{help});
+                std.process.exit(1);
             } else if (eql(u8, arg, "-f") or eql(u8, arg, "--force")) {
                 force = true;
             } else if (eql(u8, arg, "-o") or eql(u8, arg, "--output")) {
