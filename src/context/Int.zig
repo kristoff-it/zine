@@ -96,7 +96,35 @@ pub const Builtins = struct {
 
             switch (args[0]) {
                 .int => |add| return Int.init(int.value +| add.value),
-                .float => @panic("TODO: int with float argument"),
+                .float => @panic("TODO: int plus with float argument"),
+                else => return argument_error,
+            }
+        }
+    };
+    pub const minus = struct {
+        pub const signature: Signature = .{
+            .params = &.{.Int},
+            .ret = .Int,
+        };
+        pub const docs_description =
+            \\Subtracts the rhs from the lhs.
+            \\
+        ;
+        pub const examples =
+            \\$page.wordCount().minus(12)
+        ;
+        pub fn call(
+            int: Int,
+            _: Allocator,
+            _: *const context.Template,
+            args: []const Value,
+        ) context.CallError!Value {
+            const argument_error: Value = .{ .err = "expected 1 int argument" };
+            if (args.len != 1) return argument_error;
+
+            switch (args[0]) {
+                .int => |subtrahend| return Int.init(int.value -| subtrahend.value),
+                .float => @panic("TODO: int minus with float argument"),
                 else => return argument_error,
             }
         }
