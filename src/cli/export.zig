@@ -1,14 +1,14 @@
 const std = @import("std");
-const root = @import("../root.zig");
-const render = @import("../render.zig");
-const fatal = @import("../fatal.zig");
+
 const context = @import("../context.zig");
-const BuildAsset = root.BuildAsset;
-const Variant = @import("../Variant.zig");
+const fatal = @import("../fatal.zig");
+const render = @import("../render.zig");
 const embed = @import("../render/embed.zig");
 const embedCss = embed.embedCss;
+const root = @import("../root.zig");
+const BuildAsset = root.BuildAsset;
+const Variant = @import("../Variant.zig");
 const Command = @import("release.zig").Command;
-const log = std.log.scoped(.export_cmd);
 
 pub fn exportContent(gpa: std.mem.Allocator, args: []const []const u8) bool {
     exportContentFn(gpa, args) catch |err| {
@@ -72,13 +72,12 @@ fn exportContentFn(gpa: std.mem.Allocator, args: []const []const u8) !void {
         };
         defer file.close();
 
-        var output_buf: [4096]u8 = undefined;
-        var writer_state = file.writer(&output_buf);
-        const writer = &writer_state.interface;
+        const FileWriterType = std.io.GenericWriter(std.fs.File, std.fs.File.WriteError, std.fs.File.write);
+        const writer = FileWriterType{ .context = file };
 
         for (export_opts.custom_styles) |style_path| {
             _ = embedCss(gpa, build.base_dir, style_path, writer) catch |err| blk: {
-                log.err("Failed to embed custom style '{s}': {s}", .{
+                std.debug.print("error: Failed to embed custom style '{s}': {s}\n", .{
                     style_path,
                     @errorName(err),
                 });
@@ -92,11 +91,7 @@ fn exportContentFn(gpa: std.mem.Allocator, args: []const []const u8) !void {
         }
 
         try file.sync();
-        var buf: [256]u8 = undefined;
-        var stdout_writer = std.fs.File.stdout().writer(&buf);
-        const stdout = &stdout_writer.interface;
-        try stdout.print("Exported to {s}\n", .{output_path});
-        try stdout.flush();
+        std.debug.print("Exported to {s}\n", .{output_path});
     }
 }
 
@@ -124,7 +119,7 @@ fn renderRecursive(
     );
 
     embed.processExportHtml(gpa, build, page, page._render.out, writer) catch |err| {
-        log.err("Failed to process HTML for page '{f}': {s}", .{
+        std.debug.print("error: Failed to process HTML for page '{f}': {s}\n", .{
             PageIdFormatter{ .page = page, .variant = variant },
             @errorName(err),
         });
