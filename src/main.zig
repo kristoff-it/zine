@@ -25,6 +25,7 @@ const Command = enum {
     @"-v",
     @"--version",
     // Because other ssgs have them:
+    @"export",
     serve,
     server,
     dev,
@@ -120,6 +121,7 @@ pub fn main() u8 {
     const any_error = switch (cmd) {
         .init => @import("cli/init.zig").init(gpa, args[2..]),
         .release => @import("cli/release.zig").release(gpa, args[2..]),
+        .@"export" => @import("cli/export.zig").exportContent(gpa, args[2..]),
         .debug => @import("cli/debug.zig").debug(gpa, args[2..]),
         .help, .@"-h", .@"--help" => fatal.help(),
         .version, .@"-v", .@"--version" => printVersion(),

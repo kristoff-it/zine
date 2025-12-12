@@ -11,7 +11,7 @@ const supermd = @import("supermd");
 const fatal = @import("fatal.zig");
 const worker = @import("worker.zig");
 const context = @import("context.zig");
-const Build = @import("Build.zig");
+pub const Build = @import("Build.zig");
 const Variant = @import("Variant.zig");
 const StringTable = @import("StringTable.zig");
 const String = StringTable.String;
@@ -21,6 +21,12 @@ const PathName = PathTable.PathName;
 
 pub var progress_buf: [4096]u8 = undefined;
 pub var progress: std.Progress.Node = undefined;
+
+pub const ExportOptions = struct {
+    custom_styles: []const []const u8 = &.{},
+    output_dir: []const u8 = "dist",
+    output_name: []const u8 = "index.html",
+};
 
 pub const Site = struct {
     /// Title of the website
@@ -61,6 +67,7 @@ pub const Site = struct {
     ///    height: auto;
     /// }
     image_size_attributes: bool = false,
+    @"export": ExportOptions = .{},
 };
 
 pub const MultilingualSite = struct {
@@ -115,6 +122,7 @@ pub const MultilingualSite = struct {
     ///    height: auto;
     /// }
     image_size_attributes: bool = false,
+    @"export": ExportOptions = .{},
 };
 
 /// A localized variant of a multilingual website
@@ -431,6 +439,7 @@ pub const Options = struct {
     base_dir_path: []const u8,
     mode: Mode,
     drafts: bool,
+    is_export_mode: bool = false,
 
     pub const Mode = union(enum) {
         memory,
