@@ -28,18 +28,6 @@
     "hash": "sha256-r3L4iLpJUH93S0tH6d6w3pHcLzAaKZPSFBAgpnTMdeI=",
     "rev": "50dbab8945440089384f26ec165d870c29555247"
   },
-  "afl_kit-0.1.0-NdJ3cvscAACLEvjZTB017IAks_Uq5ux1qpA-klDe384Y": {
-    "name": "afl_kit",
-    "url": "git+https://github.com/kristoff-it/zig-afl-kit#8ef04d1db48650345dca68da1e1b8f2615125c40",
-    "hash": "sha256-J0xbmsokjlhOav9KLlH2y4qiSgBit4nS+x6Q10L2OSA=",
-    "rev": "8ef04d1db48650345dca68da1e1b8f2615125c40"
-  },
-  "AFLplusplus-4.21.0-aA1y4UtxAABpnSIF7ARSYDMRyqNcI-2Rwa5UeSsuw70v": {
-    "name": "AFLplusplus",
-    "url": "git+https://github.com/allyourcodebase/AFLplusplus#a52f1376e2d49720c39e4abf4aa4944afbf82191",
-    "hash": "sha256-AlkULC20/RTGMTPk2xWcdXCQlWn3sY3VrD0NRRoTZqY=",
-    "rev": "a52f1376e2d49720c39e4abf4aa4944afbf82191"
-  },
   "tracy-0.0.0-4Xw-1pwwAABTfMgoDP1unCbZDZhJEfict7XCBGF6IdIn": {
     "name": "tracy",
     "url": "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
