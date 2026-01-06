@@ -27,11 +27,12 @@
       {
         system,
         env,
+        pkgs,
         ...
       }: {
         zine = env.package {
           src = lib.cleanSource ./.;
-          nativeBuildInputs = [];
+          nativeBuildInputs = [ pkgs.autoPatchelfHook ];
           buildInputs = [];
           zigPreferMusl = false;
         };
