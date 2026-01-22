@@ -61,6 +61,11 @@ pub const Site = struct {
     ///    height: auto;
     /// }
     image_size_attributes: bool = false,
+
+    /// Default field settings for frontmatter created with the `zine new` subcommand.
+    /// Values here will be overridden by any options passed to an invocation of the
+    /// subcommand.
+    default_frontmatter: ?@import("cli/new.zig").DefaultFrontmatter = null,
 };
 
 pub const MultilingualSite = struct {

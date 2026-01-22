@@ -28,6 +28,7 @@ pub fn help() noreturn {
         \\  (no command)      Start the development web server
         \\  init              Initialize a Zine site in the current directory
         \\  release           Create a release of a Zine site
+        \\  new               Create a new page
         \\  help              Show this menu and exit
         \\  version           Print the Zine version and exit
         \\
@@ -35,7 +36,7 @@ pub fn help() noreturn {
         \\  --drafts          Enable draft pages
         \\  --help, -h        Print command specific usage and extra options
         \\
-        \\Development web server options: 
+        \\Development web server options:
         \\  --host HOST       Listening host (default 'localhost')
         \\  --port PORT       Listening port (default 1990)
         \\  --debounce <ms>   Rebuild delay after a file change (default 25)
