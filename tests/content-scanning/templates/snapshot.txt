@@ -24,7 +24,7 @@ content/another.smd:5:11: error: missing layout file
 |    .layout = "doesntexist-layout.shtml",
 |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-layouts/badextend.shtml: error: extending a template that doesn't exist 
+layouts/badextend.shtml: error: extending a template that doesn't exist
    template 'doesntexist-template.shtml' does not exist
 layouts/badhtml.shtml:1:4: erroneous_end_tag
 layouts/badshtml.shtml:0:1: extend_without_template_attr

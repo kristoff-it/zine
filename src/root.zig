@@ -1406,7 +1406,7 @@ pub fn run(
 
             const parent_name = template.ast.nodes[template.ast.extends_idx].templateValue().span.slice(template.src);
             std.debug.print(
-                \\{s}: error: extending a template that doesn't exist 
+                \\{s}: error: extending a template that doesn't exist
                 \\   template '{s}' does not exist
                 \\
             , .{
@@ -1416,7 +1416,7 @@ pub fn run(
                 try build.mode.memory.errors.append(gpa, .{
                     .ref = "",
                     .msg = try std.fmt.allocPrint(gpa,
-                        \\{s}: error: extending a template that doesn't exist 
+                        \\{s}: error: extending a template that doesn't exist
                         \\   template '{s}' does not exist
                         \\
                     , .{

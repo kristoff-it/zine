@@ -96,7 +96,7 @@ pub fn main() u8 {
             \\| Thread sanitizer introduces a significant     |
             \\| performance overhead.                         |
             \\|                                               |
-            \\| If you're not interested in debugging         |  
+            \\| If you're not interested in debugging         |
             \\| concurrency bugs in Zine, remove `-Dtsan`     |
             \\| when building again.                          |
             \\*-----------------------------------------------*
