@@ -98,9 +98,9 @@ pub fn macosCallback(
     _ = eventIds;
     _ = eventFlags;
     _ = streamRef;
-    const watcher: *MacosWatcher = @alignCast(@ptrCast(clientCallBackInfo));
+    const watcher: *MacosWatcher = @ptrCast(@alignCast(clientCallBackInfo));
 
-    const paths: [*][*:0]u8 = @alignCast(@ptrCast(eventPaths));
+    const paths: [*][*:0]u8 = @ptrCast(@alignCast(eventPaths));
     for (paths[0..numEvents]) |p| {
         const path = std.mem.span(p);
         log.debug("Changed: {s}\n", .{path});

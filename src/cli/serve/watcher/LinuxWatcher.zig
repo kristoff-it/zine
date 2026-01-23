@@ -300,7 +300,7 @@ pub fn listen(watcher: *LinuxWatcher) !void {
 
         var event_data = buffer[0..len];
         while (event_data.len > 0) {
-            const event: *Event = @alignCast(@ptrCast(event_data[0..event_size]));
+            const event: *Event = @ptrCast(@alignCast(event_data[0..event_size]));
             const parent = watcher.watch_fds.get(event.wd).?;
             event_data = event_data[event_size + event.len ..];
 
