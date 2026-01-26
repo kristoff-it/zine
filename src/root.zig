@@ -61,6 +61,11 @@ pub const Site = struct {
     ///    height: auto;
     /// }
     image_size_attributes: bool = false,
+
+    /// Default field settings for frontmatter created with the `zine new` subcommand.
+    /// Values here will be overridden by any options passed to an invocation of the
+    /// subcommand.
+    default_frontmatter: ?@import("cli/new.zig").DefaultFrontmatter = null,
 };
 
 pub const MultilingualSite = struct {
@@ -1401,7 +1406,7 @@ pub fn run(
 
             const parent_name = template.ast.nodes[template.ast.extends_idx].templateValue().span.slice(template.src);
             std.debug.print(
-                \\{s}: error: extending a template that doesn't exist 
+                \\{s}: error: extending a template that doesn't exist
                 \\   template '{s}' does not exist
                 \\
             , .{
@@ -1411,7 +1416,7 @@ pub fn run(
                 try build.mode.memory.errors.append(gpa, .{
                     .ref = "",
                     .msg = try std.fmt.allocPrint(gpa,
-                        \\{s}: error: extending a template that doesn't exist 
+                        \\{s}: error: extending a template that doesn't exist
                         \\   template '{s}' does not exist
                         \\
                     , .{

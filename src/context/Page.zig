@@ -472,14 +472,14 @@ pub const Alternative = struct {
             \\of the page.
         ;
         pub const @"type" =
-            \\A metadata field that can be used to set the content-type of this alternative version of the Page. 
+            \\A metadata field that can be used to set the content-type of this alternative version of the Page.
             \\
             \\Useful for example to generate RSS links:
             \\
             \\```superhtml
             \\<ctx alt="$page.alternative('rss')">
-            \\  <a href="$ctx.alt.link()" 
-            \\     type="$ctx.alt.type" 
+            \\  <a href="$ctx.alt.link()"
+            \\     type="$ctx.alt.type"
             \\     :text="$ctx.alt.name"
             \\  ></a>
             \\</ctx>
@@ -594,65 +594,65 @@ pub const docs_description =
 ;
 pub const Fields = struct {
     pub const title =
-        \\Title of the page, 
+        \\Title of the page,
         \\as set in the SuperMD frontmatter.
     ;
     pub const description =
-        \\Description of the page, 
+        \\Description of the page,
         \\as set in the SuperMD frontmatter.
     ;
     pub const author =
-        \\Author of the page, 
+        \\Author of the page,
         \\as set in the SuperMD frontmatter.
     ;
     pub const date =
-        \\Publication date of the page, 
+        \\Publication date of the page,
         \\as set in the SuperMD frontmatter.
         \\
         \\Used to provide default ordering of pages.
     ;
     pub const layout =
-        \\SuperHTML layout used to render the page, 
+        \\SuperHTML layout used to render the page,
         \\as set in the SuperMD frontmatter.
     ;
     pub const draft =
-        \\When set to true the page will not be rendered in release mode, 
+        \\When set to true the page will not be rendered in release mode,
         \\as set in the SuperMD frontmatter.
     ;
     pub const tags =
-        \\Tags associated with the page, 
+        \\Tags associated with the page,
         \\as set in the SuperMD frontmatter.
     ;
     pub const aliases =
-        \\Aliases of the current page, 
+        \\Aliases of the current page,
         \\as set in the SuperMD frontmatter.
         \\
         \\Aliases can be used to make the same page available
         \\from different locations.
         \\
-        \\Every entry in the list is an output location where the 
+        \\Every entry in the list is an output location where the
         \\rendered page will be copied to.
     ;
     pub const alternatives =
-        \\Alternative versions of the page, 
+        \\Alternative versions of the page,
         \\as set in the SuperMD frontmatter.
         \\
         \\Alternatives are a good way of implementing RSS feeds, for example.
     ;
     pub const skip_subdirs =
-        \\Skips any other potential content present in the subdir of the page, 
+        \\Skips any other potential content present in the subdir of the page,
         \\as set in the SuperMD frontmatter.
         \\
         \\Can only be set to true on section pages (i.e. `index.smd` pages).
     ;
     pub const translation_key =
-        \\Translation key used to map this page with corresponding localized variants, 
+        \\Translation key used to map this page with corresponding localized variants,
         \\as set in the SuperMD frontmatter.
         \\
         \\See the docs on i18n for more info.
     ;
     pub const custom =
-        \\A Ziggy map where you can define custom properties for the page, 
+        \\A Ziggy map where you can define custom properties for the page,
         \\as set in the SuperMD frontmatter.
     ;
 };
@@ -660,10 +660,10 @@ pub const Builtins = struct {
     pub const isCurrent = struct {
         pub const signature: Signature = .{ .ret = .Bool };
         pub const docs_description =
-            \\Returns true if the target page is the one currently being 
-            \\rendered. 
+            \\Returns true if the target page is the one currently being
+            \\rendered.
             \\
-            \\To be used in conjunction with the various functions that give 
+            \\To be used in conjunction with the various functions that give
             \\you references to other pages, like `$site.page()`, for example.
         ;
         pub const examples =
@@ -689,7 +689,7 @@ pub const Builtins = struct {
         pub const docs_description =
             \\Retuns an asset by name from inside the page's asset directory.
             \\
-            \\Assets for a non-section page must be placed under a subdirectory 
+            \\Assets for a non-section page must be placed under a subdirectory
             \\that shares the same name with the corresponding markdown file.
             \\
             \\(as a reminder sections are defined by pages named `index.smd`)
@@ -1076,9 +1076,9 @@ pub const Builtins = struct {
     pub const parentSection = struct {
         pub const signature: Signature = .{ .ret = .Page };
         pub const docs_description =
-            \\Returns the parent section of a page. 
+            \\Returns the parent section of a page.
             \\
-            \\It's always an error to call this function on the site's main 
+            \\It's always an error to call this function on the site's main
             \\index page as it doesn't have a parent section.
         ;
         pub const examples =
@@ -1107,7 +1107,7 @@ pub const Builtins = struct {
     pub const isSection = struct {
         pub const signature: Signature = .{ .ret = .Bool };
         pub const docs_description =
-            \\Returns true if the current page defines a section (i.e. if 
+            \\Returns true if the current page defines a section (i.e. if
             \\the current page is an 'index.smd' page).
             \\
         ;
@@ -1129,10 +1129,10 @@ pub const Builtins = struct {
     pub const subpages = struct {
         pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
         pub const docs_description =
-            \\Returns a list of all the pages in this section. If the page is 
+            \\Returns a list of all the pages in this section. If the page is
             \\not a section, returns an empty list.
             \\
-            \\Sections are defined by `index.smd` files, see the content 
+            \\Sections are defined by `index.smd` files, see the content
             \\structure section in the official docs for more info.
         ;
         pub const examples =
@@ -1171,7 +1171,7 @@ pub const Builtins = struct {
         pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
         pub const docs_description =
             \\Same as `subpages`, but returns the pages in alphabetic order by
-            \\comparing their titles. 
+            \\comparing their titles.
         ;
         pub const examples =
             \\<div :loop="$page.subpagesAlphabetic()">
@@ -1217,9 +1217,9 @@ pub const Builtins = struct {
     pub const @"nextPage?" = struct {
         pub const signature: Signature = .{ .ret = .{ .Opt = .Page } };
         pub const docs_description =
-            \\Returns the next page in the same section, sorted by date. 
+            \\Returns the next page in the same section, sorted by date.
             \\
-            \\The returned value is an optional to be used in conjunction 
+            \\The returned value is an optional to be used in conjunction
             \\with an `if` attribute. Use `$if` to access the unpacked value
             \\within the `if` block.
         ;
@@ -1304,7 +1304,7 @@ pub const Builtins = struct {
     pub const hasNext = struct {
         pub const signature: Signature = .{ .ret = .Bool };
         pub const docs_description =
-            \\Returns true of the target page has another page after (sorted by date) 
+            \\Returns true of the target page has another page after (sorted by date)
         ;
         pub const examples =
             \\$page.hasNext()
@@ -1346,7 +1346,7 @@ pub const Builtins = struct {
     pub const hasPrev = struct {
         pub const signature: Signature = .{ .ret = .Bool };
         pub const docs_description =
-            \\Returns true of the target page has another page before (sorted by date) 
+            \\Returns true of the target page has another page before (sorted by date)
         ;
         pub const examples =
             \\$page.hasPrev()
@@ -1432,11 +1432,11 @@ pub const Builtins = struct {
             .ret = .String,
         };
         pub const docs_description =
-            \\Returns the URL of the target page, allowing you 
+            \\Returns the URL of the target page, allowing you
             \\to specify a fragment id to deep-link to a specific
             \\element of the content page.
             \\
-            \\The id will be checked by Zine and an error will be  
+            \\The id will be checked by Zine and an error will be
             \\reported if it does not exist.
             \\
             \\See the SuperMD reference documentation to learn how to give
@@ -1502,8 +1502,8 @@ pub const Builtins = struct {
         ;
         pub const examples =
             \\<ctx alt="$page.alternative('rss')">
-            \\  <a href="$ctx.alt.link()" 
-            \\     type="$ctx.alt.type" 
+            \\  <a href="$ctx.alt.link()"
+            \\     type="$ctx.alt.type"
             \\     :text="$ctx.alt.name"
             \\  ></a>
         ;
@@ -1672,7 +1672,7 @@ pub const Builtins = struct {
             \\Returns a list of sections for the current page.
             \\
             \\A page that doesn't define any section will have
-            \\a default section for the whole document with a 
+            \\a default section for the whole document with a
             \\null id.
         ;
         pub const examples =
@@ -1810,7 +1810,7 @@ pub const ContentSection = struct {
             pub const signature: Signature = .{ .ret = .String };
             pub const docs_description =
                 \\If the section starts with a heading element,
-                \\this function returns the heading as simple text.           
+                \\this function returns the heading as simple text.
             ;
             pub const examples =
                 \\<div :html="$loop.it.heading()"></div>
@@ -1843,7 +1843,7 @@ pub const ContentSection = struct {
             pub const signature: Signature = .{ .ret = .{ .Opt = .String } };
             pub const docs_description =
                 \\If the section starts with a heading element,
-                \\this function returns the heading as simple text.           
+                \\this function returns the heading as simple text.
             ;
             pub const examples =
                 \\<div :html="$loop.it.heading()"></div>

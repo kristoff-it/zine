@@ -16,6 +16,7 @@ pub const std_options: std.Options = .{
 
 const Command = enum {
     init,
+    new,
     release,
     debug,
     help,
@@ -95,7 +96,7 @@ pub fn main() u8 {
             \\| Thread sanitizer introduces a significant     |
             \\| performance overhead.                         |
             \\|                                               |
-            \\| If you're not interested in debugging         |  
+            \\| If you're not interested in debugging         |
             \\| concurrency bugs in Zine, remove `-Dtsan`     |
             \\| when building again.                          |
             \\*-----------------------------------------------*
@@ -119,6 +120,7 @@ pub fn main() u8 {
 
     const any_error = switch (cmd) {
         .init => @import("cli/init.zig").init(gpa, args[2..]),
+        .new => @import("cli/new.zig").new_page(gpa, args[2..]),
         .release => @import("cli/release.zig").release(gpa, args[2..]),
         .debug => @import("cli/debug.zig").debug(gpa, args[2..]),
         .help, .@"-h", .@"--help" => fatal.help(),
