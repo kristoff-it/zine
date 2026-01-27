@@ -530,7 +530,9 @@ fn renderDirective(
                 if (snd.loop) |val| if (val) try w.writeAll(" loop");
                 if (snd.autoplay) |val| if (val) try w.writeAll(" autoplay");
                 if (snd.muted) |val| if (val) try w.writeAll(" muted");
-                if (snd.controls) |val| if (val) try w.writeAll(" controls");
+                if (snd.hide_controls) |val| {
+                    if (!val) try w.writeAll(" controls");
+                } else try w.writeAll(" controls");
                 try w.writeAll(">\n<source src=\"");
                 try printUrl(ctx, page, snd.src.?, w);
                 try w.writeAll("\">\n</audio>");
