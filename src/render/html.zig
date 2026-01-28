@@ -515,6 +515,36 @@ fn renderDirective(
                 }
             },
         },
+        .audio => |snd| switch (ev.dir) {
+            .enter => {
+                const caption = node.firstChild();
+                if (caption != null) try w.writeAll("<figure>");
+                try w.writeAll("<audio");
+                if (directive.id) |id| try w.print(" id=\"{s}\"", .{id});
+                if (directive.attrs) |attrs| {
+                    try w.writeAll(" class=\"");
+                    for (attrs) |attr| try w.print("{s} ", .{attr});
+                    try w.writeAll("\"");
+                }
+                if (directive.title) |t| try w.print(" title=\"{s}\"", .{t});
+                if (snd.loop) |val| if (val) try w.writeAll(" loop");
+                if (snd.autoplay) |val| if (val) try w.writeAll(" autoplay");
+                if (snd.muted) |val| if (val) try w.writeAll(" muted");
+                if (snd.hide_controls) |val| {
+                    if (!val) try w.writeAll(" controls");
+                } else try w.writeAll(" controls");
+                try w.writeAll(">\n<source src=\"");
+                try printUrl(ctx, page, snd.src.?, w);
+                try w.writeAll("\">\n</audio>");
+                if (caption != null) try w.writeAll("\n<figcaption>");
+            },
+            .exit => {
+                const caption = node.firstChild();
+                if (caption != null) {
+                    try w.writeAll("</figcaption></figure>");
+                }
+            },
+        },
         .link => |lnk| switch (ev.dir) {
             .enter => {
                 try w.writeAll("<a");

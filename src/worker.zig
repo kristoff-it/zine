@@ -491,7 +491,7 @@ fn analyzeContent(
                 directive.kind.code.src = .{ .url = snippet };
             },
 
-            // Link, Image, Video directives
+            // Link, Image, Video, Audio directives
             inline else => |*val| {
                 switch (val.src.?) {
                     .url => continue :outer,
