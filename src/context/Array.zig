@@ -204,6 +204,37 @@ pub const Builtins = struct {
         }
     };
 
+    pub const reverse = struct {
+        pub const signature: Signature = .{
+            .params = &.{},
+            .ret = .{ .Many = .any },
+        };
+        pub const docs_description =
+            \\Returns a new array with the elements in reverse order.
+        ;
+        pub const examples =
+            \\$if.pages().reverse()
+        ;
+        pub fn call(
+            arr: Array,
+            gpa: Allocator,
+            _: *const context.Template,
+            _: []const Value,
+        ) context.CallError!Value {
+            const new = try gpa.alloc(Value, arr._items.len);
+            for (arr._items, 0..) |item, i| {
+                new[new.len - 1 - i] = item;
+            }
+            return .{
+                .array = .{
+                    .len = new.len,
+                    .empty = new.len == 0,
+                    ._items = new,
+                },
+            };
+        }
+    };
+
     pub const @"last?" = struct {
         pub const signature: Signature = .{
             .params = &.{},

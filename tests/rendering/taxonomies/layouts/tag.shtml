@@ -6,6 +6,9 @@
       <ul :loop="$if.pages()">
         <li><a href="$loop.it.link()" :text="$loop.it.title"></a></li>
       </ul>
+      <ul :loop="$if.pages().reverse()">
+        <li><a href="$loop.it.link()" :text="$loop.it.title"></a></li>
+      </ul>
     </ctx>
   </body>
 </html>
