@@ -1592,7 +1592,7 @@ pub const Builtins = struct {
     pub const @"taxonomyTerm?" = struct {
         pub const signature: Signature = .{ .ret = .{ .Opt = .Term } };
         pub const docs_description =
-            \\If this page is a taxonomy term page (e.g. `/tags/rust/`), returns
+            \\If this page is a taxonomy term page (e.g. `/tags/zig/`), returns
             \\the associated Term. Returns null otherwise.
             \\
             \\To be used in conjunction with an `if` attribute.

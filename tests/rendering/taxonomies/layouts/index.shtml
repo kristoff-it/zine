@@ -3,5 +3,8 @@
   <body>
     <h1 :text="$page.title"></h1>
     <a href="$site.taxonomy('tags').link()">Tags</a>
+    <ul :loop="$site.taxonomies()">
+      <li><a href="$loop.it.link()" :text="$loop.it.name"></a></li>
+    </ul>
   </body>
 </html>

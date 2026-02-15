@@ -5,5 +5,8 @@
 .layout = "post.shtml",
 .draft = false,
 .tags = ["zig", "wasm"],
+.custom = {
+    .categories = ["tutorial"],
+},
 ---
 First post content.

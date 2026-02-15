@@ -10,5 +10,10 @@ Site {
             .layout = "tags.shtml",
             .term_layout = "tag.shtml",
         },
+        TaxonomyConfig {
+            .name = "categories",
+            .layout = "categories.shtml",
+            .term_layout = "category.shtml",
+        },
     ],
 }

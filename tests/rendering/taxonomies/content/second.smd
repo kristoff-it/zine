@@ -5,5 +5,8 @@
 .layout = "post.shtml",
 .draft = false,
 .tags = ["zig"],
+.custom = {
+    .categories = ["tutorial", "deep dive"],
+},
 ---
 Second post content.
