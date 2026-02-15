@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h1>All Tags</h1>
+    <ctx :if="$page.taxonomy?()">
+      <ul :loop="$if.terms()">
+        <li><a href="$loop.it.link()" :text="$loop.it.name"></a> (<span :text="$loop.it.count()"></span>)</li>
+      </ul>
+    </ctx>
+  </body>
+</html>
