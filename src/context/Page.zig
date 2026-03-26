@@ -1758,12 +1758,16 @@ pub const Builtins = struct {
     };
 
     pub const toc = struct {
-        pub const signature: Signature = .{ .ret = .String };
+        pub const signature: Signature = .{
+            .params = .{ .Opt = .{.Int} },
+            .ret = .String,
+        };
         pub const docs_description =
             \\Renders the table of content.
         ;
         pub const examples =
             \\<div :html="$page.toc()"></div>
+            \\<div :html="$page.toc(1)"></div>
         ;
         pub fn call(
             p: *const Page,
@@ -1771,16 +1775,27 @@ pub const Builtins = struct {
             _: *const context.Template,
             args: []const Value,
         ) context.CallError!Value {
-            const bad_arg: Value = .{
-                .err = "expected 0 arguments",
+            const bad_arg_nb: Value = .{
+                .err = "Expected almost 1 arg",
             };
-            if (args.len != 0) return bad_arg;
+            const bad_arg: Value = .{
+                .err = "max depth must be bigger than 0",
+            };
+            var max_depth: ?u32 = null;
+            if (args.len > 1) {
+                return bad_arg_nb;
+            } else if (args.len == 1) {
+                if (args[0].int.value < 1) {
+                    return bad_arg;
+                }
+                max_depth = @intCast(args[0].int.value);
+            }
 
             var aw: Writer.Allocating = .init(gpa);
             const w = &aw.writer;
 
             const ast = p._parse.ast;
-            render.htmlToc(ast, w) catch return error.OutOfMemory;
+            render.htmlToc(ast, w, max_depth) catch return error.OutOfMemory;
 
             return String.init(aw.written());
         }
