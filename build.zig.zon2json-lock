@@ -105,7 +105,7 @@
   },
   "N-V-__8AALShqgXkvqYU6f__FrA22SMWmi2TXCJjNTO1m8XJ": {
     "name": "frameworks",
-    "url": "git+https://github.com/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
+    "url": "git+https://code.hexops.org/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
     "hash": "sha256-b1Ay3GfBHwubnrGi4lflPiaqGfzWtABEbEiE8+ZTL90=",
     "rev": "8a1cfb373587ea4c9bb1468b7c986462d8d4e10e"
   },

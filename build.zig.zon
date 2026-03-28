@@ -30,7 +30,7 @@
             .hash = "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgcMFAACyPvxsC7b48pJv9dPkPa4pSrB2VFbCXTfK",
         },
         .frameworks = .{
-            .url = "git+https://github.com/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
+            .url = "git+https://code.hexops.org/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
             .hash = "N-V-__8AALShqgXkvqYU6f__FrA22SMWmi2TXCJjNTO1m8XJ",
             .lazy = true,
         },
