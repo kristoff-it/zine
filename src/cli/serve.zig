@@ -24,6 +24,7 @@ const error_html = @embedFile("serve/error.html");
 const outside_html = @embedFile("serve/outside.html");
 const Watcher = switch (builtin.target.os.tag) {
     .linux => @import("serve/watcher/LinuxWatcher.zig"),
+    .freebsd => @import("serve/watcher/LinuxWatcher.zig"),
     .macos => @import("serve/watcher/MacosWatcher.zig"),
     .windows => @import("serve/watcher/WindowsWatcher.zig"),
     else => @compileError("unsupported platform"),
