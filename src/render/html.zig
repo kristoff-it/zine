@@ -320,6 +320,7 @@ pub fn html(
                             try w.print("<pre><code class=\"{s}\">", .{lang_name});
 
                             highlightCode(
+                                ctx._meta.io,
                                 gpa,
                                 lang_name,
                                 code,
@@ -567,6 +568,7 @@ fn renderDirective(
 
                     if (code.language) |lang| {
                         highlightCode(
+                            ctx._meta.io,
                             gpa,
                             lang,
                             code.src.?.url,
@@ -625,7 +627,7 @@ fn printUrl(
                 )});
             }
 
-            try w.writeAll(std.mem.trimLeft(u8, a, "/"));
+            try w.writeAll(std.mem.trimStart(u8, a, "/"));
         },
         .page => |p| {
             try ctx.printLinkPrefix(

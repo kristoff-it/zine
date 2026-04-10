@@ -1,6 +1,9 @@
 const Build = @This();
 
 const std = @import("std");
+const Io = std.Io;
+const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const tracy = @import("tracy");
 const ziggy = @import("ziggy");
 const fatal = @import("fatal.zig");
@@ -14,8 +17,6 @@ const BuildAsset = root.BuildAsset;
 const Path = PathTable.Path;
 const String = StringTable.String;
 const PathName = PathTable.PathName;
-const Allocator = std.mem.Allocator;
-const assert = std.debug.assert;
 
 const Git = @import("Git.zig");
 
@@ -28,7 +29,7 @@ any_prerendering_error: bool = false,
 any_rendering_error: std.atomic.Value(bool) = .{ .raw = false },
 
 base_dir_path: []const u8,
-base_dir: std.fs.Dir,
+base_dir: Io.Dir,
 st: StringTable,
 pt: PathTable,
 // Fields below are only valid after the corresponding processing stage
@@ -43,11 +44,11 @@ variants: []Variant = &.{},
 // subdirectory" approach be global (ie only one templates dir) or should
 // it be made relative to where the layout lives (eg 'layouts/foo/templates',
 // 'layouts/bar/templates')?
-layouts_dir: std.fs.Dir,
+layouts_dir: Io.Dir,
 templates: Templates = .{},
-site_assets_dir: std.fs.Dir,
+site_assets_dir: Io.Dir,
 site_assets: Assets = .empty,
-i18n_dir: std.fs.Dir,
+i18n_dir: Io.Dir,
 // Translation key map. Each entry is a slice with the same length as the
 // number of variants.
 tks: std.StringHashMapUnmanaged([]?*context.Page) = .empty,
@@ -60,7 +61,7 @@ pub const Mode = union(enum) {
         errors: std.ArrayListUnmanaged(Error) = .empty,
     },
     disk: struct {
-        output_dir: std.fs.Dir,
+        output_dir: Io.Dir,
     },
 
     const Error = struct {
@@ -72,18 +73,18 @@ pub const Mode = union(enum) {
 pub const Assets = std.AutoArrayHashMapUnmanaged(PathName, std.atomic.Value(u32));
 pub const Templates = std.AutoArrayHashMapUnmanaged(PathName, Template);
 
-pub fn deinit(b: *const Build, gpa: Allocator) void {
+pub fn deinit(b: *const Build, io: Io, gpa: Allocator) void {
     {
         var dir = b.base_dir;
-        dir.close();
+        dir.close(io);
     }
     b.st.deinit(gpa);
     b.pt.deinit(gpa);
-    for (b.variants) |v| v.deinit(gpa);
+    for (b.variants) |v| v.deinit(io, gpa);
     gpa.free(b.variants);
     {
         var dir = b.layouts_dir;
-        dir.close();
+        dir.close(io);
     }
     for (b.templates.entries.items(.value)) |t| t.deinit(gpa);
     {
@@ -92,19 +93,19 @@ pub fn deinit(b: *const Build, gpa: Allocator) void {
     }
     {
         var dir = b.site_assets_dir;
-        dir.close();
+        dir.close(io);
     }
     switch (b.mode) {
         .memory => {},
         .disk => |disk| {
             var dir = disk.output_dir;
-            dir.close();
+            dir.close(io);
         },
     }
 
     if (b.cfg.* == .Multilingual) {
         var dir = b.i18n_dir;
-        dir.close();
+        dir.close(io);
     }
 }
 
@@ -112,25 +113,28 @@ pub fn deinit(b: *const Build, gpa: Allocator) void {
 /// recursivly upwards from cwd. Once the config file is found,
 /// it ensures the existence of all required directories and
 /// loads git repository info (if in a repo).
-pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
+pub fn load(io: Io, gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
 
-    const base_dir = std.fs.cwd().openDir(
+    const base_dir = Io.Dir.cwd().openDir(
+        io,
         opts.base_dir_path,
         .{},
     ) catch |err|
         fatal.dir(opts.base_dir_path, err);
 
-    const layouts_dir = base_dir.makeOpenPath(
+    const layouts_dir = base_dir.createDirPathOpen(
+        io,
         cfg.getLayoutsDirPath(),
-        .{ .iterate = true },
+        .{ .open_options = .{ .iterate = true } },
     ) catch |err| fatal.dir(cfg.getLayoutsDirPath(), err);
 
-    const assets_dir = base_dir.makeOpenPath(
+    const assets_dir = base_dir.createDirPathOpen(
+        io,
         cfg.getAssetsDirPath(),
-        .{ .iterate = true },
+        .{ .open_options = .{ .iterate = true } },
     ) catch |err| fatal.dir(cfg.getAssetsDirPath(), err);
 
     var table: StringTable = .empty;
@@ -145,18 +149,19 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
             const output_base_dir = if (disk.output_dir_path == null)
                 base_dir
             else
-                std.fs.cwd();
-            const output_dir = output_base_dir.makeOpenPath(
+                Io.Dir.cwd();
+            const output_dir = output_base_dir.createDirPathOpen(
+                io,
                 disk.output_dir_path orelse "public",
-                .{ .iterate = true },
+                .{ .open_options = .{ .iterate = true } },
             ) catch |err| fatal.dir(
                 disk.output_dir_path orelse "public",
                 err,
             );
 
             if (disk.check_empty_output) ensureEmpty(
+                io,
                 output_dir,
-
                 disk.output_dir_path orelse "public",
             );
 
@@ -166,9 +171,10 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
 
     const i18n_dir = switch (cfg.*) {
         .Site => undefined,
-        .Multilingual => |ml| base_dir.makeOpenPath(
+        .Multilingual => |ml| base_dir.createDirPathOpen(
+            io,
             ml.i18n_dir_path,
-            .{ .iterate = true },
+            .{ .open_options = .{ .iterate = true } },
         ) catch |err| fatal.dir(ml.i18n_dir_path, err),
     };
 
@@ -186,9 +192,9 @@ pub fn load(gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
     };
 }
 
-fn ensureEmpty(dir: std.fs.Dir, path: []const u8) void {
+fn ensureEmpty(io: Io, dir: Io.Dir, path: []const u8) void {
     var it = dir.iterateAssumeFirstIteration();
-    const next = it.next() catch |err| fatal.dir(path, err);
+    const next = it.next(io) catch |err| fatal.dir(path, err);
     if (next != null) {
         fatal.msg(
             \\error: the output directory is not empty
@@ -232,6 +238,7 @@ fn collectGitInfo(
 
 pub fn scanSiteAssets(
     b: *Build,
+    io: Io,
     gpa: Allocator,
     arena: Allocator,
 ) !void {
@@ -250,14 +257,14 @@ pub fn scanSiteAssets(
     while (dir_stack.pop()) |dir_entry| {
         var dir = switch (dir_entry.len) {
             0 => b.site_assets_dir,
-            else => b.site_assets_dir.openDir(dir_entry, .{ .iterate = true }) catch |err| {
+            else => b.site_assets_dir.openDir(io, dir_entry, .{ .iterate = true }) catch |err| {
                 fatal.dir(dir_entry, err);
             },
         };
-        defer if (dir_entry.len > 0) dir.close();
+        defer if (dir_entry.len > 0) dir.close(io);
 
         var it = dir.iterateAssumeFirstIteration();
-        while (it.next() catch |err| fatal.dir(dir_entry, err)) |entry| {
+        while (it.next(io) catch |err| fatal.dir(dir_entry, err)) |entry| {
             // We do not ignore hidden files in assets for two reasons:
             // - Users might want to install "hidden" files on purpose
             // - Unlike other directories where one could want to place
@@ -300,7 +307,7 @@ pub fn scanSiteAssets(
     }
 }
 
-pub fn scanTemplates(b: *Build, gpa: Allocator, arena: Allocator) !void {
+pub fn scanTemplates(b: *Build, io: Io, gpa: Allocator, arena: Allocator) !void {
     const zone = tracy.trace(@src());
     defer zone.end();
     var progress = root.progress.start("Scan templates", 0);
@@ -322,13 +329,14 @@ pub fn scanTemplates(b: *Build, gpa: Allocator, arena: Allocator) !void {
 
     while (dir_stack.pop()) |dir_entry| {
         var dir = if (dir_entry.path.len == 0) b.layouts_dir else b.layouts_dir.openDir(
+            io,
             dir_entry.path,
             .{ .iterate = true },
         ) catch |err| fatal.dir(dir_entry.path, err);
-        defer if (dir_entry.path.len > 0) dir.close();
+        defer if (dir_entry.path.len > 0) dir.close(io);
 
         var dir_it = dir.iterateAssumeFirstIteration();
-        while (dir_it.next() catch |err| fatal.dir(dir_entry.path, err)) |entry| {
+        while (dir_it.next(io) catch |err| fatal.dir(dir_entry.path, err)) |entry| {
             if (std.mem.startsWith(u8, entry.name, ".")) continue;
             switch (entry.kind) {
                 else => continue,

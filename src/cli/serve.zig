@@ -1,5 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const Writer = std.Io.Writer;
 const WebSocket = std.http.Server.WebSocket;
@@ -38,7 +39,7 @@ pub const ServeEvent = union(enum) {
     disconnect: WebSocket,
 };
 
-pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
+pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory}!noreturn {
     if (builtin.single_threaded) {
         std.debug.print(
             "error: single-threaded zine does not yet support running the live server, sorry\n\n",
@@ -47,19 +48,17 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
 
         fatal.help();
     }
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
 
     const cmd: Command = try .parse(gpa, args);
 
-    worker.start();
-    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit();
+    worker.start(io);
+    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit(io);
 
     var buf: [64]ServeEvent = undefined;
     var channel: Channel(ServeEvent) = .init(&buf);
 
     var debouncer: Debouncer = .{
+        .io = io,
         .cascade_window_ms = cmd.debounce,
         .channel = &channel,
     };
@@ -68,8 +67,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         "error: unable to start debouncer: {s}",
         .{@errorName(err)},
     );
-
-    var cfg, const base_dir_path = root.Config.load(gpa);
+    var cfg, const base_dir_path = root.Config.load(io, gpa);
     switch (cfg) {
         .Site => |*s| s.host_url = try std.fmt.allocPrint(
             gpa,
@@ -130,6 +128,7 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     }
 
     var watcher: Watcher = .init(
+        io,
         gpa,
         &debouncer,
         dirs_to_watch.items,
@@ -140,20 +139,19 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
         .{@errorName(err)},
     );
 
-    var build_lock: std.Thread.RwLock = .{};
-    var build = root.run(gpa, &cfg, .{
+    var build_lock: Io.RwLock = .init;
+    var build = root.run(io, gpa, &cfg, .{
         .base_dir_path = base_dir_path,
         .build_assets = &cmd.build_assets,
         .drafts = cmd.drafts,
         .mode = .memory,
     }) catch fatal.oom();
 
-    var server: Server = .init(gpa, &channel, &build, &build_lock);
-    const listen_address = server.start(cmd) catch |err| fatal.msg(
+    var server: Server = .init(io, gpa, &channel, &build, &build_lock);
+    server.start(cmd) catch |err| fatal.msg(
         "error: unable to start live webserver: {s}",
         .{@errorName(err)},
     );
-    _ = listen_address;
 
     std.debug.print(
         \\Starting the Zine development server.
@@ -184,19 +182,19 @@ pub fn serve(gpa: Allocator, args: []const []const u8) noreturn {
     ) = .empty;
 
     while (true) {
-        const event = channel.get();
+        const event = channel.get(io) catch unreachable;
         log.debug("new event: {s}", .{@tagName(event)});
         switch (event) {
             .change => {
-                build_lock.lock();
-                build.deinit(gpa);
-                build = root.run(gpa, &cfg, .{
+                build_lock.lock(io) catch unreachable;
+                build.deinit(io, gpa);
+                build = root.run(io, gpa, &cfg, .{
                     .base_dir_path = base_dir_path,
                     .build_assets = &cmd.build_assets,
                     .drafts = cmd.drafts,
                     .mode = .memory,
                 }) catch fatal.oom();
-                build_lock.unlock();
+                build_lock.unlock(io);
 
                 for (websockets.entries.items(.value)) |*conn| {
                     conn.writeMessage(
@@ -468,20 +466,25 @@ pub const Command = struct {
 // }
 
 pub const Server = struct {
+    io: Io,
     gpa: Allocator,
     channel: *Channel(ServeEvent),
     build: *const Build,
-    build_lock: *std.Thread.RwLock,
+    build_lock: *Io.RwLock,
+    addresses_buffer: [16]Io.net.HostName.LookupResult = undefined,
+    canon_name_buffer: [Io.net.HostName.max_len]u8 = undefined,
 
     pub const max_connection_header_size: usize = 8 * 1024;
 
     pub fn init(
+        io: Io,
         gpa: Allocator,
         channel: *Channel(ServeEvent),
         build: *const Build,
-        build_lock: *std.Thread.RwLock,
+        build_lock: *Io.RwLock,
     ) Server {
         return .{
+            .io = io,
             .gpa = gpa,
             .channel = channel,
             .build = build,
@@ -489,34 +492,30 @@ pub const Server = struct {
         };
     }
 
-    pub fn start(s: *Server, cmd: Command) !std.net.Address {
+    pub fn start(s: *Server, cmd: Command) !void {
         const host = if (cmd.host[0] == '[')
             cmd.host[1..][0 .. cmd.host.len - 2] // Strip brackets from IPv6
         else
             cmd.host;
-        const list = try std.net.getAddressList(s.gpa, host, cmd.port);
-        errdefer list.deinit();
 
-        if (list.addrs.len == 0) fatal.msg(
-            "error: unable to resolve host '{s}'",
-            .{cmd.host},
-        );
+        var queue: Io.Queue(Io.net.HostName.LookupResult) = .init(&s.addresses_buffer);
+        try Io.net.HostName.lookup(try .init(host), s.io, &queue, .{
+            .port = cmd.port,
+            .canonical_name_buffer = &s.canon_name_buffer,
+        });
 
-        const t = try std.Thread.spawn(.{}, Server.serve, .{ s, list });
+        const result = s.addresses_buffer[0];
+        const t = try std.Thread.spawn(.{}, Server.serve, .{ s, result.address });
         t.detach();
-
-        return list.addrs[0];
     }
 
-    fn serve(s: *Server, list: *std.net.AddressList) void {
-        defer list.deinit();
-
+    fn serve(s: *Server, address: Io.net.IpAddress) void {
         errdefer |err| switch (err) {
             error.OutOfMemory => fatal.oom(),
         };
 
-        const address = list.addrs[0];
         var tcp_server = address.listen(
+            s.io,
             .{ .reuse_address = true },
         ) catch |err| fatal.msg(
             "error: unable to bind to '{any}': {s}",
@@ -527,7 +526,7 @@ pub const Server = struct {
         // const server_port = tcp_server.listen_address.in.getPort();
 
         while (true) {
-            const conn = tcp_server.accept() catch |err| switch (err) {
+            const stream = tcp_server.accept(s.io) catch |err| switch (err) {
                 error.SystemResources,
                 error.ProcessFdQuotaExceeded,
                 error.SystemFdQuotaExceeded,
@@ -535,16 +534,14 @@ pub const Server = struct {
                 error.SocketNotListening,
                 error.ProtocolFailure,
                 error.BlockedByFirewall,
-                error.NetworkSubsystemFailed,
                 error.WouldBlock,
-                error.FileDescriptorNotASocket,
-                error.OperationNotSupported,
+                error.Canceled,
                 => fatal.msg(
                     "error: critical failure while opening new live server tcp connection: {s}",
                     .{@errorName(err)},
                 ),
-                error.ConnectionResetByPeer,
                 error.ConnectionAborted,
+                error.NetworkDown,
                 => {
                     log.debug("non-fatal tcp error: {s}", .{@errorName(err)});
                     continue;
@@ -553,7 +550,7 @@ pub const Server = struct {
 
             const t = std.Thread.spawn(.{}, Server.handleConnection, .{
                 s,
-                conn,
+                stream,
             }) catch |err| fatal.msg(
                 "error: unable to spawn connection thread: {s}",
                 .{@errorName(err)},
@@ -562,21 +559,18 @@ pub const Server = struct {
         }
     }
 
-    fn handleConnection(
-        s: *Server,
-        conn: std.net.Server.Connection,
-    ) void {
-        defer conn.stream.close();
+    fn handleConnection(s: *Server, stream: Io.net.Stream) void {
+        defer stream.close(s.io);
 
         var bufin: [4096 * 4]u8 = undefined;
-        var in = conn.stream.reader(&bufin);
+        var in = stream.reader(s.io, &bufin);
         var bufout: [4096]u8 = undefined;
-        var out = conn.stream.writer(&bufout);
+        var out = stream.writer(s.io, &bufout);
 
         var arena_state = std.heap.ArenaAllocator.init(s.gpa);
         const arena = arena_state.allocator();
 
-        var http_server = std.http.Server.init(in.interface(), &out.interface);
+        var http_server = std.http.Server.init(&in.interface, &out.interface);
 
         while (true) {
             var request = http_server.receiveHead() catch |err| {
@@ -678,8 +672,8 @@ pub const Server = struct {
         const mime_type = mime.extension_map.get(ext) orelse
             .@"application/octet-stream";
 
-        server.build_lock.lockShared();
-        defer server.build_lock.unlockShared();
+        server.build_lock.lockShared(server.io) catch unreachable;
+        defer server.build_lock.unlockShared(server.io);
 
         if (server.build.any_prerendering_error) return sendError(
             arena,
@@ -704,6 +698,7 @@ pub const Server = struct {
             }
 
             return sendFile(
+                server.io,
                 arena,
                 req,
                 server.build.site_assets_dir,
@@ -789,6 +784,7 @@ pub const Server = struct {
                     }
 
                     return sendFile(
+                        server.io,
                         arena,
                         req,
                         v.content_dir,
@@ -801,10 +797,11 @@ pub const Server = struct {
 
         for (server.build.build_assets.entries.items(.value)) |ba| {
             const raw_install_path = ba.install_path orelse continue;
-            const install_path = std.mem.trimLeft(u8, raw_install_path, "/");
+            const install_path = std.mem.trimStart(u8, raw_install_path, "/");
             // skip leading slash in url path
             if (!std.mem.eql(u8, path[1..], install_path)) continue;
             return sendFile(
+                server.io,
                 arena,
                 req,
                 server.build.base_dir,
@@ -947,18 +944,20 @@ pub const Server = struct {
     }
 
     fn sendFile(
+        io: Io,
         arena: Allocator,
         req: *std.http.Server.Request,
-        dir: std.fs.Dir,
+        dir: Io.Dir,
         mime_type: mime.Type,
         file_path: []const u8,
     ) !void {
         assert(file_path[0] != '/');
 
         const contents = try dir.readFileAlloc(
-            arena,
+            io,
             file_path,
-            std.math.maxInt(usize),
+            arena,
+            .unlimited,
         );
 
         if (mime_type == .@"text/html") {
@@ -1015,12 +1014,12 @@ pub const Server = struct {
         };
 
         var ws = req.respondWebSocket(.{ .key = wsup }) catch return;
-        s.channel.put(.{ .connect = ws });
+        s.channel.put(s.io, .{ .connect = ws }) catch return;
 
         while (true) {
             const msg = ws.readSmallMessage() catch |err| {
                 log.debug("readWs error: {s} {any}", .{ @errorName(err), ws });
-                s.channel.put(.{ .disconnect = ws });
+                s.channel.put(s.io, .{ .disconnect = ws }) catch return;
                 return;
             };
             _ = msg;
@@ -1031,19 +1030,20 @@ pub const Server = struct {
 pub const Debouncer = struct {
     cascade_window_ms: i64,
 
-    cascade_mutex: std.Thread.Mutex = .{},
-    cascade_condition: std.Thread.Condition = .{},
+    io: Io,
+    cascade_mutex: Io.Mutex = .init,
+    cascade_condition: Io.Condition = .init,
     cascade_start_ms: i64 = 0,
     channel: *Channel(ServeEvent),
 
     /// Thread-safe. To be called when a new event comes in
     pub fn newEvent(d: *Debouncer) void {
         {
-            d.cascade_mutex.lock();
-            defer d.cascade_mutex.unlock();
-            d.cascade_start_ms = std.time.milliTimestamp();
+            d.cascade_mutex.lock(d.io) catch unreachable;
+            defer d.cascade_mutex.unlock(d.io);
+            d.cascade_start_ms = Io.Clock.awake.now(d.io).toMilliseconds();
         }
-        d.cascade_condition.signal();
+        d.cascade_condition.signal(d.io);
     }
 
     pub fn start(d: *Debouncer) !void {
@@ -1051,29 +1051,29 @@ pub const Debouncer = struct {
         t.detach();
     }
 
-    pub fn notify(d: *Debouncer) void {
+    pub fn notify(d: *Debouncer) !void {
         while (true) {
-            d.cascade_mutex.lock();
-            defer d.cascade_mutex.unlock();
+            try d.cascade_mutex.lock(d.io);
+            defer d.cascade_mutex.unlock(d.io);
 
             while (d.cascade_start_ms == 0) {
                 // no active cascade
-                d.cascade_condition.wait(&d.cascade_mutex);
+                try d.cascade_condition.wait(d.io, &d.cascade_mutex);
             }
             // cascade != 0
             while (true) {
-                const time_passed = std.time.milliTimestamp() - d.cascade_start_ms;
+                const time_passed = Io.Clock.awake.now(d.io).toMilliseconds() - d.cascade_start_ms;
                 if (time_passed >= d.cascade_window_ms) break;
-                d.cascade_mutex.unlock();
+                d.cascade_mutex.unlock(d.io);
                 const sleep_ms = d.cascade_window_ms - time_passed;
-                std.Thread.sleep(@intCast(sleep_ms * std.time.ns_per_ms));
-                d.cascade_mutex.lock();
+                try d.io.sleep(.fromMilliseconds(sleep_ms), .awake);
+                try d.cascade_mutex.lock(d.io);
             }
 
             // We have slept enough, "commit" the cascade window and
             // trigger a new build.
             d.cascade_start_ms = 0;
-            d.channel.put(.change);
+            try d.channel.put(d.io, .change);
         }
     }
 };

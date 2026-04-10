@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const builtin = @import("builtin");
 const tracy = @import("tracy");
 const fatal = @import("../fatal.zig");
@@ -7,18 +8,18 @@ const worker = @import("../worker.zig");
 const Allocator = std.mem.Allocator;
 const BuildAsset = root.BuildAsset;
 
-pub fn release(gpa: Allocator, args: []const []const u8) bool {
+pub fn release(io: Io, gpa: Allocator, args: []const []const u8) bool {
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
 
     const cmd: Command = try .parse(gpa, args);
-    const cfg, const base_dir_path = root.Config.load(gpa);
+    const cfg, const base_dir_path = root.Config.load(io, gpa);
 
-    worker.start();
-    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit();
+    worker.start(io);
+    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit(io);
 
-    const build = root.run(gpa, &cfg, .{
+    const build = root.run(io, gpa, &cfg, .{
         .base_dir_path = base_dir_path,
         .build_assets = &cmd.build_assets,
         .drafts = cmd.drafts,
@@ -30,7 +31,7 @@ pub fn release(gpa: Allocator, args: []const []const u8) bool {
         },
     }) catch fatal.oom();
 
-    defer if (builtin.mode == .Debug) build.deinit(gpa);
+    defer if (builtin.mode == .Debug) build.deinit(io, gpa);
 
     if (tracy.enable) {
         tracy.frameMarkNamed("waiting for tracy");

@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 
 pub const BuildAsset = struct {
     /// Name of this asset
@@ -176,6 +177,23 @@ pub fn build(b: *std.Build) !void {
         "Include treesitter grammars for build-time syntax highlighting (enabled by default). Disabling reduces executable size significantly.",
     ) orelse true;
 
+    // This is this up because otherwise lazy deps will hide the existence of this artifact
+    const zine_exe = b.addExecutable(.{
+        .name = "zine",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .single_threaded = b.option(
+                bool,
+                "single-threaded",
+                "build Zine in single-threaded mode",
+            ) orelse false,
+
+            .sanitize_thread = tsan,
+        }),
+    });
+
     const tracy = b.dependency("tracy", .{ .enable = enable_tracy });
 
     const scopes: []const []const u8 = b.option(
@@ -280,49 +298,20 @@ pub fn build(b: *std.Build) !void {
         b.installArtifact(shtml_docgen);
     }
 
-    if (b.option(
-        bool,
-        "fuzz",
-        "enable building tooling for fuzz testing",
-    ) orelse false) {
-        // setupFuzzing(b, target, optimize);
-    }
-
-    // setup the Zine standalone executable
-    const zine_exe = b.addExecutable(.{
-        .name = "zine",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .single_threaded = b.option(
-                bool,
-                "single-threaded",
-                "build Zine in single-threaded mode",
-            ) orelse false,
-
-            .sanitize_thread = tsan,
-        }),
-    });
-
     switch (target.result.os.tag) {
         else => @panic("target must be added to build.zig"),
         .linux => {},
-
-       .freebsd => {
+        .freebsd => {
             // only required for FreeBSD < 15
             // zine_exe.linkSystemLibrary("inotify");
         },
-
-        .windows => {
-            zine_exe.linkSystemLibrary("ws2_32");
-        },
+        .windows => {},
         .macos => {
             const frameworks = b.lazyDependency("frameworks", .{}) orelse return;
-            zine_exe.addIncludePath(frameworks.path("include"));
-            zine_exe.addFrameworkPath(frameworks.path("Frameworks"));
-            zine_exe.addLibraryPath(frameworks.path("lib"));
-            zine_exe.linkFramework("CoreServices");
+            zine_exe.root_module.addIncludePath(frameworks.path("include"));
+            zine_exe.root_module.addFrameworkPath(frameworks.path("Frameworks"));
+            zine_exe.root_module.addLibraryPath(frameworks.path("lib"));
+            zine_exe.root_module.linkFramework("CoreServices", .{});
         },
     }
 
@@ -337,7 +326,27 @@ pub fn build(b: *std.Build) !void {
     zine_exe.root_module.addImport("options", options);
     zine_exe.root_module.addImport("tracy", tracy.module("tracy"));
     zine_exe.root_module.addImport("mime", mime.module("mime"));
-    zine_exe.root_module.addImport("wuffs", wuffs.module("wuffs"));
+
+    zine_exe.root_module.addImport("_wuffs", wuffs.module("impl"));
+    zine_exe.root_module.addImport("wuffs", b.createModule(.{
+        .root_source_file = switch (target.result.cpu.arch.family()) {
+            .aarch64 => switch (target.result.os.tag) {
+                .macos => b.path("src/hacks/wuffs-temp-aarch64-macos.h.zig"),
+                .linux => b.path("src/hacks/wuffs-temp-aarch64-linux.h.zig"),
+                else => @panic("unsupported"),
+            },
+            .x86 => switch (target.result.os.tag) {
+                .macos => b.path("src/hacks/wuffs-temp-x86-macos.h.zig"),
+                .linux => b.path("src/hacks/wuffs-temp-x86-linux.h.zig"),
+                .windows => b.path("src/hacks/wuffs-temp-x86-windows.h.zig"),
+                else => @panic("unsupported"),
+            },
+            else => @panic("unsupported"),
+        },
+
+        .target = target,
+        .optimize = optimize,
+    }));
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);
@@ -388,12 +397,12 @@ fn setupSnapshotTesting(
 
     // content scanning
     {
-        const tests_dir = try b.build_root.handle.openDir("tests/content-scanning", .{
+        const tests_dir = try b.build_root.handle.openDir(b.graph.io, "tests/content-scanning", .{
             .iterate = true,
         });
 
         var it = tests_dir.iterateAssumeFirstIteration();
-        while (try it.next()) |entry| {
+        while (try it.next(b.graph.io)) |entry| {
             if (entry.kind != .directory) continue;
             if (entry.name[0] == '.') continue;
 
@@ -408,7 +417,7 @@ fn setupSnapshotTesting(
             run_camera.setCwd(b.path(path));
             run_camera.has_side_effects = true;
 
-            const out = run_camera.captureStdErr();
+            const out = run_camera.captureStdErr(.{});
 
             const update_snap = b.addUpdateSourceFiles();
             update_snap.addCopyFileToSource(out, b.pathJoin(&.{ path, "snapshot.txt" }));
@@ -420,22 +429,24 @@ fn setupSnapshotTesting(
 
     // rendering
     {
-        const tests_dir = try b.build_root.handle.openDir("tests/rendering", .{
+        const tests_dir = try b.build_root.handle.openDir(b.graph.io, "tests/rendering", .{
             .iterate = true,
         });
 
         var it = tests_dir.iterateAssumeFirstIteration();
-        while (try it.next()) |entry| {
+        while (try it.next(b.graph.io)) |entry| {
             if (entry.kind != .directory) continue;
             if (entry.name[0] == '.') continue;
             const src_path = b.pathJoin(&.{
                 "tests/rendering",
                 entry.name,
             });
+            const snapshot_path = b.pathJoin(&.{
+                src_path,
+                "snapshot",
+            });
 
-            const reset_snapshot = b.addRemoveDirTree(b.path(b.pathJoin(
-                &.{ src_path, "snapshot" },
-            )));
+            _ = b.run(&.{ "rm", "-rf", snapshot_path });
 
             const run_zine = b.addRunArtifact(zine_exe);
             run_zine.addArg("release");
@@ -443,9 +454,8 @@ fn setupSnapshotTesting(
             run_zine.addArg("--output=snapshot");
             run_zine.setCwd(b.path(src_path));
             run_zine.has_side_effects = true;
-            run_zine.step.dependOn(&reset_snapshot.step);
 
-            const stderr_out = run_zine.captureStdErr();
+            const stderr_out = run_zine.captureStdErr(.{});
             const update_snap = b.addUpdateSourceFiles();
             update_snap.addCopyFileToSource(stderr_out, b.pathJoin(
                 &.{ src_path, "snapshot.txt" },
@@ -457,12 +467,12 @@ fn setupSnapshotTesting(
     }
     // drafts on
     {
-        const tests_dir = try b.build_root.handle.openDir("tests/drafts", .{
+        const tests_dir = try b.build_root.handle.openDir(b.graph.io, "tests/drafts", .{
             .iterate = true,
         });
 
         var it = tests_dir.iterateAssumeFirstIteration();
-        while (try it.next()) |entry| {
+        while (try it.next(b.graph.io)) |entry| {
             if (entry.kind != .directory) continue;
             if (entry.name[0] == '.') continue;
 
@@ -471,9 +481,12 @@ fn setupSnapshotTesting(
                 entry.name,
             });
 
-            const reset_snapshot = b.addRemoveDirTree(b.path(b.pathJoin(
-                &.{ src_path, "snapshot" },
-            )));
+            const snapshot_path = b.pathJoin(&.{
+                src_path,
+                "snapshot",
+            });
+
+            _ = b.run(&.{ "rm", "-rf", snapshot_path });
 
             const run_zine = b.addRunArtifact(zine_exe);
             run_zine.addArg("release");
@@ -482,9 +495,8 @@ fn setupSnapshotTesting(
             run_zine.addArg("--output=snapshot");
             run_zine.setCwd(b.path(src_path));
             run_zine.has_side_effects = true;
-            run_zine.step.dependOn(&reset_snapshot.step);
 
-            const stderr_out = run_zine.captureStdErr();
+            const stderr_out = run_zine.captureStdErr(.{});
             const update_snap = b.addUpdateSourceFiles();
             update_snap.addCopyFileToSource(stderr_out, b.pathJoin(
                 &.{ src_path, "snapshot.txt" },
@@ -494,26 +506,6 @@ fn setupSnapshotTesting(
             git_add.step.dependOn(&update_snap.step);
         }
     }
-}
-
-fn setupFuzzing(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-) void {
-    const afl = b.lazyImport(@This(), "afl_kit") orelse return;
-
-    const scripty_afl_obj = b.addObject(.{
-        .name = "scripty",
-        .root_source_file = b.path("src/fuzz/scripty.zig"),
-        .target = b.resolveTargetQuery(.{}),
-        .optimize = .Debug,
-    });
-    scripty_afl_obj.root_module.stack_check = false;
-    scripty_afl_obj.root_module.link_libc = true;
-
-    const afl_exe = afl.addInstrumentedExe(b, target, optimize, scripty_afl_obj);
-    b.getInstallStep().dependOn(&b.addInstallFile(afl_exe, "scripty-afl").step);
 }
 
 fn setupReleaseStep(
@@ -532,7 +524,7 @@ fn setupReleaseStep(
         .{ .cpu_arch = .aarch64, .os_tag = .windows },
     };
 
-    std.fs.cwd().makePath(b.pathJoin(&.{
+    Io.Dir.cwd().createDirPath(b.graph.io, b.pathJoin(&.{
         b.install_prefix,
         "releases",
     })) catch unreachable;
@@ -637,18 +629,16 @@ fn setupReleaseStep(
                 // only required for FreeBSD < 15
                 // zine_exe_release.linkSystemLibrary("inotify");
             },
-            .windows => {
-                zine_exe_release.linkSystemLibrary("ws2_32");
-            },
+            .windows => {},
             .macos => {
                 if (b.lazyDependency("frameworks", .{
                     .target = target,
                     .optimize = optimize,
                 })) |frameworks| {
-                    zine_exe_release.addIncludePath(frameworks.path("include"));
-                    zine_exe_release.addFrameworkPath(frameworks.path("Frameworks"));
-                    zine_exe_release.addLibraryPath(frameworks.path("lib"));
-                    zine_exe_release.linkFramework("CoreServices");
+                    zine_exe_release.root_module.addIncludePath(frameworks.path("include"));
+                    zine_exe_release.root_module.addFrameworkPath(frameworks.path("Frameworks"));
+                    zine_exe_release.root_module.addLibraryPath(frameworks.path("lib"));
+                    zine_exe_release.root_module.linkFramework("CoreServices", .{});
                 }
             },
         }
@@ -668,7 +658,7 @@ fn setupReleaseStep(
                 });
                 const archive = zip.addOutputFileArg(archive_name);
                 zip.addDirectoryArg(zine_exe_release.getEmittedBin());
-                _ = zip.captureStdOut();
+                _ = zip.captureStdOut(.{});
 
                 release_step.dependOn(&b.addInstallFileWithDir(
                     archive,
@@ -691,7 +681,7 @@ fn setupReleaseStep(
 
                 tar.addDirectoryArg(zine_exe_release.getEmittedBinDirectory());
                 tar.addArg("zine");
-                _ = tar.captureStdOut();
+                _ = tar.captureStdOut(.{});
 
                 release_step.dependOn(&b.addInstallFileWithDir(
                     archive,
@@ -728,7 +718,7 @@ fn getVersion(b: *std.Build) Version {
             b.build_root.path.?, "describe",
             "--match",           "*.*.*",
             "--tags",
-        }, &out, .Ignore) catch return .unknown,
+        }, &out, .ignore) catch return .unknown,
         " \n\r",
     );
 

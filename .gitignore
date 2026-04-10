@@ -3,5 +3,6 @@ public
 .zig-cache
 zig-cache
 zig-out
+zig-pkg
 scratch
 result

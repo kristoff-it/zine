@@ -1,10 +1,11 @@
 const Variant = @This();
 
 const std = @import("std");
-const log = std.log.scoped(.variant);
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const Writer = std.Io.Writer;
+const log = std.log.scoped(.variant);
 
 const builtin = @import("builtin");
 const ziggy = @import("ziggy");
@@ -23,7 +24,7 @@ const PathName = PathTable.PathName;
 
 output_path_prefix: []const u8,
 /// Open for the full duration of the program.
-content_dir: std.fs.Dir,
+content_dir: Io.Dir,
 content_dir_path: []const u8,
 /// Stores path components
 string_table: StringTable,
@@ -115,6 +116,7 @@ pub const Section = struct {
 
     pub fn activate(
         s: *Section,
+        io: Io,
         gpa: Allocator,
         variant: *const Variant,
         index: *Page,
@@ -123,7 +125,7 @@ pub const Section = struct {
         const zone = tracy.trace(@src());
         defer zone.end();
 
-        index.parse(gpa, worker.cmark, null, variant, drafts);
+        index.parse(io, gpa, worker.cmark, null, variant, drafts);
         s.active = index._parse.active;
     }
 
@@ -169,10 +171,10 @@ pub const Section = struct {
     }
 };
 
-pub fn deinit(v: *const Variant, gpa: Allocator) void {
+pub fn deinit(v: *const Variant, io: Io, gpa: Allocator) void {
     {
         var dir = v.content_dir;
-        dir.close();
+        dir.close(io);
     }
     // content_dir_path is in cfg_arena
     // gpa.free(v.content_dir_path);
@@ -200,15 +202,16 @@ pub fn deinit(v: *const Variant, gpa: Allocator) void {
 }
 
 pub const MultilingualScanParams = struct {
-    i18n_dir: std.fs.Dir,
+    i18n_dir: Io.Dir,
     i18n_dir_path: []const u8,
     locale_code: []const u8,
 };
 pub fn scanContentDir(
     variant: *Variant,
+    io: Io,
     gpa: Allocator,
     arena: Allocator,
-    base_dir: std.fs.Dir,
+    base_dir: Io.Dir,
     content_dir_path: []const u8,
     variant_id: u32,
     multilingual: ?MultilingualScanParams,
@@ -252,22 +255,22 @@ pub fn scanContentDir(
     var page_names: std.ArrayListUnmanaged(String) = .empty;
     var asset_names: std.ArrayListUnmanaged(String) = .empty;
     var dir_names: std.ArrayListUnmanaged(String) = .empty;
-    const content_dir = base_dir.openDir(content_dir_path, .{
+    const content_dir = base_dir.openDir(io, content_dir_path, .{
         .iterate = true,
     }) catch |err| fatal.dir(content_dir_path, err);
 
     while (dir_stack.pop()) |dir_entry| {
         var dir = switch (dir_entry.path.len) {
             0 => content_dir,
-            else => content_dir.openDir(dir_entry.path, .{ .iterate = true }) catch |err| {
+            else => content_dir.openDir(io, dir_entry.path, .{ .iterate = true }) catch |err| {
                 fatal.dir(dir_entry.path, err);
             },
         };
-        defer if (dir_entry.path.len > 0) dir.close();
+        defer if (dir_entry.path.len > 0) dir.close(io);
 
         var found_index_smd = false;
         var it = dir.iterateAssumeFirstIteration();
-        while (it.next() catch |err| fatal.dir(dir_entry.path, err)) |entry| {
+        while (it.next(io) catch |err| fatal.dir(dir_entry.path, err)) |entry| {
             if (std.mem.startsWith(u8, entry.name, ".")) continue;
             switch (entry.kind) {
                 else => continue,
@@ -503,10 +506,10 @@ pub fn scanContentDir(
             .{ml.locale_code},
         );
         i18n_src = ml.i18n_dir.readFileAllocOptions(
-            i18n_arena.allocator(),
+            io,
             name,
-            ziggy.max_size,
-            0,
+            i18n_arena.allocator(),
+            .limited(ziggy.max_size),
             .@"1",
             0,
         ) catch |err| fatal.file(name, err);
@@ -547,8 +550,9 @@ pub fn scanContentDir(
 
 pub fn installAssets(
     v: *const Variant,
+    io: Io,
     progress: std.Progress.Node,
-    install_dir: std.fs.Dir,
+    install_dir: Io.Dir,
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
@@ -582,9 +586,10 @@ pub fn installAssets(
             install_path[v.output_path_prefix.len + 1 ..];
 
         _ = v.content_dir.updateFile(
+            io,
             source_path,
             install_dir,
-            std.mem.trimLeft(u8, install_path, "/"),
+            std.mem.trimStart(u8, install_path, "/"),
             .{},
         ) catch |err| fatal.file(install_path, err);
 

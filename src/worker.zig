@@ -1,6 +1,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const supermd = @import("supermd");
@@ -31,7 +32,7 @@ const log = std.log.scoped(.worker);
 // singleton
 var ch_buf: [64]Job = undefined;
 var ch: Channel(Job) = .init(&ch_buf);
-var wg: std.Thread.WaitGroup = .{};
+var wg: @import("hacks/WaitGroup.zig") = undefined;
 var threads: []std.Thread = &.{};
 
 pub var started = false;
@@ -46,7 +47,7 @@ pub const Job = union(enum) {
     },
     scan: struct {
         variant: *Variant,
-        base_dir: std.fs.Dir,
+        base_dir: Io.Dir,
         content_dir_path: []const u8,
         variant_id: u32,
         multilingual: ?Variant.MultilingualScanParams,
@@ -81,15 +82,17 @@ pub const Job = union(enum) {
     variant_assets_install: struct {
         progress: std.Progress.Node,
         variant: *const Variant,
-        install_dir: std.fs.Dir,
+        install_dir: Io.Dir,
     },
 
     leave,
 };
 
-pub fn start() void {
+pub fn start(io: Io) void {
     assert(!started);
     started = true;
+
+    wg = .{ .io = io };
 
     errdefer |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
@@ -110,25 +113,25 @@ pub fn start() void {
         threads[idx] = std.Thread.spawn(
             .{ .allocator = gpa },
             workerFn,
-            .{_cmark},
+            .{ io, _cmark },
         ) catch |err| fatal.msg("error: unable to spawn thread pool: {s}\n", .{
             @errorName(err),
         });
     }
 }
 
-pub fn stopWaitAndDeinit() void {
+pub fn stopWaitAndDeinit(io: Io) void {
     if (builtin.mode != .Debug) return;
     if (builtin.single_threaded) addJob(.leave);
 
-    for (threads) |_| addJob(.leave);
+    for (threads) |_| addJob(io, .leave);
     for (threads) |t| t.join();
     gpa.free(threads);
 }
 
 var single_threaded_arena_state = std.heap.ArenaAllocator.init(gpa);
 const single_threaded_arena = single_threaded_arena_state.allocator();
-pub fn addJob(job: Job) void {
+pub fn addJob(io: Io, job: Job) void {
     if (builtin.single_threaded) {
         const continue_ = runOneJob(single_threaded_arena, job);
         _ = single_threaded_arena_state.reset(.retain_capacity);
@@ -138,7 +141,7 @@ pub fn addJob(job: Job) void {
         }
     } else {
         wg.start();
-        ch.put(job);
+        ch.put(io, job) catch unreachable;
     }
 }
 
@@ -150,18 +153,20 @@ pub fn wait() void {
 }
 
 fn workerFn(
+    io: Io,
     _cmark: supermd.Ast.CmarkParser,
 ) void {
     cmark = _cmark;
     var arena_state = std.heap.ArenaAllocator.init(gpa);
     const arena = arena_state.allocator();
-    while (runOneJob(arena, ch.get())) {
+    while (runOneJob(io, arena, ch.get(io) catch return)) {
         _ = arena_state.reset(.retain_capacity);
         wg.finish();
     }
 }
 
 inline fn runOneJob(
+    io: Io,
     arena: Allocator,
     job: Job,
 ) bool {
@@ -171,12 +176,14 @@ inline fn runOneJob(
             return false;
         },
         .template_parse => |tp| tp.template.parse(
+            io,
             gpa,
             arena,
             tp.build,
             tp.pn,
         ),
         .scan => |s| s.variant.scanContentDir(
+            io,
             gpa,
             arena,
             s.base_dir,
@@ -186,12 +193,14 @@ inline fn runOneJob(
             s.output_path_prefix,
         ),
         .section_activate => |ap| ap.section.activate(
+            io,
             gpa,
             ap.variant,
             ap.page,
             ap.drafts,
         ),
         .page_parse => |pp| pp.page.parse(
+            io,
             gpa,
             cmark,
             pp.progress,
@@ -199,6 +208,7 @@ inline fn runOneJob(
             pp.drafts,
         ),
         .page_render => |pr| renderPage(
+            io,
             arena,
             pr.progress,
             pr.build,
@@ -207,6 +217,7 @@ inline fn runOneJob(
             pr.kind,
         ),
         .page_analyze => |pa| analyzePage(
+            io,
             arena,
             pa.progress,
             pa.build,
@@ -215,6 +226,7 @@ inline fn runOneJob(
         ),
 
         .variant_assets_install => |vai| vai.variant.installAssets(
+            io,
             vai.progress,
             vai.install_dir,
         ),
@@ -223,6 +235,7 @@ inline fn runOneJob(
 }
 
 fn analyzePage(
+    io: Io,
     arena: Allocator,
     progress: std.Progress.Node,
     build: *const Build,
@@ -265,7 +278,7 @@ fn analyzePage(
     const page_arena = arena_state.allocator();
 
     try analyzeFrontmatter(page_arena, page);
-    try analyzeContent(page_arena, arena, build, variant_id, page);
+    try analyzeContent(io, page_arena, arena, build, variant_id, page);
 }
 
 fn analyzeFrontmatter(page_arena: Allocator, p: *Page) error{OutOfMemory}!void {
@@ -309,6 +322,7 @@ fn analyzeFrontmatter(page_arena: Allocator, p: *Page) error{OutOfMemory}!void {
 }
 
 fn analyzeContent(
+    io: Io,
     page_arena: Allocator,
     scratch: Allocator,
     b: *const Build,
@@ -354,7 +368,7 @@ fn analyzeContent(
                     else => unreachable,
                     .page_asset => |pa| blk: {
                         assert(std.mem.indexOfScalar(u8, pa.ref, '\\') == null);
-                        var buf: std.ArrayListUnmanaged(String) = .empty;
+                        var buf: std.ArrayList(String) = .empty;
 
                         try buf.appendSlice(scratch, page._scan.url.slice(
                             &variant.path_table,
@@ -427,7 +441,7 @@ fn analyzeContent(
                             });
                             continue :outer;
                         };
-                        break :blk .{ asset.input_path, std.fs.cwd() };
+                        break :blk .{ asset.input_path, Io.Dir.cwd() };
                     },
                     .site_asset => |*sa| blk: {
                         if (PathName.get(&b.st, &b.pt, sa.ref)) |pn| {
@@ -454,9 +468,10 @@ fn analyzeContent(
                     },
                 };
                 const src = base_dir.readFileAlloc(
-                    page_arena,
+                    io,
                     path,
-                    std.math.maxInt(u32),
+                    page_arena,
+                    .unlimited,
                 ) catch |err| fatal.file(path, err);
 
                 if (!languageExists(code.language)) {
@@ -611,7 +626,7 @@ fn analyzeContent(
                                     continue :outer;
                                 }
 
-                                var buf: std.ArrayListUnmanaged(String) = .empty;
+                                var buf: std.ArrayList(String) = .empty;
                                 try buf.appendSlice(scratch, page._scan.file.path.slice(
                                     &variant.path_table,
                                 ));
@@ -719,7 +734,7 @@ fn analyzeContent(
 
                     .page_asset => |*pa| {
                         assert(std.mem.indexOfScalar(u8, pa.ref, '\\') == null);
-                        var buf: std.ArrayListUnmanaged(String) = .empty;
+                        var buf: std.ArrayList(String) = .empty;
 
                         try buf.appendSlice(
                             scratch,
@@ -771,6 +786,7 @@ fn analyzeContent(
 
                                         if (autosize and directive.kind == .image and directive.kind.image.size == null) {
                                             wuffs.setImageSize(
+                                                io,
                                                 scratch,
                                                 directive,
                                                 variant.content_dir,
@@ -816,6 +832,7 @@ fn analyzeContent(
 
                                     if (autosize and directive.kind == .image and directive.kind.image.size == null) {
                                         wuffs.setImageSize(
+                                            io,
                                             scratch,
                                             directive,
                                             b.site_assets_dir,
@@ -854,6 +871,7 @@ fn analyzeContent(
 
                         if (autosize and directive.kind == .image and directive.kind.image.size == null) {
                             wuffs.setImageSize(
+                                io,
                                 scratch,
                                 directive,
                                 b.site_assets_dir,
@@ -886,6 +904,7 @@ fn analyzeContent(
 pub const RenderJobKind = union(enum) { main, alternative: u32 };
 const SuperVM = superhtml.VM(context.Template, context.Value);
 fn renderPage(
+    io: Io,
     arena: Allocator,
     progress: std.Progress.Node,
     build: *Build,
@@ -944,12 +963,13 @@ fn renderPage(
         .i18n = variant.i18n,
         .build = undefined,
         ._meta = .{
+            .io = io,
             .build = build,
             .sites = sites,
         },
     };
 
-    ctx.build.generated = .initNow();
+    ctx.build.generated = .initNow(io);
 
     const layout_path = switch (kind) {
         .main => page.layout,
@@ -1067,17 +1087,20 @@ fn renderPage(
                         };
 
                         if (std.fs.path.dirnamePosix(out_path)) |path| {
-                            disk.output_dir.makePath(
+                            disk.output_dir.createDirPath(
+                                io,
                                 path,
                             ) catch |err| fatal.dir(path, err);
                         }
 
                         const f = disk.output_dir.createFile(
+                            io,
                             out_path,
                             .{},
                         ) catch |err| fatal.file(out_path, err);
-                        defer f.close();
-                        f.writeAll(out_aw.written()) catch |err| fatal.file(
+                        defer f.close(io);
+                        var file_writer = f.writerStreaming(io, &.{});
+                        file_writer.interface.writeAll(out_aw.written()) catch |err| fatal.file(
                             out_path,
                             err,
                         );
@@ -1105,13 +1128,15 @@ fn renderPage(
                         };
 
                         // note: do not close build.install_dir
-                        var out_dir = if (out_dir_path.len == 0) disk.output_dir else disk.output_dir.makeOpenPath(
+                        var out_dir = if (out_dir_path.len == 0) disk.output_dir else disk.output_dir.createDirPathOpen(
+                            io,
                             out_dir_path,
                             .{},
                         ) catch |err| fatal.dir(out_dir_path, err);
-                        defer if (out_dir_path.len > 0) out_dir.close();
+                        defer if (out_dir_path.len > 0) out_dir.close(io);
 
                         break :blk out_dir.createFile(
+                            io,
                             "index.html",
                             .{},
                         ) catch |err| fatal.file("index.html", err);
@@ -1142,19 +1167,23 @@ fn renderPage(
                     };
 
                     if (std.fs.path.dirnamePosix(out_path)) |path| {
-                        disk.output_dir.makePath(
+                        disk.output_dir.createDirPath(
+                            io,
                             path,
                         ) catch |err| fatal.dir(path, err);
                     }
 
                     break :blk disk.output_dir.createFile(
+                        io,
                         out_path,
                         .{},
                     ) catch |err| fatal.file(out_path, err);
                 },
             };
-            defer out_raw.close();
-            out_raw.writeAll(out_aw.written()) catch |err| fatal.file(
+            defer out_raw.close(io);
+
+            var file_writer = out_raw.writer(io, &.{});
+            file_writer.interface.writeAll(out_aw.written()) catch |err| fatal.file(
                 page_path,
                 err,
             );

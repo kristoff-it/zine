@@ -26,7 +26,9 @@ content/another.smd:5:11: error: missing layout file
 
 layouts/badextend.shtml: error: extending a template that doesn't exist 
    template 'doesntexist-template.shtml' does not exist
-layouts/badhtml.shtml:1:4: erroneous_end_tag
+layouts/badhtml.shtml:1:4: erroneous end tag
+   </span>
+     ^^^^
 layouts/badshtml.shtml:0:1: extend_without_template_attr
 layouts/badshtml.shtml:2:3: super_parent_element_missing_id
 layouts/badshtml.shtml:8:3: unexpected_extend

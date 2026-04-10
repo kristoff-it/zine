@@ -3,6 +3,7 @@ const Template = @This();
 const std = @import("std");
 const assert = std.debug.asert;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const Writer = std.Io.Writer;
 const superhtml = @import("superhtml");
 const tracy = @import("tracy");
@@ -31,6 +32,7 @@ pub fn deinit(t: *const Template, gpa: Allocator) void {
 
 pub fn parse(
     t: *Template,
+    io: Io,
     gpa: Allocator,
     arena: Allocator,
     build: *const Build,
@@ -49,9 +51,10 @@ pub fn parse(
 
     const max = std.math.maxInt(u32);
     const src = build.layouts_dir.readFileAlloc(
-        gpa,
+        io,
         path,
-        max,
+        gpa,
+        .limited(max),
     ) catch |err| fatal.file(path, err);
 
     t.src = src;

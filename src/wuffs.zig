@@ -1,5 +1,6 @@
-const std = @import("std");
 const builtin = @import("builtin");
+const std = @import("std");
+const Io = std.Io;
 const supermd = @import("supermd");
 const wuffs = @import("wuffs");
 const windows = std.os.windows;
@@ -59,24 +60,25 @@ const win = if (builtin.os.tag != .windows) void else struct {
 };
 
 pub fn setImageSize(
+    io: Io,
     gpa: Allocator,
     directive: *supermd.Directive,
-    base_dir: std.fs.Dir,
+    base_dir: Io.Dir,
     image_path: []const u8,
 ) void {
     log.debug("calculating size for '{s}'", .{image_path});
     var file_mapping: if (builtin.target.os.tag != .windows) void else windows.HANDLE = undefined;
     const data = blk: {
-        const image = base_dir.openFile(image_path, .{}) catch |err| {
+        const image = base_dir.openFile(io, image_path, .{}) catch |err| {
             log.debug("erro while opening the image file '{s}': {}", .{
                 image_path, err,
             });
             return;
         };
 
-        defer image.close();
+        defer image.close(io);
 
-        const stat = image.stat() catch |err| {
+        const stat = image.stat(io) catch |err| {
             log.debug("unable to stat image '{s}': {}", .{ image_path, err });
             return;
         };
@@ -101,7 +103,7 @@ pub fn setImageSize(
             else => std.posix.mmap(
                 null,
                 stat.size,
-                std.posix.PROT.READ,
+                .{ .READ = true },
                 .{ .TYPE = .PRIVATE },
                 image.handle,
                 0,

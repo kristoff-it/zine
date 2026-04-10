@@ -1,6 +1,7 @@
 const WindowsWatcher = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const windows = std.os.windows;
 const fatal = @import("../../../fatal.zig");
 const Debouncer = @import("../../serve.zig").Debouncer;
@@ -31,12 +32,14 @@ const WatchEntry = struct {
     buf_idx: ReadBufferIndex,
 };
 
+io: Io,
 debouncer: *Debouncer,
 iocp_port: windows.HANDLE,
 entries: std.AutoHashMap(CompletionKey, WatchEntry),
 read_buffer: []u8,
 
 pub fn init(
+    io: Io,
     gpa: std.mem.Allocator,
     debouncer: *Debouncer,
     dir_paths: []const []const u8,
@@ -46,6 +49,7 @@ pub fn init(
     });
 
     var watcher = WindowsWatcher{
+        .io = io,
         .debouncer = debouncer,
         .iocp_port = windows.INVALID_HANDLE_VALUE,
         .entries = std.AutoHashMap(CompletionKey, WatchEntry).init(gpa),

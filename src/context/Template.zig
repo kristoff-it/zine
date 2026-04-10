@@ -1,7 +1,8 @@
 const Template = @This();
 
 const std = @import("std");
-const Writer = std.Io.Writer;
+const Io = std.Io;
+const Writer = Io.Writer;
 const superhtml = @import("superhtml");
 const Ctx = superhtml.utils.Ctx;
 const scripty = @import("scripty");
@@ -22,6 +23,7 @@ build: Build,
 i18n: Map.ZiggyMap,
 
 _meta: struct {
+    io: Io,
     build: *const ZineBuild,
     // Indexed by language code, empty when building a simple site
     // Get by key when you have a language code, get by idx when you

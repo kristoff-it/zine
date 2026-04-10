@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const Writer = std.Io.Writer;
 const zine = @import("zine");
 const context = @import("context.zig");
@@ -19,7 +20,7 @@ pub fn main() !void {
     const args = std.process.argsAlloc(arena) catch oom();
     const out_path = args[1];
 
-    const out_file = std.fs.cwd().createFile(out_path, .{}) catch |err| {
+    const out_file = Io.cwd().createFile(out_path, .{}) catch |err| {
         fatal("error while creating output file: {s}\n{s}\n", .{
             out_path,
             @errorName(err),

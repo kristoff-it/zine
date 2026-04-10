@@ -37,12 +37,14 @@ pub const gpa = if (builtin.single_threaded)
 else
     std.heap.smp_allocator;
 
-pub fn main() u8 {
+pub fn main(init: std.process.Init) u8 {
+    const io = init.io;
+
     errdefer |err| switch (err) {
-        error.OutOfMemory, error.Overflow => fatal.oom(),
+        error.OutOfMemory, error.Unexpected => fatal.oom(),
     };
 
-    root.progress = std.Progress.start(.{ .draw_buffer = &root.progress_buf });
+    root.progress = std.Progress.start(io, .{ .draw_buffer = &root.progress_buf });
     defer root.progress.end();
 
     if (builtin.mode == .Debug) {
@@ -104,8 +106,7 @@ pub fn main() u8 {
         , .{});
     }
 
-    const args = try std.process.argsAlloc(gpa);
-    defer std.process.argsFree(gpa, args);
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
     const cmd = blk: {
         if (args.len >= 2) {
@@ -114,13 +115,13 @@ pub fn main() u8 {
             }
         }
 
-        @import("cli/serve.zig").serve(gpa, args[1..]);
+        @import("cli/serve.zig").serve(io, gpa, args[1..]) catch fatal.oom();
     };
 
     const any_error = switch (cmd) {
-        .init => @import("cli/init.zig").init(gpa, args[2..]),
-        .release => @import("cli/release.zig").release(gpa, args[2..]),
-        .debug => @import("cli/debug.zig").debug(gpa, args[2..]),
+        .init => @import("cli/init.zig").init(io, gpa, args[2..]),
+        .release => @import("cli/release.zig").release(io, gpa, args[2..]),
+        .debug => @import("cli/debug.zig").debug(io, gpa, args[2..]),
         .help, .@"-h", .@"--help" => fatal.help(),
         .version, .@"-v", .@"--version" => printVersion(),
         .serve, .server, .dev, .develop => {

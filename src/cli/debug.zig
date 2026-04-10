@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const builtin = @import("builtin");
 const tracy = @import("tracy");
 const fatal = @import("../fatal.zig");
@@ -10,6 +11,7 @@ const Allocator = std.mem.Allocator;
 const BuildAsset = root.BuildAsset;
 
 pub fn debug(
+    io: Io,
     gpa: Allocator,
     args: []const []const u8,
 ) bool {
@@ -19,20 +21,20 @@ pub fn debug(
 
     const cmd: Command = try .parse(gpa, args);
 
-    const cfg, const base_dir_path = root.Config.load(gpa);
+    const cfg, const base_dir_path = root.Config.load(io, gpa);
 
-    worker.start();
-    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit();
+    worker.start(io);
+    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit(io);
 
     // build_assets: *const std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
-    const build = root.run(gpa, &cfg, .{
+    const build = root.run(io, gpa, &cfg, .{
         .base_dir_path = base_dir_path,
         .build_assets = &.empty,
         .drafts = false,
         .mode = .memory,
     }) catch fatal.oom();
 
-    defer if (builtin.mode == .Debug) build.deinit(gpa);
+    defer if (builtin.mode == .Debug) build.deinit(io, gpa);
 
     for (build.variants, 0..) |*variant, vidx| {
         std.debug.print(
@@ -81,7 +83,8 @@ pub fn debug(
                 \\.pages = [
                 \\
             , .{
-                idx, s.content_sub_path.fmt(
+                idx,
+                s.content_sub_path.fmt(
                     &variant.string_table,
                     &variant.path_table,
                     variant.content_dir_path,

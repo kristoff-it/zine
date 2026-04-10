@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const builtin = @import("builtin");
 const tracy = @import("tracy");
 const fatal = @import("../fatal.zig");
@@ -6,7 +7,7 @@ const Allocator = std.mem.Allocator;
 
 const log = std.log.scoped(.init);
 
-pub fn init(gpa: Allocator, args: []const []const u8) bool {
+pub fn init(io: Io, gpa: Allocator, args: []const []const u8) bool {
     _ = gpa;
 
     const cmd: Command = .parse(args);
@@ -126,11 +127,11 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
         const basename = std.fs.path.basenamePosix(file.path);
 
         const base_dir = if (dirname) |dn|
-            std.fs.cwd().makeOpenPath(dn, .{}) catch |err| fatal.dir(dn, err)
+            Io.Dir.cwd().createDirPathOpen(io, dn, .{}) catch |err| fatal.dir(dn, err)
         else
-            std.fs.cwd();
+            Io.Dir.cwd();
 
-        const f = base_dir.createFile(basename, .{
+        const f = base_dir.createFile(io, basename, .{
             .exclusive = true,
         }) catch |err| switch (err) {
             else => fatal.file(basename, err),
@@ -143,7 +144,8 @@ pub fn init(gpa: Allocator, args: []const []const u8) bool {
             },
         };
         std.debug.print("Created: {s}\n", .{file.path});
-        f.writeAll(file.src) catch |err| fatal.file(file.path, err);
+        var file_writer = f.writer(io, &.{});
+        file_writer.interface.writeAll(file.src) catch |err| fatal.file(file.path, err);
     }
 
     std.debug.print(

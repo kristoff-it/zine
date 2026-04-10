@@ -6,15 +6,15 @@
 //! successes, while others are meant to be failures.
 const std = @import("std");
 
-pub fn main() !void {
-    const gpa = std.heap.smp_allocator;
-    const args = try std.process.argsAlloc(gpa);
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
 
-    var cmd = std.process.Child.init(args[1..], gpa);
-    const term = try cmd.spawnAndWait();
+    var child = try std.process.spawn(io, .{ .argv = args[1..] });
+    const term = try child.wait(io);
 
     switch (term) {
-        .Exited => |code| {
+        .exited => |code| {
             const fmt = "\n\n ----- EXIT CODE: {} -----\n";
             std.debug.print(fmt, .{code});
             // try std.io.getStdOut().writer().print(fmt, .{code});

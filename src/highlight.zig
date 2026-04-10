@@ -1,6 +1,7 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.highlight);
+const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const Writer = std.Io.Writer;
 const options = @import("options");
 const syntax = @import("syntax");
@@ -22,8 +23,9 @@ pub const DotsToUnderscores = struct {
 };
 
 var query_cache: syntax.QueryCache = .{
+    .io = undefined,
     .allocator = @import("main.zig").gpa,
-    .mutex = std.Thread.Mutex{},
+    .mutex = .init,
 };
 
 const ClassSet = struct {
@@ -96,6 +98,7 @@ fn printSpan(
 }
 
 pub fn highlightCode(
+    io: Io,
     arena: Allocator,
     lang_name: []const u8,
     code: []const u8,
@@ -104,6 +107,9 @@ pub fn highlightCode(
     const zone = tracy.traceNamed(@src(), "highlightCode");
     defer zone.end();
     tracy.messageCopy(lang_name);
+
+    // Horrible hack
+    query_cache.io = io;
 
     if (!options.enable_treesitter) {
         try w.print("{f}", .{HtmlSafe{ .bytes = code }});

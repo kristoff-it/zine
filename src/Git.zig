@@ -1,11 +1,12 @@
 const Git = @This();
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const zeit = @import("zeit");
-const Allocator = std.mem.Allocator;
 
 pub const git_commit_hash_len = 40;
 
@@ -45,12 +46,12 @@ const CommitDate = struct {
     };
 };
 
-pub fn init(gpa: Allocator, path: []const u8) !Git {
+pub fn init(io: Io, gpa: Allocator, path: []const u8) !Git {
     var p = path;
     var git_dir = while (true) {
-        var dir = try std.fs.openDirAbsolute(p, .{});
-        defer dir.close();
-        break dir.openDir(".git", .{}) catch |err| switch (err) {
+        var dir = try Io.Dir.openDirAbsolute(io, p, .{});
+        defer dir.close(io);
+        break dir.openDir(io, ".git", .{}) catch |err| switch (err) {
             error.FileNotFound => {
                 p = std.fs.path.dirname(p) orelse return Git{};
                 continue;
@@ -58,7 +59,7 @@ pub fn init(gpa: Allocator, path: []const u8) !Git {
             else => return err,
         };
     };
-    defer git_dir.close();
+    defer git_dir.close(io);
 
     const head = readHead(gpa, git_dir) catch return Git{};
 
@@ -93,7 +94,7 @@ const Head = union(enum) {
     commit_hash: [git_commit_hash_len]u8,
     branch: []const u8,
 };
-fn readHead(gpa: Allocator, git_dir: std.fs.Dir) !Head {
+fn readHead(gpa: Allocator, git_dir: Io.Dir) !Head {
     var head_file = try git_dir.openFile("HEAD", .{});
     defer head_file.close();
     const buf = try head_file.readToEndAlloc(gpa, 4096);
@@ -106,7 +107,7 @@ fn readHead(gpa: Allocator, git_dir: std.fs.Dir) !Head {
     }
 }
 
-fn readCommitOfBranch(gpa: Allocator, git_dir: std.fs.Dir, branch: []const u8) ![git_commit_hash_len]u8 {
+fn readCommitOfBranch(gpa: Allocator, git_dir: Io.Dir, branch: []const u8) ![git_commit_hash_len]u8 {
     const rel_path = switch (builtin.os.tag) {
         .windows => win: {
             const duped_branch = try gpa.dupe(u8, branch);
@@ -126,7 +127,7 @@ fn readCommitOfBranch(gpa: Allocator, git_dir: std.fs.Dir, branch: []const u8) !
 
 fn getTagForCommitHash(
     arena: Allocator,
-    git_dir: std.fs.Dir,
+    git_dir: Io.Dir,
     commit_hash: []const u8,
 ) !?[]const u8 {
     const rel_path = "refs" ++ std.fs.path.sep_str ++ "tags";
@@ -155,13 +156,14 @@ const Meta = struct {
 
 // NOTE: Does not support packed objects
 fn setAdditionalMetadata(
+    io: Io,
     arena: Allocator,
-    git_dir: std.fs.Dir,
+    git_dir: Io.Dir,
     commit_hash: [git_commit_hash_len]u8,
 ) !Meta {
     const commit_path = "objects" ++ std.fs.path.sep_str ++ commit_hash[0..2] ++ std.fs.path.sep_str ++ commit_hash[2..];
 
-    const content = try git_dir.openFile(commit_path, .{});
+    const content = try git_dir.openFile(io, commit_path, .{});
     var decompressed = std.compress.zlib.decompressor(content.reader());
     const reader = decompressed.reader();
     const data = try reader.readAllAlloc(arena, 100_000);

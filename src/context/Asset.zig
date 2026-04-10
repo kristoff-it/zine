@@ -1,6 +1,7 @@
 const Asset = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const Writer = std.Io.Writer;
@@ -158,7 +159,7 @@ pub const Builtins = struct {
                         ),
                     }) catch unreachable;
 
-                    const stat = v.content_dir.statFile(path) catch {
+                    const stat = v.content_dir.statFile(ctx._meta.io, path, .{}) catch {
                         return .{ .err = "i/o error while reading asset file" };
                     };
                     return Int.init(@intCast(stat.size));
@@ -173,7 +174,7 @@ pub const Builtins = struct {
                         ),
                     }) catch unreachable;
 
-                    const stat = ctx._meta.build.site_assets_dir.statFile(path) catch {
+                    const stat = ctx._meta.build.site_assets_dir.statFile(ctx._meta.io, path, .{}) catch {
                         return .{ .err = "i/o error while reading asset file" };
                     };
                     return Int.init(@intCast(stat.size));
@@ -212,9 +213,10 @@ pub const Builtins = struct {
                     }) catch unreachable;
 
                     const data = v.content_dir.readFileAlloc(
-                        gpa,
+                        ctx._meta.io,
                         path,
-                        std.math.maxInt(u32),
+                        gpa,
+                        .unlimited,
                     ) catch {
                         return .{ .err = "i/o error while reading asset file" };
                     };
@@ -231,9 +233,10 @@ pub const Builtins = struct {
                     }) catch unreachable;
 
                     const data = ctx._meta.build.site_assets_dir.readFileAlloc(
-                        gpa,
+                        ctx._meta.io,
                         path,
-                        std.math.maxInt(u32),
+                        gpa,
+                        .unlimited,
                     ) catch |err| fatal.file(path, err);
 
                     return Value.from(gpa, data);
@@ -244,9 +247,10 @@ pub const Builtins = struct {
                     ).?;
 
                     const data = ctx._meta.build.base_dir.readFileAlloc(
-                        gpa,
+                        ctx._meta.io,
                         ba.input_path,
-                        std.math.maxInt(u32),
+                        gpa,
+                        .unlimited,
                     ) catch |err| fatal.file(ba.input_path, err);
 
                     return Value.from(gpa, data);
@@ -284,9 +288,10 @@ pub const Builtins = struct {
                     }) catch unreachable;
 
                     break :blk v.content_dir.readFileAlloc(
-                        gpa,
+                        ctx._meta.io,
                         path,
-                        std.math.maxInt(u32),
+                        gpa,
+                        .unlimited,
                     ) catch {
                         return .{ .err = "i/o error while reading asset file" };
                     };
@@ -302,9 +307,10 @@ pub const Builtins = struct {
                     }) catch unreachable;
 
                     break :blk ctx._meta.build.site_assets_dir.readFileAlloc(
-                        gpa,
+                        ctx._meta.io,
                         path,
-                        std.math.maxInt(u32),
+                        gpa,
+                        .unlimited,
                     ) catch {
                         return .{ .err = "i/o error while reading asset file" };
                     };
@@ -356,10 +362,10 @@ pub const Builtins = struct {
                     }) catch unreachable;
 
                     break :blk v.content_dir.readFileAllocOptions(
-                        gpa,
+                        ctx._meta.io,
                         path,
-                        std.math.maxInt(u32),
-                        null,
+                        gpa,
+                        .unlimited,
                         .@"1",
                         0,
                     ) catch {
@@ -377,10 +383,10 @@ pub const Builtins = struct {
                     }) catch unreachable;
 
                     break :blk ctx._meta.build.site_assets_dir.readFileAllocOptions(
-                        gpa,
+                        ctx._meta.io,
                         path,
-                        std.math.maxInt(u32),
-                        null,
+                        gpa,
+                        .unlimited,
                         .@"1",
                         0,
                     ) catch {

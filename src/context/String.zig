@@ -382,7 +382,7 @@ pub const Builtins = struct {
         pub fn call(
             str: String,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 1) return .{ .err = "'syntaxHighlight' wants one argument" };
@@ -403,7 +403,7 @@ pub const Builtins = struct {
                 return Value.from(gpa, try out.toOwnedSlice());
             }
 
-            hl.highlightCode(gpa, lang, str.value, &out.writer) catch |err| switch (err) {
+            hl.highlightCode(ctx._meta.io, gpa, lang, str.value, &out.writer) catch |err| switch (err) {
                 error.NoLanguage => return .{ .err = "unable to find a parser for the provided language" },
                 error.OutOfMemory => return error.OutOfMemory,
                 else => return .{ .err = "error while syntax highlighting" },

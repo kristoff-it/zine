@@ -1,63 +1,64 @@
 const std = @import("std");
+const Io = std.Io;
 
 pub fn Channel(comptime T: type) type {
     return struct {
-        lock: std.Thread.Mutex = .{},
+        lock: Io.Mutex = .init,
         fifo: Fifo,
-        writeable: std.Thread.Condition = .{},
-        readable: std.Thread.Condition = .{},
+        writeable: Io.Condition = .init,
+        readable: Io.Condition = .init,
 
         const Fifo = std.ArrayList(T);
         const Self = @This();
 
         pub fn init(buffer: []T) Self {
-            return Self{ .fifo = Fifo.initBuffer(buffer) };
+            return .{ .fifo = Fifo.initBuffer(buffer) };
         }
 
-        pub fn put(self: *Self, item: T) void {
-            self.lock.lock();
+        pub fn put(self: *Self, io: Io, item: T) !void {
+            try self.lock.lock(io);
             defer {
-                self.lock.unlock();
-                self.readable.signal();
+                self.lock.unlock(io);
+                self.readable.signal(io);
             }
 
             while (true) return self.fifo.appendBounded(item) catch {
-                self.writeable.wait(&self.lock);
+                try self.writeable.wait(io, &self.lock);
                 continue;
             };
         }
 
-        pub fn tryPut(self: *Self, item: T) !void {
-            self.lock.lock();
-            defer self.lock.unlock();
+        pub fn tryPut(self: *Self, io: Io, item: T) !void {
+            try self.lock.lock(io);
+            defer self.lock.unlock(io);
 
             try self.fifo.appendBounded(item);
 
             // only signal on success
-            self.readable.signal();
+            self.readable.signal(io);
         }
 
-        pub fn get(self: *Self) T {
-            self.lock.lock();
+        pub fn get(self: *Self, io: Io) !T {
+            try self.lock.lock(io);
             defer {
-                self.lock.unlock();
-                self.writeable.signal();
+                self.lock.unlock(io);
+                self.writeable.signal(io);
             }
 
             while (true) return self.fifo.pop() orelse {
-                self.readable.wait(&self.lock);
+                try self.readable.wait(io, &self.lock);
                 continue;
             };
         }
 
-        pub fn getOrNull(self: *Self) ?T {
-            self.lock.lock();
-            defer self.lock.unlock();
+        pub fn getOrNull(self: *Self, io: Io) !?T {
+            try self.lock.lock(io);
+            defer self.lock.unlock(io);
 
             if (self.fifo.pop()) |item| return item;
 
             // signal on empty queue
-            self.writeable.signal();
+            self.writeable.signal(io);
         }
     };
 }

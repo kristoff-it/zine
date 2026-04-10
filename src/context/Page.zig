@@ -4,6 +4,7 @@ const std = @import("std");
 const log = std.log.scoped(.page);
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 const ziggy = @import("ziggy");
@@ -313,6 +314,7 @@ pub fn deinit(p: *const Page, gpa: Allocator) void {
 
 pub fn parse(
     p: *Page,
+    io: Io,
     gpa: Allocator,
     cmark: supermd.Ast.CmarkParser,
     progress: ?std.Progress.Node,
@@ -359,10 +361,10 @@ pub fn parse(
 
     const max = std.math.maxInt(u32);
     const full_src = variant.content_dir.readFileAllocOptions(
-        arena,
+        io,
         path_bytes,
-        max,
-        null,
+        arena,
+        .limited(max),
         .@"1",
         0,
     ) catch |err| fatal.file(path_bytes, err);

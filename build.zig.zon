@@ -4,18 +4,13 @@
     .fingerprint = 0xa466bcb520a7eea2,
     .minimum_zig_version = "0.15.0",
     .dependencies = .{
-        .afl_kit = .{
-            .url = "git+https://github.com/kristoff-it/zig-afl-kit#395c39d5b33d999f6871a90bd731ec112d3995ca",
-            .hash = "afl_kit-0.1.0-NdJ3ch8eAABQkd1wk2W-JDCvvX5Jmnu3uJulS3lPepG7",
-            .lazy = true,
-        },
         .lsp_kit = .{
-            .url = "git+https://github.com/zigtools/lsp-kit#4835b9d3d3cf732fe1830189d81f331c68fb3e77",
-            .hash = "lsp_kit-0.1.0-bi_PL18tCgAMyrZ0tgn_0PXnGEvxGWeNkkRygfe9pX9u",
+            .url = "git+https://github.com/zigtools/lsp-kit#ec325a3c33d1da7708cf513355208f74d9560580",
+            .hash = "lsp_kit-0.1.0-bi_PL_kyDACVTEhLaMq2-PJx0MocqRyjXDAN0ybMUyQQ",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#50dbab8945440089384f26ec165d870c29555247",
-            .hash = "scripty-0.1.0-LKK5O7v4AADWWXuFcTJky_5sY12tmw3kRi3k2wkpfxAX",
+            .url = "git+https://github.com/kristoff-it/scripty#154779b47be67f766ee13080ce7aa68a18daebd9",
+            .hash = "scripty-0.1.0-LKK5OwTdAACftzrZyMpWZUJ7OLyI3UwAwqQfE2cdgRoO",
         },
         .tracy = .{
             .url = "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
@@ -26,8 +21,8 @@
             .hash = "mime-3.0.0-zwmL--0gAAByELrj57sRm2EFBRzjKLFrMgHQcs7sFZev",
         },
         .wuffs = .{
-            .url = "git+https://github.com/allyourcodebase/wuffs#5822dc06c75b30d53082debf68c90193cb2b2608",
-            .hash = "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgcMFAACyPvxsC7b48pJv9dPkPa4pSrB2VFbCXTfK",
+            .url = "git+https://github.com/allyourcodebase/wuffs#6fd35cb51e90c4f69c64f3a2c28eb8aa36dc9c8b",
+            .hash = "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgRMKAAAuMytwtlaBGjTMPVuDQSnCE3qMGg2NDTfr",
         },
         .frameworks = .{
             .url = "git+https://code.hexops.org/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
@@ -35,24 +30,24 @@
             .lazy = true,
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#8cb16babb0c66b6512d6aeb4cbc37ed90641d980",
-            .hash = "superhtml-0.4.0-Y7MdPJTWDQBJJoaCLlBYLGrjhAnmWAtVhVGelveq3O-s",
+            .url = "git+https://github.com/kristoff-it/superhtml#248895ac07370464248d7af7b83213a3a80f510c",
+            .hash = "superhtml-0.6.2-Y7MdPCRFJACeDRBHLwVYloNaB9uSo3U6os3ZPyudlJLT",
         },
         .zeit = .{
-            .url = "git+https://github.com/sam701/zeit?ref=zig-0.15#46583c4695bade6841a558c0ce5648426b556214",
-            .hash = "zeit-0.6.0-5I6bk0J9AgCVa0nnyL0lNY9Xa9F68hHq-ZarhuXNV-Jb",
+            .url = "git+https://github.com/rockorager/zeit?ref=0.16#fdaad9c5884f41a3640c768f4f9fc116e763c321",
+            .hash = "zeit-0.6.0-5I6bk3K6AgCFnc_9CN7KJjaeNJz1VuwP4DA7Gs9vgxuz",
         },
         .flow_syntax = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#6992eddeb9a4a013886db0cbca2156686d01efe4",
-            .hash = "flow_syntax-0.6.0-X8jOoWgVAQBBTuGGE9r1ECSDFzi8z6_XNCW1oF5B4fL8",
+            .url = "git+https://github.com/neurocyte/flow-syntax#12a8e42b8b9b71166090c773f0fd9a7bddebab58",
+            .hash = "flow_syntax-0.7.2-X8jOofVaAQAXpiaYN0_DkpnspNKz2GhcoNgqgeO-lBrF",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy#4353b20ef2ac750e35c6d68e4eb2a07c2d7cf901",
-            .hash = "ziggy-0.1.0-kTg8v5pABgDztlefWHceH-Sh8tVveguFC61QkmLkIRaA",
+            .url = "git+https://github.com/kristoff-it/ziggy?ref=old#0fdd57cbb052e7aa5930b3ed960ea3450f9dc2b0",
+            .hash = "ziggy-0.1.0-kTg8v15ABgBGDedRmKfxGUWBxSxMBnEfYjazvZKVVrzP",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#530ac6c337c9a9511560fba3181db10d1fe23ef1",
-            .hash = "supermd-0.1.0-3Mco3GyYWACe4ptEKIrZUhizWGwXhbmtKtjNopG8f76y",
+            .url = "git+https://github.com/kristoff-it/supermd#44ee1fe6c697d289832125bd894f8f621322df57",
+            .hash = "supermd-0.1.0-3Mco3COYWADsmlFpwymglxJFs_hQNs22819xlGowQiuV",
         },
     },
     .paths = .{"."},

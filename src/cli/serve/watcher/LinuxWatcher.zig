@@ -1,12 +1,14 @@
 const LinuxWatcher = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const fatal = @import("../../../fatal.zig");
 const Debouncer = @import("../../serve.zig").Debouncer;
 const Allocator = std.mem.Allocator;
 
 const log = std.log.scoped(.watcher);
 
+io: Io,
 gpa: Allocator,
 debouncer: *Debouncer,
 
@@ -16,7 +18,7 @@ watch_fds: std.AutoHashMapUnmanaged(std.posix.fd_t, WatchEntry) = .{},
 /// direct descendant tracker
 children_fds: std.AutoHashMapUnmanaged(
     std.posix.fd_t,
-    std.ArrayListUnmanaged(std.posix.fd_t),
+    std.ArrayList(std.posix.fd_t),
 ) = .{},
 /// inotify cookie tracker for move events
 cookie_fds: std.AutoHashMapUnmanaged(u32, std.posix.fd_t) = .{},
@@ -27,6 +29,7 @@ const WatchEntry = struct {
 };
 
 pub fn init(
+    io: Io,
     gpa: std.mem.Allocator,
     debouncer: *Debouncer,
     dir_paths: []const []const u8,
@@ -35,8 +38,9 @@ pub fn init(
         @errorName(err),
     });
 
-    const notify_fd = try std.posix.inotify_init1(0);
+    const notify_fd = try inotify_init1(0);
     var watcher: LinuxWatcher = .{
+        .io = io,
         .gpa = gpa,
         .notify_fd = notify_fd,
         .debouncer = debouncer,
@@ -56,7 +60,7 @@ fn addChild(
     const gpa = watcher.gpa;
     const children = try watcher.children_fds.getOrPut(gpa, parent);
     if (!children.found_existing) {
-        children.value_ptr.* = .{};
+        children.value_ptr.* = .empty;
     }
     try children.value_ptr.append(gpa, child);
 }
@@ -103,10 +107,10 @@ fn addTree(
 ) !std.posix.fd_t {
     const gpa = watcher.gpa;
 
-    var root_dir = try std.fs.openDirAbsolute(root_dir_path, .{
+    var root_dir = try Io.Dir.openDirAbsolute(watcher.io, root_dir_path, .{
         .iterate = true,
     });
-    defer root_dir.close();
+    defer root_dir.close(watcher.io);
 
     const parent_fd = try watcher.addDir(root_dir_path);
 
@@ -118,7 +122,7 @@ fn addTree(
     try lookup.put(root_dir_path, parent_fd);
 
     var it = try root_dir.walk(gpa);
-    while (try it.next()) |entry| switch (entry.kind) {
+    while (try it.next(watcher.io)) |entry| switch (entry.kind) {
         else => continue,
         .directory => {
             const dir_path = try std.fs.path.join(gpa, &.{
@@ -148,7 +152,7 @@ fn addDir(
         .IN_CREATE,      .IN_DELETE,
         .IN_EXCL_UNLINK,
     });
-    const watch_fd = try std.posix.inotify_add_watch(
+    const watch_fd = try inotify_add_watch(
         watcher.notify_fd,
         dir_path,
         mask,
@@ -174,7 +178,7 @@ fn rmWatch(
         }
         watcher.children_fds.removeByPtr(entry.key_ptr);
     }
-    std.posix.inotify_rm_watch(watcher.notify_fd, fd);
+    inotify_rm_watch(watcher.notify_fd, fd);
 }
 
 /// Handle the start of the move process
@@ -300,7 +304,7 @@ pub fn listen(watcher: *LinuxWatcher) !void {
 
         var event_data = buffer[0..len];
         while (event_data.len > 0) {
-            const event: *Event = @alignCast(@ptrCast(event_data[0..event_size]));
+            const event: *Event = @ptrCast(@alignCast(event_data[0..event_size]));
             const parent = watcher.watch_fds.get(event.wd).?;
             event_data = event_data[event_size + event.len ..];
 
@@ -437,3 +441,69 @@ const Mask = struct {
         }
     }
 };
+
+pub const INotifyInitError = error{
+    ProcessFdQuotaExceeded,
+    SystemFdQuotaExceeded,
+    SystemResources,
+    Unexpected,
+};
+
+/// initialize an inotify instance
+pub fn inotify_init1(flags: u32) INotifyInitError!i32 {
+    const rc = std.c.inotify_init1(flags);
+    switch (std.c.errno(rc)) {
+        .SUCCESS => return @intCast(rc),
+        .INVAL => unreachable,
+        .MFILE => return error.ProcessFdQuotaExceeded,
+        .NFILE => return error.SystemFdQuotaExceeded,
+        .NOMEM => return error.SystemResources,
+        else => |err| return std.posix.unexpectedErrno(err),
+    }
+}
+
+pub const INotifyAddWatchError = error{
+    AccessDenied,
+    NameTooLong,
+    FileNotFound,
+    SystemResources,
+    UserResourceLimitReached,
+    NotDir,
+    WatchAlreadyExists,
+    Unexpected,
+};
+
+/// add a watch to an initialized inotify instance
+pub fn inotify_add_watch(inotify_fd: i32, pathname: []const u8, mask: u32) INotifyAddWatchError!i32 {
+    const pathname_c = try std.posix.toPosixPath(pathname);
+    return inotify_add_watchZ(inotify_fd, &pathname_c, mask);
+}
+
+/// Same as `inotify_add_watch` except pathname is null-terminated.
+pub fn inotify_add_watchZ(inotify_fd: i32, pathname: [*:0]const u8, mask: u32) INotifyAddWatchError!i32 {
+    const rc = std.c.inotify_add_watch(inotify_fd, pathname, mask);
+    switch (std.c.errno(rc)) {
+        .SUCCESS => return @intCast(rc),
+        .ACCES => return error.AccessDenied,
+        .BADF => unreachable,
+        .FAULT => unreachable,
+        .INVAL => unreachable,
+        .NAMETOOLONG => return error.NameTooLong,
+        .NOENT => return error.FileNotFound,
+        .NOMEM => return error.SystemResources,
+        .NOSPC => return error.UserResourceLimitReached,
+        .NOTDIR => return error.NotDir,
+        .EXIST => return error.WatchAlreadyExists,
+        else => |err| return std.posix.unexpectedErrno(err),
+    }
+}
+
+/// remove an existing watch from an inotify instance
+pub fn inotify_rm_watch(inotify_fd: i32, wd: i32) void {
+    switch (std.c.errno(std.c.inotify_rm_watch(inotify_fd, wd))) {
+        .SUCCESS => return,
+        .BADF => unreachable,
+        .INVAL => unreachable,
+        else => unreachable,
+    }
+}

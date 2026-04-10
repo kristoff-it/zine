@@ -2,6 +2,7 @@ const std = @import("std");
 const log = std.log.scoped(.run);
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const Writer = std.Io.Writer;
 const Component = std.Uri.Component;
 const builtin = @import("builtin");
@@ -156,12 +157,12 @@ pub const Config = union(enum) {
     /// Returns the cfg and the the directory where the config file was
     /// found. The directory is then used by other code to place the output
     /// directory unless the user overrides that location from the CLI.
-    pub fn load(arena: Allocator) struct { Config, []const u8 } {
+    pub fn load(io: Io, arena: Allocator) struct { Config, []const u8 } {
         errdefer |err| switch (err) {
             error.OutOfMemory => fatal.oom(),
         };
 
-        const cwd_path = std.process.getCwdAlloc(arena) catch |err| {
+        const cwd_path = std.process.currentPathAlloc(io, arena) catch |err| {
             fatal.msg("error while trying to get the cwd path: {s}\n", .{
                 @errorName(err),
             });
@@ -173,11 +174,11 @@ pub const Config = union(enum) {
                 base_dir_path, config_file_basename,
             });
 
-            const data = std.fs.cwd().readFileAllocOptions(
-                arena,
+            const data = Io.Dir.cwd().readFileAllocOptions(
+                io,
                 joined_path,
-                1024 * 1024,
-                null,
+                arena,
+                .limited(1024 * 1024),
                 .of(u8),
                 0,
             ) catch |err| switch (err) {
@@ -442,6 +443,7 @@ pub const Options = struct {
 };
 
 pub fn run(
+    io: Io,
     gpa: Allocator,
     cfg: *const Config,
     options: Options,
@@ -455,7 +457,7 @@ pub fn run(
     var build: Build = blk: {
         const tracy_frame = tracy.namedFrame("load build");
         defer tracy_frame.end();
-        break :blk Build.load(gpa, cfg, options);
+        break :blk Build.load(io, gpa, cfg, options);
     };
     _ = arena_state.reset(.retain_capacity);
 
@@ -466,7 +468,7 @@ pub fn run(
         switch (build.cfg.*) {
             .Site => |s| {
                 build.variants = try gpa.alloc(Variant, 1);
-                worker.addJob(.{
+                worker.addJob(io, .{
                     .scan = .{
                         .variant = &build.variants[0],
                         .base_dir = build.base_dir,
@@ -480,7 +482,7 @@ pub fn run(
             .Multilingual => |ml| {
                 build.variants = try gpa.alloc(Variant, ml.locales.len);
                 for (ml.locales, 0..) |locale, idx| {
-                    worker.addJob(.{
+                    worker.addJob(io, .{
                         .scan = .{
                             .variant = &build.variants[idx],
                             .base_dir = build.base_dir,
@@ -501,7 +503,7 @@ pub fn run(
         // Before we wait for content dirs to be scanned, we scan the layouts
         // directory in this thread.
         // TODO: find a better moment for this work
-        try build.scanTemplates(gpa, arena);
+        try build.scanTemplates(io, gpa, arena);
         if (builtin.mode == .Debug) {
             const Ctx = struct {
                 b: *Build,
@@ -524,7 +526,7 @@ pub fn run(
             const ctx: Ctx = .{ .b = &build };
             build.templates.sort(ctx);
         }
-        try build.scanSiteAssets(gpa, arena);
+        try build.scanSiteAssets(io, gpa, arena);
         _ = arena_state.reset(.retain_capacity);
 
         for (build.cfg.getStaticAssets()) |path| {
@@ -589,7 +591,7 @@ pub fn run(
 
             for (v.sections.items[1..]) |*s| {
                 any_content = true;
-                worker.addJob(.{
+                worker.addJob(io, .{
                     .section_activate = .{
                         .variant = v,
                         .section = s,
@@ -639,7 +641,7 @@ pub fn run(
                 for (s.pages.items) |page_index| {
                     const p = &v.pages.items[page_index];
                     if (p._scan.file.name == index_smd) continue; // already parsed
-                    worker.addJob(.{
+                    worker.addJob(io, .{
                         .page_parse = .{
                             .progress = progress_parse,
                             .drafts = options.drafts,
@@ -890,7 +892,7 @@ pub fn run(
                 // isolate ziggy syntax errors and only analize the supermd content
                 // but it seems a minor optimization not worth the extra complexity.
                 pages_to_analyze += 1;
-                worker.addJob(.{
+                worker.addJob(io, .{
                     .page_analyze = .{
                         .progress = progress_page_analyze,
                         .build = &build,
@@ -907,7 +909,7 @@ pub fn run(
     }
 
     for (build.templates.keys(), build.templates.values()) |tpn, *template| {
-        worker.addJob(.{
+        worker.addJob(io, .{
             .template_parse = .{
                 .build = &build,
                 .template = template,
@@ -943,13 +945,13 @@ pub fn run(
                     const sel = loc.getSelection(full_src);
                     const line_off = loc.line(full_src);
 
-                    const line_trim_left = std.mem.trimLeft(u8, line_off.line, &std.ascii.whitespace);
+                    const line_trim_left = std.mem.trimStart(u8, line_off.line, &std.ascii.whitespace);
                     const start_trim_left = line_off.start + line_off.line.len - line_trim_left.len;
 
                     const caret_len = loc.end - loc.start;
                     const caret_spaces_len = loc.start -| start_trim_left;
 
-                    const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
+                    const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
 
                     var hl_buf: [1024]u8 = undefined;
 
@@ -1022,13 +1024,13 @@ pub fn run(
                         break :blk it.next().?;
                     };
 
-                    const line_trim_left = std.mem.trimLeft(
+                    const line_trim_left = std.mem.trimStart(
                         u8,
                         line,
                         &std.ascii.whitespace,
                     );
 
-                    const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
+                    const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
 
                     const start_trim_left = line.len - line_trim_left.len;
                     const caret_len = if (range.start.row == range.end.row)
@@ -1332,8 +1334,8 @@ pub fn run(
                 ),
             });
 
-            std.debug.lockStdErr();
-            defer std.debug.unlockStdErr();
+            _ = std.debug.lockStderr(&.{});
+            defer std.debug.unlockStderr();
 
             var aw: Writer.Allocating = .init(gpa);
             defer if (build.mode != .memory) aw.deinit();
@@ -1456,7 +1458,7 @@ pub fn run(
                     ),
                 };
 
-                worker.addJob(.{
+                worker.addJob(io, .{
                     .page_render = .{
                         .progress = progress_page_render,
                         .build = &build,
@@ -1467,7 +1469,7 @@ pub fn run(
                 });
 
                 for (0..p.alternatives.len) |aidx| {
-                    worker.addJob(.{
+                    worker.addJob(io, .{
                         .page_render = .{
                             .progress = progress_page_render,
                             .build = &build,
@@ -1489,7 +1491,7 @@ pub fn run(
 
     var progress_install_assets = progress.start("Install assets", 0);
     for (build.variants) |*v| {
-        worker.addJob(.{
+        worker.addJob(io, .{
             .variant_assets_install = .{
                 .progress = progress_install_assets,
                 .install_dir = build.mode.disk.output_dir,
@@ -1507,6 +1509,7 @@ pub fn run(
                     break :blk build.mode.disk.output_dir;
                 } else {
                     break :blk build.mode.disk.output_dir.openDir(
+                        io,
                         ml.assets_prefix_path,
                         .{},
                     ) catch |err| fatal.dir(ml.assets_prefix_path, err);
@@ -1537,9 +1540,10 @@ pub fn run(
 
             if (entry.value_ptr.raw > 0) {
                 _ = build.site_assets_dir.updateFile(
+                    io,
                     path,
                     site_assets_install_dir,
-                    std.mem.trimLeft(u8, path, "/"),
+                    std.mem.trimStart(u8, path, "/"),
                     .{},
                 ) catch |err| fatal.file(path, err);
             }
@@ -1552,9 +1556,10 @@ pub fn run(
             // Avoid installing if already rc'd
             if (ba.rc.load(.acquire) > 0) {
                 _ = build.base_dir.updateFile(
+                    io,
                     ba.input_path,
                     build.mode.disk.output_dir,
-                    std.mem.trimLeft(u8, ba.install_path.?, "/"),
+                    std.mem.trimStart(u8, ba.install_path.?, "/"),
                     .{},
                 ) catch |err| fatal.file(ba.input_path, err);
             }
@@ -1597,13 +1602,13 @@ fn printSuperMdErrors(
             break :blk it.next().?;
         };
 
-        const line_trim_left = std.mem.trimLeft(
+        const line_trim_left = std.mem.trimStart(
             u8,
             line,
             &std.ascii.whitespace,
         );
 
-        const line_trim = std.mem.trimRight(u8, line_trim_left, &std.ascii.whitespace);
+        const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
 
         const start_trim_left = line.len - line_trim_left.len;
         const caret_len = if (range.start.row == range.end.row)
@@ -1646,7 +1651,7 @@ fn printSuperMdErrors(
 
         const tag_name = switch (err.kind) {
             .html => |h| switch (h.tag) {
-                inline else => |t| @tagName(t),
+                inline else => |_, t| @tagName(t),
             },
             else => @tagName(err.kind),
         };

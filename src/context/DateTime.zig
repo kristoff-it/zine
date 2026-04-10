@@ -29,8 +29,8 @@ pub fn initUnix(timestamp: i64) !DateTime {
     return .{ ._inst = date };
 }
 
-pub fn initNow() DateTime {
-    const date = zeit.instant(.{}) catch unreachable;
+pub fn initNow(io: Io) DateTime {
+    const date = zeit.instant(io, .{}) catch unreachable;
     return .{ ._inst = date };
 }
 
@@ -144,7 +144,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
         ) context.CallError!Value {
             const arg_err: Value = .{
@@ -176,7 +176,7 @@ pub const Builtins = struct {
             }
 
             const tz = try gpa.create(zeit.TimeZone);
-            tz.* = zeit.loadTimeZone(gpa, location, null) catch |err| {
+            tz.* = zeit.loadTimeZone(gpa, ctx._meta.io, location, .{}) catch |err| {
                 return .errFmt(
                     gpa,
                     "unexpected error while loading '{s}' time zone information: '{s}'",
