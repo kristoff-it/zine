@@ -14,6 +14,11 @@ const Bool = context.Bool;
 
 _inst: zeit.Instant,
 
+// Safe zero value for contexts where a date is not meaningful (e.g.
+// synthetic taxonomy pages). Using undefined would leave the
+// zeit.Instant timezone pointer in an invalid state.
+pub const epoch: DateTime = .{ ._inst = .{ .timestamp = 0, .timezone = &zeit.utc } };
+
 pub fn init(iso8601: []const u8) !DateTime {
     const date = try zeit.Time.fromISO8601(iso8601);
     const inst = date.instant();

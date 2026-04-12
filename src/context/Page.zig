@@ -598,7 +598,13 @@ pub const Footnote = struct {
     pub const dot = scripty.defaultDot(Footnote, Value, false);
 };
 
-pub const dot = scripty.defaultDot(Page, Value, false);
+pub fn dot(self: *const Page, gpa: Allocator, path: []const u8) !Value {
+    if (std.mem.eql(u8, path, "date")) {
+        if (self._taxonomy != null) return .{ .err = "date is not available on taxonomy pages" };
+    }
+    return defaultDot(self, gpa, path);
+}
+const defaultDot = scripty.defaultDot(Page, Value, false);
 pub const PassByRef = true;
 
 pub const docs_description =

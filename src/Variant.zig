@@ -210,9 +210,10 @@ pub fn deinit(v: *const Variant, io: Io, gpa: Allocator) void {
         p.deinit(gpa);
     }
     for (v.taxonomy_indices) |*ti| {
-        for (ti.terms.values()) |*td| {
+        for (ti.terms.keys(), ti.terms.values()) |slug, *td| {
             var pages_list = td.pages;
             pages_list.deinit(gpa);
+            gpa.free(slug);
         }
         var terms = ti.terms;
         terms.deinit(gpa);

@@ -1173,10 +1173,14 @@ pub fn run(
                         error.OutOfMemory => return error.OutOfMemory,
                     };
                     const term_names = terms orelse continue;
+                    defer if (term_names.ptr != p.tags.ptr) gpa.free(term_names);
 
                     for (term_names) |term_name| {
                         const slug = try context_utils.slugify(gpa, term_name);
-                        if (slug.len == 0) continue;
+                        if (slug.len == 0) {
+                            gpa.free(slug);
+                            continue;
+                        }
                         const gop = try ti.terms.getOrPut(gpa, slug);
                         if (!gop.found_existing) {
                             gop.value_ptr.* = .{
@@ -1184,8 +1188,13 @@ pub fn run(
                                 .slug = slug,
                                 .pages = .empty,
                             };
+                        } else {
+                            gpa.free(slug);
                         }
-                        try gop.value_ptr.pages.append(gpa, @intCast(pidx));
+                        const page_idx: u32 = @intCast(pidx);
+                        if (std.mem.indexOfScalar(u32, gop.value_ptr.pages.items, page_idx) == null) {
+                            try gop.value_ptr.pages.append(gpa, page_idx);
+                        }
                     }
                 }
             }
@@ -1220,7 +1229,7 @@ pub fn run(
                     try v.pages.append(gpa, .{
                         .title = tc.name,
                         .author = "",
-                        .date = undefined,
+                        .date = context.DateTime.epoch,
                         .layout = tc.layout,
                         ._taxonomy = .{
                             .taxonomy_idx = @intCast(tidx),
@@ -1282,7 +1291,7 @@ pub fn run(
                     try v.pages.append(gpa, .{
                         .title = td.display_name,
                         .author = "",
-                        .date = undefined,
+                        .date = context.DateTime.epoch,
                         .layout = tc.term_layout,
                         ._taxonomy = .{
                             .taxonomy_idx = @intCast(tidx),
