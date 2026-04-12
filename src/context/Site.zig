@@ -363,6 +363,94 @@ pub const Builtins = struct {
             return context.Array.init(gpa, Value, page_list);
         }
     };
+    pub const taxonomy = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .Taxonomy,
+        };
+        pub const docs_description =
+            \\Returns a taxonomy by name.
+            \\
+            \\The taxonomy must be defined in the site configuration.
+        ;
+        pub const examples =
+            \\<ul :loop="$site.taxonomy('tags').terms()">
+            \\  <li :text="$loop.it.name"></li>
+            \\</ul>
+        ;
+        pub fn call(
+            site: *const Site,
+            gpa: Allocator,
+            ctx: *const context.Template,
+            args: []const Value,
+        ) context.CallError!Value {
+            const bad_arg: Value = .{
+                .err = "expected 1 string argument",
+            };
+            if (args.len != 1) return bad_arg;
+
+            const name = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            const v = &ctx._meta.build.variants[site._meta.variant_id];
+            for (v.taxonomy_indices, 0..) |*ti, idx| {
+                if (std.mem.eql(u8, ti.name, name)) {
+                    const t = try gpa.create(context.Taxonomy);
+                    t.* = .{
+                        .name = ti.name,
+                        ._meta = .{
+                            .variant_id = site._meta.variant_id,
+                            .taxonomy_idx = @intCast(idx),
+                        },
+                    };
+                    return .{ .taxonomy = t };
+                }
+            }
+
+            return Value.errFmt(gpa, "unknown taxonomy '{s}'", .{name});
+        }
+    };
+
+    pub const taxonomies = struct {
+        pub const signature: Signature = .{
+            .ret = .{ .Many = .Taxonomy },
+        };
+        pub const docs_description =
+            \\Returns all taxonomies defined in the site configuration.
+        ;
+        pub const examples =
+            \\<div :loop="$site.taxonomies()">
+            \\  <h2 :text="$loop.it.name"></h2>
+            \\</div>
+        ;
+        pub fn call(
+            site: *const Site,
+            gpa: Allocator,
+            ctx: *const context.Template,
+            args: []const Value,
+        ) context.CallError!Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            const v = &ctx._meta.build.variants[site._meta.variant_id];
+            const result = try gpa.alloc(Value, v.taxonomy_indices.len);
+            for (v.taxonomy_indices, 0..) |*ti, idx| {
+                const t = try gpa.create(context.Taxonomy);
+                t.* = .{
+                    .name = ti.name,
+                    ._meta = .{
+                        .variant_id = site._meta.variant_id,
+                        .taxonomy_idx = @intCast(idx),
+                    },
+                };
+                result[idx] = .{ .taxonomy = t };
+            }
+
+            return Array.init(gpa, Value, result);
+        }
+    };
+
     pub const locale = struct {
         pub const signature: Signature = .{
             .params = &.{.String},

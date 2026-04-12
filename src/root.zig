@@ -23,6 +23,16 @@ const PathName = PathTable.PathName;
 pub var progress_buf: [4096]u8 = undefined;
 pub var progress: std.Progress.Node = undefined;
 
+pub const TaxonomyConfig = struct {
+    /// The name of the taxonomy. For "tags", reads from page.tags.
+    /// For anything else, reads from page.custom.{name} (must be an array of strings).
+    name: []const u8,
+    /// Layout for the taxonomy list page (e.g., /tags/)
+    layout: []const u8,
+    /// Layout for individual term pages (e.g., /tags/zig/)
+    term_layout: []const u8,
+};
+
 pub const Site = struct {
     /// Title of the website
     title: []const u8,
@@ -62,6 +72,8 @@ pub const Site = struct {
     ///    height: auto;
     /// }
     image_size_attributes: bool = false,
+    /// Taxonomies to be generated from page metadata.
+    taxonomies: []const TaxonomyConfig = &.{},
 };
 
 pub const MultilingualSite = struct {
@@ -116,6 +128,8 @@ pub const MultilingualSite = struct {
     ///    height: auto;
     /// }
     image_size_attributes: bool = false,
+    /// Taxonomies to be generated from page metadata.
+    taxonomies: []const TaxonomyConfig = &.{},
 };
 
 /// A localized variant of a multilingual website
@@ -394,6 +408,13 @@ pub const Config = union(enum) {
         return switch (c.*) {
             .Site => |s| s.static_assets,
             .Multilingual => |m| m.static_assets,
+        };
+    }
+
+    pub fn getTaxonomies(c: *const Config) []const TaxonomyConfig {
+        return switch (c.*) {
+            .Site => |s| s.taxonomies,
+            .Multilingual => |m| m.taxonomies,
         };
     }
 
@@ -1118,6 +1139,196 @@ pub fn run(
                     }
 
                     locales[vidx] = p;
+                }
+            }
+        }
+    }
+
+    // Build taxonomy indices and create synthetic taxonomy pages.
+    const taxonomy_configs = build.cfg.getTaxonomies();
+    if (!parse_errors and taxonomy_configs.len > 0) {
+        const context_utils = @import("context/utils.zig");
+
+        for (build.variants, 0..) |*v, vidx| {
+            // 1. Allocate taxonomy index per config entry.
+            const indices = try gpa.alloc(Variant.TaxonomyIndex, taxonomy_configs.len);
+            for (indices, taxonomy_configs) |*idx, tc| {
+                idx.* = .{
+                    .name = tc.name,
+                    .terms = .{},
+                };
+            }
+
+            // 2. Iterate all parsed, active pages to build term -> pages mapping.
+            for (v.pages.items, 0..) |*p, pidx| {
+                if (!p._parse.active) continue;
+                if (p._parse.status != .parsed) continue;
+
+                for (indices, taxonomy_configs) |*ti, _| {
+                    const terms = context_utils.extractTermsFromPage(
+                        gpa,
+                        p,
+                        ti.name,
+                    ) catch |err| switch (err) {
+                        error.OutOfMemory => return error.OutOfMemory,
+                    };
+                    const term_names = terms orelse continue;
+                    defer if (term_names.ptr != p.tags.ptr) gpa.free(term_names);
+
+                    for (term_names) |term_name| {
+                        const slug = try context_utils.slugify(gpa, term_name);
+                        if (slug.len == 0) {
+                            gpa.free(slug);
+                            continue;
+                        }
+                        const gop = try ti.terms.getOrPut(gpa, slug);
+                        if (!gop.found_existing) {
+                            gop.value_ptr.* = .{
+                                .display_name = term_name,
+                                .slug = slug,
+                                .pages = .empty,
+                            };
+                        } else {
+                            gpa.free(slug);
+                        }
+                        const page_idx: u32 = @intCast(pidx);
+                        if (std.mem.indexOfScalar(u32, gop.value_ptr.pages.items, page_idx) == null) {
+                            try gop.value_ptr.pages.append(gpa, page_idx);
+                        }
+                    }
+                }
+            }
+
+            // 3. Sort pages within each term by date (newest first).
+            for (indices) |*ti| {
+                for (ti.terms.values()) |*td| {
+                    std.mem.sort(u32, td.pages.items, v.pages.items, struct {
+                        fn lessThan(pages: []const context.Page, a: u32, b: u32) bool {
+                            return pages[b].date.lessThan(pages[a].date);
+                        }
+                    }.lessThan);
+                }
+            }
+
+            v.taxonomy_indices = indices;
+
+            // 4. Create synthetic pages for taxonomy list and term pages.
+            const index_html: String = @enumFromInt(11);
+
+            for (indices, taxonomy_configs, 0..) |*ti, tc, tidx| {
+                // Taxonomy list page (e.g. /tags/index.html)
+                {
+                    const page_id: u32 = @intCast(v.pages.items.len);
+                    const taxonomy_path = try v.path_table.internPath(
+                        gpa,
+                        &v.string_table,
+                        tc.name,
+                    );
+                    const url: PathName = .{ .path = taxonomy_path, .name = index_html };
+
+                    try v.pages.append(gpa, .{
+                        .title = tc.name,
+                        .author = "",
+                        .date = context.DateTime.epoch,
+                        .layout = tc.layout,
+                        ._taxonomy = .{
+                            .taxonomy_idx = @intCast(tidx),
+                            .term_slug = null,
+                        },
+                        ._scan = .{
+                            .file = url,
+                            .url = taxonomy_path,
+                            .page_id = page_id,
+                            .subsection_id = 0,
+                            .parent_section_id = 0,
+                            .variant_id = @intCast(vidx),
+                        },
+                        ._parse = .{
+                            .active = true,
+                            .arena = std.heap.ArenaAllocator.init(gpa).state,
+                            .full_src = "",
+                            .fm = .{},
+                            .ast = undefined,
+                            .status = .parsed,
+                        },
+                        ._render = undefined,
+                        ._debug = if (builtin.mode != .Debug) {} else .{
+                            .stage = .init(.analyzed),
+                        },
+                    });
+
+                    const gop = try v.urls.getOrPut(gpa, url);
+                    if (!gop.found_existing) {
+                        gop.value_ptr.* = .{ .id = page_id, .kind = .page_main };
+                    } else {
+                        try v.collisions.append(gpa, .{
+                            .url = url,
+                            .loc = .{ .id = page_id, .kind = .page_main },
+                            .previous = gop.value_ptr.*,
+                        });
+                    }
+                }
+
+                // Term pages (e.g. /tags/zig/index.html)
+                var term_it = ti.terms.iterator();
+                while (term_it.next()) |entry| {
+                    const td = entry.value_ptr;
+                    const page_id: u32 = @intCast(v.pages.items.len);
+
+                    const slug_str = try v.string_table.intern(gpa, td.slug);
+                    const taxonomy_path = try v.path_table.internPath(
+                        gpa,
+                        &v.string_table,
+                        tc.name,
+                    );
+                    const term_path = try v.path_table.internExtend(
+                        gpa,
+                        taxonomy_path,
+                        slug_str,
+                    );
+                    const url: PathName = .{ .path = term_path, .name = index_html };
+
+                    try v.pages.append(gpa, .{
+                        .title = td.display_name,
+                        .author = "",
+                        .date = context.DateTime.epoch,
+                        .layout = tc.term_layout,
+                        ._taxonomy = .{
+                            .taxonomy_idx = @intCast(tidx),
+                            .term_slug = td.slug,
+                        },
+                        ._scan = .{
+                            .file = url,
+                            .url = term_path,
+                            .page_id = page_id,
+                            .subsection_id = 0,
+                            .parent_section_id = 0,
+                            .variant_id = @intCast(vidx),
+                        },
+                        ._parse = .{
+                            .active = true,
+                            .arena = std.heap.ArenaAllocator.init(gpa).state,
+                            .full_src = "",
+                            .fm = .{},
+                            .ast = undefined,
+                            .status = .parsed,
+                        },
+                        ._render = undefined,
+                        ._debug = if (builtin.mode != .Debug) {} else .{
+                            .stage = .init(.analyzed),
+                        },
+                    });
+
+                    const gop = try v.urls.getOrPut(gpa, url);
+                    if (!gop.found_existing) {
+                        gop.value_ptr.* = .{ .id = page_id, .kind = .page_main };
+                    } else {
+                        try v.collisions.append(gpa, .{
+                            .url = url,
+                            .loc = .{ .id = page_id, .kind = .page_main },
+                            .previous = gop.value_ptr.*,
+                        });
+                    }
                 }
             }
         }

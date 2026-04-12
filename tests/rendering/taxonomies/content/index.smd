@@ -1,0 +1,8 @@
+---
+.title = "Homepage",
+.date = @date("2025-01-01T00:00:00"),
+.author = "Test",
+.layout = "index.shtml",
+.draft = false,
+---
+Welcome.

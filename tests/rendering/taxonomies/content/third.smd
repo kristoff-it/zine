@@ -1,0 +1,12 @@
+---
+.title = "Third Post",
+.date = @date("2025-03-01T00:00:00"),
+.author = "Test",
+.layout = "post.shtml",
+.draft = false,
+.tags = ["wasm", "wasm"],
+.custom = {
+    .categories = ["tutorial"],
+},
+---
+Third post content.
