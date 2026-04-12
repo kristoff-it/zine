@@ -1182,7 +1182,7 @@ pub fn run(
                             gop.value_ptr.* = .{
                                 .display_name = term_name,
                                 .slug = slug,
-                                .pages = .{},
+                                .pages = .empty,
                             };
                         }
                         try gop.value_ptr.pages.append(gpa, @intCast(pidx));
