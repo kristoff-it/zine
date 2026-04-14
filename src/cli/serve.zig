@@ -71,14 +71,14 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
     switch (cfg) {
         .Site => |*s| s.host_url = try std.fmt.allocPrint(
             gpa,
-            "http://{s}:{}/",
+            "http://{s}:{}",
             .{ cmd.host, cmd.port },
         ),
 
         .Multilingual => |*ml| {
             ml.host_url = try std.fmt.allocPrint(
                 gpa,
-                "http://{s}:{}/",
+                "http://{s}:{}",
                 .{ cmd.host, cmd.port },
             );
 
@@ -168,7 +168,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
         ),
         .Multilingual => try std.fmt.allocPrint(
             gpa,
-            "Listening at http://{s}:{}/",
+            "Listening at http://{s}:{}",
             .{ cmd.host, cmd.port },
         ),
     };
