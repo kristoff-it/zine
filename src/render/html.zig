@@ -759,13 +759,28 @@ fn renderLink(
     }
 }
 
-pub fn htmlToc(ast: Ast, w: *Writer) !void {
+pub fn htmlToc(gpa: std.mem.Allocator, ast: Ast, w: *Writer) !void {
+    var headings: std.ArrayListUnmanaged(supermd.Node) = .empty;
+    defer headings.deinit(gpa);
+
+    var min_level: i32 = 6;
+    {
+        var it = ast.md.root.firstChild();
+        while (it) |n| : (it = n.nextSibling()) {
+            if (n.nodeType() == .HEADING) {
+                try headings.append(gpa, n);
+                const l = n.headingLevel();
+                if (l < min_level) min_level = l;
+            }
+        }
+    }
+
+    if (headings.items.len == 0) return;
+
     try w.print("<ul>\n", .{});
-    var lvl: i32 = 1;
+    var lvl: i32 = min_level;
     var first_item = true;
-    var node: ?supermd.Node = ast.md.root.firstChild();
-    while (node) |n| : (node = n.nextSibling()) {
-        if (n.nodeType() != .HEADING) continue;
+    for (headings.items) |n| {
         defer first_item = false;
 
         const new_lvl = n.headingLevel();
@@ -796,7 +811,7 @@ pub fn htmlToc(ast: Ast, w: *Writer) !void {
         }
     }
 
-    while (lvl > 1) : (lvl -= 1) {
+    while (lvl > min_level) : (lvl -= 1) {
         try w.print("</li></ul>", .{});
     }
 
@@ -861,17 +876,34 @@ fn tocRenderHeading(heading: supermd.Node, w: *Writer, link: bool) !void {
     }
 }
 
-pub fn htmlTocDetails(ast: Ast, w: *Writer) !void {
-    var lvl: i32 = 1;
+pub fn htmlTocDetails(gpa: std.mem.Allocator, ast: Ast, w: *Writer) !void {
+    var headings: std.ArrayListUnmanaged(supermd.Node) = .empty;
+    defer headings.deinit(gpa);
+
+    // detect the top heading level
+    var min_level: i32 = 6;
+    {
+        var it = ast.md.root.firstChild();
+        while (it) |n| : (it = n.nextSibling()) {
+            if (n.nodeType() == .HEADING) {
+                try headings.append(gpa, n);
+                const l = n.headingLevel();
+                if (l < min_level) min_level = l;
+            }
+        }
+    }
+
+    // No headings found, output nothing
+    if (headings.items.len == 0) return;
+
+    var lvl: i32 = min_level;
     var first_item = true;
-    var node: ?supermd.Node = ast.md.root.firstChild();
-    while (node) |n| : (node = n.nextSibling()) {
-        if (n.nodeType() != .HEADING) continue;
+    for (headings.items) |n| {
         defer first_item = false;
 
         const new_lvl = n.headingLevel();
         if (new_lvl > lvl) {
-            // if (lvl == 1) {
+            // if (lvl == min_level) {
             //     try w.print("<details>\n", .{});
             //     lvl += 1;
             // }
@@ -879,15 +911,15 @@ pub fn htmlTocDetails(ast: Ast, w: *Writer) !void {
                 try w.print("<ul><li>\n", .{});
             }
 
-            // if (lvl == 1) try w.print("<summary>\n", .{});
+            // if (lvl == min_level) try w.print("<summary>\n", .{});
             try tocRenderHeading(n, w, true);
-            // if (lvl == 1) try w.print("</summary>\n", .{});
+            // if (lvl == min_level) try w.print("</summary>\n", .{});
         } else if (new_lvl < lvl) {
             try w.print("</li>", .{});
             while (new_lvl < lvl) : (lvl -= 1) {
                 try w.print("</ul></li>", .{});
             }
-            if (lvl == 1) {
+            if (lvl == min_level) {
                 try w.print("</details><details><summary>", .{});
                 try tocRenderHeading(n, w, false);
                 try w.print("</summary>", .{});
@@ -897,7 +929,7 @@ pub fn htmlTocDetails(ast: Ast, w: *Writer) !void {
             }
         } else {
             if (first_item) {
-                if (lvl == 1) {
+                if (lvl == min_level) {
                     try w.print("<details><summary>", .{});
                     try tocRenderHeading(n, w, false);
                     try w.print("</summary>", .{});
@@ -906,7 +938,7 @@ pub fn htmlTocDetails(ast: Ast, w: *Writer) !void {
                     try tocRenderHeading(n, w, true);
                 }
             } else {
-                if (lvl == 1) {
+                if (lvl == min_level) {
                     try w.print("</details><details><summary>", .{});
                     try tocRenderHeading(n, w, false);
                     try w.print("</summary>", .{});
@@ -918,7 +950,7 @@ pub fn htmlTocDetails(ast: Ast, w: *Writer) !void {
         }
     }
 
-    while (lvl > 1) : (lvl -= 1) {
+    while (lvl > min_level) : (lvl -= 1) {
         try w.print("</li></ul>", .{});
     }
 }
