@@ -759,7 +759,7 @@ fn renderLink(
     }
 }
 
-pub fn htmlToc(ast: Ast, w: *Writer) !void {
+pub fn htmlToc(ast: Ast, w: *Writer, depth: ?u32) !void {
     try w.print("<ul>\n", .{});
     var lvl: i32 = 1;
     var first_item = true;
@@ -767,31 +767,35 @@ pub fn htmlToc(ast: Ast, w: *Writer) !void {
     while (node) |n| : (node = n.nextSibling()) {
         if (n.nodeType() != .HEADING) continue;
         defer first_item = false;
+        var max_depth: u32 = 0xFFFFFFFF;
+        if (depth) |v| max_depth = v + 1;
 
         const new_lvl = n.headingLevel();
-        if (new_lvl > lvl) {
-            if (first_item) {
-                try w.print("<li>\n", .{});
-            }
-            while (new_lvl > lvl) : (lvl += 1) {
-                try w.print("<ul><li>\n", .{});
-            }
+        if (new_lvl < max_depth) {
+            if (new_lvl > lvl) {
+                if (first_item) {
+                    try w.print("<li>\n", .{});
+                }
+                while (new_lvl > lvl) : (lvl += 1) {
+                    try w.print("<ul><li>\n", .{});
+                }
 
-            try tocRenderHeading(n, w, true);
-        } else if (new_lvl < lvl) {
-            try w.print("</li>", .{});
-            while (new_lvl < lvl) : (lvl -= 1) {
-                try w.print("</ul></li>", .{});
-            }
-            try w.print("<li>", .{});
-            try tocRenderHeading(n, w, true);
-        } else {
-            if (first_item) {
+                try tocRenderHeading(n, w, true);
+            } else if (new_lvl < lvl) {
+                try w.print("</li>", .{});
+                while (new_lvl < lvl) : (lvl -= 1) {
+                    try w.print("</ul></li>", .{});
+                }
                 try w.print("<li>", .{});
                 try tocRenderHeading(n, w, true);
             } else {
-                try w.print("</li><li>", .{});
-                try tocRenderHeading(n, w, true);
+                if (first_item) {
+                    try w.print("<li>", .{});
+                    try tocRenderHeading(n, w, true);
+                } else {
+                    try w.print("</li><li>", .{});
+                    try tocRenderHeading(n, w, true);
+                }
             }
         }
     }
