@@ -951,11 +951,11 @@ pub const Server = struct {
         mime_type: mime.Type,
         file_path: []const u8,
     ) !void {
-        assert(file_path[0] != '/');
+        const trimmed_file_path = std.mem.trimStart(u8, file_path, "/");
 
         const contents = try dir.readFileAlloc(
             io,
-            file_path,
+            trimmed_file_path,
             arena,
             .unlimited,
         );
