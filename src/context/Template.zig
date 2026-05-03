@@ -75,7 +75,6 @@ pub fn printLinkPrefix(
     }
 }
 
-pub const dot = scripty.defaultDot(Template, Value, false);
 pub const docs_description = "";
 pub const Fields = struct {
     pub const site =
@@ -115,4 +114,6 @@ pub const Fields = struct {
         \\that have an `if` attribute used to unwrap an optional value.
     ;
 };
+
+pub const Dot = true;
 pub const Builtins = struct {};

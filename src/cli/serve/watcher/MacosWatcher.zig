@@ -8,6 +8,7 @@ const Debouncer = @import("../../serve.zig").Debouncer;
 // const c = @cImport({
 //     @cInclude("CoreServices/CoreServices.h");
 // });
+// const c = @import("c");
 const c = @import("../../../hacks/CoreFoundation.h.zig");
 
 const log = std.log.scoped(.watcher);

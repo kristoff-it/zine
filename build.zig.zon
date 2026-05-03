@@ -9,8 +9,8 @@
             .hash = "lsp_kit-0.1.0-bi_PL_kyDACVTEhLaMq2-PJx0MocqRyjXDAN0ybMUyQQ",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#154779b47be67f766ee13080ce7aa68a18daebd9",
-            .hash = "scripty-0.1.0-LKK5OwTdAACftzrZyMpWZUJ7OLyI3UwAwqQfE2cdgRoO",
+            .url = "git+https://github.com/kristoff-it/scripty#4b815a13e2456e5552c7ce43759f69e40ffdc702",
+            .hash = "scripty-0.1.0-LKK5O7j0AABV5Y9oNimQCXTzFXPQ_ZPWivEcUGmeXJZB",
         },
         .tracy = .{
             .url = "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
@@ -30,8 +30,8 @@
             .lazy = true,
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#248895ac07370464248d7af7b83213a3a80f510c",
-            .hash = "superhtml-0.6.2-Y7MdPCRFJACeDRBHLwVYloNaB9uSo3U6os3ZPyudlJLT",
+            .url = "git+https://github.com/kristoff-it/superhtml#32cff9e05c65904d557db94118b81e5b0d407208",
+            .hash = "superhtml-0.6.2-Y7MdPN1yJABtImZK-nuTEXnlynIfInhUBZenBhN5S4Qx",
         },
         .zeit = .{
             .url = "git+https://github.com/rockorager/zeit?ref=0.16#fdaad9c5884f41a3640c768f4f9fc116e763c321",
@@ -46,8 +46,12 @@
             .hash = "ziggy-0.1.0-kTg8v15ABgBGDedRmKfxGUWBxSxMBnEfYjazvZKVVrzP",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#44ee1fe6c697d289832125bd894f8f621322df57",
-            .hash = "supermd-0.1.0-3Mco3COYWADsmlFpwymglxJFs_hQNs22819xlGowQiuV",
+            .url = "git+https://github.com/kristoff-it/supermd#93b67c047438e534997c764708019ce54d7f0d82",
+            .hash = "supermd-0.1.0-3Mco3PeYWACKSeKJx5SOo5_uQRorQwiX-NiiHDtiCfs6",
+        },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#7a1a9fdc4ab00835748a6657ecbb835e3d5d45f7",
+            .hash = "translate_c-0.0.0-Q_BUWvP1BgCjAk6PWv5286tOlvzD9-X-NkuTzh0KxY0Q",
         },
     },
     .paths = .{"."},

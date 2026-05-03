@@ -10,7 +10,7 @@ const Value = context.Value;
 const Optional = context.Optional;
 const uninitialized = utils.uninitialized;
 
-pub const dot = scripty.defaultDot(Build, Value, false);
+pub const Dot = true;
 pub const PassByRef = true;
 
 generated: context.DateTime,

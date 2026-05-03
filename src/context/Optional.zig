@@ -14,12 +14,6 @@ pub fn init(gpa: Allocator, v: anytype) !Value {
     return .{ .optional = box };
 }
 
-// pub fn dot(opt: Optional, gpa: Allocator, path: []const u8) !Value {
-//     _ = opt;
-//     _ = gpa;
-//     _ = path;
-//     return .{ .err = "todo" };
-// }
 pub const PassByRef = false;
 pub const docs_description = "An optional value, to be used in conjunction with `if` attributes.";
 pub const Builtins = struct {};

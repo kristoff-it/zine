@@ -455,7 +455,7 @@ pub const Alternative = struct {
         };
     };
 
-    pub const dot = scripty.defaultDot(Alternative, Value, false);
+    pub const Dot = true;
     // pub const PassByRef = true;
 
     pub const docs_description =
@@ -585,10 +585,10 @@ pub const Footnote = struct {
             }
         };
     };
-    pub const dot = scripty.defaultDot(Footnote, Value, false);
+    pub const Dot = true;
 };
 
-pub const dot = scripty.defaultDot(Page, Value, false);
+pub const Dot = true;
 pub const PassByRef = true;
 
 pub const docs_description =
@@ -1795,7 +1795,7 @@ pub const ContentSection = struct {
     _node: supermd.Node,
     _page: *const Page,
 
-    pub const dot = scripty.defaultDot(ContentSection, Value, false);
+    pub const Dot = true;
     pub const docs_description =
         \\A content section from a page.
     ;

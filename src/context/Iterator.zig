@@ -63,7 +63,7 @@ pub fn fromArray(gpa: Allocator, arr: Array) !*Iterator {
     });
 }
 
-pub const dot = scripty.defaultDot(Iterator, Value, false);
+pub const Dot = true;
 pub const docs_description = "An iterator.";
 pub const Fields = struct {
     pub const it =

@@ -11,7 +11,7 @@ const root = @import("root.zig");
 const doctypes = @import("context/doctypes.zig");
 const Variant = @import("Variant.zig");
 
-pub const CallError = error{ OutOfMemory, Interrupt };
+pub const CallError = error{OutOfMemory};
 
 pub const AssetKindUnion = union(Asset.Kind) {
     site,
@@ -180,28 +180,6 @@ pub const Value = union(enum) {
     }
 
     pub const call = scripty.defaultCall(Value, Template);
-    pub fn dot(
-        self: *Value,
-        gpa: Allocator,
-        path: []const u8,
-    ) error{OutOfMemory}!Value {
-        switch (self.*) {
-            // .map_kv,
-            .string,
-            .bool,
-            .int,
-            .float,
-            .err,
-            .date,
-            .optional,
-            => return .{ .err = "field access on primitive value" },
-            // .optional => return .{ .err = "field access on optional value" },
-            .asset => return .{ .err = "field access on asset value" },
-            // .iteration_element => return
-            // .iterator_element => |*v| return v.dot(gpa, path),
-            inline else => |v| return v.dot(gpa, path),
-        }
-    }
 };
 
 pub fn stripTrailingSlash(path: []const u8) []const u8 {

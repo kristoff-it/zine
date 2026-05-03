@@ -55,7 +55,7 @@ pub fn init(gpa: Allocator, T: type, items: []const T) error{OutOfMemory}!Value 
 //     gpa.destroy(iter);
 // }
 
-pub const dot = scripty.defaultDot(Array, Value, false);
+pub const Dot = true;
 pub const docs_description = "An array of items.";
 pub const Fields = struct {
     pub const len =

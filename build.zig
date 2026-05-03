@@ -298,6 +298,14 @@ pub fn build(b: *std.Build) !void {
         b.installArtifact(shtml_docgen);
     }
 
+    // const Translator = @import("translate_c").Translator;
+    // const translate_c = b.dependency("translate_c", .{});
+    // const t: Translator = .init(translate_c, .{
+    //     .c_source_file = b.path("src/c.h"),
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+
     switch (target.result.os.tag) {
         else => @panic("target must be added to build.zig"),
         .linux => {},
@@ -312,6 +320,10 @@ pub fn build(b: *std.Build) !void {
             zine_exe.root_module.addFrameworkPath(frameworks.path("Frameworks"));
             zine_exe.root_module.addLibraryPath(frameworks.path("lib"));
             zine_exe.root_module.linkFramework("CoreServices", .{});
+            // t.addIncludePath(frameworks.path("include"));
+            // t.addFrameworkPath(frameworks.path("Frameworks"));
+            // t.mod.addLibraryPath(frameworks.path("lib"));
+            // t.mod.linkFramework("CoreServices", .{});
         },
     }
 
@@ -347,6 +359,8 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     }));
+
+    // zine_exe.root_module.addImport("c", t.mod);
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);

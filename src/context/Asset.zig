@@ -48,7 +48,7 @@ pub fn init(ref: []const u8, path: []const u8, kind: context.AssetKindUnion) Val
 }
 
 pub const docs_description = "Represents an asset.";
-pub const dot = scripty.defaultDot(Asset, Value, false);
+pub const Dot = true;
 pub const Builtins = struct {
     pub const link = struct {
         pub const signature: Signature = .{ .ret = .String };

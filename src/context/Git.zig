@@ -12,7 +12,7 @@ const Optional = context.Optional;
 const Bool = context.Bool;
 const Value = context.Value;
 
-pub const dot = scripty.defaultDot(Git, Value, false);
+pub const Dot = true;
 
 _in_repo: bool = false,
 

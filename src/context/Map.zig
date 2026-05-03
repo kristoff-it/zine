@@ -15,12 +15,6 @@ value: ZiggyMap,
 
 pub const ZiggyMap = ziggy.dynamic.Map(ziggy.dynamic.Value);
 
-pub fn dot(map: Map, gpa: Allocator, path: []const u8) Value {
-    _ = map;
-    _ = gpa;
-    _ = path;
-    return .{ .err = "Map has no fields" };
-}
 pub const docs_description =
     \\A map that can hold any value, used to represent the `custom` field 
     \\in Page frontmatters or Ziggy / JSON data loaded from assets.
@@ -227,7 +221,7 @@ pub const KV = struct {
     key: []const u8,
     value: ziggy.dynamic.Value,
 
-    pub const dot = scripty.defaultDot(KV, Value, false);
+    pub const Dot = true;
     pub const docs_description = "A key-value pair.";
     pub const Fields = struct {
         pub const key = "The key string.";

@@ -37,7 +37,7 @@ pub const docs_description =
     \\ defined in your site configuration.
 ;
 
-pub const dot = scripty.defaultDot(Site, Value, false);
+pub const Dot = true;
 pub const PassByRef = true;
 pub const Fields = struct {
     pub const host_url =
@@ -62,10 +62,12 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Site,
             gpa: Allocator,
-            _: *const context.Template,
+            ctx: *const context.Template,
             args: []const Value,
-        ) context.CallError!Value {
+        ) !Value {
             _ = gpa;
+            _ = ctx;
+
             const bad_arg: Value = .{
                 .err = "expected 0 arguments",
             };
