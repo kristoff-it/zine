@@ -38,8 +38,8 @@
             .hash = "zeit-0.6.0-5I6bk3K6AgCFnc_9CN7KJjaeNJz1VuwP4DA7Gs9vgxuz",
         },
         .flow_syntax = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#12a8e42b8b9b71166090c773f0fd9a7bddebab58",
-            .hash = "flow_syntax-0.7.2-X8jOofVaAQAXpiaYN0_DkpnspNKz2GhcoNgqgeO-lBrF",
+            .url = "git+https://github.com/neurocyte/flow-syntax#28d643c3fd8455faab0ea12383da9d6ddcbe9cb0",
+            .hash = "flow_syntax-0.7.2-X8jOoeFgAQBquxUXx-h5g_xXQzcNAOtyz3M4fVUwgrOd",
         },
         .ziggy = .{
             .url = "git+https://github.com/kristoff-it/ziggy?ref=old#0fdd57cbb052e7aa5930b3ed960ea3450f9dc2b0",
