@@ -24,7 +24,7 @@ pub const Signature = doctypes.Signature;
 
 pub const md = @import("context/markdown.zig");
 
-pub const Template = @import("context/Template.zig");
+pub const Root = @import("context/Root.zig");
 pub const Site = @import("context/Site.zig");
 pub const Page = @import("context/Page.zig");
 pub const Build = @import("context/Build.zig");
@@ -42,7 +42,7 @@ pub const Iterator = @import("context/Iterator.zig");
 pub const Array = @import("context/Array.zig");
 
 pub const Value = union(enum) {
-    template: *const Template,
+    root: *Root,
     site: *const Site,
     page: *const Page,
     ctx: Ctx(Value),
@@ -96,11 +96,17 @@ pub const Value = union(enum) {
         return .{ .string = .{ .value = s } };
     }
 
-    pub fn fromNumberLiteral(bytes: []const u8) Value {
+    pub fn fromIntegerLiteral(bytes: []const u8) Value {
         const num = std.fmt.parseInt(i64, bytes, 10) catch {
             return .{ .err = "error parsing numeric literal" };
         };
         return .{ .int = .{ .value = num } };
+    }
+    pub fn fromFloatLiteral(bytes: []const u8) Value {
+        const num = std.fmt.parseFloat(f64, bytes) catch {
+            return .{ .err = "error parsing numeric literal" };
+        };
+        return .{ .float = .{ .f = num } };
     }
 
     pub fn fromBooleanLiteral(b: bool) Value {
@@ -128,14 +134,13 @@ pub const Value = union(enum) {
 
     pub fn from(gpa: Allocator, v: anytype) !Value {
         return switch (@TypeOf(v)) {
-            *Template => .{ .template = v },
-            *const Template => .{ .template = v },
+            *Root => .{ .root = v },
             *const Site => .{ .site = v },
-            *const Page, *Page => .{ .page = v },
+            *Page, *const Page => .{ .page = v },
             Page.Alternative => .{ .alternative = v },
             Page.ContentSection => .{ .content_section = v },
             Page.Footnote => .{ .footnote = v },
-            *const Build => .{ .build = v },
+            *Build => .{ .build = v },
             Git => .{ .git = v },
             Ctx(Value) => .{ .ctx = v },
             Asset => .{ .asset = v },
@@ -178,8 +183,6 @@ pub const Value = union(enum) {
             else => @compileError("TODO: implement Value.from for " ++ @typeName(@TypeOf(v))),
         };
     }
-
-    pub const call = scripty.defaultCall(Value, Template);
 };
 
 pub fn stripTrailingSlash(path: []const u8) []const u8 {

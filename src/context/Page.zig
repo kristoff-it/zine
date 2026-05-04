@@ -500,7 +500,7 @@ pub const Alternative = struct {
             pub fn call(
                 alt: Alternative,
                 gpa: Allocator,
-                ctx: *const context.Template,
+                ctx: *const context.Root,
                 args: []const Value,
             ) context.CallError!Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -563,7 +563,7 @@ pub const Footnote = struct {
             pub fn call(
                 f: Footnote,
                 gpa: Allocator,
-                ctx: *const context.Template,
+                ctx: *const context.Root,
                 args: []const Value,
             ) context.CallError!Value {
                 if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -674,7 +674,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -707,7 +707,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -789,7 +789,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             _: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -814,7 +814,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -913,7 +913,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -986,7 +986,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1062,7 +1062,7 @@ pub const Builtins = struct {
         pub fn call(
             page: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -1089,7 +1089,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -1119,7 +1119,7 @@ pub const Builtins = struct {
         pub fn call(
             page: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -1145,7 +1145,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1183,7 +1183,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1234,7 +1234,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1274,7 +1274,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1315,7 +1315,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -1356,7 +1356,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -1401,7 +1401,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1450,7 +1450,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -1512,7 +1512,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -1548,7 +1548,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -1581,7 +1581,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -1640,7 +1640,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -1683,7 +1683,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -1734,7 +1734,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -1770,7 +1770,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Page,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -1820,7 +1820,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
-                _: *const context.Template,
+                _: *const context.Root,
                 args: []const Value,
             ) context.CallError!Value {
                 const bad_arg: Value = .{
@@ -1853,7 +1853,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
-                _: *const context.Template,
+                _: *const context.Root,
                 args: []const Value,
             ) context.CallError!Value {
                 const bad_arg: Value = .{
@@ -1881,7 +1881,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
-                ctx: *const context.Template,
+                ctx: *const context.Root,
                 args: []const Value,
             ) context.CallError!Value {
                 const bad_arg: Value = .{
@@ -1916,7 +1916,7 @@ pub const ContentSection = struct {
             pub fn call(
                 cs: ContentSection,
                 gpa: Allocator,
-                ctx: *const context.Template,
+                ctx: *const context.Root,
                 args: []const Value,
             ) context.CallError!Value {
                 const bad_arg: Value = .{

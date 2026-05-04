@@ -1,4 +1,4 @@
-const Template = @This();
+const Root = @This();
 
 const std = @import("std");
 const Io = std.Io;
@@ -37,7 +37,7 @@ loop: ?*Iterator = null,
 @"if": ?*const Optional = null,
 
 pub fn printLinkPrefix(
-    ctx: *const Template,
+    ctx: *const Root,
     w: *Writer,
     other_variant_id: u32,
     /// When set to true the full host url will be always printed

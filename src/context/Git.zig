@@ -61,7 +61,7 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -86,7 +86,7 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -111,7 +111,7 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -136,7 +136,7 @@ pub const Builtins = struct {
         pub fn call(
             git: Git,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{

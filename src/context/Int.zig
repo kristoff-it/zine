@@ -33,7 +33,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const argument_error: Value = .{ .err = "'plus' wants one int argument" };
@@ -60,7 +60,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const argument_error: Value = .{ .err = "'gt' wants one int argument" };
@@ -88,7 +88,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const argument_error: Value = .{ .err = "expected 1 int argument" };
@@ -116,7 +116,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const argument_error: Value = .{ .err = "expected 1 int argument" };
@@ -144,7 +144,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const argument_error: Value = .{ .err = "'div' wants one (int|float) argument" };
@@ -177,7 +177,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -210,7 +210,7 @@ pub const Builtins = struct {
         pub fn call(
             int: Int,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };

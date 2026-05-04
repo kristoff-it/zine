@@ -19,7 +19,7 @@ const log = std.log.scoped(.render);
 
 pub fn html(
     gpa: std.mem.Allocator,
-    ctx: *const context.Template,
+    ctx: *const context.Root,
     page: *const context.Page,
     start: supermd.Node,
     w: *Writer,
@@ -401,7 +401,7 @@ pub fn html(
 
 fn renderDirective(
     gpa: std.mem.Allocator,
-    ctx: *const context.Template,
+    ctx: *const context.Root,
     page: *const context.Page,
     ast: Ast,
     ev: Iter.Event,
@@ -598,7 +598,7 @@ fn renderDirective(
 }
 
 fn printUrl(
-    ctx: *const context.Template,
+    ctx: *const context.Root,
     page: *const context.Page,
     src: supermd.context.Src,
     w: *Writer,
@@ -705,7 +705,7 @@ fn printUrl(
 }
 
 pub fn printAssetUrlPrefix(
-    ctx: *const context.Template,
+    ctx: *const context.Root,
     page: *const context.Page,
     w: *Writer,
 ) !void {
@@ -744,7 +744,7 @@ pub fn printAssetUrlPrefix(
 }
 fn renderLink(
     ev: Iter.Event,
-    ctx: *const context.Template,
+    ctx: *const context.Root,
     w: *Writer,
 ) !void {
     _ = ctx;

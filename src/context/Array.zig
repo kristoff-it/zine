@@ -9,7 +9,7 @@ const doctypes = @import("doctypes.zig");
 const Signature = doctypes.Signature;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
-const Template = context.Template;
+const Root = context.Root;
 const Site = context.Site;
 const Page = context.Page;
 const Map = context.Map;
@@ -88,7 +88,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 1 or 2 integer argument(s)" };
@@ -153,7 +153,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 1 integer argument" };
@@ -192,7 +192,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
@@ -218,7 +218,7 @@ pub const Builtins = struct {
         pub fn call(
             arr: Array,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };

@@ -902,7 +902,7 @@ fn analyzeContent(
 }
 
 pub const RenderJobKind = union(enum) { main, alternative: u32 };
-const SuperVM = superhtml.VM(context.Template, context.Value);
+const SuperVM = superhtml.VM(context.Value);
 fn renderPage(
     io: Io,
     arena: Allocator,
@@ -957,7 +957,7 @@ fn renderPage(
     //     // .parent_section_path = "",
     // };
 
-    var ctx: context.Template = .{
+    var ctx: context.Root = .{
         .site = &sites.entries.items(.value)[variant_id],
         .page = page,
         .i18n = variant.i18n,

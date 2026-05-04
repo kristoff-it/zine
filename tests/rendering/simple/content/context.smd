@@ -1,0 +1,9 @@
+---
+.title = "Homepage",
+.date = @date("1990-01-01T00:00:00"),
+.author = "Sample Author",
+.layout = "context.shtml",
+.draft = false,
+---
+
+This is a test for <ctx>, see the corresponding layout.

@@ -1,0 +1,4 @@
+<ctx foo="$site.title" bar="$page.title">
+	<span :text="$ctx.foo"></span>
+	<span :text="$ctx.bar"></span>
+</ctx>

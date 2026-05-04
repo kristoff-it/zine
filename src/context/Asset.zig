@@ -71,7 +71,7 @@ pub const Builtins = struct {
         pub fn call(
             asset: Asset,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };
@@ -140,7 +140,7 @@ pub const Builtins = struct {
         pub fn call(
             asset: Asset,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -194,7 +194,7 @@ pub const Builtins = struct {
         pub fn call(
             asset: Asset,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -269,7 +269,7 @@ pub const Builtins = struct {
         pub fn call(
             asset: Asset,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
@@ -343,7 +343,7 @@ pub const Builtins = struct {
         pub fn call(
             asset: Asset,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };

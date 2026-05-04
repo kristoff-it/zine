@@ -53,7 +53,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -83,7 +83,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -113,7 +113,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -144,7 +144,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const arg_err: Value = .{
@@ -207,7 +207,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const arg_err: Value = .{
@@ -267,7 +267,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const arg_err: Value = .{
@@ -332,7 +332,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const argument_error: Value = .{ .err = "expected 1 string argument" };
@@ -364,7 +364,7 @@ pub const Builtins = struct {
         pub fn call(
             dt: DateTime,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const argument_error: Value = .{

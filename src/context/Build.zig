@@ -61,7 +61,7 @@ pub const Builtins = struct {
         pub fn call(
             _: *const Build,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -104,7 +104,7 @@ pub const Builtins = struct {
         pub fn call(
             build: *const Build,
             _: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) Value {
             const bad_arg: Value = .{
@@ -133,7 +133,7 @@ pub const Builtins = struct {
         pub fn call(
             build: *const Build,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{

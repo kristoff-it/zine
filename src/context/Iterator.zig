@@ -9,7 +9,7 @@ const doctypes = @import("doctypes.zig");
 const Signature = doctypes.Signature;
 const Allocator = std.mem.Allocator;
 const Value = context.Value;
-const Template = context.Template;
+const Root = context.Root;
 const Site = context.Site;
 const Page = context.Page;
 const Map = context.Map;
@@ -21,7 +21,7 @@ first: bool = undefined,
 last: bool = undefined,
 len: usize,
 
-_superhtml_context: superhtml.utils.IteratorContext(Value, Template) = .{},
+_superhtml_context: superhtml.utils.IteratorContext(Value) = .{},
 _impl: Impl,
 
 pub const Impl = union(enum) {
@@ -95,7 +95,7 @@ pub const Builtins = struct {
         pub fn call(
             it: *Iterator,
             _: Allocator,
-            _: *const context.Template,
+            _: *const Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{ .err = "expected 0 arguments" };

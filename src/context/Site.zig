@@ -62,7 +62,7 @@ pub const Builtins = struct {
         pub fn call(
             p: *const Site,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) !Value {
             _ = gpa;
@@ -95,7 +95,7 @@ pub const Builtins = struct {
         pub fn call(
             site: *const Site,
             gpa: Allocator,
-            _: *const context.Template,
+            _: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = gpa;
@@ -129,7 +129,7 @@ pub const Builtins = struct {
         pub fn call(
             s: *const Site,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             _ = s;
@@ -162,7 +162,7 @@ pub const Builtins = struct {
         pub fn call(
             _: *const Site,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -222,7 +222,7 @@ pub const Builtins = struct {
         pub fn call(
             site: *const Site,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
@@ -296,7 +296,7 @@ pub const Builtins = struct {
         pub fn call(
             site: *const Site,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const v = &ctx._meta.build.variants[site._meta.variant_id];
@@ -381,7 +381,7 @@ pub const Builtins = struct {
         pub fn call(
             _: *const Site,
             gpa: Allocator,
-            ctx: *const context.Template,
+            ctx: *const context.Root,
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
