@@ -124,7 +124,8 @@ pub fn main(init: std.process.Init) u8 {
         .debug => @import("cli/debug.zig").debug(io, gpa, args[2..]),
         .help, .@"-h", .@"--help" => fatal.help(),
         .version, .@"-v", .@"--version" => printVersion(),
-        .serve, .server, .dev, .develop => {
+        .server => @import("cli/serve.zig").serve(io, gpa, args[2..]) catch fatal.oom(),
+        .serve, .dev, .develop => {
             std.debug.print(
                 "error: run zine without any subcommand to start the development web server\n\n",
                 .{},
