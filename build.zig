@@ -260,6 +260,11 @@ pub fn build(b: *std.Build) !void {
 
     const wuffs = b.dependency("wuffs", mode);
 
+    const nightwatch = b.dependency("nightwatch", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const release = b.step("release", "Create release builds of Zine");
     if (version == .tag) {
         const zon = @import("build.zig.zon");
@@ -338,6 +343,7 @@ pub fn build(b: *std.Build) !void {
     zine_exe.root_module.addImport("options", options);
     zine_exe.root_module.addImport("tracy", tracy.module("tracy"));
     zine_exe.root_module.addImport("mime", mime.module("mime"));
+    zine_exe.root_module.addImport("nightwatch", nightwatch.module("nightwatch"));
 
     zine_exe.root_module.addImport("_wuffs", wuffs.module("impl"));
     zine_exe.root_module.addImport("wuffs", b.createModule(.{

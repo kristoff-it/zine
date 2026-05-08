@@ -7,6 +7,7 @@ const WebSocket = std.http.Server.WebSocket;
 const builtin = @import("builtin");
 const mime = @import("mime");
 const tracy = @import("tracy");
+const nightwatch = @import("nightwatch");
 const root = @import("../root.zig");
 const BuildAsset = root.BuildAsset;
 const worker = @import("../worker.zig");
@@ -23,13 +24,8 @@ const zinereload_js = @embedFile("serve/zinereload.js");
 const not_found_html = @embedFile("serve/404.html");
 const error_html = @embedFile("serve/error.html");
 const outside_html = @embedFile("serve/outside.html");
-const Watcher = switch (builtin.target.os.tag) {
-    .linux => @import("serve/watcher/LinuxWatcher.zig"),
-    .freebsd => @import("serve/watcher/LinuxWatcher.zig"),
-    .macos => @import("serve/watcher/MacosWatcher.zig"),
-    .windows => @import("serve/watcher/WindowsWatcher.zig"),
-    else => @compileError("unsupported platform"),
-};
+
+const Watcher = nightwatch.Default;
 
 const log = std.log.scoped(.serve);
 
@@ -57,11 +53,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
     var buf: [64]ServeEvent = undefined;
     var channel: Channel(ServeEvent) = .init(&buf);
 
-    var debouncer: Debouncer = .{
-        .io = io,
-        .cascade_window_ms = cmd.debounce,
-        .channel = &channel,
-    };
+    var debouncer: Debouncer = .init(io, cmd.debounce, &channel);
 
     debouncer.start() catch |err| fatal.msg(
         "error: unable to start debouncer: {s}",
@@ -127,17 +119,20 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
         },
     }
 
-    var watcher: Watcher = .init(
+    var watcher: Watcher = Watcher.init(
         io,
         gpa,
-        &debouncer,
-        dirs_to_watch.items,
-    );
-
-    watcher.start() catch |err| fatal.msg(
-        "error: unable to start file watcher: {s}",
+        &debouncer.handler,
+    ) catch |err| fatal.msg(
+        "error: unable to intialize file watcher: {s}",
         .{@errorName(err)},
     );
+
+    for (dirs_to_watch.items) |dir|
+        watcher.watch(dir) catch |err| fatal.msg(
+            "error: unable to start file watcher on path {s}: {s}",
+            .{ dir, @errorName(err) },
+        );
 
     var build_lock: Io.RwLock = .init;
     var build = root.run(io, gpa, &cfg, .{
@@ -1035,6 +1030,28 @@ pub const Debouncer = struct {
     cascade_condition: Io.Condition = .init,
     cascade_start_ms: i64 = 0,
     channel: *Channel(ServeEvent),
+
+    handler: nightwatch.Default.Handler,
+    const vtable = nightwatch.Default.Handler.VTable{ .change = change, .rename = rename };
+
+    fn init(io: std.Io, cascade_window_ms: i64, channel: *Channel(ServeEvent)) Debouncer {
+        return .{
+            .handler = .{ .vtable = &Debouncer.vtable },
+            .io = io,
+            .cascade_window_ms = cascade_window_ms,
+            .channel = channel,
+        };
+    }
+
+    fn change(h: *Watcher.Handler, _: []const u8, _: nightwatch.EventType, _: nightwatch.ObjectType) error{HandlerFailed}!void {
+        const d: *Debouncer = @fieldParentPtr("handler", h);
+        d.newEvent();
+    }
+
+    fn rename(h: *Watcher.Handler, _: []const u8, _: []const u8, _: nightwatch.ObjectType) error{HandlerFailed}!void {
+        const d: *Debouncer = @fieldParentPtr("handler", h);
+        d.newEvent();
+    }
 
     /// Thread-safe. To be called when a new event comes in
     pub fn newEvent(d: *Debouncer) void {

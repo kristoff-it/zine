@@ -53,6 +53,10 @@
             .url = "git+https://codeberg.org/ziglang/translate-c#7a1a9fdc4ab00835748a6657ecbb835e3d5d45f7",
             .hash = "translate_c-0.0.0-Q_BUWvP1BgCjAk6PWv5286tOlvzD9-X-NkuTzh0KxY0Q",
         },
+        .nightwatch = .{
+            .url = "git+https://codeberg.org/neurocyte/nightwatch.git#cbb9baab0d2ed66e9a0859e28c4a6a2e61a47600",
+            .hash = "nightwatch-1.0.0-uXzeHzCgAgBNSi0lpwYyPXdiSnZeiExDSiu_XdZO55HI",
+        },
     },
     .paths = .{"."},
 }
