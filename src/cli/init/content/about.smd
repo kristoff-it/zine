@@ -4,7 +4,7 @@
 .author = "Sample Author",
 .layout = "index.shtml",
 .draft = false,
---- 
+---
 
 ## About Zine
 Zine is an MIT-licensed project created by [Loris Cro](https://kristoff.it) and
@@ -19,10 +19,10 @@ of authoring languages:
 - [SuperHTML](https://zine-ssg.io/docs/superhtml/) is the HTML templating
    language used by Zine. Unlike most `{{curly braced}}` templating languages,
    SuperHTML uses valid HTML syntax to express the templating logic, adding only
-   minor extensions to normal HTML.  
+   minor extensions to normal HTML.
    Thanks to this approach, it offers instant
    syntax checking and autoformatting via [a CLI tool](https://github.com/kristoff-it/superhtml) as well as Language Server support ([VScode Extension](https://marketplace.visualstudio.com/items?itemName=LorisCro.super)).
-  
+
   ># [NOTE]($block)
   >The correct file extension for SuperHTML templates is `.shtml`.
 
@@ -30,7 +30,7 @@ of authoring languages:
   that, instead of relying on inline HTML, offers new constructs for expressing
   content embeds without pulling into your content needless layouting concerns.
   A CLI tool and language server for SuperMD is in the works.
-  
+
   ># [NOTE]($block)
   >The correct file extension for SuperMD pages is `.smd`.
 
@@ -49,7 +49,7 @@ Here are some quicklinks related to Zine:
 - Official Website: https://zine-ssg.io/
 - Source Code: https://github.com/kristoff-it/zine/
 - Discord: https://discord.com/invite/B73sGxF
-  
+
 
 
 

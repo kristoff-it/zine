@@ -4,7 +4,7 @@
 .author = "Sample Author",
 .layout = "post.shtml",
 .draft = false,
---- 
+---
 
 This second post is mainly here to show you that you can also create single file
 posts for convenience. The first post contains more interesting content.

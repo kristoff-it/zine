@@ -4,7 +4,7 @@
 .author = "Sample Author",
 .layout = "devlog.shtml",
 .draft = false,
---- 
+---
 []($section.id('about'))
 ## About this Devlog
 This is a non-exhaustive, curated list of changes meant to help users quickly see what has improved since they last checked.

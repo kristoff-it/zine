@@ -4,7 +4,7 @@
 .author = "Sample Author",
 .layout = "post.shtml",
 .draft = false,
---- 
+---
 
 This is a sample first post for your blog.
 
