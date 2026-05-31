@@ -73,6 +73,45 @@ pub const Builtins = struct {
         }
     };
 
+    pub const containsAny = struct {
+        pub const signature: Signature = .{
+            .params = &.{ .Many = .String },
+            .ret = .Bool,
+        };
+        pub const docs_description =
+            \\Returns true if the receiver contains any of the provided strings.
+            \\
+        ;
+        pub const examples =
+            \\$page.permalink().contains("/blog/", "/devlog/")
+        ;
+        pub fn call(
+            str: String,
+            gpa: Allocator,
+            _: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            if (args.len == 0) return Value.from(gpa, true);
+
+            const bad_arg: Value = .{
+                .err = "expected a string argument",
+            };
+
+            for (args) |a| {
+                const needle = switch (a) {
+                    .string => |s| s.value,
+                    else => return bad_arg,
+                };
+                if (std.mem.indexOf(u8, str.value, needle) != null) {
+                    return Value.from(gpa, true);
+                }
+            }
+
+            return Value.from(gpa, false);
+        }
+    };
+
+
     pub const endsWith = struct {
         pub const signature: Signature = .{
             .params = &.{.String},
