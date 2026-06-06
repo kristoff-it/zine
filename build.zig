@@ -259,12 +259,15 @@ pub fn build(b: *std.Build) !void {
     });
 
     const wuffs = b.dependency("wuffs", mode);
+    const translate_c = b.dependency("translate_c", .{
+        .optimize = .ReleaseFast,
+    });
 
     const release = b.step("release", "Create release builds of Zine");
     if (version == .tag) {
         const zon = @import("build.zig.zon");
         if (std.mem.eql(u8, zon.version, version.tag[1..])) {
-            setupReleaseStep(b, release, version.string());
+            setupReleaseStep(b, release, version.string(), translate_c);
         } else {
             release.dependOn(&b.addFail(b.fmt(
                 "error: git tag does not match zon package version (zon: '{s}', git: '{s}')",
@@ -298,13 +301,12 @@ pub fn build(b: *std.Build) !void {
         b.installArtifact(shtml_docgen);
     }
 
-    // const Translator = @import("translate_c").Translator;
-    // const translate_c = b.dependency("translate_c", .{});
-    // const t: Translator = .init(translate_c, .{
-    //     .c_source_file = b.path("src/c.h"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
+    const Translator = @import("translate_c").Translator;
+    const t: Translator = .init(translate_c, .{
+        .c_source_file = b.path("src/c.h"),
+        .target = target,
+        .optimize = optimize,
+    });
 
     switch (target.result.os.tag) {
         else => @panic("target must be added to build.zig"),
@@ -320,14 +322,15 @@ pub fn build(b: *std.Build) !void {
             zine_exe.root_module.addFrameworkPath(frameworks.path("Frameworks"));
             zine_exe.root_module.addLibraryPath(frameworks.path("lib"));
             zine_exe.root_module.linkFramework("CoreServices", .{});
-            // t.addIncludePath(frameworks.path("include"));
-            // t.addFrameworkPath(frameworks.path("Frameworks"));
-            // t.mod.addLibraryPath(frameworks.path("lib"));
-            // t.mod.linkFramework("CoreServices", .{});
+            t.addIncludePath(frameworks.path("include"));
+            t.addFrameworkPath(frameworks.path("Frameworks"));
+            t.mod.addLibraryPath(frameworks.path("lib"));
+            t.mod.linkFramework("CoreServices", .{});
+
+            zine_exe.root_module.addImport("c", t.mod);
         },
     }
 
-    // zine_exe.root_module.addImport("zine", zine);
     zine_exe.root_module.addImport("ziggy", ziggy);
     zine_exe.root_module.addImport("scripty", scripty);
     zine_exe.root_module.addImport("supermd", supermd);
@@ -338,29 +341,7 @@ pub fn build(b: *std.Build) !void {
     zine_exe.root_module.addImport("options", options);
     zine_exe.root_module.addImport("tracy", tracy.module("tracy"));
     zine_exe.root_module.addImport("mime", mime.module("mime"));
-
-    zine_exe.root_module.addImport("_wuffs", wuffs.module("impl"));
-    zine_exe.root_module.addImport("wuffs", b.createModule(.{
-        .root_source_file = switch (target.result.cpu.arch.family()) {
-            .aarch64 => switch (target.result.os.tag) {
-                .macos => b.path("src/hacks/wuffs-temp-aarch64-macos.h.zig"),
-                .linux => b.path("src/hacks/wuffs-temp-aarch64-linux.h.zig"),
-                else => @panic("unsupported"),
-            },
-            .x86 => switch (target.result.os.tag) {
-                .macos => b.path("src/hacks/wuffs-temp-x86-macos.h.zig"),
-                .linux => b.path("src/hacks/wuffs-temp-x86-linux.h.zig"),
-                .windows => b.path("src/hacks/wuffs-temp-x86-windows.h.zig"),
-                else => @panic("unsupported"),
-            },
-            else => @panic("unsupported"),
-        },
-
-        .target = target,
-        .optimize = optimize,
-    }));
-
-    // zine_exe.root_module.addImport("c", t.mod);
+    zine_exe.root_module.addImport("wuffs", wuffs.module("wuffs"));
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);
@@ -369,7 +350,7 @@ pub fn build(b: *std.Build) !void {
     const run_step = b.step("run", "run the standalone zine executable");
     const zine_run = b.addRunArtifact(zine_exe);
     zine_run.setCwd(b.path("standalone-test"));
-    if (b.args) |args| zine_run.addArgs(args);
+    zine_run.addPassthruArgs();
     run_step.dependOn(&zine_run.step);
 
     try setupSnapshotTesting(b, target, zine_exe);
@@ -411,7 +392,7 @@ fn setupSnapshotTesting(
 
     // content scanning
     {
-        const tests_dir = try b.build_root.handle.openDir(b.graph.io, "tests/content-scanning", .{
+        const tests_dir = try b.root.root_dir.handle.openDir(b.graph.io, "tests/content-scanning", .{
             .iterate = true,
         });
 
@@ -443,7 +424,7 @@ fn setupSnapshotTesting(
 
     // rendering
     {
-        const tests_dir = try b.build_root.handle.openDir(b.graph.io, "tests/rendering", .{
+        const tests_dir = try b.root.root_dir.handle.openDir(b.graph.io, "tests/rendering", .{
             .iterate = true,
         });
 
@@ -481,7 +462,7 @@ fn setupSnapshotTesting(
     }
     // drafts on
     {
-        const tests_dir = try b.build_root.handle.openDir(b.graph.io, "tests/drafts", .{
+        const tests_dir = try b.root.root_dir.handle.openDir(b.graph.io, "tests/drafts", .{
             .iterate = true,
         });
 
@@ -526,22 +507,23 @@ fn setupReleaseStep(
     b: *std.Build,
     release_step: *std.Build.Step,
     version: []const u8,
+    translate_c: *std.Build.Dependency,
 ) void {
     const targets: []const std.Target.Query = &.{
         .{ .cpu_arch = .aarch64, .os_tag = .macos },
         .{ .cpu_arch = .aarch64, .os_tag = .linux, .abi = .musl },
-        .{ .cpu_arch = .aarch64, .os_tag = .freebsd },
+        .{ .cpu_arch = .aarch64, .os_tag = .freebsd, .os_version_min = .{ .semver = .{ .major = 15, .minor = 0, .patch = 0 } } },
         .{ .cpu_arch = .x86_64, .os_tag = .macos },
         .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .musl },
-        .{ .cpu_arch = .x86_64, .os_tag = .freebsd },
+        .{ .cpu_arch = .x86_64, .os_tag = .freebsd, .os_version_min = .{ .semver = .{ .major = 15, .minor = 0, .patch = 0 } } },
         .{ .cpu_arch = .x86_64, .os_tag = .windows },
         .{ .cpu_arch = .aarch64, .os_tag = .windows },
     };
 
-    Io.Dir.cwd().createDirPath(b.graph.io, b.pathJoin(&.{
-        b.install_prefix,
-        "releases",
-    })) catch unreachable;
+    // Io.Dir.cwd().createDirPath(b.graph.io, b.pathJoin(&.{
+    //     b.install_prefix,
+    //     "releases",
+    // })) catch unreachable;
 
     for (targets) |t| {
         const target = b.resolveTargetQuery(t);
@@ -615,6 +597,13 @@ fn setupReleaseStep(
             break :blk options.createModule();
         };
 
+        const Translator = @import("translate_c").Translator;
+        const tr: Translator = .init(translate_c, .{
+            .c_source_file = b.path("src/c.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+
         const zine_exe_release = b.addExecutable(.{
             .name = "zine",
             .root_module = b.createModule(.{
@@ -645,15 +634,20 @@ fn setupReleaseStep(
             },
             .windows => {},
             .macos => {
-                if (b.lazyDependency("frameworks", .{
+                const frameworks = b.lazyDependency("frameworks", .{
                     .target = target,
                     .optimize = optimize,
-                })) |frameworks| {
-                    zine_exe_release.root_module.addIncludePath(frameworks.path("include"));
-                    zine_exe_release.root_module.addFrameworkPath(frameworks.path("Frameworks"));
-                    zine_exe_release.root_module.addLibraryPath(frameworks.path("lib"));
-                    zine_exe_release.root_module.linkFramework("CoreServices", .{});
-                }
+                }) orelse return;
+                zine_exe_release.root_module.addIncludePath(frameworks.path("include"));
+                zine_exe_release.root_module.addFrameworkPath(frameworks.path("Frameworks"));
+                zine_exe_release.root_module.addLibraryPath(frameworks.path("lib"));
+                zine_exe_release.root_module.linkFramework("CoreServices", .{});
+                tr.addIncludePath(frameworks.path("include"));
+                tr.addFrameworkPath(frameworks.path("Frameworks"));
+                tr.mod.addLibraryPath(frameworks.path("lib"));
+                tr.mod.linkFramework("CoreServices", .{});
+
+                zine_exe_release.root_module.addImport("c", tr.mod);
             },
         }
 
@@ -723,14 +717,14 @@ const Version = union(Kind) {
     }
 };
 fn getVersion(b: *std.Build) Version {
-    const git_path = b.findProgram(&.{"git"}, &.{}) catch return .unknown;
+    const git_path = b.findProgram(.{ .names = &.{"git"} }) orelse return .unknown;
     var out: u8 = undefined;
     const git_describe = std.mem.trim(
         u8,
         b.runAllowFail(&[_][]const u8{
-            git_path,            "-C",
-            b.build_root.path.?, "describe",
-            "--match",           "*.*.*",
+            git_path,               "-C",
+            b.root.root_dir.path.?, "describe",
+            "--match",              "*.*.*",
             "--tags",
         }, &out, .ignore) catch return .unknown,
         " \n\r",

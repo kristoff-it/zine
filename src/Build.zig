@@ -114,10 +114,6 @@ pub fn deinit(b: *const Build, io: Io, gpa: Allocator) void {
 /// it ensures the existence of all required directories and
 /// loads git repository info (if in a repo).
 pub fn load(io: Io, gpa: Allocator, cfg: *const root.Config, opts: root.Options) Build {
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
-
     const base_dir = Io.Dir.cwd().openDir(
         io,
         opts.base_dir_path,
@@ -138,10 +134,10 @@ pub fn load(io: Io, gpa: Allocator, cfg: *const root.Config, opts: root.Options)
     ) catch |err| fatal.dir(cfg.getAssetsDirPath(), err);
 
     var table: StringTable = .empty;
-    _ = try table.intern(gpa, "");
+    _ = table.intern(gpa, "") catch fatal.oom();
 
     var path_table: PathTable = .empty;
-    _ = try path_table.intern(gpa, &.{});
+    _ = path_table.intern(gpa, &.{}) catch fatal.oom();
 
     const mode: Mode = switch (opts.mode) {
         .memory => .{ .memory = .{} },

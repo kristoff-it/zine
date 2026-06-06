@@ -40,10 +40,6 @@ else
 pub fn main(init: std.process.Init) u8 {
     const io = init.io;
 
-    errdefer |err| switch (err) {
-        error.OutOfMemory, error.Unexpected => fatal.oom(),
-    };
-
     root.progress = std.Progress.start(io, .{ .draw_buffer = &root.progress_buf });
     defer root.progress.end();
 
@@ -106,7 +102,7 @@ pub fn main(init: std.process.Init) u8 {
         , .{});
     }
 
-    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    const args = init.minimal.args.toSlice(init.arena.allocator()) catch fatal.oom();
 
     const cmd = blk: {
         if (args.len >= 2) {

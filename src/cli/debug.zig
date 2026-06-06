@@ -15,10 +15,16 @@ pub fn debug(
     gpa: Allocator,
     args: []const []const u8,
 ) bool {
-    errdefer |err| switch (err) {
+    return debugInner(io, gpa, args) catch |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
+}
 
+fn debugInner(
+    io: Io,
+    gpa: Allocator,
+    args: []const []const u8,
+) !bool {
     const cmd: Command = try .parse(gpa, args);
 
     const cfg, const base_dir_path = root.Config.load(io, gpa);

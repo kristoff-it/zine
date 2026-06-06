@@ -6,6 +6,8 @@ const wuffs = @import("wuffs");
 const windows = std.os.windows;
 const Allocator = std.mem.Allocator;
 
+pub const PAGE_READONLY = 0x02;
+
 const log = std.log.scoped(.wuffs);
 
 const win = if (builtin.os.tag != .windows) void else struct {
@@ -91,7 +93,7 @@ pub fn setImageSize(
                 file_mapping = win.CreateFileMappingA(
                     image.handle,
                     null,
-                    windows.PAGE_READONLY,
+                    PAGE_READONLY,
                     0,
                     0,
                     null,

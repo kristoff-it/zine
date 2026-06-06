@@ -30,7 +30,7 @@ pub fn initUnix(timestamp: i64) !DateTime {
 }
 
 pub fn initNow(io: Io) DateTime {
-    const date = zeit.instant(io, .{}) catch unreachable;
+    const date = zeit.instant(.{ .now = io }, &zeit.utc);
     return .{ ._inst = date };
 }
 

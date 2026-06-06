@@ -510,10 +510,6 @@ pub const Server = struct {
     }
 
     fn serve(s: *Server, address: Io.net.IpAddress) void {
-        errdefer |err| switch (err) {
-            error.OutOfMemory => fatal.oom(),
-        };
-
         var tcp_server = address.listen(
             s.io,
             .{ .reuse_address = true },

@@ -38,12 +38,21 @@ pub fn parse(
     build: *const Build,
     pn: PathName,
 ) void {
-    const zone = tracy.trace(@src());
-    defer zone.end();
-
-    errdefer |err| switch (err) {
+    parseInner(t, io, gpa, arena, build, pn) catch |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
+}
+
+fn parseInner(
+    t: *Template,
+    io: Io,
+    gpa: Allocator,
+    arena: Allocator,
+    build: *const Build,
+    pn: PathName,
+) !void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
 
     const path = try std.fmt.allocPrint(arena, "{f}", .{
         pn.fmt(&build.st, &build.pt, null, "/"),

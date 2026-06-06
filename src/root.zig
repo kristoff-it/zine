@@ -158,10 +158,6 @@ pub const Config = union(enum) {
     /// found. The directory is then used by other code to place the output
     /// directory unless the user overrides that location from the CLI.
     pub fn load(io: Io, arena: Allocator) struct { Config, []const u8 } {
-        errdefer |err| switch (err) {
-            error.OutOfMemory => fatal.oom(),
-        };
-
         const cwd_path = std.process.currentPathAlloc(io, arena) catch |err| {
             fatal.msg("error while trying to get the cwd path: {s}\n", .{
                 @errorName(err),
@@ -170,9 +166,9 @@ pub const Config = union(enum) {
 
         var base_dir_path: []const u8 = cwd_path;
         while (true) {
-            const joined_path = try std.fs.path.join(arena, &.{
+            const joined_path = std.fs.path.join(arena, &.{
                 base_dir_path, config_file_basename,
-            });
+            }) catch fatal.oom();
 
             const data = Io.Dir.cwd().readFileAllocOptions(
                 io,
@@ -1583,9 +1579,6 @@ fn printSuperMdErrors(
     fm_lines: usize,
 ) void {
     _ = arena;
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
 
     // \\It's strongly recommended to setup your editor to
     // \\leverage the `supermd` CLI tool in order to obtain
@@ -1682,9 +1675,9 @@ fn printSuperMdErrors(
         }
 
         if (build.mode == .memory) {
-            try build.mode.memory.errors.append(gpa, .{
+            build.mode.memory.errors.append(gpa, .{
                 .ref = "",
-                .msg = try std.fmt.allocPrint(gpa,
+                .msg = std.fmt.allocPrint(gpa,
                     \\{f}:{}:{}: [{s}] {s}
                     \\|    {s}
                     \\|    {s}
@@ -1698,8 +1691,8 @@ fn printSuperMdErrors(
                     msg,
                     line_trim,
                     highlight,
-                }),
-            });
+                }) catch fatal.oom(),
+            }) catch fatal.oom();
         }
     }
 }

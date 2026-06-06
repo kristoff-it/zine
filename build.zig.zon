@@ -1,16 +1,16 @@
 .{
     .name = .zine,
-    .version = "0.11.2",
+    .version = "0.11.3",
     .fingerprint = 0xa466bcb520a7eea2,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0-dev.812+5434f85c4",
     .dependencies = .{
         .lsp_kit = .{
-            .url = "git+https://github.com/zigtools/lsp-kit#ec325a3c33d1da7708cf513355208f74d9560580",
-            .hash = "lsp_kit-0.1.0-bi_PL_kyDACVTEhLaMq2-PJx0MocqRyjXDAN0ybMUyQQ",
+            .url = "git+https://github.com/zigtools/lsp-kit#dcbb8dd686d85a8f178a4389e730d41dd727b991",
+            .hash = "lsp_kit-0.1.0-bi_PL2UzDADxFRnnSjhhN7-ZTi9fDMom827yIp_ptc8l",
         },
         .scripty = .{
-            .url = "git+https://github.com/kristoff-it/scripty#9c1e5903acd2a591f87f577b2ea08895e7168b9d",
-            .hash = "scripty-0.1.0-LKK5OzcUAQDVndpJNPAm4eC_-G0HaXUdQejzb9X6C2vq",
+            .url = "git+https://github.com/kristoff-it/scripty#ad75ad546bc7dd2ece4acd23404e25cd65a4bde9",
+            .hash = "scripty-0.1.0-LKK5O-sUAQDifuGq_k00NAdEgJjNxXoFTt9js_A7Yx4F",
         },
         .tracy = .{
             .url = "git+https://github.com/kristoff-it/tracy#67d2d89e351048c76fc6d161e0ac09d8a831dc60",
@@ -21,8 +21,8 @@
             .hash = "mime-3.0.0-zwmL--0gAAByELrj57sRm2EFBRzjKLFrMgHQcs7sFZev",
         },
         .wuffs = .{
-            .url = "git+https://github.com/allyourcodebase/wuffs#6fd35cb51e90c4f69c64f3a2c28eb8aa36dc9c8b",
-            .hash = "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgRMKAAAuMytwtlaBGjTMPVuDQSnCE3qMGg2NDTfr",
+            .url = "git+https://github.com/allyourcodebase/wuffs#5ea19ed8a0b78e3ab3d3d4d016d8b49e1af107a2",
+            .hash = "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgZULAAARz_ehNESEv1jtLWo3q8nOTqNWH3-vADsK",
         },
         .frameworks = .{
             .url = "git+https://code.hexops.org/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
@@ -30,28 +30,28 @@
             .lazy = true,
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#5ca7066c50b10c459aa6d1ad011bc37124c2d354",
-            .hash = "superhtml-0.6.2-Y7MdPCZxJADwkXTXHmwQ0AKWKgbmQjJBnT7QTVqaX9Vp",
+            .url = "git+https://github.com/kristoff-it/superhtml#090f80d2ba256fb1b425c952f27953792cae6688",
+            .hash = "superhtml-0.6.2-Y7MdPCtyJAD930ctpUN02LzUt0sA6h34YIVxEODm7FOv",
         },
         .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit?ref=0.16#fdaad9c5884f41a3640c768f4f9fc116e763c321",
-            .hash = "zeit-0.6.0-5I6bk3K6AgCFnc_9CN7KJjaeNJz1VuwP4DA7Gs9vgxuz",
+            .url = "git+https://github.com/rockorager/zeit#905396257dcf0b1bfa3c0e8265657a0e748105ad",
+            .hash = "zeit-0.10.0-dev-5I6bk3m9AgB8Ndev81pibV70MJe9VCOXAGZBNU833c4Y",
         },
         .flow_syntax = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#28d643c3fd8455faab0ea12383da9d6ddcbe9cb0",
-            .hash = "flow_syntax-0.7.2-X8jOoeFgAQBquxUXx-h5g_xXQzcNAOtyz3M4fVUwgrOd",
+            .url = "git+https://github.com/neurocyte/flow-syntax#65e76b959b9ac7c2aab8aba0d7decc5a3f04e4e1",
+            .hash = "flow_syntax-0.7.2-X8jOoQlmAQA3iLvWcCZZr1sYEEiBpHqi8VWqweKwwxGB",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy?ref=old#0fdd57cbb052e7aa5930b3ed960ea3450f9dc2b0",
-            .hash = "ziggy-0.1.0-kTg8v15ABgBGDedRmKfxGUWBxSxMBnEfYjazvZKVVrzP",
+            .url = "git+https://github.com/kristoff-it/ziggy?ref=old#189d1d5e862e896df49d8afca8e49e0cb1835785",
+            .hash = "ziggy-0.1.0-kTg8v3xBBgD66kzRYoOgByokYiVMupy4dew5buN45X-y",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#4132146450f1ecbaa3fbd75cfeabccd754d6e716",
-            .hash = "supermd-0.1.0-3Mco3CiXWABRpK_kiTdTuVJ7eZOm102_E8j5C6qyRh_2",
+            .url = "git+https://github.com/kristoff-it/supermd#76a43686add44fefbb89fc30ba6fce3b4f3a356d",
+            .hash = "supermd-0.1.0-3Mco3E-XWACwqlsi-OOOSLfKyoutlDoRbjoiJ9PXOSH4",
         },
         .translate_c = .{
-            .url = "git+https://codeberg.org/ziglang/translate-c#7a1a9fdc4ab00835748a6657ecbb835e3d5d45f7",
-            .hash = "translate_c-0.0.0-Q_BUWvP1BgCjAk6PWv5286tOlvzD9-X-NkuTzh0KxY0Q",
+            .url = "git+https://codeberg.org/kristoff/translate-c?ref=0.17.x#c01b34d1e57010019d77ffef1dbc704af870a2eb",
+            .hash = "translate_c-0.0.0-Q_BUWrEwBwDpXYYuHRSbbDDpjB0NHXcusTe4yYJXzYlA",
         },
     },
     .paths = .{"."},

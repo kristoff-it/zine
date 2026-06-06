@@ -5,11 +5,7 @@ const Io = std.Io;
 const fatal = @import("../../../fatal.zig");
 const Debouncer = @import("../../serve.zig").Debouncer;
 
-// const c = @cImport({
-//     @cInclude("CoreServices/CoreServices.h");
-// });
-// const c = @import("c");
-const c = @import("../../../hacks/CoreFoundation.h.zig");
+const c = @import("c");
 
 const log = std.log.scoped(.watcher);
 
@@ -38,14 +34,10 @@ pub fn start(watcher: *MacosWatcher) !void {
 }
 
 pub fn listen(watcher: *MacosWatcher) void {
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
-
-    const macos_paths = try watcher.gpa.alloc(
+    const macos_paths = watcher.gpa.alloc(
         c.CFStringRef,
         watcher.dir_paths.len,
-    );
+    ) catch fatal.oom();
     defer watcher.gpa.free(macos_paths);
 
     for (watcher.dir_paths, macos_paths) |str, *ref| {
@@ -63,7 +55,8 @@ pub fn listen(watcher: *MacosWatcher) void {
         null,
     );
 
-    var stream_context: c.FSEventStreamContext = .{ .info = watcher };
+    var stream_context: c.FSEventStreamContext = std.mem.zeroes(c.FSEventStreamContext);
+    stream_context.info = watcher;
     const stream: c.FSEventStreamRef = c.FSEventStreamCreate(
         null,
         &macosCallback,

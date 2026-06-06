@@ -324,10 +324,6 @@ pub fn parse(
     const zone = tracy.trace(@src());
     defer zone.end();
 
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
-
     var buf: [std.fs.max_path_bytes]u8 = undefined;
     // const path_bytes = buf[0..p._scan.path.bytesSlice(
     //     &variant.string_table,
@@ -425,7 +421,7 @@ pub fn parse(
     // the SuperMD data correctly, so te do that unconditionally in order to
     // report more errors at once.
 
-    const ast = try supermd.Ast.init(gpa, full_src[fm.offset..], cmark);
+    const ast = supermd.Ast.init(gpa, full_src[fm.offset..], cmark) catch fatal.oom();
 
     p._parse = .{
         .active = !p.draft or drafts,

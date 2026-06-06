@@ -9,11 +9,7 @@ const Allocator = std.mem.Allocator;
 const BuildAsset = root.BuildAsset;
 
 pub fn release(io: Io, gpa: Allocator, args: []const []const u8) bool {
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
-
-    const cmd: Command = try .parse(gpa, args);
+    const cmd = Command.parse(gpa, args) catch fatal.oom();
     const cfg, const base_dir_path = root.Config.load(io, gpa);
 
     worker.start(io);

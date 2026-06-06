@@ -94,10 +94,6 @@ pub fn start(io: Io) void {
 
     wg = .{ .io = io };
 
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
-
     supermd.c.cmark_gfm_core_extensions_ensure_registered();
 
     if (builtin.single_threaded) {
@@ -106,7 +102,7 @@ pub fn start(io: Io) void {
     }
 
     const thread_count = @max(1, std.Thread.getCpuCount() catch 1);
-    threads = try gpa.alloc(std.Thread, thread_count);
+    threads = gpa.alloc(std.Thread, thread_count) catch fatal.oom();
 
     for (0..thread_count) |idx| {
         const _cmark = supermd.Ast.CmarkParser.default();
@@ -269,16 +265,12 @@ fn analyzePage(
     // layout error put there by the main thread.
     // page._analysis = .{};
 
-    errdefer |err| switch (err) {
-        error.OutOfMemory => fatal.oom(),
-    };
-
     var arena_state = page._parse.arena.promote(gpa);
     defer page._parse.arena = arena_state.state;
     const page_arena = arena_state.allocator();
 
-    try analyzeFrontmatter(page_arena, page);
-    try analyzeContent(io, page_arena, arena, build, variant_id, page);
+    analyzeFrontmatter(page_arena, page) catch fatal.oom();
+    analyzeContent(io, page_arena, arena, build, variant_id, page) catch fatal.oom();
 }
 
 fn analyzeFrontmatter(page_arena: Allocator, p: *Page) error{OutOfMemory}!void {
@@ -912,12 +904,22 @@ fn renderPage(
     page: *Page,
     kind: RenderJobKind,
 ) void {
-    const zone = tracy.trace(@src());
-    defer zone.end();
-
-    errdefer |err| switch (err) {
+    renderPageInner(io, arena, progress, build, sites, page, kind) catch |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
+}
+
+fn renderPageInner(
+    io: Io,
+    arena: Allocator,
+    progress: std.Progress.Node,
+    build: *Build,
+    sites: *const std.StringArrayHashMapUnmanaged(context.Site),
+    page: *Page,
+    kind: RenderJobKind,
+) !void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
 
     const variant_id = page._scan.variant_id;
     const variant = &build.variants[variant_id];

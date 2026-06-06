@@ -206,6 +206,7 @@ pub const MultilingualScanParams = struct {
     i18n_dir_path: []const u8,
     locale_code: []const u8,
 };
+
 pub fn scanContentDir(
     variant: *Variant,
     io: Io,
@@ -217,12 +218,33 @@ pub fn scanContentDir(
     multilingual: ?MultilingualScanParams,
     output_path_prefix: []const u8,
 ) void {
-    const zone = tracy.trace(@src());
-    defer zone.end();
-
-    errdefer |err| switch (err) {
+    scanContentDirInner(
+        variant,
+        io,
+        gpa,
+        arena,
+        base_dir,
+        content_dir_path,
+        variant_id,
+        multilingual,
+        output_path_prefix,
+    ) catch |err| switch (err) {
         error.OutOfMemory => fatal.oom(),
     };
+}
+fn scanContentDirInner(
+    variant: *Variant,
+    io: Io,
+    gpa: Allocator,
+    arena: Allocator,
+    base_dir: Io.Dir,
+    content_dir_path: []const u8,
+    variant_id: u32,
+    multilingual: ?MultilingualScanParams,
+    output_path_prefix: []const u8,
+) !void {
+    const zone = tracy.trace(@src());
+    defer zone.end();
 
     var path_table: PathTable = .empty;
     _ = try path_table.intern(gpa, &.{}); // empty path
@@ -556,10 +578,6 @@ pub fn installAssets(
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
-
-    // errdefer |err| switch (err) {
-    //     error.OutOfMemory => fatal.oom(),
-    // };
 
     var it = v.urls.iterator();
     while (it.next()) |entry| {
