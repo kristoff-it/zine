@@ -27,7 +27,8 @@ html {
 }
 
 body {
-  width: 800px;
+  max-width: 800px;
+  overflow-x: scroll;
   padding: 15px;
   display: flex;
   flex-direction: column;
@@ -45,6 +46,14 @@ nav {
   justify-content: left;
   font-size: 1.2em;
   margin-bottom: 20px;
+}
+
+pre {
+  overflow-x: scroll;
+}
+
+img {
+  max-width: 100vw;
 }
 
 .block {

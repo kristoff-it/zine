@@ -44,6 +44,10 @@ pub fn init(io: Io, gpa: Allocator, args: []const []const u8) bool {
             .src = @embedFile("init/content/blog/second-post.smd"),
         },
         .{
+            .path = "content/blog/code-blocks.smd",
+            .src = @embedFile("init/content/blog/code-blocks.smd"),
+        },
+        .{
             .path = "content/devlog/index.smd",
             .src = @embedFile("init/content/devlog/index.smd"),
         },

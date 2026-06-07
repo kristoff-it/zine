@@ -1,0 +1,36 @@
+---
+.title = "Third Post",
+.date = @date("1990-01-03T00:00:00"),
+.author = "Sample Author",
+.layout = "post.shtml",
+.draft = false,
+--- 
+
+Code blocks may be wider than the viewport on mobile. They'll scroll
+horizontally.
+
+```zig
+/// Shaper that uses CoreText.
+///
+/// CoreText shaping differs in subtle ways from HarfBuzz so it may result
+/// in inconsistent rendering across platforms. But it also fixes many
+/// issues (some macOS specific):
+///
+///   - Theta hat offset is incorrect in HarfBuzz but correct by default
+///     on macOS applications using CoreText. (See:
+///     https://github.com/harfbuzz/harfbuzz/discussions/4525)
+///
+///   - Hyphens (U+2010) can be synthesized by CoreText but not by HarfBuzz.
+///     See: https://github.com/mitchellh/ghostty/issues/1643
+///
+pub const Shaper = struct {
+    /// The allocated used for the feature list, font cache, and cell buf.
+    alloc: Allocator,
+
+    /// The string used for shaping the current run.
+    run_state: RunState,
+
+    /// CoreFoundation Dictionary which represents our font feature settings.
+    features: *macos.foundation.Dictionary,
+// ...
+```
