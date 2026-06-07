@@ -4,7 +4,7 @@
 .author = "Sample Author",
 .layout = "index.shtml",
 .draft = false,
---- 
+---
 
 This sample website showcases:
 
@@ -15,7 +15,7 @@ This sample website showcases:
   - `content/blog/index.smd`
   - `content/blog/first-post/index.smd`
   - `content/blog/second-post.smd`
-- A devlog 
+- A devlog
   - `content/devlog/index.smd`
   - `content/devlog/1990.smd`
   - `content/devlog/1989.smd`

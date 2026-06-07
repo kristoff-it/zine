@@ -74,7 +74,7 @@ menclose {
     position: relative;
     padding: 0.5ex 0ex;
   }
-  
+
     .tml-overline {
     padding: 0.1em 0 0 0;
     border-top: 0.065em solid;
@@ -137,7 +137,7 @@ menclose {
     text-align: left;
     position: relative;
   }
-  
+
   .phasor-bottom {
     border-bottom: 0.067em solid;
     padding: 0.2em 0.2em 0.1em 0.6em;
