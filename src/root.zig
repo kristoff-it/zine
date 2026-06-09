@@ -700,24 +700,25 @@ pub fn run(
         defer tracy_frame.end();
         for (build.variants, 0..) |*v, vidx| {
             for (v.pages.items) |*p| {
+                if (p._parse.status == .empty) {
+                    // Page is empty, print warning and skip it
+                    std.debug.print("WARNING: Ignoring empty file '{f}'\n\n", .{
+                        p._scan.file.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            v.content_dir_path,
+                            "",
+                        ),
+                    });
+                    continue;
+                }
+
                 if (!p._parse.active) continue;
 
                 // First we need to check the frontmatter as the ast will be valid
                 // only if the frontmatter has been correctly identifed as well.
                 switch (p._parse.status) {
-                    .empty => {
-                        // Page is empty, print warning and skip it
-                        std.debug.print("WARNING: Ignoring empty file '{f}'\n", .{
-                            p._scan.file.fmt(
-                                &v.string_table,
-                                &v.path_table,
-                                v.content_dir_path,
-                                "",
-                            ),
-                        });
-                        continue;
-                    },
-
+                    .empty => unreachable,
                     .frontmatter => |err| {
                         if (!parse_errors) {
                             parse_errors = true;

@@ -368,7 +368,7 @@ pub fn parse(
     if (full_src.len == 0) {
         p._parse = .{
             .arena = arena_state.state,
-            .active = true,
+            .active = false,
             .full_src = full_src,
             .status = .empty,
             .fm = undefined,
