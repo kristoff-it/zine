@@ -15,3 +15,9 @@ If you plan to build your website with GitHub Actions, take a look at [kristoff-
 GitHub Action to get access to Zine in your runner.
 
 We also have more complete guides at https://zine-ssg.io/docs/.
+
+
+## Contributing
+
+- Ask before embarking on doing complicated work that might not be upstreamed.
+- No LLMs, thank you.
