@@ -1504,6 +1504,7 @@ pub const Builtins = struct {
             \\     type="$ctx.alt.type" 
             \\     :text="$ctx.alt.name"
             \\  ></a>
+            \\</ctx>
         ;
         pub fn call(
             p: *const Page,
