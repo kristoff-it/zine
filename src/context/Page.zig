@@ -309,7 +309,7 @@ pub const FrontmatterAnalysisError = union(enum) {
 };
 
 pub fn deinit(p: *const Page, gpa: Allocator) void {
-    p._parse.arena.promote(gpa).deinit();
+    if (p._parse.active) p._parse.arena.promote(gpa).deinit();
 }
 
 pub fn parse(
@@ -367,8 +367,8 @@ pub fn parse(
 
     if (full_src.len == 0) {
         p._parse = .{
-            .arena = arena_state.state,
             .active = false,
+            .arena = arena_state.state,
             .full_src = full_src,
             .status = .empty,
             .fm = undefined,
@@ -418,7 +418,7 @@ pub fn parse(
     };
 
     // Note that a frontmatter validation error does not prevent us from parsing
-    // the SuperMD data correctly, so te do that unconditionally in order to
+    // the SuperMD data correctly, so we do that unconditionally in order to
     // report more errors at once.
 
     const ast = supermd.Ast.init(gpa, full_src[fm.offset..], cmark) catch fatal.oom();
