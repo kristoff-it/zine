@@ -4,32 +4,31 @@ const Writer = std.Io.Writer;
 const zine = @import("zine");
 const context = @import("context.zig");
 const Value = context.Value;
-const Template = context.Template;
+const Root = context.Root;
 const Param = context.ScriptyParam;
 
 const ref: Reference = .{
-    .global = analyzeFields(Template),
+    .global = analyzeFields(Root),
     .values = analyzeValues(),
 };
 
-pub fn main() !void {
-    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
+    const arena = init.arena.allocator();
 
-    const args = std.process.argsAlloc(arena) catch oom();
+    const args = init.minimal.args.toSlice(arena) catch oom();
     const out_path = args[1];
 
-    const out_file = Io.cwd().createFile(out_path, .{}) catch |err| {
+    const out_file = Io.Dir.cwd().createFile(io, out_path, .{}) catch |err| {
         fatal("error while creating output file: {s}\n{s}\n", .{
             out_path,
             @errorName(err),
         });
     };
-    defer out_file.close();
+    defer out_file.close(io);
 
     var buf: [4096]u8 = undefined;
-    var writer_state = out_file.writer(&buf);
+    var writer_state = out_file.writer(io, &buf);
     const w = &writer_state.interface;
 
     try w.writeAll(
@@ -205,10 +204,10 @@ pub const Reference = struct {
 
 pub fn analyzeValues() []const Reference.Type {
     const info = @typeInfo(context.Value).@"union";
-    var values: [info.fields.len]Reference.Type = undefined;
-    inline for (info.fields, &values) |f, *v| {
-        const t = getStructType(f.type) orelse {
-            std.debug.assert(f.type == []const u8);
+    var values: [info.field_names.len]Reference.Type = undefined;
+    inline for (info.field_types, &values) |f_type, *v| {
+        const t = getStructType(f_type) orelse {
+            std.debug.assert(f_type == []const u8);
             v.* = .{
                 .name = .err,
                 .fields = &.{},
@@ -254,11 +253,11 @@ fn getStructType(T: type) ?type {
 
 fn analyzeBuiltins(T: type) []const Reference.Builtin {
     const info = @typeInfo(T.Builtins).@"struct";
-    var decls: [info.decls.len]Reference.Builtin = undefined;
-    inline for (info.decls, &decls) |decl, *b| {
-        const t = @field(T.Builtins, decl.name);
+    var decls: [info.decl_names.len]Reference.Builtin = undefined;
+    inline for (info.decl_names, &decls) |decl_name, *b| {
+        const t = @field(T.Builtins, decl_name);
         b.* = .{
-            .name = decl.name,
+            .name = decl_name,
             .signature = t.signature,
             .description = t.docs_description,
             .examples = t.examples,
@@ -270,15 +269,15 @@ fn analyzeBuiltins(T: type) []const Reference.Builtin {
 
 fn analyzeFields(T: type) []const Reference.Field {
     const info = @typeInfo(T).@"struct";
-    var reference_fields: [info.fields.len]Reference.Field = undefined;
+    var reference_fields: [info.field_names.len]Reference.Field = undefined;
     var idx: usize = 0;
-    for (info.fields) |tf| {
+    for (info.field_names, info.field_types) |tf_name, tf_type| {
         if (!@hasDecl(T, "Fields")) continue;
-        if (tf.name[0] == '_') continue;
+        if (tf_name[0] == '_') continue;
         reference_fields[idx] = .{
-            .name = tf.name,
-            .description = @field(T.Fields, tf.name),
-            .type_name = Param.fromType(tf.type),
+            .name = tf_name,
+            .description = @field(T.Fields, tf_name),
+            .type_name = Param.fromType(tf_type),
         };
         idx += 1;
     }

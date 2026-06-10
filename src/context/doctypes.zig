@@ -69,7 +69,7 @@ pub const ScriptyParam = union(enum) {
 
     pub fn fromType(t: type) ScriptyParam {
         return switch (t) {
-            context.Template => .any,
+            context.Root => .any,
             ?context.Value => .any,
             context.Page, *const context.Page => .Page,
             context.Site, *const context.Site => .Site,
