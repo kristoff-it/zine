@@ -2,7 +2,7 @@
     .name = .zine,
     .version = "0.11.3",
     .fingerprint = 0xa466bcb520a7eea2,
-    .minimum_zig_version = "0.17.0-dev.812+5434f85c4",
+    .minimum_zig_version = "0.17.0-dev.857+2b2b85c5f",
     .dependencies = .{
         .lsp_kit = .{
             .url = "git+https://github.com/zigtools/lsp-kit#dcbb8dd686d85a8f178a4389e730d41dd727b991",
