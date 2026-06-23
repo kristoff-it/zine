@@ -755,7 +755,7 @@ pub fn printAssetUrlPrefix(
             }
         },
         .multi => |locale| {
-            const assets_prefix_path = ctx._meta.build.cfg.Multilingual.assets_prefix_path;
+            const assets_prefix_path = ctx._meta.build.cfg.site.multilingual.assets_prefix_path orelse "";
             if (ctx.page != page or locale.host_url_override != null) {
                 try w.print("{f}", .{
                     root.fmtJoin('/', &.{

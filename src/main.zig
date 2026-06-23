@@ -4,7 +4,7 @@ const options = @import("options");
 const tracy = @import("tracy");
 const fatal = @import("fatal.zig");
 const worker = @import("worker.zig");
-const root = @import("root.zig");
+pub const root = @import("root.zig");
 const Allocator = std.mem.Allocator;
 
 const log = std.log.scoped(.main);
@@ -53,7 +53,7 @@ pub fn main(init: std.process.Init) u8 {
             \\|                                               |
             \\| To create a release build, run:               |
             \\|                                               |
-            \\|           zig build --release=fast            |
+            \\|       zig build -Doptimize=ReleaseFast        |
             \\|                                               |
             \\| If you're investigating a bug in Zine, then a |
             \\| debug build might turn confusing behavior     |
@@ -122,7 +122,7 @@ pub fn main(init: std.process.Init) u8 {
         .version, .@"-v", .@"--version" => printVersion(),
         .serve, .server, .dev, .develop => {
             std.debug.print(
-                "error: run zine without any subcommand to start the development web server\n\n",
+                "error: run zine without any subcommand to start the development server\n\n",
                 .{},
             );
             fatal.help();

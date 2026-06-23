@@ -27,7 +27,7 @@ fn debugInner(
 ) !bool {
     const cmd: Command = try .parse(gpa, args);
 
-    const cfg, const base_dir_path = root.Config.load(io, gpa);
+    const cfg, const base_dir_path = root.Config.load(io, gpa, .auto);
 
     worker.start(io);
     defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit(io);
@@ -52,7 +52,7 @@ fn debugInner(
             \\
         , .{
             vidx,
-            build.cfg.Site.content_dir_path,
+            build.cfg.site.simple.content_dir_path,
         });
 
         std.mem.sort(Section, variant.sections.items[1..], variant, struct {

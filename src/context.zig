@@ -106,29 +106,28 @@ pub const Value = union(enum) {
         const num = std.fmt.parseFloat(f64, bytes) catch {
             return .{ .err = "error parsing numeric literal" };
         };
-        return .{ .float = .{ .f = num } };
+        return .{ .float = .{ .value = num } };
     }
 
     pub fn fromBooleanLiteral(b: bool) Value {
         return .{ .bool = .{ .value = b } };
     }
 
-    pub fn fromZiggy(gpa: Allocator, value: ziggy.dynamic.Value) !Value {
+    pub fn fromZiggy(gpa: Allocator, value: ziggy.Dynamic) !Value {
         switch (value) {
             .null => return .{ .optional = null },
             .bool => |b| return .{ .bool = .{ .value = b } },
             .integer => |i| return .{ .int = .{ .value = i } },
+            .float => |f| return .{ .float = .{ .value = f } },
             .bytes => |s| return .{ .string = .{ .value = s } },
-            .array => |a| return Array.init(gpa, ziggy.dynamic.Value, a),
-            .tag => |t| {
-                std.debug.assert(std.mem.eql(u8, t.name, "date"));
-                const date = DateTime.init(t.bytes) catch {
-                    return .{ .err = "error parsing date" };
-                };
-                return Value.from(gpa, date);
+            .array => |a| return Array.init(gpa, ziggy.Dynamic, a),
+            .@"enum" => |e| return .{ .string = .{ .value = e } },
+            .@"union" => |t| {
+                _ = t;
+                return Value.errFmt(gpa, "TODO: implement union support", .{});
             },
             .kv => |kv| return .{ .map = .{ .value = kv } },
-            inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
+            // inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
         }
     }
 
@@ -147,9 +146,10 @@ pub const Value = union(enum) {
             DateTime => .{ .date = v },
             []const u8, []u8 => .{ .string = .{ .value = v } },
             bool => .{ .bool = .{ .value = v } },
+            ?bool => if (v) |b| try context.Optional.init(gpa, b) else context.Optional.Null,
             i64, usize => .{ .int = .{ .value = @intCast(v) } },
-            ziggy.dynamic.Value => try fromZiggy(gpa, v),
-            Map.ZiggyMap => .{ .map = .{ .value = v } },
+            ziggy.Dynamic => try fromZiggy(gpa, v),
+            Map.DynamicDict => .{ .map = .{ .value = v } },
             Map.KV => .{ .map_kv = v },
             *const context.Optional => .{ .optional = v },
             ?*const context.Optional => if (v) |opt|

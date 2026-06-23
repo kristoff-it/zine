@@ -1,6 +1,6 @@
 ---
 .title = "Archive",
-.date = @date("2020-07-06T00:00:00"),
+.date = .iso("2020-07-06T00:00:00"),
 .author = "Sample Author",
 .layout = "archive.shtml",
 .draft = false,

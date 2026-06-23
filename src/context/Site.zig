@@ -6,6 +6,7 @@ const Writer = std.Io.Writer;
 const Allocator = std.mem.Allocator;
 
 const scripty = @import("scripty");
+const ziggy = @import("ziggy");
 const utils = @import("utils.zig");
 const context = @import("../context.zig");
 const Value = context.Value;
@@ -21,6 +22,7 @@ const Signature = @import("doctypes.zig").Signature;
 
 host_url: []const u8,
 title: []const u8,
+custom: ziggy.Dictionary(ziggy.Dynamic) = .empty,
 _meta: struct {
     variant_id: u32,
     kind: union(enum) {
@@ -30,11 +32,10 @@ _meta: struct {
 },
 
 pub const docs_description =
-    \\The global site configuration. The fields come from the call to 
-    \\`website` in your `build.zig`.
+    \\ The global site configuration. The fields come from your `zine.ziggy`
+    \\ config file (or the call to `website` in your `build.zig`).
     \\ 
-    \\ Gives you also access to assets and static assets from the directories 
-    \\ defined in your site configuration.
+    \\ Gives you also access to site assets and other site-wide resources.
 ;
 
 pub const Dot = true;
@@ -45,6 +46,15 @@ pub const Fields = struct {
     ;
     pub const title =
         \\The website title, as defined in your `build.zig`.
+    ;
+    pub const custom =
+        \\The custom Ziggy Dictionary you can define in your `zine.ziggy`
+        \\config file.
+        \\
+        \\Note that in the case of multilingual websites this is still
+        \\going to be a single instance shared by all localized variants.
+        \\To create per-localized-variant settings, refer to the 'i18n'
+        \\documentation.
     ;
 };
 pub const Builtins = struct {

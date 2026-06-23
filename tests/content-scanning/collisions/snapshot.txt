@@ -6,7 +6,7 @@
 |                                               |
 | To create a release build, run:               |
 |                                               |
-|           zig build --release=fast            |
+|       zig build -Doptimize=ReleaseFast        |
 |                                               |
 | If you're investigating a bug in Zine, then a |
 | debug build might turn confusing behavior     |
@@ -18,18 +18,6 @@
 |              -Dsingle-threaded                |
 |                                               |
 *-----------------------------------------------*
-
-content/index.smd:16:15: error: invalid layout in alternatives
-|    .layout = "",
-|              ^^
-
-content/page.smd:16:13: error: invalid layout in alternatives
-|    .layout = "",
-|              ^^
-
-content/nested/path/page.smd:15:15: error: invalid layout in alternatives
-|    .layout = "",
-|              ^^
 
 page/index.html: error: output url collision detected
    between  page.smd (main output)

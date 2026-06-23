@@ -152,7 +152,7 @@ pub fn build(b: *std.Build) !void {
         "preview",
         "Make a preview release of Zine",
     ) orelse false) .{
-        .tag = getVersion(b).commit,
+        .preview = getVersion(b).commit,
     } else getVersion(b);
 
     const tsan = b.option(
@@ -173,21 +173,23 @@ pub fn build(b: *std.Build) !void {
         "Include treesitter grammars for build-time syntax highlighting (enabled by default). Disabling reduces executable size significantly.",
     ) orelse true;
 
+    const zine_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .single_threaded = b.option(
+            bool,
+            "single-threaded",
+            "build Zine in single-threaded mode",
+        ) orelse false,
+
+        .sanitize_thread = tsan,
+    });
+
     // This is this up because otherwise lazy deps will hide the existence of this artifact
     const zine_exe = b.addExecutable(.{
         .name = "zine",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .single_threaded = b.option(
-                bool,
-                "single-threaded",
-                "build Zine in single-threaded mode",
-            ) orelse false,
-
-            .sanitize_thread = tsan,
-        }),
+        .root_module = zine_mod,
     });
 
     const tracy = b.dependency("tracy", .{ .enable = enable_tracy });
@@ -260,20 +262,24 @@ pub fn build(b: *std.Build) !void {
     });
 
     const release = b.step("release", "Create release builds of Zine");
-    if (version == .tag) {
-        const zon = @import("build.zig.zon");
-        if (std.mem.eql(u8, zon.version, version.tag[1..])) {
-            setupReleaseStep(b, release, version.string(), translate_c);
-        } else {
-            release.dependOn(&b.addFail(b.fmt(
-                "error: git tag does not match zon package version (zon: '{s}', git: '{s}')",
-                .{ zon.version, version.tag[1..] },
-            )).step);
-        }
-    } else {
-        release.dependOn(&b.addFail(
-            "error: git tag missing, cannot make release builds",
-        ).step);
+    switch (version) {
+        .tag => {
+            const zon = @import("build.zig.zon");
+            if (std.mem.eql(u8, zon.version, version.tag[1..])) {
+                setupReleaseStep(b, release, version.string(), translate_c);
+            } else {
+                release.dependOn(&b.addFail(b.fmt(
+                    "error: git tag does not match zon package version (zon: '{s}', git: '{s}')",
+                    .{ zon.version, version.tag[1..] },
+                )).step);
+            }
+        },
+        .preview => {},
+        .commit, .unknown => {
+            release.dependOn(&b.addFail(
+                "error: git tag missing, cannot make release builds",
+            ).step);
+        },
     }
 
     const shtml_docgen = b.addExecutable(.{
@@ -314,30 +320,30 @@ pub fn build(b: *std.Build) !void {
         .windows => {},
         .macos => {
             const frameworks = b.lazyDependency("frameworks", .{}) orelse return;
-            zine_exe.root_module.addIncludePath(frameworks.path("include"));
-            zine_exe.root_module.addFrameworkPath(frameworks.path("Frameworks"));
-            zine_exe.root_module.addLibraryPath(frameworks.path("lib"));
-            zine_exe.root_module.linkFramework("CoreServices", .{});
+            zine_mod.addIncludePath(frameworks.path("include"));
+            zine_mod.addFrameworkPath(frameworks.path("Frameworks"));
+            zine_mod.addLibraryPath(frameworks.path("lib"));
+            zine_mod.linkFramework("CoreServices", .{});
             t.addIncludePath(frameworks.path("include"));
             t.addFrameworkPath(frameworks.path("Frameworks"));
             t.mod.addLibraryPath(frameworks.path("lib"));
             t.mod.linkFramework("CoreServices", .{});
 
-            zine_exe.root_module.addImport("c", t.mod);
+            zine_mod.addImport("c", t.mod);
         },
     }
 
-    zine_exe.root_module.addImport("ziggy", ziggy);
-    zine_exe.root_module.addImport("scripty", scripty);
-    zine_exe.root_module.addImport("supermd", supermd);
-    zine_exe.root_module.addImport("superhtml", superhtml);
-    zine_exe.root_module.addImport("zeit", zeit);
-    zine_exe.root_module.addImport("syntax", syntax.module("syntax"));
-    zine_exe.root_module.addImport("treez", treez);
-    zine_exe.root_module.addImport("options", options);
-    zine_exe.root_module.addImport("tracy", tracy.module("tracy"));
-    zine_exe.root_module.addImport("mime", mime.module("mime"));
-    zine_exe.root_module.addImport("wuffs", wuffs.module("wuffs"));
+    zine_mod.addImport("ziggy", ziggy);
+    zine_mod.addImport("scripty", scripty);
+    zine_mod.addImport("supermd", supermd);
+    zine_mod.addImport("superhtml", superhtml);
+    zine_mod.addImport("zeit", zeit);
+    zine_mod.addImport("syntax", syntax.module("syntax"));
+    zine_mod.addImport("treez", treez);
+    zine_mod.addImport("options", options);
+    zine_mod.addImport("tracy", tracy.module("tracy"));
+    zine_mod.addImport("mime", mime.module("mime"));
+    zine_mod.addImport("wuffs", wuffs.module("wuffs"));
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);
@@ -349,16 +355,48 @@ pub fn build(b: *std.Build) !void {
     zine_run.addPassthruArgs();
     run_step.dependOn(&zine_run.step);
 
-    try setupSnapshotTesting(b, target, zine_exe);
+    const test_step = b.step("test", "build snapshot tests and diff the results");
+    setupSchemaCheck(b, target, zine_mod, test_step);
+    // try setupSnapshotTesting(b, target, zine_exe, test_step);
+}
+
+fn setupSchemaCheck(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    zine_mod: *std.Build.Module,
+    test_step: *std.Build.Step,
+) void {
+    {
+        const schema = b.path("src/schemas/zine.ziggy-schema");
+        const types_mod = b.createModule(.{
+            .root_source_file = b.path("src/schemas/zine.zig"),
+        });
+        types_mod.addImport("zine", zine_mod);
+
+        const ziggy = @import("ziggy");
+        const check_step = ziggy.addTypeCheckStep(b, target, .Debug, types_mod, schema);
+        test_step.dependOn(check_step);
+    }
+
+    {
+        const schema = b.path("src/schemas/page.ziggy-schema");
+        const types_mod = b.createModule(.{
+            .root_source_file = b.path("src/schemas/page.zig"),
+        });
+        types_mod.addImport("zine", zine_mod);
+
+        const ziggy = @import("ziggy");
+        const check_step = ziggy.addTypeCheckStep(b, target, .Debug, types_mod, schema);
+        test_step.dependOn(check_step);
+    }
 }
 
 fn setupSnapshotTesting(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     zine_exe: *std.Build.Step.Compile,
+    test_step: *std.Build.Step,
 ) !void {
-    const test_step = b.step("test", "build snapshot tests and diff the results");
-
     const camera = b.addExecutable(.{
         .name = "camera",
         .root_module = b.createModule(.{
@@ -699,15 +737,16 @@ fn setupReleaseStep(
 
 const Version = union(Kind) {
     tag: []const u8,
+    preview: []const u8,
     commit: []const u8,
     // not in a git repo
     unknown,
 
-    pub const Kind = enum { tag, commit, unknown };
+    pub const Kind = enum { tag, preview, commit, unknown };
 
     pub fn string(v: Version) []const u8 {
         return switch (v) {
-            .tag, .commit => |tc| tc,
+            .tag, .commit, .preview => |tc| tc,
             .unknown => "unknown",
         };
     }

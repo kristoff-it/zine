@@ -1,6 +1,6 @@
 ---
 .title = "Sections",
-.date = @date("2020-07-06T00:00:00"),
+.date = .iso("2020-07-06T00:00:00"),
 .author = "Sample Author",
 .layout = "page.shtml",
 .aliases = [
@@ -10,10 +10,10 @@
     "/another_page.html",
     "/nested/path/page/index.html"
 ],
-.alternatives = [{
+.alternatives = [.{
   .name = "readme",
   .output = "README.html",
-  .layout = "",
+  .layout = "page.shtml",
 }],
 .draft = false,
 --- 

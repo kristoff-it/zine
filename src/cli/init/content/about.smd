@@ -1,9 +1,7 @@
 ---
 .title = "About",
-.date = @date("1990-01-01T00:00:00"),
-.author = "Sample Author",
+.date = .date("1990-01-01T00:00:00"),
 .layout = "index.shtml",
-.draft = false,
 ---
 
 ## About Zine

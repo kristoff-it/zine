@@ -67,15 +67,15 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
         "error: unable to start debouncer: {s}",
         .{@errorName(err)},
     );
-    var cfg, const base_dir_path = root.Config.load(io, gpa);
-    switch (cfg) {
-        .Site => |*s| s.host_url = try std.fmt.allocPrint(
+    var cfg, const base_dir_path = root.Config.load(io, gpa, cmd.search);
+    switch (cfg.site) {
+        .simple => |*s| s.host_url = try std.fmt.allocPrint(
             gpa,
             "http://{s}:{}/",
             .{ cmd.host, cmd.port },
         ),
 
-        .Multilingual => |*ml| {
+        .multilingual => |*ml| {
             ml.host_url = try std.fmt.allocPrint(
                 gpa,
                 "http://{s}:{}/",
@@ -104,15 +104,15 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
             }),
         },
     );
-    switch (cfg) {
-        .Site => |s| try dirs_to_watch.append(
+    switch (cfg.site) {
+        .simple => |s| try dirs_to_watch.append(
             gpa,
             try std.fs.path.joinZ(gpa, &.{
                 base_dir_path,
                 s.content_dir_path,
             }),
         ),
-        .Multilingual => |ml| {
+        .multilingual => |ml| {
             try dirs_to_watch.append(gpa, try std.fs.path.joinZ(gpa, &.{
                 base_dir_path,
                 ml.i18n_dir_path,
@@ -160,13 +160,13 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
         \\
     , .{});
 
-    const name = switch (cfg) {
-        .Site => |s| try std.fmt.allocPrint(
+    const name = switch (cfg.site) {
+        .simple => |s| try std.fmt.allocPrint(
             gpa,
             "Listening at http://{s}:{}{f}",
-            .{ cmd.host, cmd.port, root.fmtJoin('/', &.{ "/", s.url_path_prefix, "/" }) },
+            .{ cmd.host, cmd.port, root.fmtJoin('/', &.{ "/", s.url_path_prefix orelse "", "/" }) },
         ),
-        .Multilingual => try std.fmt.allocPrint(
+        .multilingual => try std.fmt.allocPrint(
             gpa,
             "Listening at http://{s}:{}/",
             .{ cmd.host, cmd.port },
@@ -298,6 +298,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
 }
 
 pub const Command = struct {
+    search: root.Config.Search,
     host: []const u8,
     port: u16,
     debounce: u16,
@@ -343,6 +344,7 @@ pub const Command = struct {
         gpa: Allocator,
         args: []const []const u8,
     ) error{OutOfMemory}!Command {
+        var config_path: ?[]const u8 = null;
         var host: ?[]const u8 = null;
         var port: ?u16 = null;
         var debounce: ?u16 = null;
@@ -396,6 +398,15 @@ pub const Command = struct {
                     "error: bad debounce value '{s}': {s}",
                     .{ arg, @errorName(err) },
                 );
+            } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
+                idx += 1;
+                if (idx >= args.len) fatal.msg(
+                    "error: missing argument to '{s}'",
+                    .{arg},
+                );
+                config_path = args[idx];
+            } else if (std.mem.startsWith(u8, arg, "--config=")) {
+                config_path = arg["--config=".len..];
             } else if (std.mem.eql(u8, arg, "-h") or
                 std.mem.eql(u8, arg, "--help"))
             {
@@ -447,6 +458,7 @@ pub const Command = struct {
         }
 
         return .{
+            .search = if (config_path) |p| .{ .path = p } else .auto,
             .host = host orelse "localhost",
             .port = port orelse 1990,
             .debounce = debounce orelse 25,
@@ -608,19 +620,20 @@ pub const Server = struct {
             '?',
         ) orelse path_with_query.len];
 
-        switch (server.build.cfg.*) {
-            .Site => |s| {
-                if (s.url_path_prefix.len > 0) {
-                    if (!std.mem.startsWith(u8, path[1..], s.url_path_prefix)) {
+        switch (server.build.cfg.site) {
+            .simple => |s| {
+                const url_path_prefix = s.url_path_prefix orelse "";
+                if (url_path_prefix.len > 0) {
+                    if (!std.mem.startsWith(u8, path[1..], url_path_prefix)) {
                         return sendOutsideOfPathPrefix(
                             arena,
                             req,
-                            s.url_path_prefix,
+                            url_path_prefix,
                         );
                     }
 
-                    var len = s.url_path_prefix.len;
-                    if (s.url_path_prefix[len - 1] == '/') len -= 1;
+                    var len = url_path_prefix.len;
+                    if (url_path_prefix[len - 1] == '/') len -= 1;
                     path = path[1 + len ..];
 
                     if (path.len == 0) {
@@ -632,7 +645,7 @@ pub const Server = struct {
                     }
                 }
             },
-            .Multilingual => {},
+            .multilingual => {},
         }
 
         const path_ends_with_slash = std.mem.endsWith(u8, path, "/");
@@ -1010,11 +1023,13 @@ pub const Server = struct {
         };
 
         var ws = req.respondWebSocket(.{ .key = wsup }) catch return;
+        ws.flush() catch return;
+
         s.channel.put(s.io, .{ .connect = ws }) catch return;
 
         while (true) {
             const msg = ws.readSmallMessage() catch |err| {
-                log.debug("readWs error: {s} {any}", .{ @errorName(err), ws });
+                log.debug("readWs error: {s}", .{@errorName(err)});
                 s.channel.put(s.io, .{ .disconnect = ws }) catch return;
                 return;
             };

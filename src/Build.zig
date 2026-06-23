@@ -103,7 +103,7 @@ pub fn deinit(b: *const Build, io: Io, gpa: Allocator) void {
         },
     }
 
-    if (b.cfg.* == .Multilingual) {
+    if (b.cfg.site == .multilingual) {
         var dir = b.i18n_dir;
         dir.close(io);
     }
@@ -165,9 +165,9 @@ pub fn load(io: Io, gpa: Allocator, cfg: *const root.Config, opts: root.Options)
         },
     };
 
-    const i18n_dir = switch (cfg.*) {
-        .Site => undefined,
-        .Multilingual => |ml| base_dir.createDirPathOpen(
+    const i18n_dir = switch (cfg.site) {
+        .simple => undefined,
+        .multilingual => |ml| base_dir.createDirPathOpen(
             io,
             ml.i18n_dir_path,
             .{ .open_options = .{ .iterate = true } },

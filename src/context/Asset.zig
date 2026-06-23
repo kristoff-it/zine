@@ -349,7 +349,7 @@ pub const Builtins = struct {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const data = switch (asset._meta.kind) {
+            const path, const data = switch (asset._meta.kind) {
                 .page => |variant_id| blk: {
                     const v = &ctx._meta.build.variants[variant_id];
                     const path = std.fmt.bufPrint(&buf, "{f}", .{
@@ -361,15 +361,18 @@ pub const Builtins = struct {
                         ),
                     }) catch unreachable;
 
-                    break :blk v.content_dir.readFileAllocOptions(
-                        ctx._meta.io,
+                    break :blk .{
                         path,
-                        gpa,
-                        .unlimited,
-                        .@"1",
-                        0,
-                    ) catch {
-                        return .{ .err = "i/o error while reading asset file" };
+                        v.content_dir.readFileAllocOptions(
+                            ctx._meta.io,
+                            path,
+                            gpa,
+                            .unlimited,
+                            .@"1",
+                            0,
+                        ) catch {
+                            return .{ .err = "i/o error while reading asset file" };
+                        },
                     };
                 },
                 .site => blk: {
@@ -382,15 +385,18 @@ pub const Builtins = struct {
                         ),
                     }) catch unreachable;
 
-                    break :blk ctx._meta.build.site_assets_dir.readFileAllocOptions(
-                        ctx._meta.io,
+                    break :blk .{
                         path,
-                        gpa,
-                        .unlimited,
-                        .@"1",
-                        0,
-                    ) catch {
-                        return .{ .err = "i/o error while reading asset file" };
+                        ctx._meta.build.site_assets_dir.readFileAllocOptions(
+                            ctx._meta.io,
+                            path,
+                            gpa,
+                            .unlimited,
+                            .@"1",
+                            0,
+                        ) catch {
+                            return .{ .err = "i/o error while reading asset file" };
+                        },
                     };
                 },
                 .build => @panic("TODO"),
@@ -398,15 +404,29 @@ pub const Builtins = struct {
 
             log.debug("parsing ziggy file: '{s}'", .{data});
 
-            var diag: _ziggy.Diagnostic = .{ .path = asset._meta.ref };
-            const parsed = _ziggy.parseLeaky(_ziggy.dynamic.Value, gpa, data, .{
-                .diagnostic = &diag,
-                .copy_strings = .to_unescape,
-            }) catch {
+            var meta: _ziggy.Deserializer.Meta = .init;
+
+            const parsed = _ziggy.deserializeLeaky(_ziggy.Dynamic, gpa, data, &meta, .{}) catch |err| {
+                if (err == error.OutOfMemory) fatal.oom();
+
+                const prefix = switch (asset._meta.kind) {
+                    .page => |vid| ctx._meta.build.variants[vid].content_dir_path,
+                    .site => ctx._meta.build.cfg.getAssetsDirPath(),
+                    .build => "",
+                };
+
+                const full_path = try std.fs.path.join(gpa, &.{ prefix, path });
+
                 return Value.errFmt(
                     gpa,
-                    "Error while parsing Ziggy file: {}",
-                    .{diag},
+                    "Error while parsing Ziggy file:\n{f}\n\n",
+                    .{meta.reportErrorsFmt(
+                        gpa,
+                        .{},
+                        full_path,
+                        data,
+                        err,
+                    )},
                 );
             };
 

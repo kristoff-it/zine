@@ -12,26 +12,51 @@ const Value = context.Value;
 const String = context.String;
 const Bool = context.Bool;
 
-_inst: zeit.Instant,
+const epoch = zeit.instant(.{ .unix_timestamp = 0 }, &zeit.utc);
 
-pub fn init(iso8601: []const u8) !DateTime {
-    const date = try zeit.Time.fromISO8601(iso8601);
-    const inst = date.instant();
-    return .{
-        ._inst = inst,
-    };
-}
+_raw: ?Raw = null,
+_loc: ?ziggy.Tokenizer.Token.Loc = null,
+_inst: zeit.Instant = epoch,
 
-pub fn initUnix(timestamp: i64) !DateTime {
-    const date = try zeit.instant(.{
-        .source = .{ .unix_timestamp = timestamp },
-    });
-    return .{ ._inst = date };
+pub const Raw = union(enum) {
+    date: []const u8,
+    unix: i64,
+};
+
+pub const ziggy_options: ziggy.Options(DateTime) = .{
+    .deserialize = deserialize,
+    .roles = .any,
+};
+
+pub fn init(raw: Raw) !DateTime {
+    switch (raw) {
+        .date => |rfc3339| {
+            const date = try zeit.Time.fromISO8601(rfc3339);
+            const inst = date.instant();
+            return .{
+                ._raw = raw,
+                ._inst = inst,
+            };
+        },
+
+        .unix => |timestamp| {
+            const date = zeit.instant(.{ .unix_timestamp = timestamp }, &zeit.utc);
+            return .{
+                ._raw = raw,
+                ._inst = date,
+            };
+        },
+    }
 }
 
 pub fn initNow(io: Io) DateTime {
     const date = zeit.instant(.{ .now = io }, &zeit.utc);
     return .{ ._inst = date };
+}
+
+/// Used by Page.parse
+pub fn load(dt: *DateTime) !void {
+    dt._inst = (try init(dt._raw.?))._inst;
 }
 
 pub const docs_description =
@@ -395,71 +420,27 @@ pub const Builtins = struct {
         }
     };
 };
-pub const ziggy_options = struct {
-    //     pub fn stringify(
-    //         value: DateTime,
-    //         opts: ziggy.serializer.StringifyOptions,
-    //         indent_level: usize,
-    //         depth: usize,
-    //         writer: anytype,
-    //     ) !void {
-    //         _ = opts;
-    //         _ = indent_level;
-    //         _ = depth;
-    //         std.debug.panic("still used!", .{});
 
-    //         try writer.print("@date(\"{}\")", .{std.zig.fmtEscapes(value._string_repr)});
-    //     }
+fn deserialize(
+    d: *const ziggy.Deserializer,
+    first_tok: ziggy.Tokenizer.Token,
+    top_lvl: bool,
+) !DateTime {
+    const raw: Raw = try d.deserializeOne(Raw, first_tok, top_lvl);
+    return .{
+        ._raw = raw,
+        ._loc = .{ .start = first_tok.loc.start, .end = d.tokenizer.idx },
+    };
 
-    pub fn parse(
-        p: *ziggy.Parser,
-        first_tok: ziggy.Tokenizer.Token,
-    ) !DateTime {
-        try p.mustAny(first_tok, &.{ .string, .at });
-        const src = switch (first_tok.tag) {
-            .string => first_tok.loc.unquote(p.code) orelse {
-                return p.addError(.{
-                    .syntax = .{
-                        .name = first_tok.tag.lexeme(),
-                        .sel = first_tok.loc.getSelection(p.code),
-                    },
-                });
-            },
-            .at => blk: {
-                const ident = try p.nextMust(.identifier);
-                if (!std.mem.eql(u8, ident.loc.src(p.code), "date")) {
-                    return p.addError(.{
-                        .syntax = .{
-                            .name = "@date",
-                            .sel = ident.loc.getSelection(p.code),
-                        },
-                    });
-                }
-                _ = try p.nextMust(.lp);
-                const str = try p.nextMust(.string);
-                _ = try p.nextMust(.rp);
-                break :blk str.loc.unquote(p.code) orelse {
-                    return p.addError(.{
-                        .syntax = .{
-                            .name = first_tok.tag.lexeme(),
-                            .sel = first_tok.loc.getSelection(p.code),
-                        },
-                    });
-                };
-            },
-            else => unreachable,
-        };
-
-        return DateTime.init(src) catch {
-            return p.addError(.{
-                .syntax = .{
-                    .name = first_tok.tag.lexeme(),
-                    .sel = first_tok.loc.getSelection(p.code),
-                },
-            });
-        };
-    }
-};
+    // return DateTime.init(raw) catch {
+    //     return d.addError(.{
+    //         .syntax = .{
+    //             .name = first_tok.tag.lexeme(),
+    //             .sel = first_tok.loc.getSelection(d.code),
+    //         },
+    //     });
+    // };
+}
 
 pub fn lessThan(self: DateTime, rhs: DateTime) bool {
     return self._inst.timestamp < rhs._inst.timestamp;

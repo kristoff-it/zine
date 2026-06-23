@@ -456,7 +456,7 @@ pub const Builtins = struct {
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            const dt = context.DateTime.init(str.value) catch |err| {
+            const dt = context.DateTime.init(.{ .date = str.value }) catch |err| {
                 return Value.errFmt(
                     gpa,
                     "unable to parse '{s}' as date: '{s}'",

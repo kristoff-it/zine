@@ -20,7 +20,7 @@ const Optional = context.Optional;
 site: *const Site,
 page: *const Page,
 build: Build,
-i18n: Map.ZiggyMap,
+i18n: Map.DynamicDict,
 
 _meta: struct {
     io: Io,
@@ -50,7 +50,7 @@ pub fn printLinkPrefix(
     switch (other_site._meta.kind) {
         .simple => |url_path_prefix| {
             if (force_host_url) try w.print("{s}", .{
-                ctx._meta.build.cfg.Site.host_url,
+                ctx._meta.build.cfg.site.simple.host_url,
             });
             if (url_path_prefix.len > 0) {
                 try w.print("/{s}/", .{url_path_prefix});

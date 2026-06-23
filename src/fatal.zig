@@ -25,20 +25,22 @@ pub fn help() noreturn {
         \\Usage: zine [COMMAND] [OPTIONS]
         \\
         \\Commands:
-        \\  (no command)      Start the development web server
-        \\  init              Initialize a Zine site in the current directory
-        \\  release           Create a release of a Zine site
-        \\  help              Show this menu and exit
-        \\  version           Print the Zine version and exit
+        \\  (no command)       Start the development web server
+        \\  init               Initialize a Zine site in the current directory
+        \\  release            Create a release of a Zine site
+        \\  help               Show this menu and exit
+        \\  version            Print the Zine version and exit
         \\
         \\General Options:
-        \\  --drafts          Enable draft pages
-        \\  --help, -h        Print command specific usage and extra options
+        \\  --drafts           Enable draft pages
+        \\  --help, -h         Print command specific usage and extra options
         \\
         \\Development web server options: 
-        \\  --host HOST       Listening host (default 'localhost')
-        \\  --port PORT       Listening port (default 1990)
-        \\  --debounce <ms>   Rebuild delay after a file change (default 25)
+        \\  --host HOST        Listening host (default 'localhost')
+        \\  --port PORT        Listening port (default 1990)
+        \\  --debounce <ms>    Rebuild delay after a file change (default 25)
+        \\  --config, -c FILE  Use a custom config file instead of searching 
+        \\                     recursively upwards for a 'zine.ziggy' file
         \\
         \\
     , .{});

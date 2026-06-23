@@ -1,4 +1,5 @@
-Site {
+.zine_version = "{s}",
+.site = .simple(.{{
     .title = "Welcome to Zine!",
     .host_url = "https://example.com",
     .content_dir_path = "content",
@@ -7,4 +8,5 @@ Site {
     .static_assets = [
         "Temml.woff2",
     ],
-}
+}}),
+

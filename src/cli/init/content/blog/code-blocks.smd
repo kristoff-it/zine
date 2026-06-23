@@ -1,9 +1,7 @@
 ---
 .title = "Third Post",
-.date = @date("1990-01-03T00:00:00"),
-.author = "Sample Author",
+.date = .date("1990-01-03T00:00:00"),
 .layout = "post.shtml",
-.draft = false,
 --- 
 
 Code blocks may be wider than the viewport on mobile. They'll scroll

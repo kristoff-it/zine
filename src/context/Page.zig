@@ -1,6 +1,7 @@
 const Page = @This();
 
 const std = @import("std");
+const zeit = @import("zeit");
 const log = std.log.scoped(.page);
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
@@ -30,19 +31,19 @@ const PathName = PathTable.PathName;
 const StringTable = @import("../StringTable.zig");
 const join = @import("../root.zig").join;
 
-pub const ziggy_options = struct {
-    pub const skip_fields: []const std.meta.FieldEnum(Page) = &.{
+pub const ziggy_options: ziggy.Options(Page) = .{
+    .skip_fields = &.{
         ._debug,
         ._scan,
         ._parse,
         ._analysis,
         ._render,
-    };
+    },
 };
 
-title: []const u8,
+title: []const u8 = "",
 description: []const u8 = "",
-author: []const u8,
+authors: []const []const u8 = &.{},
 date: DateTime,
 layout: []const u8,
 draft: bool = false,
@@ -51,7 +52,7 @@ aliases: []const []const u8 = &.{},
 alternatives: []const Alternative = &.{},
 skip_subdirs: bool = false,
 translation_key: ?[]const u8 = null,
-custom: ziggy.dynamic.Value = .{ .kv = .{} },
+custom: ziggy.Dynamic = .{ .kv = .empty },
 
 /// Only present in debug builds to catch programming errors
 /// in the processing pipeline.
@@ -81,24 +82,25 @@ _parse: struct {
     status: union(enum) {
         /// File is empty
         empty,
-        /// Frontmatter framing error, 'fm' will contain info
-        frontmatter: ziggy.FrontmatterError,
-        /// Ziggy parsing error. Note that the diagnostic has
-        /// its 'path' field set to null and it's the duty of the
-        /// code that prints errors to reify a path string to
-        /// give to Diagnostic.
-        ziggy: ziggy.Diagnostic,
-
+        /// Missing frontmatter, contains the offset where the first
+        /// non-delimiter (non-whitespace) char was found.
+        no_frontmatter: u32,
+        /// Ziggy parsing error.
+        ziggy: struct {
+            code: ziggy.Deserializer.Error,
+            meta: ziggy.Deserializer.Meta,
+            opts: ziggy.Deserializer.Options,
+        },
         /// The frontmatter data is in order and the file was parsed.
         /// Note that the ast might contain errors still, and after that
         /// there might be supermd analysis errors.
         parsed,
     },
 
-    // Available if status != .empty
-    fm: ziggy.FrontmatterMeta,
-
     // Available if status == .parsed
+    ziggy_start: u32,
+    date_err: ?@typeInfo(@typeInfo(@TypeOf(zeit.Time.fromISO8601)).@"fn".return_type.?).error_union.error_set = null,
+    ziggy_doc: ziggy.Deserializer.Meta.Doc,
     ast: supermd.Ast,
 } = undefined,
 
@@ -174,7 +176,7 @@ pub const FrontmatterAnalysisError = union(enum) {
         id: u32, // index into alternatives
         kind: enum {
             name,
-            path,
+            output,
             layout,
         },
     },
@@ -185,7 +187,7 @@ pub const FrontmatterAnalysisError = union(enum) {
             .alias => "invalid value in 'aliases'",
             .alternative => |alt| switch (alt.kind) {
                 .name => "invalid name in alternatives",
-                .path => "invalid path in alternatives",
+                .output => "invalid path in alternatives",
                 .layout => "invalid layout in alternatives",
             },
         };
@@ -197,63 +199,80 @@ pub const FrontmatterAnalysisError = union(enum) {
 
     pub fn location(
         err: @This(),
-        src: []const u8,
+        src: [:0]const u8,
         ast: ziggy.Ast,
     ) ziggy.Tokenizer.Token.Loc {
+        assert(ast.errors.len == 0);
         switch (err) {
             .layout => {
-                assert(ast.nodes[2].tag == .@"struct" or
-                    ast.nodes[2].tag == .braceless_struct);
-                var current = ast.nodes[3];
-                while (true) : (current = ast.nodes[current.next_id]) {
-                    assert(current.tag == .struct_field);
+                assert(ast.nodes[1].tag == .struct_h or
+                    ast.nodes[1].tag == .struct_v or
+                    ast.nodes[1].tag == .braceless_struct);
 
-                    const identifier = ast.nodes[current.first_child_id];
-                    if (std.mem.eql(u8, "layout", identifier.loc.src(src))) {
-                        return ast.nodes[identifier.next_id].loc;
+                var idx: u32 = 2;
+                while (true) {
+                    const f_name = ast.fieldName(src, idx);
+                    if (std.mem.eql(u8, "layout", f_name)) {
+                        return ast.nodes[idx + 1].loc;
                     }
+
+                    const current = ast.nodes[idx];
+                    assert(current.tag == .struct_field);
+                    idx = current.next_idx;
                 }
             },
             .alias => |a| {
-                assert(ast.nodes[2].tag == .@"struct" or
-                    ast.nodes[2].tag == .braceless_struct);
-                var current = ast.nodes[3];
-                while (true) : (current = ast.nodes[current.next_id]) {
-                    assert(current.tag == .struct_field);
+                assert(ast.nodes[1].tag == .struct_h or
+                    ast.nodes[1].tag == .struct_v or
+                    ast.nodes[1].tag == .braceless_struct);
 
-                    const identifier = ast.nodes[current.first_child_id];
-                    if (std.mem.eql(u8, "aliases", identifier.loc.src(src))) {
-                        return ast.nodes[identifier.next_id + a + 1].loc;
+                var idx: u32 = 2;
+                while (true) {
+                    const f_name = ast.fieldName(src, idx);
+                    if (std.mem.eql(u8, "aliases", f_name)) {
+                        return ast.nodes[idx + 1 + (a * 2) + 1].loc;
                     }
+
+                    const current = ast.nodes[idx];
+                    assert(current.tag == .struct_field);
+                    idx = current.next_idx;
                 }
             },
             .alternative => |alt| {
-                assert(ast.nodes[2].tag == .@"struct" or
-                    ast.nodes[2].tag == .braceless_struct);
-                var current = ast.nodes[3];
-                while (true) : (current = ast.nodes[current.next_id]) {
-                    assert(current.tag == .struct_field);
+                assert(ast.nodes[1].tag == .struct_h or
+                    ast.nodes[1].tag == .struct_v or
+                    ast.nodes[1].tag == .braceless_struct);
 
-                    const identifier = ast.nodes[current.first_child_id];
-                    if (std.mem.eql(u8, "alternatives", identifier.loc.src(src))) {
-                        var current_alt = ast.nodes[identifier.next_id + 1];
-                        for (0..alt.id) |_| current_alt = ast.nodes[current_alt.next_id];
-                        const field_name = switch (alt.kind) {
-                            .name => "name",
-                            .path => "output",
-                            .layout => "layout",
-                        };
+                var idx: u32 = 2;
+                while (true) {
+                    const f_name = ast.fieldName(src, idx);
+                    if (std.mem.eql(u8, "alternatives", f_name)) {
+                        idx += 2;
 
-                        var current_field = ast.nodes[current_alt.first_child_id];
-                        while (true) : (current_field = ast.nodes[current_field.next_id]) {
-                            assert(current.tag == .struct_field);
+                        var current_alt = ast.nodes[idx];
+                        for (0..alt.id) |_| {
+                            assert(current_alt.tag == .array_element);
+                            idx = current_alt.next_idx;
+                            current_alt = ast.nodes[idx];
+                        }
 
-                            const field_ident = ast.nodes[current_field.first_child_id];
-                            if (std.mem.eql(u8, field_name, field_ident.loc.src(src))) {
-                                return ast.nodes[field_ident.next_id].loc;
+                        idx += 2;
+
+                        while (true) {
+                            const alt_f_name = ast.fieldName(src, idx);
+                            if (std.mem.eql(u8, @tagName(alt.kind), alt_f_name)) {
+                                return ast.nodes[idx + 1].loc;
                             }
+
+                            const alt_field = ast.nodes[idx];
+                            assert(alt_field.tag == .struct_field);
+                            idx = alt_field.next_idx;
                         }
                     }
+
+                    const current = ast.nodes[idx];
+                    assert(current.tag == .struct_field);
+                    idx = current.next_idx;
                 }
             },
         }
@@ -294,7 +313,7 @@ pub const FrontmatterAnalysisError = union(enum) {
                                 .{aerr.id},
                             );
                         },
-                        .path => {
+                        .output => {
                             const alt = f.p.alternatives[aerr.id];
                             try writer.print(
                                 "alternative '{s}' has an invalid output path",
@@ -325,14 +344,6 @@ pub fn parse(
     defer zone.end();
 
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    // const path_bytes = buf[0..p._scan.path.bytesSlice(
-    //     &variant.string_table,
-    //     &variant.path_table,
-    //     &buf,
-    //     std.fs.path.sep,
-    //     p._scan.name,
-    // )];
-
     const path_bytes = std.fmt.bufPrint(&buf, "{f}", .{
         p._scan.file.fmt(
             &variant.string_table,
@@ -365,13 +376,15 @@ pub fn parse(
         0,
     ) catch |err| fatal.file(path_bytes, err);
 
-    if (full_src.len == 0) {
+    const trimmed_left = std.mem.trimStart(u8, full_src, &std.ascii.whitespace);
+    if (std.mem.trimEnd(u8, trimmed_left, &std.ascii.whitespace).len == 0) {
         p._parse = .{
             .active = false,
             .arena = arena_state.state,
             .full_src = full_src,
             .status = .empty,
-            .fm = undefined,
+            .ziggy_start = undefined,
+            .ziggy_doc = undefined,
             .ast = undefined,
         };
         return;
@@ -386,31 +399,32 @@ pub fn parse(
     const debug = p._debug;
     defer p._debug = debug;
 
-    var fm: ziggy.FrontmatterMeta = .{};
-    var diag: ziggy.Diagnostic = .{ .path = null };
-    p.* = ziggy.parseLeaky(Page, arena, full_src, .{
-        .diagnostic = &diag,
-        .frontmatter_meta = &fm,
-    }) catch |err| switch (err) {
+    const ziggy_start = (std.mem.indexOf(u8, full_src, "---") orelse {
+        // missing frontmatter
+        p._parse = .{
+            .active = true,
+            .arena = arena_state.state,
+            .full_src = full_src,
+            .status = .{ .no_frontmatter = @intCast(full_src.len - trimmed_left.len) },
+            .ziggy_start = undefined,
+            .ziggy_doc = undefined,
+            .ast = undefined,
+        };
+        return;
+    }) + "---".len;
+
+    var meta: ziggy.Deserializer.Meta = .init;
+    const opts: ziggy.Deserializer.Options = .{ .delimiter = .{ .dashes = @intCast(ziggy_start) } };
+    p.* = ziggy.deserializeLeaky(Page, arena, full_src, &meta, opts) catch |err| switch (err) {
         error.OutOfMemory, error.Overflow => fatal.oom(),
-        error.MissingFrontmatter, error.OpenFrontmatter => |fm_err| {
+        else => {
             p._parse = .{
                 .active = true,
                 .arena = arena_state.state,
                 .full_src = full_src,
-                .fm = fm,
-                .status = .{ .frontmatter = fm_err },
-                .ast = undefined,
-            };
-            return;
-        },
-        error.Syntax => {
-            p._parse = .{
-                .active = true,
-                .arena = arena_state.state,
-                .full_src = full_src,
-                .fm = fm,
-                .status = .{ .ziggy = diag },
+                .ziggy_start = @intCast(ziggy_start),
+                .ziggy_doc = undefined,
+                .status = .{ .ziggy = .{ .code = err, .meta = meta, .opts = opts } },
                 .ast = undefined,
             };
             return;
@@ -421,15 +435,22 @@ pub fn parse(
     // the SuperMD data correctly, so we do that unconditionally in order to
     // report more errors at once.
 
-    const ast = supermd.Ast.init(gpa, full_src[fm.offset..], cmark) catch fatal.oom();
+    // const smd_start = std.mem.indexOf(u8, full_src[meta.doc.end..], "---").? + "---".len + meta.doc.end;
+    const smd_start = meta.doc.end;
+    const ast = supermd.Ast.init(gpa, full_src[smd_start..], cmark) catch fatal.oom();
 
     p._parse = .{
         .active = !p.draft or drafts,
         .arena = arena_state.state,
         .full_src = full_src,
-        .fm = fm,
+        .ziggy_start = @intCast(ziggy_start),
+        .ziggy_doc = meta.doc,
         .ast = ast,
         .status = .parsed,
+    };
+
+    p.date.load() catch |err| {
+        p._parse.date_err = err;
     };
 }
 
@@ -442,13 +463,13 @@ pub const Alternative = struct {
     name: []const u8,
     layout: []const u8,
     output: []const u8,
-    type: []const u8 = "",
+    type: ?[]const u8 = null,
     _page: *const Page = undefined,
 
-    pub const ziggy_options = struct {
-        pub const skip_fields: []const std.meta.FieldEnum(Alternative) = &.{
+    pub const ziggy_options: ziggy.Options(Alternative) = .{
+        .skip_fields = &.{
             ._page,
-        };
+        },
     };
 
     pub const Dot = true;
@@ -823,7 +844,7 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (ctx._meta.build.cfg.* != .Multilingual) return .{
+            if (ctx._meta.build.cfg.site != .multilingual) return .{
                 .err = "only available in a multilingual website",
             };
 
@@ -922,7 +943,7 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
-            if (ctx._meta.build.cfg.* != .Multilingual) return .{
+            if (ctx._meta.build.cfg.site != .multilingual) return .{
                 .err = "only available in a multilingual website",
             };
 
@@ -987,7 +1008,7 @@ pub const Builtins = struct {
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-            if (ctx._meta.build.cfg.* != .Multilingual) return .{
+            if (ctx._meta.build.cfg.site != .multilingual) return .{
                 .err = "only available in a multilingual website",
             };
 
@@ -1034,7 +1055,7 @@ pub const Builtins = struct {
                 if (other_page.translation_key != null) return Value.errFmt(
                     gpa,
                     "This page does not define a translation key, while the page in locale '{s}' does. Give a translation key to all corresponding pages otherwise you will get inconsistent behavior.",
-                    .{ctx._meta.build.cfg.Multilingual.locales[vidx].code},
+                    .{ctx._meta.build.cfg.site.multilingual.locales[vidx].code},
                 );
 
                 try pages.append(gpa, .{ .page = other_page });
@@ -1065,7 +1086,7 @@ pub const Builtins = struct {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
             return .{
                 .int = .{
-                    .value = @intCast(page._parse.full_src[page._parse.fm.offset..].len / 6),
+                    .value = @intCast(page._parse.full_src[page._parse.ziggy_doc.end..].len / 6),
                 },
             };
         }
@@ -1169,7 +1190,7 @@ pub const Builtins = struct {
         pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
         pub const docs_description =
             \\Same as `subpages`, but returns the pages in alphabetic order by
-            \\comparing their titles. 
+            \\comparing their titles.
         ;
         pub const examples =
             \\<div :loop="$page.subpagesAlphabetic()">
@@ -1788,7 +1809,7 @@ pub const Builtins = struct {
 
 pub const ContentSection = struct {
     id: []const u8,
-    data: supermd.Directive.Data = .{},
+    data: supermd.Directive.Data = .empty,
     _node: supermd.Node,
     _page: *const Page,
 
