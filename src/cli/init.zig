@@ -1,6 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
 const builtin = @import("builtin");
+const options = @import("options");
 const tracy = @import("tracy");
 const fatal = @import("../fatal.zig");
 const Allocator = std.mem.Allocator;
@@ -16,8 +17,16 @@ pub fn init(io: Io, gpa: Allocator, args: []const []const u8) bool {
     const File = struct { path: []const u8, src: []const u8 };
     const files = [_]File{
         .{
+            .path = ".ziggy-schema",
+            .src = @embedFile("../schemas/zine.ziggy-schema"),
+        },
+        .{
             .path = "zine.ziggy",
-            .src = @embedFile("init/zine.ziggy"),
+            .src = std.fmt.comptimePrint(@embedFile("init/zine.ziggy"), .{options.version[1..]}),
+        },
+        .{
+            .path = "content/.ziggy-schema",
+            .src = @embedFile("../schemas/page.ziggy-schema"),
         },
         .{
             .path = "content/index.smd",

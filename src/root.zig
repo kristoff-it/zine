@@ -11,7 +11,7 @@ const ziggy = @import("ziggy");
 const supermd = @import("supermd");
 const fatal = @import("fatal.zig");
 const worker = @import("worker.zig");
-const context = @import("context.zig");
+pub const context = @import("context.zig");
 const Build = @import("Build.zig");
 const Variant = @import("Variant.zig");
 const StringTable = @import("StringTable.zig");
@@ -23,7 +23,7 @@ const PathName = PathTable.PathName;
 pub var progress_buf: [4096]u8 = undefined;
 pub var progress: std.Progress.Node = undefined;
 
-pub const Site = struct {
+pub const Simple = struct {
     /// Title of the website
     title: []const u8,
     /// URL where the website will be hosted.
@@ -34,7 +34,7 @@ pub const Site = struct {
     /// `host_url` and `url_prefix_path` are split to allow the development
     /// server to generate correct relative paths when serving the website
     /// locally.
-    url_path_prefix: []const u8 = "",
+    url_path_prefix: ?[]const u8 = null,
     layouts_dir_path: []const u8,
     content_dir_path: []const u8,
     assets_dir_path: []const u8,
@@ -58,13 +58,12 @@ pub const Site = struct {
     /// This problem can be solved by adding the following CSS code to your
     /// site:
     ///
-    /// img {
-    ///    height: auto;
-    /// }
-    image_size_attributes: bool = false,
+    ///    img { height: auto; }
+    ///
+    image_size_attributes: ?bool = null,
 };
 
-pub const MultilingualSite = struct {
+pub const Multilingual = struct {
     /// URL where the website will be hosted.
     /// It must not contain a path other than '/'.
     host_url: []const u8,
@@ -85,7 +84,7 @@ pub const MultilingualSite = struct {
     /// setup (e.g. when deploying different localized variants to different
     /// hosts). Note that *page* assets will still be installed next to their
     /// relative page.
-    assets_prefix_path: []const u8 = "",
+    assets_prefix_path: ?[]const u8 = null,
     /// Subpaths in `assets_dir_path` that will be installed unconditionally.
     /// All other assets will be installed only if referenced by a content file
     /// or a layout by using `$site.asset('foo').link()`.
@@ -103,7 +102,7 @@ pub const MultilingualSite = struct {
     /// For each entry the following values must be unique:
     ///   - `code`
     ///   - `output_prefix_override` (if set) + `host_url_override`
-    locales: []const Locale,
+    locales: []const Locale = &.{},
     /// When enabled, Zine will automatically add 'width' and 'height'
     /// attributes to <img> elements for local assets.
     /// Be aware that setting 'width' and 'heigth' of an image will in some
@@ -115,7 +114,7 @@ pub const MultilingualSite = struct {
     /// img {
     ///    height: auto;
     /// }
-    image_size_attributes: bool = false,
+    image_size_attributes: ?bool = null,
 };
 
 /// A localized variant of a multilingual website
@@ -148,16 +147,23 @@ pub const Locale = struct {
     output_prefix_override: ?[]const u8 = null,
 };
 
-pub const Config = union(enum) {
-    Multilingual: MultilingualSite,
-    Site: Site,
+pub const Site = union(enum) {
+    multilingual: Multilingual,
+    simple: Simple,
+};
+
+pub const Config = struct {
+    zine_version: ?[]const u8 = null,
+    site: Site,
+    custom: ziggy.Dictionary(ziggy.Dynamic) = .empty,
 
     const config_file_basename = "zine.ziggy";
+    pub const Search = union(enum) { auto, path: []const u8 };
 
     /// Returns the cfg and the the directory where the config file was
     /// found. The directory is then used by other code to place the output
     /// directory unless the user overrides that location from the CLI.
-    pub fn load(io: Io, arena: Allocator) struct { Config, []const u8 } {
+    pub fn load(io: Io, arena: Allocator, search: Search) struct { Config, []const u8 } {
         const cwd_path = std.process.currentPathAlloc(io, arena) catch |err| {
             fatal.msg("error while trying to get the cwd path: {s}\n", .{
                 @errorName(err),
@@ -165,60 +171,68 @@ pub const Config = union(enum) {
         };
 
         var base_dir_path: []const u8 = cwd_path;
-        while (true) {
-            const joined_path = std.fs.path.join(arena, &.{
-                base_dir_path, config_file_basename,
-            }) catch fatal.oom();
-
-            const data = Io.Dir.cwd().readFileAllocOptions(
+        const data = switch (search) {
+            .path => |p| Io.Dir.cwd().readFileAllocOptions(
                 io,
-                joined_path,
+                std.fs.path.resolve(arena, &.{ cwd_path, p }) catch fatal.oom(),
                 arena,
                 .limited(1024 * 1024),
                 .of(u8),
                 0,
-            ) catch |err| switch (err) {
-                error.FileNotFound => {
-                    base_dir_path = std.fs.path.dirname(base_dir_path) orelse {
-                        std.debug.print(
-                            \\error: unable to find a 'zine.ziggy' config file in this directory or any of its parents
-                            \\
-                            \\note: run `zine init` in an empty directory to bootstrap a Zine website
-                            \\
-                            \\
-                            \\
-                        , .{});
+            ) catch |err| fatal.file(p, err),
+            .auto => while (true) {
+                const joined_path = std.fs.path.join(arena, &.{
+                    base_dir_path, config_file_basename,
+                }) catch fatal.oom();
 
-                        fatal.help();
-                    };
-                    continue;
-                },
-                else => fatal.file(joined_path, err),
-            };
+                break Io.Dir.cwd().readFileAllocOptions(
+                    io,
+                    joined_path,
+                    arena,
+                    .limited(1024 * 1024),
+                    .of(u8),
+                    0,
+                ) catch |err| switch (err) {
+                    error.FileNotFound => {
+                        base_dir_path = std.fs.path.dirname(base_dir_path) orelse {
+                            std.debug.print(
+                                \\error: unable to find a 'zine.ziggy' config file in this directory or any of its parents
+                                \\
+                                \\note: run `zine init` in an empty directory to bootstrap a Zine website
+                                \\
+                                \\
+                                \\
+                            , .{});
 
-            var diag: ziggy.Diagnostic = .{ .path = joined_path };
-            const cfg = ziggy.parseLeaky(Config, arena, data, .{
-                .diagnostic = &diag,
-                .copy_strings = .to_unescape,
-            }) catch {
-                fatal.msg(
-                    \\Error while loading the Zine config file:
-                    \\
-                    \\{f}
-                    \\
-                    \\
-                , .{diag.fmt(data)});
-            };
+                            fatal.help();
+                        };
+                        continue;
+                    },
+                    else => fatal.file(joined_path, err),
+                };
+            },
+        };
 
-            cfg.validate();
+        var meta: ziggy.Deserializer.Meta = .init;
+        const cfg = ziggy.deserializeLeaky(Config, arena, data, &meta, .{}) catch |err| {
+            if (err == error.OutOfMemory) fatal.oom();
+            fatal.msg(
+                \\Error while loading the Zine config file:
+                \\
+                \\{f}
+                \\
+                \\
+            , .{meta.reportErrorsFmt(arena, .{}, config_file_basename, data, err)});
+        };
 
-            return .{ cfg, base_dir_path };
-        }
+        cfg.validate();
+
+        return .{ cfg, base_dir_path };
     }
 
     pub fn validate(cfg: *const Config) void {
-        switch (cfg.*) {
-            .Site => |s| {
+        switch (cfg.site) {
+            .simple => |s| {
                 const u = std.Uri.parse(s.host_url) catch |err| {
                     fatal.msg("error: host url '{s}' in zine.ziggy is invalid: {s}", .{
                         s.host_url, @errorName(err),
@@ -259,15 +273,17 @@ pub const Config = union(enum) {
                     .{ p, msg },
                 );
 
+                const url_path_prefix = s.url_path_prefix orelse "";
+
                 if (validatePathMessage(
-                    s.url_path_prefix,
+                    url_path_prefix,
                     .{ .empty = true },
                 )) |msg| fatal.msg(
                     "error: url_path_prefix '{s}' in zine.ziggy: {s}\n",
-                    .{ s.url_path_prefix, msg },
+                    .{ url_path_prefix, msg },
                 );
             },
-            .Multilingual => |ml| {
+            .multilingual => |ml| {
                 const u = std.Uri.parse(ml.host_url) catch |err| {
                     fatal.msg("error: host_url '{s}' in zine.ziggy is invalid: {s}", .{
                         ml.host_url, @errorName(err),
@@ -374,43 +390,43 @@ pub const Config = union(enum) {
     }
 
     pub fn getLayoutsDirPath(c: *const Config) []const u8 {
-        return switch (c.*) {
-            .Site => |s| s.layouts_dir_path,
-            .Multilingual => |m| m.layouts_dir_path,
+        return switch (c.site) {
+            .simple => |s| s.layouts_dir_path,
+            .multilingual => |m| m.layouts_dir_path,
         };
     }
     pub fn getAssetsDirPath(c: *const Config) []const u8 {
-        return switch (c.*) {
-            .Site => |s| s.assets_dir_path,
-            .Multilingual => |m| m.assets_dir_path,
+        return switch (c.site) {
+            .simple => |s| s.assets_dir_path,
+            .multilingual => |m| m.assets_dir_path,
         };
     }
 
     pub fn getStaticAssets(c: *const Config) []const []const u8 {
-        return switch (c.*) {
-            .Site => |s| s.static_assets,
-            .Multilingual => |m| m.static_assets,
+        return switch (c.site) {
+            .simple => |s| s.static_assets,
+            .multilingual => |m| m.static_assets,
         };
     }
 
     pub fn getImageAutosize(c: *const Config) bool {
-        return switch (c.*) {
-            .Site => |s| s.image_size_attributes,
-            .Multilingual => |m| m.image_size_attributes,
+        return switch (c.site) {
+            .simple => |s| s.image_size_attributes orelse false,
+            .multilingual => |m| m.image_size_attributes orelse false,
         };
     }
 
     pub fn getSiteTitle(c: *const Config, locale_id: u32) []const u8 {
-        return switch (c.*) {
-            .Site => |s| s.title,
-            .Multilingual => |m| m.locales[locale_id].site_title,
+        return switch (c.site) {
+            .simple => |s| s.title,
+            .multilingual => |m| m.locales[locale_id].site_title,
         };
     }
 
     pub fn getHostUrl(c: *const Config, locale_id: ?u32) []const u8 {
-        return switch (c.*) {
-            .Site => |s| s.host_url,
-            .Multilingual => |m| if (locale_id) |lid| m.locales[lid].host_url_override orelse m.host_url else m.host_url,
+        return switch (c.site) {
+            .simple => |s| s.host_url,
+            .multilingual => |m| if (locale_id) |lid| m.locales[lid].host_url_override orelse m.host_url else m.host_url,
         };
     }
 };
@@ -461,8 +477,8 @@ pub fn run(
     {
         const tracy_frame = tracy.namedFrame("scan content");
         defer tracy_frame.end();
-        switch (build.cfg.*) {
-            .Site => |s| {
+        switch (build.cfg.site) {
+            .simple => |s| {
                 build.variants = try gpa.alloc(Variant, 1);
                 worker.addJob(io, .{
                     .scan = .{
@@ -475,7 +491,7 @@ pub fn run(
                     },
                 });
             },
-            .Multilingual => |ml| {
+            .multilingual => |ml| {
                 build.variants = try gpa.alloc(Variant, ml.locales.len);
                 for (ml.locales, 0..) |locale, idx| {
                     worker.addJob(io, .{
@@ -561,24 +577,36 @@ pub fn run(
         const tracy_frame = tracy.namedFrame("activate sections");
         defer tracy_frame.end();
         for (build.variants) |*v| {
-            if (v.i18n_diag.errors.items.len > 0) {
+            if (v.i18n_err) |err| {
                 i18n_errors = true;
 
                 var buf: [std.fs.max_path_bytes]u8 = undefined;
                 const path = std.fmt.bufPrint(&buf, "{f}", .{fmtJoin('/', &.{
-                    build.cfg.Multilingual.i18n_dir_path,
-                    v.i18n_diag.path.?,
-                })}) catch v.i18n_diag.path.?;
+                    build.cfg.site.multilingual.i18n_dir_path,
+                    err.path,
+                })}) catch err.path;
 
-                v.i18n_diag.path = path;
-                std.debug.print("{f}\n\n", .{v.i18n_diag.fmt(v.i18n_src)});
+                std.debug.print("{f}\n\n", .{err.meta.reportErrorsFmt(
+                    arena,
+                    .{},
+                    path,
+                    v.i18n_src,
+                    err.code,
+                )});
+
                 if (build.mode == .memory) {
                     try build.mode.memory.errors.append(gpa, .{
                         .ref = "",
                         .msg = try std.fmt.allocPrint(
                             gpa,
                             "{f}\n\n",
-                            .{v.i18n_diag.fmt(v.i18n_src)},
+                            .{err.meta.reportErrorsFmt(
+                                arena,
+                                .{},
+                                path,
+                                v.i18n_src,
+                                err.code,
+                            )},
                         ),
                     });
                 }
@@ -651,18 +679,18 @@ pub fn run(
 
         progress_parse.setEstimatedTotalItems(pages_to_parse);
 
-        switch (build.cfg.*) {
-            .Site => |s| {
+        switch (build.cfg.site) {
+            .simple => |s| {
                 try sites.putNoClobber(gpa, "", .{
                     .host_url = s.host_url,
                     .title = s.title,
                     ._meta = .{
                         .variant_id = 0,
-                        .kind = .{ .simple = s.url_path_prefix },
+                        .kind = .{ .simple = s.url_path_prefix orelse "" },
                     },
                 });
             },
-            .Multilingual => |ml| {
+            .multilingual => |ml| {
                 try sites.ensureTotalCapacity(gpa, build.variants.len);
                 for (ml.locales, 0..) |loc, idx| sites.putAssumeCapacityNoClobber(loc.code, .{
                     .host_url = loc.host_url_override orelse ml.host_url,
@@ -719,19 +747,19 @@ pub fn run(
                 // only if the frontmatter has been correctly identifed as well.
                 switch (p._parse.status) {
                     .empty => unreachable,
-                    .frontmatter => |err| {
+                    .no_frontmatter => |offset| {
                         if (!parse_errors) {
                             parse_errors = true;
                         }
 
-                        const note = switch (err) {
-                            error.MissingFrontmatter => "the document doesn't start with '---' (a frontmatter frame delimiter)",
-                            error.OpenFrontmatter => "the frontmatter is missing a closing '---' frontmatter delimiter",
-                        };
+                        // const note = switch (err) {
+                        //     error.MissingFrontmatter => "the document doesn't start with '---' (a frontmatter frame delimiter)",
+                        //     error.OpenFrontmatter => "the frontmatter is missing a closing '---' frontmatter delimiter",
+                        // };
 
                         std.debug.print(
                             \\{f}:{}:1 error: frontmatter framing error
-                            \\   {s}
+                            \\   the document doesn't start with '---' (a frontmatter delimiter)
                             \\
                         , .{
                             p._scan.file.fmt(
@@ -740,15 +768,16 @@ pub fn run(
                                 v.content_dir_path,
                                 "",
                             ),
-                            p._parse.fm.lines,
-                            note,
+                            // p._parse.fm.lines,
+                            std.mem.countScalar(u8, p._parse.full_src[0..offset], '\n'),
+                            // note,
                         });
                         if (build.mode == .memory) {
                             try build.mode.memory.errors.append(gpa, .{
                                 .ref = "",
                                 .msg = try std.fmt.allocPrint(gpa,
                                     \\{f}:{}:1 error: frontmatter framing error
-                                    \\   {s}
+                                    \\   the document doesn't start with '---' (a frontmatter delimiter)
                                     \\
                                 , .{
                                     p._scan.file.fmt(
@@ -757,15 +786,16 @@ pub fn run(
                                         v.content_dir_path,
                                         "",
                                     ),
-                                    p._parse.fm.lines,
-                                    note,
+                                    // p._parse.fm.lines,
+                                    std.mem.countScalar(u8, p._parse.full_src[0..offset], '\n'),
+                                    // note,
                                 }),
                             });
                         }
                         continue;
                     },
 
-                    .ziggy => |*diag| {
+                    .ziggy => |err| {
                         if (!parse_errors) {
                             parse_errors = true;
                         }
@@ -780,22 +810,105 @@ pub fn run(
                             ),
                         }) catch unreachable;
 
-                        diag.path = path;
-                        std.debug.print("{f}\n\n", .{diag.fmt(p._parse.full_src)});
+                        std.debug.print("{f}\n\n", .{err.meta.reportErrorsFmt(
+                            arena,
+                            err.opts,
+                            path,
+                            p._parse.full_src,
+                            err.code,
+                        )});
                         if (build.mode == .memory) {
                             try build.mode.memory.errors.append(gpa, .{
                                 .ref = "",
                                 .msg = try std.fmt.allocPrint(
                                     gpa,
                                     "{f}\n\n",
-                                    .{diag.fmt(p._parse.full_src)},
+                                    .{
+                                        err.meta.reportErrorsFmt(
+                                            arena,
+                                            err.opts,
+                                            path,
+                                            p._parse.full_src,
+                                            err.code,
+                                        ),
+                                    },
                                 ),
                             });
                         }
                         continue;
                     },
 
-                    .parsed => {},
+                    .parsed => if (p._parse.date_err) |err| {
+                        if (!parse_errors) {
+                            parse_errors = true;
+                        }
+                        var buf: [std.fs.max_path_bytes]u8 = undefined;
+                        const path = std.fmt.bufPrint(&buf, "{f}", .{
+                            p._scan.file.fmt(
+                                &v.string_table,
+                                &v.path_table,
+                                v.content_dir_path,
+                                "",
+                            ),
+                        }) catch unreachable;
+
+                        const loc = p.date._loc.?;
+                        const sel = loc.getSelection(p._parse.full_src);
+
+                        const line_off = loc.line(p._parse.full_src);
+
+                        const line_trim_left = std.mem.trimStart(u8, line_off.line, &std.ascii.whitespace);
+                        const start_trim_left = line_off.start + line_off.line.len - line_trim_left.len;
+
+                        const caret_len = loc.end - loc.start;
+                        const caret_spaces_len = loc.start -| start_trim_left;
+
+                        const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
+
+                        var hl_buf: [1024]u8 = undefined;
+
+                        const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
+                            const h = hl_buf[0 .. caret_len + caret_spaces_len];
+                            @memset(h[0..caret_spaces_len], ' ');
+                            @memset(h[caret_spaces_len..][0..caret_len], '^');
+                            break :blk h;
+                        } else "";
+
+                        std.debug.print(
+                            \\{s}:{}:{}: error: unable to parse date: {t}
+                            \\|    {s}
+                            \\|    {s}
+                            \\
+                            \\
+                        , .{
+                            path,
+                            sel.start.line,
+                            sel.start.col,
+                            err,
+                            line_trim,
+                            highlight,
+                        });
+                        if (build.mode == .memory) {
+                            try build.mode.memory.errors.append(gpa, .{
+                                .ref = "",
+                                .msg = try std.fmt.allocPrint(gpa,
+                                    \\{s}:{}:{}: error: unable to parse date: {t}
+                                    \\|    {s}
+                                    \\|    {s}
+                                    \\
+                                    \\
+                                , .{
+                                    path,
+                                    sel.start.line,
+                                    sel.start.col,
+                                    err,
+                                    line_trim,
+                                    highlight,
+                                }),
+                            });
+                        }
+                        continue;
+                    },
                 }
 
                 // Validate the layout field and reference count so that we
@@ -875,8 +988,8 @@ pub fn run(
                         v,
                         p._scan.file,
                         &p._parse.ast,
-                        p._parse.full_src[p._parse.fm.offset..],
-                        p._parse.fm.lines - 1,
+                        p._parse.full_src[p._parse.ziggy_doc.end..],
+                        p._parse.ziggy_doc.lines,
                     );
 
                     // Do not schedule the page for analysis if contains parsing
@@ -928,14 +1041,9 @@ pub fn run(
                 }
 
                 const full_src = p._parse.full_src;
-                const ast = ziggy.Ast.init(
-                    arena,
-                    full_src,
-                    false,
-                    true,
-                    true,
-                    null,
-                ) catch unreachable;
+                const ast = ziggy.Ast.init(arena, full_src, .{
+                    .delimiter = .{ .dashes = p._parse.ziggy_start },
+                }) catch fatal.oom();
 
                 for (fm_errors.items) |err| {
                     const loc = err.location(full_src, ast);
@@ -1014,7 +1122,7 @@ pub fn run(
                 for (page_errors.items) |err| {
                     const n = err.node;
                     const range = n.range();
-                    const md_src = p._parse.full_src[p._parse.fm.offset..];
+                    const md_src = p._parse.full_src[p._parse.ziggy_doc.end..];
                     const line = blk: {
                         var it = std.mem.splitScalar(u8, md_src, '\n');
                         for (1..range.start.row) |_| _ = it.next();
@@ -1045,7 +1153,7 @@ pub fn run(
                         break :blk h;
                     } else "";
 
-                    const fm_lines = p._parse.fm.lines;
+                    const fm_lines = p._parse.ziggy_doc.lines + 1;
                     std.debug.print(
                         \\{f}:{}:{}: error: {s}
                         \\|    {s}
@@ -1094,7 +1202,7 @@ pub fn run(
         }
     }
 
-    if (build.cfg.* == .Multilingual) {
+    if (build.cfg.site == .multilingual) {
         for (build.variants, 0..) |*v, vidx| {
             for (v.pages.items) |*p| {
                 if (!p._parse.active) continue;
@@ -1131,7 +1239,7 @@ pub fn run(
     // Alternatively, if this algo proves to be sufficiently more efficent
     // than the tree case, we could default to this method and then only
     // switch to the more expensive approach if necessary.
-    if (!parse_errors) {
+    if (!parse_errors and !analysis_errors) {
         const tracy_frame = tracy.namedFrame("url collision");
         defer tracy_frame.end();
         for (build.variants) |*v| {
@@ -1499,17 +1607,18 @@ pub fn run(
 
     // install site assets
     {
-        const site_assets_install_dir = switch (build.cfg.*) {
-            .Site => build.mode.disk.output_dir,
-            .Multilingual => |ml| blk: {
-                if (ml.assets_prefix_path.len == 0) {
+        const site_assets_install_dir = switch (build.cfg.site) {
+            .simple => build.mode.disk.output_dir,
+            .multilingual => |ml| blk: {
+                const assets_prefix_path = ml.assets_prefix_path orelse "";
+                if (assets_prefix_path.len == 0) {
                     break :blk build.mode.disk.output_dir;
                 } else {
                     break :blk build.mode.disk.output_dir.openDir(
                         io,
-                        ml.assets_prefix_path,
+                        assets_prefix_path,
                         .{},
-                    ) catch |err| fatal.dir(ml.assets_prefix_path, err);
+                    ) catch |err| fatal.dir(assets_prefix_path, err);
                 }
             },
         };
@@ -1626,22 +1735,6 @@ fn printSuperMdErrors(
             .scripty => |s| s.err,
             else => "",
         };
-
-        // std.debug.print("fm: {}\nerr: {s}\nrange start: {any}\nrange end: {any}", .{
-        //     fm_offset,
-        //     @tagName(err.kind),
-        //     err.main.start,
-        //     err.main.end,
-        // });
-
-        // Saturating subtraction because of a bug related to html comments
-        // in markdown.
-        // const lines = range.end.row -| range.start.row;
-        // const lines_fmt = if (lines == 0) "" else try std.fmt.allocPrint(
-        //     arena,
-        //     "(+{} lines)",
-        //     .{lines},
-        // );
 
         const tag_name = switch (err.kind) {
             .html => |h| switch (h.tag) {

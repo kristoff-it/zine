@@ -300,7 +300,7 @@ fn analyzeFrontmatter(page_arena: Allocator, p: *Page) error{OutOfMemory}!void {
         if (alt.output.len == 0 or !is_ascii) try errors.append(page_arena, .{
             .alternative = .{
                 .id = @intCast(aidx),
-                .kind = .path,
+                .kind = .output,
             },
         });
 
@@ -1067,8 +1067,8 @@ fn renderPageInner(
                 .main => blk: {
                     // aliases
                     for (page.aliases) |a| {
-                        const out_path = if (a[0] == '/') a[1..] else switch (build.cfg.*) {
-                            .Site => try std.fmt.allocPrint(arena, "{f}{s}", .{
+                        const out_path = if (a[0] == '/') a[1..] else switch (build.cfg.site) {
+                            .simple => try std.fmt.allocPrint(arena, "{f}{s}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1077,7 +1077,7 @@ fn renderPageInner(
                                 ),
                                 a,
                             }),
-                            .Multilingual => try std.fmt.allocPrint(arena, "{f}{s}", .{
+                            .multilingual => try std.fmt.allocPrint(arena, "{f}{s}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1110,8 +1110,8 @@ fn renderPageInner(
 
                     // main
                     {
-                        const out_dir_path = switch (build.cfg.*) {
-                            .Site => try std.fmt.allocPrint(arena, "{f}", .{
+                        const out_dir_path = switch (build.cfg.site) {
+                            .simple => try std.fmt.allocPrint(arena, "{f}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1119,7 +1119,7 @@ fn renderPageInner(
                                     true,
                                 ),
                             }),
-                            .Multilingual => try std.fmt.allocPrint(arena, "{f}", .{
+                            .multilingual => try std.fmt.allocPrint(arena, "{f}", .{
                                 page._scan.url.fmt(
                                     &variant.string_table,
                                     &variant.path_table,
@@ -1147,8 +1147,8 @@ fn renderPageInner(
 
                 .alternative => |idx| blk: {
                     const raw_path = page.alternatives[idx].output;
-                    const out_path = if (raw_path[0] == '/') raw_path[1..] else switch (build.cfg.*) {
-                        .Site => try std.fmt.allocPrint(arena, "{f}{s}", .{
+                    const out_path = if (raw_path[0] == '/') raw_path[1..] else switch (build.cfg.site) {
+                        .simple => try std.fmt.allocPrint(arena, "{f}{s}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,
@@ -1157,7 +1157,7 @@ fn renderPageInner(
                             ),
                             raw_path,
                         }),
-                        .Multilingual => try std.fmt.allocPrint(arena, "{f}{s}", .{
+                        .multilingual => try std.fmt.allocPrint(arena, "{f}{s}", .{
                             page._scan.url.fmt(
                                 &variant.string_table,
                                 &variant.path_table,

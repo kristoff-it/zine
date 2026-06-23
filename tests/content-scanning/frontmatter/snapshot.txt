@@ -6,7 +6,7 @@
 |                                               |
 | To create a release build, run:               |
 |                                               |
-|           zig build --release=fast            |
+|       zig build -Doptimize=ReleaseFast        |
 |                                               |
 | If you're investigating a bug in Zine, then a |
 | debug build might turn confusing behavior     |
@@ -19,10 +19,7 @@
 |                                               |
 *-----------------------------------------------*
 
-content/wrong-syntax.smd:18:5:
-    .layout = "foo.html",
-        ^
-unexpected '.', expected: ',' or '}'
+content/wrong-syntax.smd:17:15 missing token: ',' after field value
 
 
 content/index.smd:5:11: error: missing layout file
@@ -35,7 +32,7 @@ content/validation-errors.smd:5:11: error: missing layout file
 
 content/validation-errors.smd:9:4: error: invalid value in 'aliases'
 |    "bad path 💩",
-|    ^^^^^^^^^^^^^^^
+|    ^^^^^^^^^^^^^^^^
 
 content/validation-errors.smd:16:13: error: invalid name in alternatives
 |    .name = "",

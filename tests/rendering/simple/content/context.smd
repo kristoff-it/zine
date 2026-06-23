@@ -1,6 +1,6 @@
 ---
 .title = "Homepage",
-.date = @date("1990-01-01T00:00:00"),
+.date = .iso("1990-01-01T00:00:00"),
 .author = "Sample Author",
 .layout = "context.shtml",
 .draft = false,

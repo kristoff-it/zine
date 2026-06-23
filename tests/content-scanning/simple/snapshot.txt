@@ -6,7 +6,7 @@
 |                                               |
 | To create a release build, run:               |
 |                                               |
-|           zig build --release=fast            |
+|       zig build -Doptimize=ReleaseFast        |
 |                                               |
 | If you're investigating a bug in Zine, then a |
 | debug build might turn confusing behavior     |

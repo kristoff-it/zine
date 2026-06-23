@@ -41,9 +41,9 @@ urls: std.AutoHashMapUnmanaged(PathName, LocationHint),
 /// Overflowing LocationHints end up in here, populated alongside 'urls'.
 collisions: std.ArrayListUnmanaged(Collision),
 
-i18n: context.Map.ZiggyMap,
+i18n: context.Map.DynamicDict,
 i18n_src: [:0]const u8,
-i18n_diag: ziggy.Diagnostic,
+i18n_err: ?DeserializeErr,
 i18n_arena: std.heap.ArenaAllocator.State,
 
 const Collision = struct {
@@ -516,9 +516,10 @@ fn scanContentDirInner(
         dir_names.clearRetainingCapacity();
     }
 
-    var i18n: context.Map.ZiggyMap = .{};
+    var i18n: context.Map.DynamicDict = .empty;
     var i18n_src: [:0]const u8 = "";
-    var i18n_diag: ziggy.Diagnostic = .{ .path = null };
+    var i18n_meta: ziggy.Deserializer.Meta = .init;
+    var i18n_err: ?DeserializeErr = null;
     var i18n_arena = std.heap.ArenaAllocator.init(gpa);
     // Present when in a multilingual site
     if (multilingual) |ml| {
@@ -536,18 +537,18 @@ fn scanContentDirInner(
             0,
         ) catch |err| fatal.file(name, err);
 
-        i18n_diag.path = name;
-        i18n = ziggy.parseLeaky(
-            context.Map.ZiggyMap,
+        i18n = ziggy.deserializeLeaky(
+            context.Map.DynamicDict,
             i18n_arena.allocator(),
             i18n_src,
-            .{ .diagnostic = &i18n_diag },
+            &i18n_meta,
+            .{},
         ) catch |err| switch (err) {
-            error.OpenFrontmatter, error.MissingFrontmatter => unreachable,
             error.Overflow, error.OutOfMemory => return error.OutOfMemory,
-            error.Syntax => .{
-                // We will detect later that an error happened by looking
-                // at the diagnostic struct.
+            else => blk: {
+                // We will detect later that an error happened.
+                i18n_err = .{ .code = err, .path = name, .meta = i18n_meta };
+                break :blk .empty;
             },
         };
     }
@@ -565,7 +566,7 @@ fn scanContentDirInner(
         .collisions = collisions,
         .i18n = i18n,
         .i18n_src = i18n_src,
-        .i18n_diag = i18n_diag,
+        .i18n_err = i18n_err,
         .i18n_arena = i18n_arena.state,
     };
 }
@@ -614,3 +615,9 @@ pub fn installAssets(
         progress.completeOne();
     }
 }
+
+pub const DeserializeErr = struct {
+    code: ziggy.Deserializer.Error,
+    path: []const u8,
+    meta: ziggy.Deserializer.Meta,
+};

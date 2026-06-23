@@ -23,27 +23,27 @@ const CommitDate = struct {
     unix: i64 = 0,
 
     const Self = @This();
-    pub const ziggy_options = struct {
-        pub fn stringify(
-            value: Self,
-            opts: ziggy.serializer.StringifyOptions,
-            indent_level: usize,
-            depth: usize,
-            w: *Writer,
-        ) !void {
-            _ = opts;
-            _ = indent_level;
-            _ = depth;
+    // pub const ziggy_options = struct {
+    //     pub fn stringify(
+    //         value: Self,
+    //         opts: ziggy.serializer.StringifyOptions,
+    //         indent_level: usize,
+    //         depth: usize,
+    //         w: *Writer,
+    //     ) !void {
+    //         _ = opts;
+    //         _ = indent_level;
+    //         _ = depth;
 
-            const date = zeit.instant(.{
-                .source = .{ .unix_timestamp = value.unix },
-            }) catch unreachable;
+    //         const date = zeit.instant(.{
+    //             .source = .{ .unix_timestamp = value.unix },
+    //         }) catch unreachable;
 
-            try w.print("@date(\"", .{});
-            date.time().gofmt(w, "2006-01-02T15:04:05") catch unreachable;
-            try w.print("\")", .{});
-        }
-    };
+    //         try w.print("@date(\"", .{});
+    //         date.time().gofmt(w, "2006-01-02T15:04:05") catch unreachable;
+    //         try w.print("\")", .{});
+    //     }
+    // };
 };
 
 pub fn init(io: Io, gpa: Allocator, path: []const u8) !Git {

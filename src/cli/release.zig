@@ -10,7 +10,7 @@ const BuildAsset = root.BuildAsset;
 
 pub fn release(io: Io, gpa: Allocator, args: []const []const u8) bool {
     const cmd = Command.parse(gpa, args) catch fatal.oom();
-    const cfg, const base_dir_path = root.Config.load(io, gpa);
+    const cfg, const base_dir_path = root.Config.load(io, gpa, cmd.search);
 
     worker.start(io);
     defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit(io);
@@ -46,6 +46,7 @@ pub fn release(io: Io, gpa: Allocator, args: []const []const u8) bool {
 }
 
 pub const Command = struct {
+    search: root.Config.Search,
     output_dir_path: ?[]const u8,
     build_assets: std.StringArrayHashMapUnmanaged(BuildAsset),
     drafts: bool,
@@ -57,6 +58,7 @@ pub const Command = struct {
     }
 
     pub fn parse(gpa: Allocator, args: []const []const u8) !Command {
+        var config_path: ?[]const u8 = null;
         var output_dir_path: ?[]const u8 = null;
         var build_assets: std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
         var drafts = false;
@@ -80,6 +82,15 @@ pub const Command = struct {
                 output_dir_path = args[idx];
             } else if (startsWith(u8, arg, "--output=")) {
                 output_dir_path = arg["--output=".len..];
+            } else if (eql(u8, arg, "-c") or eql(u8, arg, "--config")) {
+                idx += 1;
+                if (idx >= args.len) fatal.msg(
+                    "error: missing argument to '{s}'",
+                    .{arg},
+                );
+                config_path = args[idx];
+            } else if (startsWith(u8, arg, "--config=")) {
+                config_path = arg["--config=".len..];
             } else if (startsWith(u8, arg, "--build-asset=")) {
                 const name = arg["--build-asset=".len..];
 
@@ -126,6 +137,7 @@ pub const Command = struct {
         }
 
         return .{
+            .search = if (config_path) |p| .{ .path = p } else .auto,
             .output_dir_path = output_dir_path,
             .build_assets = build_assets,
             .drafts = drafts,
@@ -138,10 +150,13 @@ const help_message =
     \\Usage: zine release [OPTIONS]
     \\
     \\Command specific options:
-    \\  --output, -o DIR  Directory where to output the website (default 'public/')
-    \\  --force, -f       Ignore presence of other files in the output directory
-    // \\  --build-assets FILE    Path to a file containing a list of build assets
-    \\  --help, -h        Show this help menu
+    \\  --output, -o DIR   Directory where to output the website
+    \\                     (defaults to 'public/')
+    \\  --force, -f        Ignore other files in the output directory
+    \\                     (otherwise a non-empty dir is an error)
+    \\  --config, -c FILE  Use a custom config file instead of searching
+    \\                     recursively upwards for a 'zine.ziggy' file
+    \\  --help, -h         Show this help menu
     \\
     \\
 ;

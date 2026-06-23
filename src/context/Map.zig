@@ -1,4 +1,4 @@
-const Map = @This();
+const Dictionary = @This();
 
 const std = @import("std");
 const ziggy = @import("ziggy");
@@ -11,12 +11,12 @@ const Value = context.Value;
 const Optional = context.Optional;
 const Bool = context.Bool;
 
-value: ZiggyMap,
+value: DynamicDict,
 
-pub const ZiggyMap = ziggy.dynamic.Map(ziggy.dynamic.Value);
+pub const DynamicDict = ziggy.Dictionary(ziggy.Dynamic);
 
 pub const docs_description =
-    \\A map that can hold any value, used to represent the `custom` field 
+    \\A Dictionary that can hold any value, used to represent the `custom` field 
     \\in Page frontmatters or Ziggy / JSON data loaded from assets.
 ;
 pub const Builtins = struct {
@@ -33,7 +33,7 @@ pub const Builtins = struct {
             \\$page.custom.getOr('coauthor', 'Loris Cro')
         ;
         pub fn call(
-            map: Map,
+            map: Dictionary,
             gpa: Allocator,
             _: *const context.Root,
             args: []const Value,
@@ -70,7 +70,7 @@ pub const Builtins = struct {
             \\$page.custom.get('coauthor')
         ;
         pub fn call(
-            map: Map,
+            map: Dictionary,
             gpa: Allocator,
             _: *const context.Root,
             args: []const Value,
@@ -109,7 +109,7 @@ pub const Builtins = struct {
             \\</div>
         ;
         pub fn call(
-            map: Map,
+            map: Dictionary,
             gpa: Allocator,
             _: *const context.Root,
             args: []const Value,
@@ -142,7 +142,7 @@ pub const Builtins = struct {
             \\<div :if="$page.custom.has('myValue')">Yep!</div>
         ;
         pub fn call(
-            map: Map,
+            map: Dictionary,
             gpa: Allocator,
             _: *const context.Root,
             args: []const Value,
@@ -172,7 +172,7 @@ pub const Builtins = struct {
             \\$page.custom.iterate()
         ;
         pub fn call(
-            map: Map,
+            map: Dictionary,
             gpa: Allocator,
             _: *const context.Root,
             args: []const Value,
@@ -198,7 +198,7 @@ pub const Builtins = struct {
             \\$page.custom.iterPattern("user-")
         ;
         pub fn call(
-            map: Map,
+            map: Dictionary,
             gpa: Allocator,
             _: *const context.Root,
             args: []const Value,
@@ -219,7 +219,7 @@ pub const Builtins = struct {
 
 pub const KV = struct {
     key: []const u8,
-    value: ziggy.dynamic.Value,
+    value: ziggy.Dynamic,
 
     pub const Dot = true;
     pub const docs_description = "A key-value pair.";
@@ -230,7 +230,7 @@ pub const KV = struct {
     pub const Builtins = struct {};
 };
 
-fn keyValueArray(gpa: Allocator, map: Map, filter: ?[]const u8) ![]const Value {
+fn keyValueArray(gpa: Allocator, map: Dictionary, filter: ?[]const u8) ![]const Value {
     if (filter) |f| {
         var buf: std.ArrayList(Value) = .empty;
         var it = map.value.fields.iterator();
