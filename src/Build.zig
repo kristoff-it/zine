@@ -231,18 +231,29 @@ fn collectGitInfo(
 
     f.writeAll(buf.items) catch fatal("unexpected", .{});
 }
-
+/// Maps directories to a list of all files they contain in their subtree.
+/// Indexes into `b.site_assets`. Uses arena allocator, meant to be discarded after use.
+pub const AssetDirMap = std.StringArrayHashMapUnmanaged(FileSpan);
+pub const FileSpan = struct {
+    start: usize,
+    end: usize,
+    last_for: usize,
+};
 pub fn scanSiteAssets(
     b: *Build,
     io: Io,
     gpa: Allocator,
     arena: Allocator,
-) !void {
+) !AssetDirMap {
     const zone = tracy.trace(@src());
     defer zone.end();
 
-    var dir_stack: std.ArrayListUnmanaged([]const u8) = .empty;
-    try dir_stack.append(arena, "");
+    var dir_map: AssetDirMap = .empty;
+    var dir_stack: std.ArrayList(struct { name: []const u8, map_idx: usize }) = .empty;
+
+    try dir_map.putNoClobber(arena, "", .{ .start = 0, .end = undefined, .last_for = 0 });
+    try dir_stack.append(arena, .{ .name = "", .map_idx = 0 });
+    defer dir_map.values()[0].end = b.site_assets.entries.len;
 
     const empty_path: Path = @enumFromInt(0);
     assert(b.pt.get(&.{}) == empty_path);
@@ -251,16 +262,23 @@ pub fn scanSiteAssets(
     defer progress.end();
 
     while (dir_stack.pop()) |dir_entry| {
-        var dir = switch (dir_entry.len) {
+        var dir = switch (dir_entry.name.len) {
             0 => b.site_assets_dir,
-            else => b.site_assets_dir.openDir(io, dir_entry, .{ .iterate = true }) catch |err| {
-                fatal.dir(dir_entry, err);
+            else => blk: {
+                const dir_map_val = &dir_map.values()[dir_entry.map_idx];
+                dir_map_val.start = b.site_assets.entries.len;
+                break :blk b.site_assets_dir.openDir(io, dir_entry.name, .{ .iterate = true }) catch |err| {
+                    fatal.dir(dir_entry.name, err);
+                };
             },
         };
-        defer if (dir_entry.len > 0) dir.close(io);
+        defer if (dir_entry.name.len > 0) dir.close(io);
+
+        var first_subdir: ?[]const u8 = null;
+        const first_dir_slot = dir_stack.items.len;
 
         var it = dir.iterateAssumeFirstIteration();
-        while (it.next(io) catch |err| fatal.dir(dir_entry, err)) |entry| {
+        while (it.next(io) catch |err| fatal.dir(dir_entry.name, err)) |entry| {
             // We do not ignore hidden files in assets for two reasons:
             // - Users might want to install "hidden" files on purpose
             // - Unlike other directories where one could want to place
@@ -275,12 +293,12 @@ pub fn scanSiteAssets(
                     progress.completeOne();
 
                     const name = try b.st.intern(gpa, entry.name);
-                    const asset_sub_path = switch (dir_entry.len) {
+                    const asset_sub_path = switch (dir_entry.name.len) {
                         0 => empty_path,
                         else => try b.pt.internPath(
                             gpa,
                             &b.st,
-                            dir_entry,
+                            dir_entry.name,
                         ),
                     };
 
@@ -293,14 +311,48 @@ pub fn scanSiteAssets(
                 },
                 .directory => {
                     const path_bytes = try std.fs.path.join(arena, &.{
-                        dir_entry,
+                        dir_entry.name,
                         entry.name,
                     });
-                    try dir_stack.append(arena, path_bytes);
+
+                    if (first_subdir == null) {
+                        first_subdir = path_bytes;
+                        try dir_stack.append(arena, .{
+                            .name = path_bytes,
+                            .map_idx = undefined,
+                        });
+                    } else {
+                        try dir_stack.append(arena, .{
+                            .name = path_bytes,
+                            .map_idx = dir_map.entries.len,
+                        });
+                        try dir_map.putNoClobber(arena, path_bytes, .{
+                            .start = undefined,
+                            .end = undefined,
+                            .last_for = 0,
+                        });
+                    }
                 },
             }
         }
+
+        if (first_subdir) |path_bytes| {
+            dir_stack.items[first_dir_slot].map_idx = dir_map.entries.len;
+            try dir_map.putNoClobber(arena, path_bytes, .{
+                .start = undefined,
+                .end = undefined,
+                .last_for = dir_entry.map_idx,
+            });
+        } else {
+            var last_for = dir_entry.map_idx;
+            while (last_for != 0) {
+                const dir_map_val = &dir_map.values()[last_for];
+                dir_map_val.end = b.site_assets.entries.len;
+                last_for = dir_map_val.last_for;
+            }
+        }
     }
+    return dir_map;
 }
 
 pub fn scanTemplates(b: *Build, io: Io, gpa: Allocator, arena: Allocator) !void {
