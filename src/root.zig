@@ -538,15 +538,61 @@ pub fn run(
             const ctx: Ctx = .{ .b = &build };
             build.templates.sort(ctx);
         }
-        try build.scanSiteAssets(io, gpa, arena);
-        _ = arena_state.reset(.retain_capacity);
+
+        const asset_dir_map = try build.scanSiteAssets(io, gpa, arena);
+        for (asset_dir_map.keys(), asset_dir_map.values()) |k, v| {
+            log.debug("[{s}] -> {}-{} ({})", .{ k, v.start, v.end, v.last_for });
+        }
 
         for (build.cfg.getStaticAssets()) |path| {
             if (PathName.get(&build.st, &build.pt, path)) |pn| {
                 if (build.site_assets.getPtr(pn)) |rc| {
-                    rc.raw = 1;
+                    if (rc.raw == 1) {
+                        static_assets_errors = true;
+                        std.debug.print("error: duplicate static asset '{s}'\n", .{path});
+
+                        if (build.mode == .memory) {
+                            try build.mode.memory.errors.append(gpa, .{
+                                .ref = "",
+                                .msg = try std.fmt.allocPrint(
+                                    gpa,
+                                    "error: duplicate static asset '{s}'\n",
+                                    .{path},
+                                ),
+                            });
+                        }
+                    }
+                    rc.raw += 1;
                     continue;
                 }
+            }
+
+            if (asset_dir_map.get(path)) |rcs| {
+                for (build.site_assets.values()[rcs.start..rcs.end], rcs.start..) |*rc, idx| {
+                    if (rc.raw == 1) {
+                        static_assets_errors = true;
+                        std.debug.print("error: duplicate static asset '{f}' (via inclusion of directory '{s}')\n", .{
+                            build.site_assets.keys()[idx].fmt(&build.st, &build.pt, null, ""),
+                            path,
+                        });
+
+                        if (build.mode == .memory) {
+                            try build.mode.memory.errors.append(gpa, .{
+                                .ref = "",
+                                .msg = try std.fmt.allocPrint(
+                                    gpa,
+                                    "error: duplicate static asset '{f}' (via inclusion of directory '{s}')\n",
+                                    .{
+                                        build.site_assets.keys()[idx].fmt(&build.st, &build.pt, null, ""),
+                                        path,
+                                    },
+                                ),
+                            });
+                        }
+                    }
+                    rc.raw += 1;
+                }
+                continue;
             }
 
             static_assets_errors = true;
@@ -566,6 +612,7 @@ pub fn run(
             }
         }
 
+        _ = arena_state.reset(.retain_capacity);
         worker.wait(); // variants done scanning their content + i18n ziggy file
 
     }

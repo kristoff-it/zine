@@ -263,9 +263,9 @@ pub fn build(b: *std.Build) !void {
 
     const release = b.step("release", "Create release builds of Zine");
     switch (version) {
-        .tag => {
+        .tag, .preview => {
             const zon = @import("build.zig.zon");
-            if (std.mem.eql(u8, zon.version, version.tag[1..])) {
+            if (version == .preview or std.mem.eql(u8, zon.version, version.tag[1..])) {
                 setupReleaseStep(b, release, version.string(), translate_c);
             } else {
                 release.dependOn(&b.addFail(b.fmt(
@@ -274,7 +274,6 @@ pub fn build(b: *std.Build) !void {
                 )).step);
             }
         },
-        .preview => {},
         .commit, .unknown => {
             release.dependOn(&b.addFail(
                 "error: git tag missing, cannot make release builds",
@@ -770,9 +769,11 @@ fn getVersion(b: *std.Build) Version {
         2 => {
             // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
             var it = std.mem.splitScalar(u8, git_describe, '-');
-            const tagged_ancestor = it.next() orelse unreachable;
+            _ = it.next() orelse unreachable;
             const commit_height = it.next() orelse unreachable;
             const commit_id = it.next() orelse unreachable;
+
+            const tagged_ancestor = "0.12.0";
 
             // Check that the commit hash is prefixed with a 'g'
             // (it's a Git convention)

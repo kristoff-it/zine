@@ -36,6 +36,7 @@ pub const Bool = @import("context/Bool.zig");
 pub const Int = @import("context/Int.zig");
 pub const Float = @import("context/Float.zig");
 pub const Map = @import("context/Map.zig");
+pub const Union = @import("context/Union.zig");
 // pub const Slice = @import("context/Slice.zig");
 pub const Optional = @import("context/Optional.zig");
 pub const Iterator = @import("context/Iterator.zig");
@@ -55,6 +56,7 @@ pub const Value = union(enum) {
     map: Map,
     // slice: Slice,
     optional: ?*const context.Optional,
+    tagged_union: context.Union,
     string: String,
     date: DateTime,
     bool: context.Bool,
@@ -122,10 +124,7 @@ pub const Value = union(enum) {
             .bytes => |s| return .{ .string = .{ .value = s } },
             .array => |a| return Array.init(gpa, ziggy.Dynamic, a),
             .@"enum" => |e| return .{ .string = .{ .value = e } },
-            .@"union" => |t| {
-                _ = t;
-                return Value.errFmt(gpa, "TODO: implement union support", .{});
-            },
+            .@"union" => return .{ .tagged_union = .{ .value = value } },
             .kv => |kv| return .{ .map = .{ .value = kv } },
             // inline else => |_, t| @panic("TODO: implement" ++ @tagName(t) ++ "support in dynamic data"),
         }
