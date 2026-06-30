@@ -231,6 +231,7 @@ fn collectGitInfo(
 
     f.writeAll(buf.items) catch fatal("unexpected", .{});
 }
+
 /// Maps directories to a list of all files they contain in their subtree.
 /// Indexes into `b.site_assets`. Uses arena allocator, meant to be discarded after use.
 pub const AssetDirMap = std.StringArrayHashMapUnmanaged(FileSpan);
