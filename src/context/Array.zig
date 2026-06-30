@@ -181,7 +181,7 @@ pub const Builtins = struct {
     pub const @"first?" = struct {
         pub const signature: Signature = .{
             .params = &.{},
-            .ret = .{ .Many = .any },
+            .ret = .any,
         };
         pub const docs_description =
             \\Returns the the first value of the array or null if the array is empty. 
@@ -207,7 +207,7 @@ pub const Builtins = struct {
     pub const @"last?" = struct {
         pub const signature: Signature = .{
             .params = &.{},
-            .ret = .{ .Many = .any },
+            .ret = .any,
         };
         pub const docs_description =
             \\Returns the the last value of the array or null if the array is empty. 
