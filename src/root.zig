@@ -545,29 +545,49 @@ pub fn run(
         }
 
         for (build.cfg.getStaticAssets()) |path| {
-            if (PathName.get(&build.st, &build.pt, path)) |pn| {
-                if (build.site_assets.getPtr(pn)) |rc| {
-                    if (rc.raw == 1) {
-                        static_assets_errors = true;
-                        std.debug.print("error: duplicate static asset '{s}'\n", .{path});
+            if (std.fs.path.isAbsolute(path)) {
+                static_assets_errors = true;
+                std.debug.print("error: absolute path in static assets '{s}' (use relative paths)\n", .{path});
 
-                        if (build.mode == .memory) {
-                            try build.mode.memory.errors.append(gpa, .{
-                                .ref = "",
-                                .msg = try std.fmt.allocPrint(
-                                    gpa,
-                                    "error: duplicate static asset '{s}'\n",
-                                    .{path},
-                                ),
-                            });
-                        }
-                    }
-                    rc.raw += 1;
-                    continue;
+                if (build.mode == .memory) {
+                    try build.mode.memory.errors.append(gpa, .{
+                        .ref = "",
+                        .msg = try std.fmt.allocPrint(
+                            gpa,
+                            "error: absolute path in static assets '{s}' (use relative paths)\n",
+                            .{path},
+                        ),
+                    });
                 }
+                continue;
             }
 
-            if (asset_dir_map.get(path)) |rcs| {
+            const dir_path = if (!std.fs.path.isSep(path[path.len - 1])) blk: {
+                if (PathName.get(&build.st, &build.pt, path)) |pn| {
+                    if (build.site_assets.getPtr(pn)) |rc| {
+                        if (rc.raw == 1) {
+                            static_assets_errors = true;
+                            std.debug.print("error: duplicate static asset '{s}'\n", .{path});
+
+                            if (build.mode == .memory) {
+                                try build.mode.memory.errors.append(gpa, .{
+                                    .ref = "",
+                                    .msg = try std.fmt.allocPrint(
+                                        gpa,
+                                        "error: duplicate static asset '{s}'\n",
+                                        .{path},
+                                    ),
+                                });
+                            }
+                        }
+                        rc.raw += 1;
+                        continue;
+                    }
+                }
+                break :blk path;
+            } else path[0 .. path.len - 1];
+
+            if (asset_dir_map.get(dir_path)) |rcs| {
                 for (build.site_assets.values()[rcs.start..rcs.end], rcs.start..) |*rc, idx| {
                     if (rc.raw == 1) {
                         static_assets_errors = true;
@@ -615,6 +635,7 @@ pub fn run(
         _ = arena_state.reset(.retain_capacity);
         worker.wait(); // variants done scanning their content + i18n ziggy file
 
+        if (static_assets_errors) std.debug.print("\n", .{});
     }
 
     // Activate sections by parsing their index.smd page
