@@ -118,7 +118,7 @@ pub fn start(io: Io) void {
 
 pub fn stopWaitAndDeinit(io: Io) void {
     if (builtin.mode != .Debug) return;
-    if (builtin.single_threaded) addJob(.leave);
+    if (builtin.single_threaded) addJob(io, .leave);
 
     for (threads) |_| addJob(io, .leave);
     for (threads) |t| t.join();
@@ -129,7 +129,7 @@ var single_threaded_arena_state = std.heap.ArenaAllocator.init(gpa);
 const single_threaded_arena = single_threaded_arena_state.allocator();
 pub fn addJob(io: Io, job: Job) void {
     if (builtin.single_threaded) {
-        const continue_ = runOneJob(single_threaded_arena, job);
+        const continue_ = runOneJob(io, single_threaded_arena, job);
         _ = single_threaded_arena_state.reset(.retain_capacity);
 
         if (builtin.mode == .Debug and !continue_) {
