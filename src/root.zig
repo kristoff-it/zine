@@ -1442,8 +1442,8 @@ pub fn run(
 
                 pages_to_render += 1;
 
-                if (builtin.single_threaded) std.debug.print("Rendering {}...\n", .{
-                    p._scan.file.fmt(&v.string_table, &v.path_table, v.content_dir_path),
+                if (builtin.single_threaded) std.debug.print("Rendering {f}...\n", .{
+                    p._scan.file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
                 });
 
                 p._render = .{
