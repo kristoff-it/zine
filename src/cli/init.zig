@@ -17,7 +17,7 @@ pub fn init(io: Io, gpa: Allocator, args: []const []const u8) bool {
     const File = struct { path: []const u8, src: []const u8 };
     const files = [_]File{
         .{
-            .path = ".ziggy-schema",
+            .path = ".zine.ziggy-schema",
             .src = @embedFile("../schemas/zine.ziggy-schema"),
         },
         .{
@@ -25,7 +25,7 @@ pub fn init(io: Io, gpa: Allocator, args: []const []const u8) bool {
             .src = std.fmt.comptimePrint(@embedFile("init/zine.ziggy"), .{options.version[1..]}),
         },
         .{
-            .path = "content/.ziggy-schema",
+            .path = "content/.smd.ziggy-schema",
             .src = @embedFile("../schemas/page.ziggy-schema"),
         },
         .{
@@ -51,10 +51,6 @@ pub fn init(io: Io, gpa: Allocator, args: []const []const u8) bool {
         .{
             .path = "content/blog/second-post.smd",
             .src = @embedFile("init/content/blog/second-post.smd"),
-        },
-        .{
-            .path = "content/blog/code-blocks.smd",
-            .src = @embedFile("init/content/blog/code-blocks.smd"),
         },
         .{
             .path = "content/devlog/index.smd",

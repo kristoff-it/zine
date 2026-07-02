@@ -16,6 +16,7 @@ pub const std_options: std.Options = .{
 
 const Command = enum {
     init,
+    @"install-schemas",
     release,
     debug,
     help,
@@ -118,6 +119,7 @@ pub fn main(init: std.process.Init) u8 {
         .init => @import("cli/init.zig").init(io, gpa, args[2..]),
         .release => @import("cli/release.zig").release(io, gpa, args[2..]),
         .debug => @import("cli/debug.zig").debug(io, gpa, args[2..]),
+        .@"install-schemas" => @import("cli/install-schemas.zig").install_schemas(io, gpa, args[2..]),
         .help, .@"-h", .@"--help" => fatal.help(),
         .version, .@"-v", .@"--version" => printVersion(),
         .serve, .server, .dev, .develop => {

@@ -70,6 +70,24 @@ and the page in your browser to refresh**.
 
 You can learn more about SuperMD and SuperHTML in [/about/](/about/).
 
+### Ziggy Schema files
+
+The following two files are Ziggy Schemas:
+
+- `.zine.ziggy-schema`
+- `content/.smd.ziggy-schema`
+
+These files will be picked up by the Ziggy Language Server to provide you
+with schema checking and documentation for both the Zine config file (`zine.ziggy`)
+and the frontmatter data in your content files.
+
+Make sure to setup your [editing
+environment](https://zine-ssg.io/docs/editors/) correctly to get the best
+authoring experience Zine can offer.
+
+
+### Assets
+
 Lastly, this sample website also includes the following asset files:
 
 - `assets/style.css`
