@@ -19,26 +19,28 @@
 |                                               |
 *-----------------------------------------------*
 
-content/wrong-syntax.smd:17:15 missing token: ',' after field value
+content/wrong-syntax.smd:16:15 missing token: ',' after field value
+|   .output = "good/url/though.html"
+|             ^^^^^^^^^^^^^^^^^^^^^^
 
 
-content/index.smd:5:11: error: missing layout file
+content/index.smd:4:11: error: missing layout file
 |    .layout = "",
 |              ^^
 
-content/validation-errors.smd:5:11: error: missing layout file
+content/validation-errors.smd:4:11: error: missing layout file
 |    .layout = "",
 |              ^^
 
-content/validation-errors.smd:9:4: error: invalid value in 'aliases'
+content/validation-errors.smd:8:4: error: invalid value in 'aliases'
 |    "bad path 💩",
 |    ^^^^^^^^^^^^^^^^
 
-content/validation-errors.smd:16:13: error: invalid name in alternatives
+content/validation-errors.smd:15:13: error: invalid name in alternatives
 |    .name = "",
 |            ^^
 
-content/validation-errors.smd:21:15: error: invalid path in alternatives
+content/validation-errors.smd:20:15: error: invalid path in alternatives
 |    .output = "",
 |              ^^
 

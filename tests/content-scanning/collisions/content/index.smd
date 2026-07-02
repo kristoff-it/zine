@@ -1,7 +1,6 @@
 ---
 .title = "Homepage",
-.date = .iso("2020-07-06T00:00:00"),
-.author = "Sample Author",
+.date = .date("2020-07-06T00:00:00"),
 .layout = "index.shtml",
 .aliases = [
     "index.html",

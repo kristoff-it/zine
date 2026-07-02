@@ -356,7 +356,7 @@ pub fn build(b: *std.Build) !void {
 
     const test_step = b.step("test", "build snapshot tests and diff the results");
     setupSchemaCheck(b, target, zine_mod, test_step);
-    // try setupSnapshotTesting(b, target, zine_exe, test_step);
+    try setupSnapshotTesting(b, target, zine_exe, test_step);
 }
 
 fn setupSchemaCheck(

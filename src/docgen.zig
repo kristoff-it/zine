@@ -34,11 +34,8 @@ pub fn main(init: std.process.Init) !void {
     try w.writeAll(
         \\---
         \\.title = "SuperHTML Scripty Reference",
-        \\.description = "",
-        \\.author = "Loris Cro",
+        \\.date = .date("2023-06-16T00:00:00"),
         \\.layout = "scripty-reference.shtml",
-        \\.date = @date("2023-06-16T00:00:00"),
-        \\.draft = false,
         \\---
         \\
     );

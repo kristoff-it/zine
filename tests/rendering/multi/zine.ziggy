@@ -1,4 +1,5 @@
-.multilingual(.{
+.zine_version = "0.12.0",
+.site = .multilingual(.{
     .host_url = "https://example,.org",
     .i18n_dir_path = "i18n",
     .layouts_dir_path = "layouts",

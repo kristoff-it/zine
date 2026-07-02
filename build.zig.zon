@@ -42,8 +42,8 @@
             .hash = "flow_syntax-0.7.2-X8jOoQlmAQA3iLvWcCZZr1sYEEiBpHqi8VWqweKwwxGB",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy#416e0b4c98df0ca4405a812f13e1bdb6ac15fcd4",
-            .hash = "ziggy-0.1.0-kTg8v0ZPBwDbKlxs8R4nyCACSmMvUJ11bR6Kgfd3Wcbq",
+            .url = "git+https://github.com/kristoff-it/ziggy#35ed5530dd93590fa40e06005ec5d7747a5498d5",
+            .hash = "ziggy-0.1.0-kTg8vxOeBwCS6RxeI2quMQ7PCnCSWWB3Q-NF-JOktWrN",
         },
         .supermd = .{
             .url = "git+https://github.com/kristoff-it/supermd#9ea0a875b32b83ae706698203cdcc2ae8d800f6d",

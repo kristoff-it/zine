@@ -1,7 +1,6 @@
 ---
 .title = "First post (2024)",
-.date = .iso("2024-07-06T00:00:00"),
-.author = "Sample Author",
+.date = .date("2024-07-06T00:00:00"),
 .layout = "archive-entry.shtml",
 .draft = true,
 --- 
