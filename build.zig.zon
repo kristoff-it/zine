@@ -46,8 +46,8 @@
             .hash = "ziggy-0.1.0-kTg8vxOeBwCS6RxeI2quMQ7PCnCSWWB3Q-NF-JOktWrN",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#9ea0a875b32b83ae706698203cdcc2ae8d800f6d",
-            .hash = "supermd-0.1.0-3Mco3OydWAC-HV_75NYmwygIQuVygO4OTD2GAf84bDbq",
+            .url = "git+https://github.com/kristoff-it/supermd#cbca93e22ca8c92a8c570b649a38f57242e00635",
+            .hash = "supermd-0.1.0-3Mco3BecWABhO5BJzBZrz9lf8SeoeLpz4wQkFmJqcN7d",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/kristoff/translate-c?ref=0.17.x#c01b34d1e57010019d77ffef1dbc704af870a2eb",
