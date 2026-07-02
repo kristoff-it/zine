@@ -30,8 +30,8 @@
             .lazy = true,
         },
         .superhtml = .{
-            .url = "git+https://github.com/kristoff-it/superhtml#3e37d8b00b211ac1591766cfb0ea3efd2845bff2",
-            .hash = "superhtml-0.7.0-Y7MdPA2FJgBZCErPQ-_4Znh0o8Je1skuGxoCh4M4gRyf",
+            .url = "git+https://github.com/kristoff-it/superhtml#d4d81e1ad35f8f6c060f3cb49b60c5d54a7d012a",
+            .hash = "superhtml-0.7.0-Y7MdPDeFJgCfKkx8DFgj1qG_p2udzrqRRZrxSU6Ox6xS",
         },
         .zeit = .{
             .url = "git+https://github.com/rockorager/zeit#905396257dcf0b1bfa3c0e8265657a0e748105ad",
