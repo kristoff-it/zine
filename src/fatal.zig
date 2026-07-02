@@ -27,6 +27,7 @@ pub fn help() noreturn {
         \\Commands:
         \\  (no command)       Start the development web server
         \\  init               Initialize a Zine site in the current directory
+        \\  install-schemas    Install up-to-date Ziggy Schemas for editor support
         \\  release            Create a release of a Zine site
         \\  help               Show this menu and exit
         \\  version            Print the Zine version and exit
