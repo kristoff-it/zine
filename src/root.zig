@@ -164,6 +164,7 @@ pub const Config = struct {
     /// found. The directory is then used by other code to place the output
     /// directory unless the user overrides that location from the CLI.
     pub fn load(io: Io, arena: Allocator, search: Search) struct { Config, []const u8 } {
+        assert(search == .auto);
         const cwd_path = std.process.currentPathAlloc(io, arena) catch |err| {
             fatal.msg("error while trying to get the cwd path: {s}\n", .{
                 @errorName(err),

@@ -67,7 +67,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
         "error: unable to start debouncer: {s}",
         .{@errorName(err)},
     );
-    var cfg, const base_dir_path = root.Config.load(io, gpa, cmd.search);
+    var cfg, const base_dir_path = root.Config.load(io, gpa, .auto);
     switch (cfg.site) {
         .simple => |*s| s.host_url = try std.fmt.allocPrint(
             gpa,
@@ -298,7 +298,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
 }
 
 pub const Command = struct {
-    search: root.Config.Search,
+    // search: root.Config.Search,
     host: []const u8,
     port: u16,
     debounce: u16,
@@ -344,7 +344,7 @@ pub const Command = struct {
         gpa: Allocator,
         args: []const []const u8,
     ) error{OutOfMemory}!Command {
-        var config_path: ?[]const u8 = null;
+        // var config_path: ?[]const u8 = null;
         var host: ?[]const u8 = null;
         var port: ?u16 = null;
         var debounce: ?u16 = null;
@@ -398,15 +398,15 @@ pub const Command = struct {
                     "error: bad debounce value '{s}': {s}",
                     .{ arg, @errorName(err) },
                 );
-            } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
-                idx += 1;
-                if (idx >= args.len) fatal.msg(
-                    "error: missing argument to '{s}'",
-                    .{arg},
-                );
-                config_path = args[idx];
-            } else if (std.mem.startsWith(u8, arg, "--config=")) {
-                config_path = arg["--config=".len..];
+                // } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
+                //     idx += 1;
+                //     if (idx >= args.len) fatal.msg(
+                //         "error: missing argument to '{s}'",
+                //         .{arg},
+                //     );
+                //     config_path = args[idx];
+                // } else if (std.mem.startsWith(u8, arg, "--config=")) {
+                //     config_path = arg["--config=".len..];
             } else if (std.mem.eql(u8, arg, "-h") or
                 std.mem.eql(u8, arg, "--help"))
             {
@@ -458,7 +458,7 @@ pub const Command = struct {
         }
 
         return .{
-            .search = if (config_path) |p| .{ .path = p } else .auto,
+            // .search = if (config_path) |p| .{ .path = p } else .auto,
             .host = host orelse "localhost",
             .port = port orelse 1990,
             .debounce = debounce orelse 25,

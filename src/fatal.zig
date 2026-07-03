@@ -40,8 +40,8 @@ pub fn help() noreturn {
         \\  --host HOST        Listening host (default 'localhost')
         \\  --port PORT        Listening port (default 1990)
         \\  --debounce <ms>    Rebuild delay after a file change (default 25)
-        \\  --config, -c FILE  Use a custom config file instead of searching 
-        \\                     recursively upwards for a 'zine.ziggy' file
+        // \\  --config, -c FILE  Use a custom config file instead of searching
+        // \\                     recursively upwards for a 'zine.ziggy' file
         \\
         \\
     , .{});

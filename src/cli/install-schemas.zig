@@ -9,7 +9,8 @@ const page_schema = @embedFile("../schemas/page.ziggy-schema");
 
 pub fn install_schemas(io: Io, gpa: Allocator, args: []const []const u8) bool {
     const cmd = Command.parse(args) catch fatal.oom();
-    const cfg, const base_dir_path = root.Config.load(io, gpa, cmd.search);
+    _ = cmd;
+    const cfg, const base_dir_path = root.Config.load(io, gpa, .auto);
 
     const base_dir = Io.Dir.cwd().openDir(io, base_dir_path, .{}) catch |err| {
         fatal.dir(base_dir_path, err);
@@ -64,34 +65,34 @@ fn writeFile(io: Io, dir: Io.Dir, full_path: []const u8, bytes: []const u8) void
 }
 
 pub const Command = struct {
-    search: root.Config.Search,
+    // search: root.Config.Search,
 
     pub fn parse(args: []const []const u8) !Command {
-        var config_path: ?[]const u8 = null;
+        // var config_path: ?[]const u8 = null;
 
         const eql = std.mem.eql;
-        const startsWith = std.mem.startsWith;
+        // const startsWith = std.mem.startsWith;
         var idx: usize = 0;
         while (idx < args.len) : (idx += 1) {
             const arg = args[idx];
             if (eql(u8, arg, "-h") or eql(u8, arg, "--help")) {
                 fatal.msg(help_message, .{});
-            } else if (eql(u8, arg, "-c") or eql(u8, arg, "--config")) {
-                idx += 1;
-                if (idx >= args.len) fatal.msg(
-                    "error: missing argument to '{s}'",
-                    .{arg},
-                );
-                config_path = args[idx];
-            } else if (startsWith(u8, arg, "--config=")) {
-                config_path = arg["--config=".len..];
+                // } else if (eql(u8, arg, "-c") or eql(u8, arg, "--config")) {
+                //     idx += 1;
+                //     if (idx >= args.len) fatal.msg(
+                //         "error: missing argument to '{s}'",
+                //         .{arg},
+                //     );
+                //     config_path = args[idx];
+                // } else if (startsWith(u8, arg, "--config=")) {
+                //     config_path = arg["--config=".len..];
             } else {
                 fatal.msg("error: unexpected cli argument '{s}'\n", .{arg});
             }
         }
 
         return .{
-            .search = if (config_path) |p| .{ .path = p } else .auto,
+            // .search = if (config_path) |p| .{ .path = p } else .auto,
         };
     }
 };
@@ -103,9 +104,11 @@ const help_message =
     \\Language Server to provide schema checking, autocomplete and
     \\documentation.
     \\
+    \\https://ziggy-lang.io
+    \\
     \\Command specific options:
-    \\  --config, -c FILE  Use a custom config file instead of searching
-    \\                     recursively upwards for a 'zine.ziggy' file
+    // \\  --config, -c FILE  Use a custom config file instead of searching
+    // \\                     recursively upwards for a 'zine.ziggy' file
     \\  --help, -h         Show this help menu
     \\
     \\
