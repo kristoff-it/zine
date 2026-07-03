@@ -80,8 +80,8 @@ pub fn website(project: *std.Build, opts: Options) *std.Build.Step.Run {
     run_zine.addArg("release");
 
     if (opts.force) run_zine.addArg("--force");
-    // run_zine.addPrefixedFileArg("--output=", project.graph.path(.install_prefix, opts.output_path));
-    _ = run_zine.addPrefixedOutputDirectoryArg("--output=", opts.output_path);
+    run_zine.addPrefixedFileArg("--output=", project.graph.path(.install_prefix, opts.output_path));
+    // _ = run_zine.addPrefixedOutputDirectoryArg("--output=", opts.output_path);
 
     for (opts.build_assets) |a| {
         run_zine.addArg(project.fmt("--build-asset={s}", .{a.name}));
