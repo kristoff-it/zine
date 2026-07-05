@@ -337,12 +337,14 @@ pub fn build(b: *std.Build) !void {
     zine_mod.addImport("supermd", supermd);
     zine_mod.addImport("superhtml", superhtml);
     zine_mod.addImport("zeit", zeit);
-    zine_mod.addImport("syntax", syntax.module("syntax"));
-    zine_mod.addImport("treez", treez);
     zine_mod.addImport("options", options);
     zine_mod.addImport("tracy", tracy.module("tracy"));
     zine_mod.addImport("mime", mime.module("mime"));
     zine_mod.addImport("wuffs", wuffs.module("wuffs"));
+    if (highlight) {
+        zine_mod.addImport("syntax", syntax.module("syntax"));
+        zine_mod.addImport("treez", treez);
+    }
 
     const check = b.step("check", "check the standalone zine executable");
     check.dependOn(&zine_exe.step);
@@ -765,15 +767,20 @@ fn getVersion(b: *std.Build) Version {
     );
 
     switch (std.mem.count(u8, git_describe, "-")) {
-        0, 1 => return .{ .tag = git_describe },
+        0, 1 => {
+            if (git_describe[0] != 'v') {
+                std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
+            }
+            return .{ .tag = git_describe[1..] };
+        },
         2 => {
             // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
             var it = std.mem.splitScalar(u8, git_describe, '-');
-            _ = it.next() orelse unreachable;
+            const git_version_str = it.next() orelse unreachable;
             const commit_height = it.next() orelse unreachable;
+            _ = commit_height;
             const commit_id = it.next() orelse unreachable;
-
-            const tagged_ancestor = "0.12.0";
+            const git_version = std.SemanticVersion.parse(git_version_str[1..]) catch unreachable;
 
             // Check that the commit hash is prefixed with a 'g'
             // (it's a Git convention)
@@ -781,12 +788,20 @@ fn getVersion(b: *std.Build) Version {
                 std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
             }
 
+            const zon_version_str = @import("build.zig.zon").version;
+            var zon_version = std.SemanticVersion.parse(zon_version_str) catch unreachable;
+
+            {
+                if (zon_version.order(git_version) != .gt) {
+                    std.debug.panic("Bump up Zine version in build.zine.zon!", .{});
+                }
+            }
+
             // The version is reformatted in accordance with
             // the https://semver.org specification.
             return .{
-                .commit = b.fmt("{s}-dev.{s}+{s}", .{
-                    tagged_ancestor,
-                    commit_height,
+                .commit = b.fmt("{s}-dev+{s}", .{
+                    zon_version_str,
                     commit_id[1..],
                 }),
             };

@@ -6,7 +6,7 @@ struct Config {
     /// requires. Used by GitHub / Forgejo actions to select automatically
     /// the right version of Zine to fetch, see the 'Deploying' section of
     /// https://zine-ssg.io/docs/.
-    zine_version: ?bytes,
+    zine_version: bytes,
     /// Your website definition
     site: Site,
     /// User-defined properties that you can reference from SuperHTML via

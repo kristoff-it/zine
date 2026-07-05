@@ -4,11 +4,11 @@ const Allocator = std.mem.Allocator;
 const Io = std.Io;
 const Writer = std.Io.Writer;
 const builtin = @import("builtin");
+const options = @import("options");
 const supermd = @import("supermd");
 const superhtml = @import("superhtml");
 const ziggy = @import("ziggy");
 const tracy = @import("tracy");
-const syntax = @import("syntax");
 const root = @import("root.zig");
 const fatal = @import("fatal.zig");
 const context = @import("context.zig");
@@ -1195,11 +1195,13 @@ fn renderPageInner(
 
 // Null language evaluates to true for convenience.
 pub fn languageExists(language: ?[]const u8) bool {
-    const lang = language orelse return true;
+    if (!options.enable_treesitter) return true;
 
+    const lang = language orelse return true;
     if (std.mem.eql(u8, lang, "=html")) return true;
     if (std.mem.eql(u8, lang, "=mathtex")) return true;
 
+    const syntax = @import("syntax");
     if (syntax.FileType.get_by_name_static(lang) == null) {
         var buf: [1024]u8 = undefined;
         const filename = std.fmt.bufPrint(

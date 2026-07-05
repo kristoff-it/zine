@@ -1,6 +1,6 @@
 .{
     .name = .zine,
-    .version = "0.11.3",
+    .version = "0.12.0",
     .fingerprint = 0xa466bcb520a7eea2,
     .minimum_zig_version = "0.17.0-dev.857+2b2b85c5f",
     .dependencies = .{

@@ -153,7 +153,7 @@ pub const Site = union(enum) {
 };
 
 pub const Config = struct {
-    zine_version: ?[]const u8 = null,
+    zine_version: []const u8,
     site: Site,
     custom: ziggy.Dictionary(ziggy.Dynamic) = .empty,
 
@@ -172,7 +172,7 @@ pub const Config = struct {
         };
 
         var base_dir_path: []const u8 = cwd_path;
-        const data = switch (search) {
+        const src = switch (search) {
             .path => |p| Io.Dir.cwd().readFileAllocOptions(
                 io,
                 std.fs.path.resolve(arena, &.{ cwd_path, p }) catch fatal.oom(),
@@ -215,15 +215,16 @@ pub const Config = struct {
         };
 
         var meta: ziggy.Deserializer.Meta = .init;
-        const cfg = ziggy.deserializeLeaky(Config, arena, data, &meta, .{}) catch |err| {
+        const cfg = ziggy.deserializeLeaky(Config, arena, src, &meta, .{}) catch |err| {
             if (err == error.OutOfMemory) fatal.oom();
+            maybeOldVersion(arena, src);
             fatal.msg(
                 \\Error while loading the Zine config file:
                 \\
                 \\{f}
                 \\
                 \\
-            , .{meta.reportErrorsFmt(arena, .{}, config_file_basename, data, err)});
+            , .{meta.reportErrorsFmt(arena, .{}, config_file_basename, src, err)});
         };
 
         cfg.validate();
@@ -231,7 +232,98 @@ pub const Config = struct {
         return .{ cfg, base_dir_path };
     }
 
+    /// We failed to parse this config file the first time, so we try again
+    /// with a more permissive target and if that succeeds we look at the
+    /// version string.
+    /// On failure to parse we do not report an error, we let the original
+    /// deserialization report its errors.
+    fn maybeOldVersion(arena: Allocator, src: [:0]const u8) void {
+        var meta: ziggy.Deserializer.Meta = .init;
+        const cfg = ziggy.deserializeLeaky(
+            ziggy.Dictionary(ziggy.Dynamic),
+            arena,
+            src,
+            &meta,
+            .{},
+        ) catch |err| {
+            if (err == error.OutOfMemory) fatal.oom();
+            // caller error should take priority
+            return;
+        };
+
+        const project_version_value = cfg.fields.get("zine_version") orelse {
+            // decoding successful but unable to find zine_version
+            // caller error should take priority
+            return;
+        };
+
+        const project_version_str = switch (project_version_value) {
+            .bytes => |b| b,
+            else => {
+                // caller error should take priority
+                return;
+            },
+        };
+
+        checkVersionString(project_version_str);
+    }
+
+    /// Prints an error and exits on version mismatch.
+    fn checkVersionString(project_version_str: []const u8) void {
+        const options = @import("options");
+        const exe_version = comptime std.SemanticVersion.parse(options.version) catch unreachable;
+        const project_version = std.SemanticVersion.parse(project_version_str) catch {
+            fatal.msg("error: zine version '{s}' is not valid semver syntax", .{
+                project_version_str,
+            });
+        };
+
+        switch (exe_version.order(project_version)) {
+            .eq => return,
+            .lt => {
+                fatal.msg(
+                    \\error: site requires a newer version of zine
+                    \\|   exe version:   {s}
+                    \\|   site requires: {s}
+                    \\
+                , .{ options.version, project_version_str });
+            },
+            .gt => {
+                fatal.msg(
+                    \\error: site requires an older version of zine
+                    \\|   exe version:   {s}
+                    \\|   site requires: {s}
+                    \\|
+                    \\|   When updating a website to a newer version of Zine:
+                    \\|
+                    \\|   1. Go to https://zine-ssg.io/log/ and read about
+                    \\|      breaking changes between the old and the new
+                    \\|      version of Zine.
+                    \\|
+                    \\|   2. In 'zine.ziggy' update `.zine_version` to the
+                    \\|      new version of Zine (i.e. the output of
+                    \\|      `zine version`), and then apply all required
+                    \\|      changes to your files.
+                    \\|
+                    \\|   To ensure the upgrade does not change your
+                    \\|   website in unexpected ways run:
+                    \\|
+                    \\|     zine release -o old        (with OLD Zine)
+                    \\|     zine release -o new        (with NEW Zine)
+                    \\|     diff -ru new old
+                    \\|
+                    \\|   In the presence of unexpected changes, please
+                    \\|   open a reproducible bug report.
+                    \\
+                    \\
+                , .{ options.version, project_version_str });
+            },
+        }
+    }
+
     pub fn validate(cfg: *const Config) void {
+        checkVersionString(cfg.zine_version);
+
         switch (cfg.site) {
             .simple => |s| {
                 const u = std.Uri.parse(s.host_url) catch |err| {

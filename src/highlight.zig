@@ -4,8 +4,6 @@ const Allocator = std.mem.Allocator;
 const Io = std.Io;
 const Writer = std.Io.Writer;
 const options = @import("options");
-const syntax = @import("syntax");
-const treez = @import("treez");
 const tracy = @import("tracy");
 const HtmlSafe = @import("superhtml").HtmlSafe;
 
@@ -22,11 +20,14 @@ pub const DotsToUnderscores = struct {
     }
 };
 
-var query_cache: syntax.QueryCache = .{
+var query_cache: if (options.enable_treesitter)
+    @import("syntax").QueryCache
+else
+    void = if (options.enable_treesitter) .{
     .io = undefined,
     .allocator = @import("main.zig").gpa,
     .mutex = .init,
-};
+} else {};
 
 const ClassSet = struct {
     classes: std.StringHashMap(void),
@@ -103,18 +104,21 @@ pub fn highlightCode(
     lang_name: []const u8,
     code: []const u8,
     w: *Writer,
-) !void {
+) error{ OutOfMemory, WriteFailed, NoLanguage, Unknown }!void {
     const zone = tracy.traceNamed(@src(), "highlightCode");
     defer zone.end();
     tracy.messageCopy(lang_name);
-
-    // Horrible hack
-    query_cache.io = io;
 
     if (!options.enable_treesitter) {
         try w.print("{f}", .{HtmlSafe{ .bytes = code }});
         return;
     }
+
+    // Horrible hack
+    query_cache.io = io;
+
+    const syntax = @import("syntax");
+    const treez = @import("treez");
 
     const lang = blk: {
         const query_zone = tracy.traceNamed(@src(), "syntax");
@@ -128,7 +132,7 @@ pub fn highlightCode(
             const syntax_fallback_zone = tracy.traceNamed(@src(), "syntax fallback");
             defer syntax_fallback_zone.end();
             const fake_filename = try std.fmt.allocPrint(arena, "file.{s}", .{lang_name});
-            break :blk try syntax.create_guess_file_type_static(arena, "", fake_filename, &query_cache);
+            break :blk syntax.create_guess_file_type_static(arena, "", fake_filename, &query_cache) catch return error.NoLanguage;
         };
     };
 

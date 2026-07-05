@@ -22,7 +22,7 @@ pub fn init(io: Io, gpa: Allocator, args: []const []const u8) bool {
         },
         .{
             .path = "zine.ziggy",
-            .src = std.fmt.comptimePrint(@embedFile("init/zine.ziggy"), .{options.version[1..]}),
+            .src = std.fmt.comptimePrint(@embedFile("init/zine.ziggy"), .{options.version}),
         },
         .{
             .path = "content/.smd.ziggy-schema",
