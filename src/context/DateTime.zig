@@ -12,7 +12,7 @@ const Value = context.Value;
 const String = context.String;
 const Bool = context.Bool;
 
-const epoch = zeit.instant(.{ .unix_timestamp = 0 }, &zeit.utc);
+pub const epoch = zeit.instant(.{ .unix_timestamp = 0 }, &zeit.utc);
 
 _raw: ?Raw = null,
 _loc: ?ziggy.Tokenizer.Token.Loc = null,

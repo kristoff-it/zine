@@ -265,12 +265,12 @@ pub fn build(b: *std.Build) !void {
     switch (version) {
         .tag, .preview => {
             const zon = @import("build.zig.zon");
-            if (version == .preview or std.mem.eql(u8, zon.version, version.tag[1..])) {
+            if (version == .preview or std.mem.eql(u8, zon.version, version.tag)) {
                 setupReleaseStep(b, release, version.string(), translate_c);
             } else {
                 release.dependOn(&b.addFail(b.fmt(
                     "error: git tag does not match zon package version (zon: '{s}', git: '{s}')",
-                    .{ zon.version, version.tag[1..] },
+                    .{ zon.version, version.tag },
                 )).step);
             }
         },

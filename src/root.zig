@@ -154,6 +154,7 @@ pub const Site = union(enum) {
 
 pub const Config = struct {
     zine_version: []const u8,
+    auto_target_blank: bool = false,
     site: Site,
     custom: ziggy.Dictionary(ziggy.Dynamic) = .empty,
 
@@ -301,22 +302,33 @@ pub const Config = struct {
                     \\|      version of Zine.
                     \\|
                     \\|   2. In 'zine.ziggy' update `.zine_version` to the
-                    \\|      new version of Zine (i.e. the output of
-                    \\|      `zine version`), and then apply all required
-                    \\|      changes to your files.
+                    \\|      new value and then apply all other required
+                    \\|      changes to your files, if any.
+                    \\|
+                    \\|   3. After updating `zine.ziggy` you will be able
+                    \\|      to run `zine install-schemas` to get updated
+                    \\|      in-editor code intelligence support. Skipping
+                    \\|      this step risks having the editor provide you
+                    \\|      with misleading suggestions, so don't forget!
                     \\|
                     \\|   To ensure the upgrade does not change your
                     \\|   website in unexpected ways run:
                     \\|
                     \\|     zine release -o old        (with OLD Zine)
                     \\|     zine release -o new        (with NEW Zine)
-                    \\|     diff -ru new old
+                    \\|     {s}
                     \\|
                     \\|   In the presence of unexpected changes, please
                     \\|   open a reproducible bug report.
                     \\
                     \\
-                , .{ options.version, project_version_str });
+                , .{
+                    options.version, project_version_str,
+                    if (builtin.target.os.tag == .windows)
+                        "git diff --no-index new old"
+                    else
+                        "diff -ru new old",
+                });
             },
         }
     }
@@ -877,7 +889,7 @@ pub fn run(
     // having its own waitgroup.
     for (build.variants) |*v| {
         for (v.sections.items[1..]) |*s| {
-            s.sortPages(v, v.pages.items);
+            s.indexAndSortPages(gpa, arena, v, v.pages.items);
         }
     }
 

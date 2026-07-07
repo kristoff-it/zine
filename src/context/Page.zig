@@ -328,7 +328,7 @@ pub const FrontmatterAnalysisError = union(enum) {
 };
 
 pub fn deinit(p: *const Page, gpa: Allocator) void {
-    if (p._parse.active) p._parse.arena.promote(gpa).deinit();
+    p._parse.arena.promote(gpa).deinit();
 }
 
 pub fn parse(
@@ -378,14 +378,18 @@ pub fn parse(
 
     const trimmed_left = std.mem.trimStart(u8, full_src, &std.ascii.whitespace);
     if (std.mem.trimEnd(u8, trimmed_left, &std.ascii.whitespace).len == 0) {
-        p._parse = .{
-            .active = false,
-            .arena = arena_state.state,
-            .full_src = full_src,
-            .status = .empty,
-            .ziggy_start = undefined,
-            .ziggy_doc = undefined,
-            .ast = undefined,
+        p.* = .{
+            .date = .{ ._raw = .{ .unix = 0 } },
+            .layout = "",
+            ._parse = .{
+                .active = false,
+                .arena = arena_state.state,
+                .full_src = full_src,
+                .status = .empty,
+                .ziggy_start = undefined,
+                .ziggy_doc = undefined,
+                .ast = undefined,
+            },
         };
         return;
     }
@@ -401,14 +405,18 @@ pub fn parse(
 
     const ziggy_start = (std.mem.indexOf(u8, full_src, "---") orelse {
         // missing frontmatter
-        p._parse = .{
-            .active = true,
-            .arena = arena_state.state,
-            .full_src = full_src,
-            .status = .{ .no_frontmatter = @intCast(full_src.len - trimmed_left.len) },
-            .ziggy_start = undefined,
-            .ziggy_doc = undefined,
-            .ast = undefined,
+        p.* = .{
+            .date = .{ ._raw = .{ .unix = 0 } },
+            .layout = "",
+            ._parse = .{
+                .active = true,
+                .arena = arena_state.state,
+                .full_src = full_src,
+                .status = .{ .no_frontmatter = @intCast(full_src.len - trimmed_left.len) },
+                .ziggy_start = undefined,
+                .ziggy_doc = undefined,
+                .ast = undefined,
+            },
         };
         return;
     }) + "---".len;
@@ -418,14 +426,18 @@ pub fn parse(
     p.* = ziggy.deserializeLeaky(Page, arena, full_src, &meta, opts) catch |err| switch (err) {
         error.OutOfMemory, error.Overflow => fatal.oom(),
         else => {
-            p._parse = .{
-                .active = true,
-                .arena = arena_state.state,
-                .full_src = full_src,
-                .ziggy_start = @intCast(ziggy_start),
-                .ziggy_doc = undefined,
-                .status = .{ .ziggy = .{ .code = err, .meta = meta, .opts = opts } },
-                .ast = undefined,
+            p.* = .{
+                .date = .{ ._raw = .{ .unix = 0 } },
+                .layout = "",
+                ._parse = .{
+                    .active = true,
+                    .arena = arena_state.state,
+                    .full_src = full_src,
+                    .ziggy_start = @intCast(ziggy_start),
+                    .ziggy_doc = undefined,
+                    .status = .{ .ziggy = .{ .code = err, .meta = meta, .opts = opts } },
+                    .ast = undefined,
+                },
             };
             return;
         },
@@ -613,15 +625,7 @@ pub const docs_description =
 ;
 pub const Fields = struct {
     pub const title =
-        \\Title of the page, 
-        \\as set in the SuperMD frontmatter.
-    ;
-    pub const description =
-        \\Description of the page, 
-        \\as set in the SuperMD frontmatter.
-    ;
-    pub const author =
-        \\Author of the page, 
+        \\Title of the page,
         \\as set in the SuperMD frontmatter.
     ;
     pub const date =
@@ -630,16 +634,20 @@ pub const Fields = struct {
         \\
         \\Used to provide default ordering of pages.
     ;
-    pub const layout =
-        \\SuperHTML layout used to render the page, 
+    pub const description =
+        \\Description of the page,
         \\as set in the SuperMD frontmatter.
     ;
-    pub const draft =
-        \\When set to true the page will not be rendered in release mode, 
+    pub const authors =
+        \\Authors of the page,
         \\as set in the SuperMD frontmatter.
     ;
     pub const tags =
         \\Tags associated with the page, 
+        \\as set in the SuperMD frontmatter.
+    ;
+    pub const layout =
+        \\SuperHTML layout used to render the page, 
         \\as set in the SuperMD frontmatter.
     ;
     pub const aliases =
@@ -670,11 +678,16 @@ pub const Fields = struct {
         \\
         \\See the docs on i18n for more info.
     ;
+    pub const draft =
+        \\When set to true the page will not be rendered in release mode, 
+        \\as set in the SuperMD frontmatter.
+    ;
     pub const custom =
         \\A Ziggy map where you can define custom properties for the page, 
         \\as set in the SuperMD frontmatter.
     ;
 };
+
 pub const Builtins = struct {
     pub const isCurrent = struct {
         pub const signature: Signature = .{ .ret = .Bool };
@@ -1145,6 +1158,75 @@ pub const Builtins = struct {
         }
     };
 
+    pub const leaves = struct {
+        pub const signature: Signature = .{
+            .params = &.{.{ .Opt = .String }},
+            .ret = .{ .Many = .Page },
+        };
+        pub const docs_description =
+            \\Returns a (flat) list of all **non-section** pages (i.e. leaf
+            \\pages) in the subtree of the current section. Returns an
+            \\error when called on a non-section page.
+            \\
+            \\Sections are defined by `index.smd` files, see the content 
+            \\structure section in the official docs for more info.
+            \\
+            \\Accepts an optional argument to limit the number of pages
+            \\to iterate on. 
+        ;
+        pub const examples =
+            \\<div :loop="$page.leaves()">
+            \\  <span :text="$loop.it.title"></span>
+            \\</div>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            const bad_args: Value = .{ .err = "expected up to 1 non-negative numeric argument" };
+            if (args.len > 1) return bad_args;
+
+            const limit: u32 = if (args.len == 0) std.math.maxInt(u32) else switch (args[0]) {
+                .int => |i| if (i.value < 0) return bad_args else @intCast(i.value),
+                else => return bad_args,
+            };
+
+            const subsection_id = p._scan.subsection_id;
+            if (subsection_id == 0) return context.Array.Empty;
+
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+            const s = v.sections.items[p._scan.subsection_id];
+
+            var len: usize = 0;
+            var cursor: usize = 0;
+            var sections: std.ArrayList(context.Iterator.LeavesIterator.Section) = .empty;
+            try sections.append(gpa, .{ .page_indexes = s.pages.items });
+
+            while (cursor < sections.items.len) : (cursor += 1) {
+                for (sections.items[cursor].page_indexes) |pidx| {
+                    const page = &v.pages.items[pidx];
+                    if (!page._parse.active) continue;
+                    if (page._scan.subsection_id == 0) {
+                        len += 1;
+                        continue;
+                    }
+
+                    try sections.append(gpa, .{
+                        .page_indexes = v.sections.items[page._scan.subsection_id].pages.items,
+                    });
+                }
+            }
+
+            return .{
+                .iterator = try context.Iterator.init(gpa, .{
+                    .leaves_it = .init(@min(limit, len), sections.items, v.pages.items),
+                }),
+            };
+        }
+    };
+
     pub const subpages = struct {
         pub const signature: Signature = .{ .ret = .{ .Many = .Page } };
         pub const docs_description =
@@ -1228,6 +1310,148 @@ pub const Builtins = struct {
                     return std.mem.lessThan(u8, lhs.page.title, rhs.page.title);
                 }
             }.alphaLessThan);
+
+            return context.Array.init(gpa, Value, pages);
+        }
+    };
+
+    pub const subpagesByAuthor = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .{ .Many = .Page },
+        };
+        pub const docs_description =
+            \\Retrieve subpages of this section page that have in their
+            \\`authors` field the provided string. Returns an error when
+            \\called on a non-section page.
+            \\
+            \\Sections are defined by `index.smd` files, see the content
+            \\structure section in the official docs for more info.
+            \\
+            \\Search is performed using an index and will not impact build
+            \\performance.
+            \\
+            \\If you want to attach extra information to an author, use the
+            \\argument string as a key to a custom dictionary field or
+            \\another page. For example 'loris-cro' can be used so:
+            \\
+            \\ - `$page.custom.get('loris-cro').get('name')`
+            \\ - `$site.page('speakers', 'loris-cro').title`
+            \\
+            \\The latter case is a common technique for structuring sites
+            \\that collect talks, books, etc.
+        ;
+
+        pub const examples =
+            \\<div :loop="$site.page('talks').subpagesByAuthor('loris-cro')">
+            \\  <span :text="$loop.it.title"></span>
+            \\</div>
+        ;
+
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            const bad_args: Value = .{ .err = "expected 1 string argument" };
+
+            if (args.len != 1) return bad_args;
+            const author = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_args,
+            };
+
+            const subsection_id = p._scan.subsection_id;
+            if (subsection_id == 0) return Value.errFmt(gpa, "page '{f}' is not a section", .{
+                p._scan.url.fmt(&ctx._meta.build.st, &ctx._meta.build.pt, "", false),
+            });
+
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+            const s = v.sections.items[p._scan.subsection_id];
+
+            const entry = s.pages_by_author.get(author) orelse {
+                return context.Array.Empty;
+            };
+
+            assert(entry.len != 0);
+
+            const pages = try gpa.alloc(Value, entry.len);
+
+            for (entry, pages) |pidx, *value| {
+                value.* = .{ .page = &v.pages.items[pidx] };
+            }
+
+            return context.Array.init(gpa, Value, pages);
+        }
+    };
+
+    pub const subpagesByTag = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .{ .Many = .Page },
+        };
+        pub const docs_description =
+            \\Retrieve subpages of this section page that have in their
+            \\`tags` field the provided string. Returns an error when
+            \\called on a non-section page.
+            \\
+            \\Sections are defined by `index.smd` files, see the content
+            \\structure section in the official docs for more info.
+            \\
+            \\Search is performed using an index and will not impact build
+            \\performance.
+            \\
+            \\If you want to attach extra information to a tag, use the
+            \\argument string as a key to a custom dictionary field or
+            \\another page. For example 'adventure' can be used so:
+            \\
+            \\  - `$page.custom.get('adventure').get('description')`
+            \\  - `$site.page('tags', 'adventure').description`
+            \\
+            \\The latter case is a common technique for structuring sites
+            \\that collect movies, books, etc.
+        ;
+
+        pub const examples =
+            \\<div :loop="$site.page('movies').subpagesByTag('adventure')">
+            \\  <span :text="$loop.it.title"></span>
+            \\</div>
+        ;
+
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            const bad_args: Value = .{ .err = "expected 1 string argument" };
+
+            if (args.len != 1) return bad_args;
+            const author = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_args,
+            };
+
+            const subsection_id = p._scan.subsection_id;
+            if (subsection_id == 0) return Value.errFmt(gpa, "page '{f}' is not a section", .{
+                p._scan.url.fmt(&ctx._meta.build.st, &ctx._meta.build.pt, "", false),
+            });
+
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+            const s = v.sections.items[p._scan.subsection_id];
+
+            const entry = s.pages_by_tag.get(author) orelse {
+                return context.Array.Empty;
+            };
+
+            assert(entry.len != 0);
+
+            const pages = try gpa.alloc(Value, entry.len);
+
+            for (entry, pages) |pidx, *value| {
+                value.* = .{ .page = &v.pages.items[pidx] };
+            }
 
             return context.Array.init(gpa, Value, pages);
         }

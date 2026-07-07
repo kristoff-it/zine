@@ -105,12 +105,22 @@ pub const Section = struct {
     content_sub_path: Path,
     parent_section: u32, // index into sections, 0 = no parent section
     index: u32, // index into pages
-    pages: std.ArrayListUnmanaged(u32) = .empty, // indices into pages
+    pages: std.ArrayList(u32) = .empty, // indices into pages
+    pages_by_author: std.StringHashMapUnmanaged([]const u32) = .empty, // indices into pages
+    pages_by_tag: std.StringHashMapUnmanaged([]const u32) = .empty, // indices into pages
 
     pub fn deinit(s: *const Section, gpa: Allocator) void {
+        var p = s.pages;
+        p.deinit(gpa);
         {
-            var p = s.pages;
-            p.deinit(gpa);
+            var it = s.pages_by_author.iterator();
+            while (it.next()) |entry| gpa.free(entry.value_ptr.*);
+            @constCast(s).pages_by_author.deinit(gpa);
+        }
+        {
+            var it = s.pages_by_tag.iterator();
+            while (it.next()) |entry| gpa.free(entry.value_ptr.*);
+            @constCast(s).pages_by_tag.deinit(gpa);
         }
     }
 
@@ -129,8 +139,10 @@ pub const Section = struct {
         s.active = index._parse.active;
     }
 
-    pub fn sortPages(
+    pub fn indexAndSortPages(
         s: *Section,
+        gpa: Allocator,
+        arena: Allocator,
         v: *Variant,
         pages: []Page,
     ) void {
@@ -167,7 +179,39 @@ pub const Section = struct {
         };
 
         const ctx: Ctx = .{ .pages = pages, .v = v };
-        std.sort.insertion(u32, s.pages.items, ctx, Ctx.lessThan);
+        std.sort.pdq(u32, s.pages.items, ctx, Ctx.lessThan);
+
+        var author_temp: std.StringArrayHashMapUnmanaged(std.ArrayList(u32)) = .empty;
+        var tag_temp: std.StringArrayHashMapUnmanaged(std.ArrayList(u32)) = .empty;
+        for (s.pages.items) |idx| {
+            const p = pages[idx];
+            if (!p._parse.active) continue;
+
+            // TODO: report errors when a page has the same author listed twice
+            for (p.authors) |key| {
+                const gop = author_temp.getOrPut(arena, key) catch fatal.oom();
+                if (!gop.found_existing) gop.value_ptr.* = .empty;
+                gop.value_ptr.append(gpa, idx) catch fatal.oom();
+            }
+
+            // TODO: report errors when a page has the same tag listed twice
+            for (p.tags) |key| {
+                const gop = tag_temp.getOrPut(arena, key) catch fatal.oom();
+                if (!gop.found_existing) gop.value_ptr.* = .empty;
+                gop.value_ptr.append(gpa, idx) catch fatal.oom();
+            }
+        }
+
+        s.pages_by_author.ensureTotalCapacity(gpa, @intCast(author_temp.count())) catch fatal.oom();
+        s.pages_by_tag.ensureTotalCapacity(gpa, @intCast(tag_temp.count())) catch fatal.oom();
+
+        for (author_temp.keys(), author_temp.values()) |key, *val| {
+            s.pages_by_author.putAssumeCapacityNoClobber(key, val.toOwnedSlice(gpa) catch fatal.oom());
+        }
+
+        for (tag_temp.keys(), tag_temp.values()) |key, *val| {
+            s.pages_by_tag.putAssumeCapacityNoClobber(key, val.toOwnedSlice(gpa) catch fatal.oom());
+        }
     }
 };
 

@@ -38,16 +38,16 @@
             .hash = "zeit-0.10.0-dev-5I6bk3m9AgB8Ndev81pibV70MJe9VCOXAGZBNU833c4Y",
         },
         .flow_syntax = .{
-            .url = "git+https://github.com/neurocyte/flow-syntax#65e76b959b9ac7c2aab8aba0d7decc5a3f04e4e1",
-            .hash = "flow_syntax-0.7.2-X8jOoQlmAQA3iLvWcCZZr1sYEEiBpHqi8VWqweKwwxGB",
+            .url = "git+https://github.com/kristoff-it/flow-syntax#b42c3e985215e88a8faa260cbf7eb248822c339c",
+            .hash = "flow_syntax-0.7.2-X8jOoSuMAQBanH2g5oW4BQmkW6s5AdfrRUE2byWrMVKp",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy#35ed5530dd93590fa40e06005ec5d7747a5498d5",
+            .url = "git+https://github.com/kristoff-it/ziggy#7b81a7f1c9e6b22aacd7060b17bb6b7142878cd8",
             .hash = "ziggy-0.1.0-kTg8vxOeBwCS6RxeI2quMQ7PCnCSWWB3Q-NF-JOktWrN",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#cbca93e22ca8c92a8c570b649a38f57242e00635",
-            .hash = "supermd-0.1.0-3Mco3BecWABhO5BJzBZrz9lf8SeoeLpz4wQkFmJqcN7d",
+            .url = "git+https://github.com/kristoff-it/supermd#70e34739939e927dcef97288b57d30b24d221497",
+            .hash = "supermd-0.1.0-3Mco3GGbWACu_iiyO6xjVV1ViSYFACf2f_TIwjjJmEw9",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/kristoff/translate-c?ref=0.17.x#c01b34d1e57010019d77ffef1dbc704af870a2eb",

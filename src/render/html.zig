@@ -562,7 +562,10 @@ fn renderDirective(
                 if (lnk.ref) |r| try w.print("#{s}", .{r});
                 try w.writeAll("\"");
 
-                if (lnk.new) |n| if (n) try w.writeAll(" target=\"_blank\"");
+                if (lnk.new orelse ctx._meta.build.cfg.auto_target_blank) {
+                    try w.writeAll(" target=\"_blank\"");
+                }
+
                 try w.writeAll(">");
             },
             .exit => try w.writeAll("</a>"),

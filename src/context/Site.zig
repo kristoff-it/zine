@@ -2,7 +2,8 @@ const Site = @This();
 
 const std = @import("std");
 const log = std.log.scoped(.scripty);
-const Writer = std.Io.Writer;
+const Io = std.Io;
+const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
 
 const scripty = @import("scripty");
@@ -209,22 +210,37 @@ pub const Builtins = struct {
 
     pub const page = struct {
         pub const signature: Signature = .{
-            .params = &.{.String},
+            .params = &.{
+                .String,
+                .{ .Many = .String },
+            },
             .ret = .Page,
         };
         pub const docs_description =
             \\Finds a page by path.
             \\
-            \\Paths are relative to the content directory and should exclude
-            \\the markdown suffix as Zine will automatically infer which file
-            \\naming convention is used by the target page. 
+            \\Paths are relative to the content directory and should
+            \\exclude the markdown suffix as Zine will automatically infer
+            \\which file naming convention is used by the target page.
             \\
             \\For example, the value 'foo/bar' will be automatically
             \\matched by Zine with either:
+            \\
             \\ - content/foo/bar.smd
             \\ - content/foo/bar/index.smd
             \\
             \\To reference the site homepage, pass an empty string.
+            \\
+            \\You can pass multiple arguments to compose a path, meaning
+            \\that the two following invocations are equivalent:
+            \\
+            \\ - `$site.page('foo/bar/baz')`
+            \\ - `$site.page('foo', 'bar/baz')`
+            \\
+            \\This can be useful when part of your path is fixed while
+            \\part is parametrized:
+            \\
+            \\ - `$site.page('speakers', $page.authors.at(0))`
         ;
         pub const examples =
             \\<a href="$site.page('downloads').link()">Downloads</a>
@@ -236,14 +252,31 @@ pub const Builtins = struct {
             args: []const Value,
         ) context.CallError!Value {
             const bad_arg: Value = .{
-                .err = "expected 1 string argument",
+                .err = "expected 1 or more string arguments",
             };
-            if (args.len != 1) return bad_arg;
+            if (args.len < 1) return bad_arg;
 
-            const ref = switch (args[0]) {
-                .string => |s| s.value,
+            var path_buf: Io.Writer.Allocating = .init(gpa);
+            defer path_buf.deinit();
+
+            for (args) |arg| switch (arg) {
+                .string => |s| {
+                    if (s.value.len == 0) continue;
+                    const str = if (s.value[s.value.len - 1] == '/')
+                        s.value[0 .. s.value.len - 1]
+                    else
+                        s.value;
+
+                    if (path_buf.written().len > 0) {
+                        path_buf.writer.writeByte('/') catch return error.OutOfMemory;
+                    }
+
+                    path_buf.writer.writeAll(str) catch return error.OutOfMemory;
+                },
                 else => return bad_arg,
             };
+
+            const ref = path_buf.written();
 
             if (root.validatePathMessage(ref, .{ .empty = true })) |msg| return .{
                 .err = msg,
@@ -287,20 +320,12 @@ pub const Builtins = struct {
 
     pub const pages = struct {
         pub const signature: Signature = .{
-            .params = &.{.{ .Many = .String }},
             .ret = .{ .Many = .Page },
         };
         pub const docs_description =
-            \\Same as `page`, but accepts a variable number of page references and 
-            \\loops over them in the provided order. All pages must exist.
-            \\
-            \\Calling this function with no arguments will loop over all pages
-            \\of the site.
-            \\
-            \\To be used in conjunction with a `loop` attribute.
+            \\Returns all pages in the website, to be used in conjunction with a `loop` attribute.
         ;
         pub const examples =
-            \\<ul :loop="$site.pages('a', 'b', 'c')"><li :text="$loop.it.title"></li></ul>
             \\<ul :loop="$site.pages()"><li :text="$loop.it.title"></li></ul>
         ;
         pub fn call(
@@ -311,66 +336,24 @@ pub const Builtins = struct {
         ) context.CallError!Value {
             const v = &ctx._meta.build.variants[site._meta.variant_id];
 
-            if (args.len == 0) {
-                const page_list = try gpa.alloc(Value, v.pages.items.len);
-                errdefer gpa.free(page_list);
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
 
-                var idx: usize = 0;
-                if (v.root_index) |rid| {
-                    page_list[0] = .{ .page = &v.pages.items[rid] };
-                    idx += 1;
-                }
-                for (v.sections.items[1..]) |*s| {
-                    for (s.pages.items) |pid| {
-                        page_list[idx] = .{ .page = &v.pages.items[pid] };
-                        idx += 1;
-                    }
-                }
-
-                std.debug.assert(idx == page_list.len);
-
-                return context.Array.init(gpa, Value, page_list);
-            }
-
-            const page_list = try gpa.alloc(Value, args.len);
+            const page_list = try gpa.alloc(Value, v.pages.items.len);
             errdefer gpa.free(page_list);
 
-            for (page_list, args) |*p, arg| {
-                const ref = switch (arg) {
-                    .string => |s| s.value,
-                    else => return .{ .err = "not a string argument" },
-                };
-
-                const path = v.path_table.getPathNoName(
-                    &v.string_table,
-                    &.{},
-                    ref,
-                ) orelse return Value.errFmt(gpa, "page '{s}' does not exist", .{
-                    ref,
-                });
-
-                const index_html: StringTable.String = @enumFromInt(11);
-                const hint = v.urls.get(.{
-                    .path = path,
-                    .name = index_html,
-                }) orelse return Value.errFmt(gpa, "page '{s}' does not exist", .{
-                    ref,
-                });
-
-                switch (hint.kind) {
-                    .page_main => {},
-                    else => return Value.errFmt(gpa, "page '{s}' does not exist", .{
-                        ref,
-                    }),
-                }
-
-                p.* = .{ .page = &v.pages.items[hint.id] };
-                if (!p.page._parse.active) return Value.errFmt(
-                    gpa,
-                    "page '{s}' is a draft",
-                    .{ref},
-                );
+            var idx: usize = 0;
+            if (v.root_index) |rid| {
+                page_list[0] = .{ .page = &v.pages.items[rid] };
+                idx += 1;
             }
+            for (v.sections.items[1..]) |*s| {
+                for (s.pages.items) |pid| {
+                    page_list[idx] = .{ .page = &v.pages.items[pid] };
+                    idx += 1;
+                }
+            }
+
+            std.debug.assert(idx == page_list.len);
 
             return context.Array.init(gpa, Value, page_list);
         }
