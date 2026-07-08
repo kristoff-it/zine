@@ -1,4 +1,4 @@
-.zine_version = "0.12.0",
+.zine_version = "0.12.1-dev",
 .site = .multilingual(.{
     .host_url = "https://example,.org",
     .i18n_dir_path = "i18n",
