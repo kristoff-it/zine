@@ -1,3 +1,4 @@
+const zon = @import("build.zig.zon");
 const std = @import("std");
 const Io = std.Io;
 
@@ -70,6 +71,7 @@ pub fn website(project: *std.Build, opts: Options) *std.Build.Step.Run {
     const zine_dep = project.dependencyFromBuildZig(@This(), .{
         .optimize = opts.debug.optimize,
         .scope = opts.debug.scopes,
+        .@"no-git-version" = true,
     });
 
     const run_zine = switch (opts.zine) {
@@ -112,6 +114,7 @@ pub fn serve(project: *std.Build, opts: Options) *std.Build.Step.Run {
     const zine_dep = project.dependencyFromBuildZig(@This(), .{
         .optimize = opts.debug.optimize,
         .scope = opts.debug.scopes,
+        .@"no-git-version" = true,
     });
 
     const run_zine = switch (opts.zine) {
@@ -147,13 +150,19 @@ pub fn build(b: *std.Build) !void {
         // .preferred_optimize_mode = .ReleaseFast,
     });
 
-    const version: Version = if (b.option(
+    const no_git_version = b.option(
         bool,
-        "preview",
-        "Make a preview release of Zine",
-    ) orelse false) .{
-        .preview = getVersion(b).commit,
-    } else getVersion(b);
+        "no-git-version",
+        "Disable git version detection, useful when using Zine as a dependency",
+    ) orelse false;
+
+    const version = b.option(
+        []const u8,
+        "version",
+        "Override the Zine version, use with care!",
+    ) orelse getVersion(b, no_git_version);
+
+    const preview = b.option(bool, "preview", "Allow creating release builds of a '-dev' version") orelse false;
 
     const tsan = b.option(
         bool,
@@ -212,7 +221,7 @@ pub fn build(b: *std.Build) !void {
             \\pub const version = "{s}";
             \\pub const log_scope_levels: []const std.log.ScopeLevel = &.{{
             \\
-        , .{ tsan, highlight, version.string() });
+        , .{ tsan, highlight, version });
 
         for (scopes) |l| try options.contents.print(b.allocator,
             \\.{{.scope = .{f}, .level = .debug}},
@@ -262,23 +271,13 @@ pub fn build(b: *std.Build) !void {
     });
 
     const release = b.step("release", "Create release builds of Zine");
-    switch (version) {
-        .tag, .preview => {
-            const zon = @import("build.zig.zon");
-            if (version == .preview or std.mem.eql(u8, zon.version, version.tag)) {
-                setupReleaseStep(b, release, version.string(), translate_c);
-            } else {
-                release.dependOn(&b.addFail(b.fmt(
-                    "error: git tag does not match zon package version (zon: '{s}', git: '{s}')",
-                    .{ zon.version, version.tag },
-                )).step);
-            }
-        },
-        .commit, .unknown => {
-            release.dependOn(&b.addFail(
-                "error: git tag missing, cannot make release builds",
-            ).step);
-        },
+    if (!preview and (std.mem.indexOf(u8, version, "dev") != null)) {
+        release.dependOn(&b.addFail(b.fmt(
+            "error: cannot build release of dev version ({s}), use -Dpreview to override",
+            .{version},
+        )).step);
+    } else {
+        setupReleaseStep(b, release, version, translate_c);
     }
 
     const shtml_docgen = b.addExecutable(.{
@@ -736,24 +735,17 @@ fn setupReleaseStep(
     }
 }
 
-const Version = union(Kind) {
-    tag: []const u8,
-    preview: []const u8,
-    commit: []const u8,
-    // not in a git repo
-    unknown,
+fn getVersion(b: *std.Build, no_git_version: bool) []const u8 {
+    if (no_git_version) return b.fmt("{s}-dev", .{
+        zon.version,
+    });
 
-    pub const Kind = enum { tag, preview, commit, unknown };
-
-    pub fn string(v: Version) []const u8 {
-        return switch (v) {
-            .tag, .commit, .preview => |tc| tc,
-            .unknown => "unknown",
-        };
-    }
-};
-fn getVersion(b: *std.Build) Version {
-    const git_path = b.findProgram(.{ .names = &.{"git"} }) orelse return .unknown;
+    const git_path = b.findProgram(.{ .names = &.{"git"} }) orelse {
+        std.debug.panic(
+            "unable to find git, use -Dno-git-version to disable git-based Zine version detection",
+            .{},
+        );
+    };
     var out: u8 = undefined;
     const git_describe = std.mem.trim(
         u8,
@@ -762,7 +754,7 @@ fn getVersion(b: *std.Build) Version {
             b.root.root_dir.path.?, "describe",
             "--match",              "*.*.*",
             "--tags",
-        }, &out, .ignore) catch return .unknown,
+        }, &out, .ignore) catch unreachable,
         " \n\r",
     );
 
@@ -771,7 +763,7 @@ fn getVersion(b: *std.Build) Version {
             if (git_describe[0] != 'v') {
                 std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
             }
-            return .{ .tag = git_describe[1..] };
+            return git_describe[1..];
         },
         2 => {
             // Untagged development build (e.g. 0.8.0-684-gbbe2cca1a).
@@ -780,31 +772,26 @@ fn getVersion(b: *std.Build) Version {
             const commit_height = it.next() orelse unreachable;
             _ = commit_height;
             const commit_id = it.next() orelse unreachable;
-            const git_version = std.SemanticVersion.parse(git_version_str[1..]) catch unreachable;
+            const git_version = std.SemanticVersion.parse(git_version_str[1..]) catch
+                std.SemanticVersion.parse("0.0.1") catch unreachable;
 
-            // Check that the commit hash is prefixed with a 'g'
-            // (it's a Git convention)
-            if (commit_id.len < 1 or commit_id[0] != 'g') {
-                std.debug.panic("Unexpected `git describe` output: {s}\n", .{git_describe});
-            }
-
-            const zon_version_str = @import("build.zig.zon").version;
-            var zon_version = std.SemanticVersion.parse(zon_version_str) catch unreachable;
+            var zon_version = std.SemanticVersion.parse(zon.version) catch unreachable;
 
             {
                 if (zon_version.order(git_version) != .gt) {
-                    std.debug.panic("Bump up Zine version in build.zine.zon!", .{});
+                    std.debug.panic(
+                        "zine maintainers: bump up zine version to '{s}-dev' in build.zig.zon!",
+                        .{zon.version},
+                    );
                 }
             }
 
             // The version is reformatted in accordance with
             // the https://semver.org specification.
-            return .{
-                .commit = b.fmt("{s}-dev+{s}", .{
-                    zon_version_str,
-                    commit_id[1..],
-                }),
-            };
+            return b.fmt("{s}-dev+{s}", .{
+                zon.version,
+                commit_id[1..],
+            });
         },
         else => unreachable,
     }
