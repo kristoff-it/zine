@@ -1904,19 +1904,8 @@ fn printSuperMdErrors(
             break :blk h;
         } else "";
 
-        const msg = switch (err.kind) {
-            .scripty => |s| s.err,
-            else => "",
-        };
-
-        const tag_name = switch (err.kind) {
-            .html => |h| switch (h.tag) {
-                inline else => |_, t| @tagName(t),
-            },
-            else => @tagName(err.kind),
-        };
         std.debug.print(
-            \\{f}:{}:{}: [{s}] {s}
+            \\{f}:{}:{}: {f}
             \\|    {s}
             \\|    {s}
             \\
@@ -1924,8 +1913,7 @@ fn printSuperMdErrors(
             file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
             fm_lines + range.start.row,
             range.start.col,
-            tag_name,
-            msg,
+            fmtSuperMdError(err.kind),
             line_trim,
             highlight,
         });
@@ -1945,7 +1933,7 @@ fn printSuperMdErrors(
             build.mode.memory.errors.append(gpa, .{
                 .ref = "",
                 .msg = std.fmt.allocPrint(gpa,
-                    \\{f}:{}:{}: [{s}] {s}
+                    \\{f}:{}:{}: {f}
                     \\|    {s}
                     \\|    {s}
                     \\
@@ -1954,14 +1942,30 @@ fn printSuperMdErrors(
                     file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
                     fm_lines + range.start.row,
                     range.start.col,
-                    tag_name,
-                    msg,
+                    fmtSuperMdError(err.kind),
                     line_trim,
                     highlight,
                 }) catch fatal.oom(),
             }) catch fatal.oom();
         }
     }
+}
+
+const FormatSuperMdError = struct {
+    kind: supermd.Ast.Error.Kind,
+
+    pub fn format(err: FormatSuperMdError, w: *Io.Writer) Io.Writer.Error!void {
+        try w.print("[{t}]", .{err.kind});
+        switch (err.kind) {
+            .scripty => |s| try w.print(" {s}", .{s.err}),
+            .html => |h| try w.print(" {f}", .{h.tag.fmt("html")}),
+            else => {},
+        }
+    }
+};
+
+fn fmtSuperMdError(kind: supermd.Ast.Error.Kind) FormatSuperMdError {
+    return .{ .kind = kind };
 }
 
 pub fn fmtJoin(sep: u8, paths: []const []const u8) FormatJoin {
