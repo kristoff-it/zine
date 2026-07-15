@@ -857,6 +857,7 @@ pub fn run(
                 try sites.putNoClobber(gpa, "", .{
                     .host_url = s.host_url,
                     .title = s.title,
+                    .custom = cfg.custom,
                     ._meta = .{
                         .variant_id = 0,
                         .kind = .{ .simple = s.url_path_prefix orelse "" },
@@ -868,6 +869,7 @@ pub fn run(
                 for (ml.locales, 0..) |loc, idx| sites.putAssumeCapacityNoClobber(loc.code, .{
                     .host_url = loc.host_url_override orelse ml.host_url,
                     .title = loc.site_title,
+                    .custom = cfg.custom,
                     ._meta = .{
                         .variant_id = @intCast(idx),
                         .kind = .{

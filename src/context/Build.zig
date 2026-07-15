@@ -13,6 +13,7 @@ const uninitialized = utils.uninitialized;
 pub const Dot = true;
 pub const PassByRef = true;
 
+development: bool,
 generated: context.DateTime,
 _git_data_path: []const u8,
 _git: context.Git,
@@ -34,6 +35,11 @@ pub const docs_description =
 ;
 
 pub const Fields = struct {
+    pub const development =
+        \\True when the site is being served by the Zine live development
+        \\webserver.
+    ;
+
     pub const generated =
         \\Returns the current date when the build is taking place.
         \\

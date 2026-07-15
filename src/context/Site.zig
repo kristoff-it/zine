@@ -23,7 +23,7 @@ const Signature = @import("doctypes.zig").Signature;
 
 host_url: []const u8,
 title: []const u8,
-custom: ziggy.Dictionary(ziggy.Dynamic) = .empty,
+custom: ziggy.Dictionary(ziggy.Dynamic),
 _meta: struct {
     variant_id: u32,
     kind: union(enum) {

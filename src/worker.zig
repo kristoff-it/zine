@@ -950,15 +950,6 @@ fn renderPageInner(
     const p = progress.start(progress_name, 0);
     defer p.end();
 
-    // page._meta = .{
-    //     // .is_root = true,
-    //     .src = page._parse.full_src[page._parse.fm.offset..],
-    //     .ast = page._parse.ast,
-    //     .word_count = @intCast(page._parse.full_src[page._parse.fm.offset..].len / 6),
-    //     // .index_in_section = 0,
-    //     // .parent_section_path = "",
-    // };
-
     var ctx: context.Root = .{
         .site = &sites.entries.items(.value)[variant_id],
         .page = page,
@@ -972,6 +963,7 @@ fn renderPageInner(
     };
 
     ctx.build.generated = .initNow(io);
+    ctx.build.development = build.mode == .memory;
 
     const layout_path = switch (kind) {
         .main => page.layout,
