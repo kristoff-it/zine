@@ -284,16 +284,16 @@ pub const Config = struct {
             .lt => {
                 fatal.msg(
                     \\error: site requires a newer version of zine
-                    \\|   exe version:   {s}
                     \\|   site requires: {s}
+                    \\|   exe version:   {s}
                     \\
                 , .{ options.version, project_version_str });
             },
             .gt => {
                 fatal.msg(
                     \\error: site requires an older version of zine
-                    \\|   exe version:   {s}
                     \\|   site requires: {s}
+                    \\|   exe version:   {s}
                     \\|
                     \\|   When updating a website to a newer version of Zine:
                     \\|
