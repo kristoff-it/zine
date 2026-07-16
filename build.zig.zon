@@ -42,12 +42,12 @@
             .hash = "flow_syntax-0.7.2-X8jOoSuMAQBanH2g5oW4BQmkW6s5AdfrRUE2byWrMVKp",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy#7b81a7f1c9e6b22aacd7060b17bb6b7142878cd8",
-            .hash = "ziggy-0.1.0-kTg8vxOeBwCS6RxeI2quMQ7PCnCSWWB3Q-NF-JOktWrN",
+            .url = "git+https://github.com/kristoff-it/ziggy#06d7ce8df16974e0ee7f897db50784d84f6b9f32",
+            .hash = "ziggy-0.2.0-kTg8v6TvBwDaJXZ-bHaKizTGqzwLLESmrR2bjWCXDHUf",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#70e34739939e927dcef97288b57d30b24d221497",
-            .hash = "supermd-0.1.0-3Mco3GGbWACu_iiyO6xjVV1ViSYFACf2f_TIwjjJmEw9",
+            .url = "git+https://github.com/kristoff-it/supermd#9b619de84d229c244ace3875ab4df36a0511df56",
+            .hash = "supermd-0.1.0-3Mco3HacWABpkfiSMNySGlK5kn-LPGXT_8THS4mrI3_6",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/kristoff/translate-c?ref=0.17.x#c01b34d1e57010019d77ffef1dbc704af870a2eb",

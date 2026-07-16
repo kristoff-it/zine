@@ -11,6 +11,7 @@ const builtin = @import("builtin");
 const ziggy = @import("ziggy");
 const FrontParser = ziggy.frontmatter.Parser(Page);
 const tracy = @import("tracy");
+const root = @import("root.zig");
 const fatal = @import("fatal.zig");
 const worker = @import("worker.zig");
 const context = @import("context.zig");
@@ -130,14 +131,15 @@ pub const Section = struct {
         s: *Section,
         io: Io,
         gpa: Allocator,
+        cfg: *const root.Config,
+        drafts: bool,
         variant: *const Variant,
         index: *Page,
-        drafts: bool,
     ) void {
         const zone = tracy.trace(@src());
         defer zone.end();
 
-        index.parse(io, gpa, worker.cmark, null, variant, drafts);
+        index.parse(io, gpa, worker.cmark, cfg, drafts, null, variant);
         s.active = index._parse.active;
         s.forbid_subsections = index._parse.forbid_subsections;
     }

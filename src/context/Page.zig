@@ -308,9 +308,10 @@ pub fn parse(
     io: Io,
     gpa: Allocator,
     cmark: supermd.Ast.CmarkParser,
+    cfg: *const root.Config,
+    drafts: bool,
     progress: ?std.Progress.Node,
     variant: *const @import("../Variant.zig"),
-    drafts: bool,
 ) void {
     const zone = tracy.trace(@src());
     defer zone.end();
@@ -423,7 +424,9 @@ pub fn parse(
 
     // const smd_start = std.mem.indexOf(u8, full_src[meta.doc.end..], "---").? + "---".len + meta.doc.end;
     const smd_start = meta.doc.end;
-    const ast = supermd.Ast.init(gpa, full_src[smd_start..], cmark) catch fatal.oom();
+    const ast = supermd.Ast.init(gpa, full_src[smd_start..], cmark, .{
+        .auto_target_blank = cfg.auto_target_blank,
+    }) catch fatal.oom();
 
     p._parse = .{
         .active = !p.draft or drafts,

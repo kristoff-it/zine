@@ -739,8 +739,6 @@ pub fn run(
 
         _ = arena_state.reset(.retain_capacity);
         worker.wait(); // variants done scanning their content + i18n ziggy file
-
-        if (static_assets_errors) std.debug.print("\n", .{});
     }
 
     // Activate sections by parsing their index.smd page
@@ -790,10 +788,11 @@ pub fn run(
                 any_content = true;
                 worker.addJob(io, .{
                     .section_activate = .{
+                        .cfg = cfg,
+                        .drafts = options.drafts,
                         .variant = v,
                         .section = s,
                         .page = &v.pages.items[s.index],
-                        .drafts = options.drafts,
                     },
                 });
             }
@@ -909,6 +908,7 @@ pub fn run(
                     if (p._scan.file.name == index_smd) continue; // already parsed
                     worker.addJob(io, .{
                         .page_parse = .{
+                            .cfg = cfg,
                             .progress = progress_parse,
                             .drafts = options.drafts,
                             .variant = v,
@@ -1054,7 +1054,7 @@ pub fn run(
                             ),
                         }) catch unreachable;
 
-                        std.debug.print("{f}\n\n", .{err.meta.reportErrorsFmt(
+                        std.debug.print("{f}\n", .{err.meta.reportErrorsFmt(
                             arena,
                             err.opts,
                             path,
