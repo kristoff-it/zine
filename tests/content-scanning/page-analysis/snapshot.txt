@@ -119,7 +119,6 @@ content/other.smd:22:1: error: unknown language code
        -- VARIANT --
 ----------------------------
 .id = 0,
-.root_index = 0,
 .content_dir_path = content
 
   ------- SECTION -------
@@ -128,9 +127,9 @@ content/other.smd:22:1: error: unknown language code
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/parse.smd (id: 3 subsection_id: 0)
-    content/other.smd (id: 2 subsection_id: 0)
-    content/code.smd (id: 1 subsection_id: 0)
+    content/parse.smd
+    content/other.smd
+    content/code.smd
 ],
 
 skater.webp (0)

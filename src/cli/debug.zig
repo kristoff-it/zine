@@ -48,12 +48,10 @@ fn debugInner(
             \\       -- VARIANT --
             \\----------------------------
             \\.id = {},
-            \\.root_index = {},
             \\.content_dir_path = {s}
             \\
         , .{
             vidx,
-            variant.root_index,
             build.cfg.site.simple.content_dir_path,
         });
 
@@ -107,15 +105,13 @@ fn debugInner(
             for (s.pages.items) |p_idx| {
                 const p = variant.pages.items[p_idx];
 
-                std.debug.print("    {f} (id: {} subsection_id: {})", .{
+                std.debug.print("    {f}", .{
                     p._scan.file.fmt(
                         &variant.string_table,
                         &variant.path_table,
                         variant.content_dir_path,
                         "",
                     ),
-                    p._scan.page_id,
-                    p._scan.subsection_id,
                 });
 
                 if (cmd.ids) {

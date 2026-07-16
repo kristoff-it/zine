@@ -38,7 +38,6 @@ layouts/badshtml.shtml:6:4: super_under_branching
        -- VARIANT --
 ----------------------------
 .id = 0,
-.root_index = 0,
 .content_dir_path = content
 
   ------- SECTION -------
@@ -47,11 +46,11 @@ layouts/badshtml.shtml:6:4: super_under_branching
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/page.smd (id: 5 subsection_id: 0)
-    content/badshtml.smd (id: 4 subsection_id: 0)
-    content/badhtml.smd (id: 3 subsection_id: 0)
-    content/badextend.smd (id: 2 subsection_id: 0)
-    content/another.smd (id: 1 subsection_id: 0)
+    content/page.smd
+    content/badshtml.smd
+    content/badhtml.smd
+    content/badextend.smd
+    content/another.smd
 ],
 
 
