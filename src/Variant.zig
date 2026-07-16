@@ -32,7 +32,7 @@ string_table: StringTable,
 path_table: PathTable,
 /// Section 0 is invalid, always start iterating from [1..].
 sections: std.ArrayListUnmanaged(Section),
-root_index: ?u32, // index into pages
+root_index: u32, // index into pages
 pages: std.ArrayListUnmanaged(Page),
 /// Output urls for pages, and assets.
 /// - Scan phase: adds pages and assets
@@ -232,7 +232,9 @@ pub fn deinit(v: *const Variant, io: Io, gpa: Allocator) void {
         var s = v.sections;
         s.deinit(gpa);
     }
+
     for (v.pages.items) |p| p.deinit(gpa);
+
     {
         var p = v.pages;
         p.deinit(gpa);
@@ -320,7 +322,7 @@ fn scanContentDirInner(
         .page_assets_owner = 0,
     });
 
-    var root_index: ?u32 = null;
+    var root_index: u32 = undefined;
     var page_names: std.ArrayListUnmanaged(String) = .empty;
     var asset_names: std.ArrayListUnmanaged(String) = .empty;
     var dir_names: std.ArrayListUnmanaged(String) = .empty;
@@ -516,12 +518,12 @@ fn scanContentDirInner(
             }
         }
 
+        if (dir_entry.path.len == 0 and !found_index_smd) {
+            @panic("TODO: site must have a root index page");
+        }
+
         // assets
         {
-            if (dir_entry.path.len == 0 and !found_index_smd) {
-                @panic("TODO: top level assets require an index.smd page");
-            }
-
             const lh: LocationHint = .{
                 .id = assets_owner_id,
                 .kind = .{ .page_asset = .init(0) },

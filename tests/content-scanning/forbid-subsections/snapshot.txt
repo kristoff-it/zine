@@ -43,6 +43,7 @@ content/archive/2024/first.smd:6:23: error: forbid_subsections can only be true 
        -- VARIANT --
 ----------------------------
 .id = 0,
+.root_index = 0,
 .content_dir_path = content
 
   ------- SECTION -------
@@ -51,8 +52,8 @@ content/archive/2024/first.smd:6:23: error: forbid_subsections can only be true 
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/sections.smd
-    content/archive/index.smd
+    content/sections.smd (id: 1 subsection_id: 0)
+    content/archive/index.smd (id: 2 subsection_id: 2)
 ],
 
 
@@ -62,8 +63,8 @@ content/archive/2024/first.smd:6:23: error: forbid_subsections can only be true 
 .active = true,
 .forbid_subsections true,
 .pages = [
-    content/archive/2025/index.smd
-    content/archive/2024/index.smd
+    content/archive/2025/index.smd (id: 6 subsection_id: 5)
+    content/archive/2024/index.smd (id: 3 subsection_id: 3)
 ],
 
 
@@ -73,8 +74,8 @@ content/archive/2024/first.smd:6:23: error: forbid_subsections can only be true 
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/archive/2024/second/index.smd
-    content/archive/2024/first.smd
+    content/archive/2024/second/index.smd (id: 5 subsection_id: 4)
+    content/archive/2024/first.smd (id: 4 subsection_id: 0)
 ],
 
 
@@ -93,7 +94,7 @@ content/archive/2024/first.smd:6:23: error: forbid_subsections can only be true 
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/archive/2025/second.smd
+    content/archive/2025/second.smd (id: 7 subsection_id: 0)
 ],
 
 

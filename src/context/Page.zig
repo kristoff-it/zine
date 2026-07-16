@@ -328,7 +328,6 @@ pub fn parse(
     if (builtin.mode == .Debug) {
         const last = p._debug.stage.swap(.parsed, .acq_rel);
         assert(last == .scanned);
-
         tracy.messageCopy(path_bytes);
     }
 

@@ -23,6 +23,7 @@
        -- VARIANT --
 ----------------------------
 .id = 0,
+.root_index = 0,
 .content_dir_path = content
 
   ------- SECTION -------
@@ -31,8 +32,8 @@
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/sections.smd
-    content/archive/index.smd
+    content/sections.smd (id: 1 subsection_id: 0)
+    content/archive/index.smd (id: 2 subsection_id: 2)
 ],
 
 
@@ -42,8 +43,8 @@
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/archive/2025/index.smd
-    content/archive/2024/index.smd
+    content/archive/2025/index.smd (id: 5 subsection_id: 4)
+    content/archive/2024/index.smd (id: 3 subsection_id: 3)
 ],
 
 
@@ -53,7 +54,7 @@
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/archive/2024/first.smd
+    content/archive/2024/first.smd (id: 4 subsection_id: 0)
 ],
 
 
@@ -63,7 +64,7 @@
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/archive/2025/second.smd
+    content/archive/2025/second.smd (id: 6 subsection_id: 0)
 ],
 
 

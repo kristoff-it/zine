@@ -55,6 +55,7 @@ nested/path/page/README.html: error: output url collision detected
        -- VARIANT --
 ----------------------------
 .id = 0,
+.root_index = 0,
 .content_dir_path = content
 
   ------- SECTION -------
@@ -63,9 +64,9 @@ nested/path/page/README.html: error: output url collision detected
 .active = true,
 .forbid_subsections false,
 .pages = [
-    content/page.smd
-    content/page/index.smd
-    content/nested/path/page.smd
+    content/page.smd (id: 1 subsection_id: 0)
+    content/page/index.smd (id: 3 subsection_id: 2)
+    content/nested/path/page.smd (id: 2 subsection_id: 0)
 ],
 
 

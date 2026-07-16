@@ -208,6 +208,31 @@ pub const Builtins = struct {
         }
     };
 
+    pub const index = struct {
+        pub const signature: Signature = .{
+            .ret = .Page,
+        };
+        pub const docs_description =
+            \\Returns the root index page of the site,
+            \\sometimes referred to also as the homepage.
+        ;
+        pub const examples =
+            \\<a href="$site.index().link()">Homepage</a>
+        ;
+        pub fn call(
+            site: *const Site,
+            _: Allocator,
+            ctx: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            const bad_arg: Value = .{ .err = "expected no arguments" };
+            if (args.len != 0) return bad_arg;
+
+            const variant = &ctx._meta.build.variants[site._meta.variant_id];
+            return .{ .page = &variant.pages.items[variant.root_index] };
+        }
+    };
+
     pub const page = struct {
         pub const signature: Signature = .{
             .params = &.{
@@ -229,7 +254,9 @@ pub const Builtins = struct {
             \\ - content/foo/bar.smd
             \\ - content/foo/bar/index.smd
             \\
-            \\To reference the site homepage, pass an empty string.
+            \\Passing an empty string will return the root index file (aka
+            \\the homepage), but it's recommended to use `$site.index()`
+            \\when trying to access it directly.
             \\
             \\You can pass multiple arguments to compose a path, meaning
             \\that the two following invocations are equivalent:
@@ -341,11 +368,8 @@ pub const Builtins = struct {
             const page_list = try gpa.alloc(Value, v.pages.items.len);
             errdefer gpa.free(page_list);
 
-            var idx: usize = 0;
-            if (v.root_index) |rid| {
-                page_list[0] = .{ .page = &v.pages.items[rid] };
-                idx += 1;
-            }
+            page_list[0] = .{ .page = &v.pages.items[v.root_index] };
+            var idx: usize = 1;
             for (v.sections.items[1..]) |*s| {
                 for (s.pages.items) |pid| {
                     page_list[idx] = .{ .page = &v.pages.items[pid] };
