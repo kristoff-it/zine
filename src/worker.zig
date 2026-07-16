@@ -281,6 +281,9 @@ fn analyzeFrontmatter(page_arena: Allocator, p: *Page) error{OutOfMemory}!void {
     // if (p.layout.len == 0) try errors.append(gpa, .layout);
 
     const errors = &p._analysis.frontmatter;
+    if (p._scan.subsection_id == 0 and p.forbid_subsections) {
+        try errors.append(gpa, .forbid_subsections);
+    }
 
     for (p.aliases, 0..) |a, aidx| {
         const is_ascii = for (a) |c| {

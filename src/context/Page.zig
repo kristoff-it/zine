@@ -50,8 +50,8 @@ draft: bool = false,
 tags: []const []const u8 = &.{},
 aliases: []const []const u8 = &.{},
 alternatives: []const Alternative = &.{},
-skip_subdirs: bool = false,
 translation_key: ?[]const u8 = null,
+forbid_subsections: bool = false,
 custom: ziggy.Dynamic = .{ .kv = .empty },
 
 /// Only present in debug builds to catch programming errors
@@ -75,6 +75,7 @@ _scan: struct {
 /// All top-level fields are also available if status == success.
 _parse: struct {
     active: bool,
+    forbid_subsections: bool,
 
     // Stores everything in parse except the cmark ast
     arena: std.heap.ArenaAllocator.State,
@@ -171,6 +172,7 @@ pub const PageAnalysisError = struct {
 
 pub const FrontmatterAnalysisError = union(enum) {
     layout,
+    forbid_subsections,
     alias: u32, // index into aliases
     alternative: struct {
         id: u32, // index into alternatives
@@ -184,6 +186,7 @@ pub const FrontmatterAnalysisError = union(enum) {
     pub fn title(err: @This()) []const u8 {
         return switch (err) {
             .layout => "missing layout file",
+            .forbid_subsections => "forbid_subsections can only be true in 'index.smd' pages",
             .alias => "invalid value in 'aliases'",
             .alternative => |alt| switch (alt.kind) {
                 .name => "invalid name in alternatives",
@@ -191,10 +194,6 @@ pub const FrontmatterAnalysisError = union(enum) {
                 .layout => "invalid layout in alternatives",
             },
         };
-    }
-
-    pub fn noteFmt(err: @This(), p: *const Page) Formatter {
-        return .{ .err = err, .p = p };
     }
 
     pub fn location(
@@ -213,6 +212,23 @@ pub const FrontmatterAnalysisError = union(enum) {
                 while (true) {
                     const f_name = ast.fieldName(src, idx);
                     if (std.mem.eql(u8, "layout", f_name)) {
+                        return ast.nodes[idx + 1].loc;
+                    }
+
+                    const current = ast.nodes[idx];
+                    assert(current.tag == .struct_field);
+                    idx = current.next_idx;
+                }
+            },
+            .forbid_subsections => {
+                assert(ast.nodes[1].tag == .struct_h or
+                    ast.nodes[1].tag == .struct_v or
+                    ast.nodes[1].tag == .braceless_struct);
+
+                var idx: u32 = 2;
+                while (true) {
+                    const f_name = ast.fieldName(src, idx);
+                    if (std.mem.eql(u8, "forbid_subsections", f_name)) {
                         return ast.nodes[idx + 1].loc;
                     }
 
@@ -281,50 +297,6 @@ pub const FrontmatterAnalysisError = union(enum) {
         // programming error.
         unreachable;
     }
-
-    const ErrSelf = @This();
-    const Formatter = struct {
-        err: ErrSelf,
-        p: *const Page,
-
-        pub fn format(
-            f: Formatter,
-            comptime _: []const u8,
-            options: std.fmt.FormatOptions,
-            writer: *Writer,
-        ) !void {
-            _ = options;
-            switch (f.err) {
-                .layout => {
-                    try writer.print("'{s}' does not exist in the layouts directory path", .{
-                        f.p.layout,
-                    });
-                },
-                .alias => |idx| {
-                    try writer.print("'{s}' is an invalid output path", .{
-                        f.p.aliases[idx],
-                    });
-                },
-                .alternative => |aerr| {
-                    switch (aerr.kind) {
-                        .name => {
-                            try writer.print(
-                                "empty string is an invalid name (at index {})",
-                                .{aerr.id},
-                            );
-                        },
-                        .output => {
-                            const alt = f.p.alternatives[aerr.id];
-                            try writer.print(
-                                "alternative '{s}' has an invalid output path",
-                                .{alt.name},
-                            );
-                        },
-                    }
-                },
-            }
-        }
-    };
 };
 
 pub fn deinit(p: *const Page, gpa: Allocator) void {
@@ -383,6 +355,7 @@ pub fn parse(
             .layout = "",
             ._parse = .{
                 .active = false,
+                .forbid_subsections = false,
                 .arena = arena_state.state,
                 .full_src = full_src,
                 .status = .empty,
@@ -410,6 +383,7 @@ pub fn parse(
             .layout = "",
             ._parse = .{
                 .active = true,
+                .forbid_subsections = false,
                 .arena = arena_state.state,
                 .full_src = full_src,
                 .status = .{ .no_frontmatter = @intCast(full_src.len - trimmed_left.len) },
@@ -431,6 +405,7 @@ pub fn parse(
                 .layout = "",
                 ._parse = .{
                     .active = true,
+                    .forbid_subsections = false,
                     .arena = arena_state.state,
                     .full_src = full_src,
                     .ziggy_start = @intCast(ziggy_start),
@@ -453,6 +428,7 @@ pub fn parse(
 
     p._parse = .{
         .active = !p.draft or drafts,
+        .forbid_subsections = p.forbid_subsections,
         .arena = arena_state.state,
         .full_src = full_src,
         .ziggy_start = @intCast(ziggy_start),
@@ -651,39 +627,48 @@ pub const Fields = struct {
         \\as set in the SuperMD frontmatter.
     ;
     pub const aliases =
-        \\Aliases of the current page, 
-        \\as set in the SuperMD frontmatter.
+        \\Aliases of the current page, as set in the SuperMD frontmatter.
         \\
-        \\Aliases can be used to make the same page available
-        \\from different locations.
+        \\Aliases can be used to make the same page available from
+        \\different locations.
         \\
-        \\Every entry in the list is an output location where the 
-        \\rendered page will be copied to.
+        \\Every entry in the list is an output location where the rendered
+        \\page will be copied to.
     ;
     pub const alternatives =
-        \\Alternative versions of the page, 
-        \\as set in the SuperMD frontmatter.
+        \\Alternative versions of the page, as set in the SuperMD
+        \\frontmatter.
         \\
-        \\Alternatives are a good way of implementing RSS feeds, for example.
-    ;
-    pub const skip_subdirs =
-        \\Skips any other potential content present in the subdir of the page, 
-        \\as set in the SuperMD frontmatter.
-        \\
-        \\Can only be set to true on section pages (i.e. `index.smd` pages).
+        \\Alternatives are a good way of implementing RSS feeds, for
+        \\example.
     ;
     pub const translation_key =
-        \\Translation key used to map this page with corresponding localized variants, 
-        \\as set in the SuperMD frontmatter.
+        \\Translation key used to map this page with corresponding
+        \\localized variants, as set in the SuperMD frontmatter.
         \\
         \\See the docs on i18n for more info.
     ;
     pub const draft =
-        \\When set to true the page will not be rendered in release mode, 
+        \\When set to true the page will not be rendered in release mode,
         \\as set in the SuperMD frontmatter.
     ;
+    pub const forbid_subsections =
+        \\This property can only be set in the frontmatter of a section page
+        \\(i.e. a page named 'index.smd') to ensure that it will not contain
+        \\subsections.
+        \\
+        \\When set to true, any 'index.smd' subpage will trigger a build
+        \\error, requiring the user to reame the subpage to something else.
+        \\
+        \\As a reminder, `foo/bar/index.smd` and `foo/bar.smd` are equivalent
+        \\definitions with the only difference that the latter will not
+        \\define a new subsection.
+        \\
+        \\This property is useful for guaranteeing correct behavior from
+        \\`$page.leaves()` and other sectioning-related builtin functions.
+    ;
     pub const custom =
-        \\A Ziggy map where you can define custom properties for the page, 
+        \\A Ziggy map where you can define custom properties for the page,
         \\as set in the SuperMD frontmatter.
     ;
 };

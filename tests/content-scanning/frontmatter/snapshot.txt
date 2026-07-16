@@ -53,6 +53,8 @@ content/validation-errors.smd:20:15: error: invalid path in alternatives
   ------- SECTION -------
 .index = 1,
 .section_path = content/,
+.active = true,
+.forbid_subsections false,
 .pages = [
     content/validation-errors.smd
     content/wrong-syntax.smd

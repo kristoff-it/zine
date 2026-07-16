@@ -43,6 +43,8 @@ layouts/badshtml.shtml:6:4: super_under_branching
   ------- SECTION -------
 .index = 1,
 .section_path = content/,
+.active = true,
+.forbid_subsections false,
 .pages = [
     content/page.smd
     content/badshtml.smd

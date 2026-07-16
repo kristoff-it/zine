@@ -86,6 +86,8 @@ fn debugInner(
                 \\  ------- SECTION -------
                 \\.index = {},
                 \\.section_path = {f},
+                \\.active = {},
+                \\.forbid_subsections {},
                 \\.pages = [
                 \\
             , .{
@@ -96,6 +98,8 @@ fn debugInner(
                     variant.content_dir_path,
                     true,
                 ),
+                s.active,
+                s.forbid_subsections,
             });
 
             for (s.pages.items) |p_idx| {

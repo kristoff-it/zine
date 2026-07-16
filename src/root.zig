@@ -811,6 +811,8 @@ pub fn run(
     }
     // This second time, as we scan sections, we also propagate section
     // deactivation downward to avoid processing unreachable sections.
+    // This is also where we enforce `forbid_subsections`.
+    var section_errors = false;
     var pages_to_parse: usize = 0;
     var progress_parse = progress.start("Parse pages", 0);
     var sites: std.StringArrayHashMapUnmanaged(context.Site) = .empty;
@@ -819,9 +821,11 @@ pub fn run(
         defer tracy_frame.end();
         for (build.variants) |*v| {
             v.sections.items[0].active = true;
+            v.sections.items[0].forbid_subsections = false;
             for (v.sections.items[1..], 1..) |*s, idx| {
                 assert(s.parent_section < idx);
-                // This will access section 0 but its 'active' field is set correctly
+                // This will access section 0 but its 'active' and
+                // 'forbid_subsections' fields are set correctly
                 // (see 4 lines above)
                 const parent = v.sections.items[s.parent_section];
                 log.debug("section {} parent {} parent.active = {}", .{
@@ -830,6 +834,71 @@ pub fn run(
 
                 if (!parent.active) s.active = false;
                 if (!s.active) continue;
+
+                if (parent.forbid_subsections) {
+                    assert(s.parent_section != 0);
+                    section_errors = true;
+
+                    const file_path = try std.fmt.allocPrint(arena, "{f}", .{
+                        v.pages.items[s.index]._scan.file.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            v.content_dir_path,
+                            "",
+                        ),
+                    });
+                    const parent_dir = std.fs.path.dirname(file_path).?;
+
+                    std.debug.print(
+                        \\{s}: error: the parent section forbids subsections
+                        \\| note: you can preserve the same URL by moving this page to:
+                        \\|       '{s}{c}{s}.smd'
+                        \\| note: the parent section is:
+                        \\|       '{f}'
+                        \\| note: this is usually done to guarantee that `$page.leaves()`
+                        \\|       correctly returns all pages in the parent section
+                        \\
+                        \\
+                    , .{
+                        file_path,
+                        std.fs.path.dirname(parent_dir) orelse "",
+                        std.fs.path.sep,
+                        std.fs.path.basename(parent_dir),
+                        v.pages.items[parent.index]._scan.file.fmt(
+                            &v.string_table,
+                            &v.path_table,
+                            v.content_dir_path,
+                            "",
+                        ),
+                    });
+                    if (build.mode == .memory) {
+                        try build.mode.memory.errors.append(gpa, .{
+                            .ref = "",
+                            .msg = try std.fmt.allocPrint(gpa,
+                                \\{s}: error: the parent section forbids subsections
+                                \\| note: you can preserve the same URL by moving this page to:
+                                \\|       '{s}{c}{s}.smd'
+                                \\| note: the parent section is:
+                                \\|       '{f}'
+                                \\| note: this is usually done to guarantee that `$page.leaves()`
+                                \\|       correctly returns all pages in the parent section
+                                \\
+                                \\
+                            , .{
+                                file_path,
+                                std.fs.path.dirname(parent_dir) orelse "",
+                                std.fs.path.sep,
+                                std.fs.path.basename(parent_dir),
+                                v.pages.items[parent.index]._scan.file.fmt(
+                                    &v.string_table,
+                                    &v.path_table,
+                                    v.content_dir_path,
+                                    "",
+                                ),
+                            }),
+                        });
+                    }
+                }
 
                 pages_to_parse += s.pages.items.len;
 
@@ -1704,7 +1773,7 @@ pub fn run(
         }
     }
 
-    if (static_assets_errors or i18n_errors or collision_errors or
+    if (static_assets_errors or i18n_errors or section_errors or collision_errors or
         parse_errors or analysis_errors or template_errors)
     {
         build.any_prerendering_error = true;

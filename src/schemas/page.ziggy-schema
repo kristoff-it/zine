@@ -39,12 +39,23 @@ struct Page {
     /// In multilingual sites can be set to match corresponding pages that
     /// don't have identical URLs. See 'i18n' docs for more info.
     translation_key: ?bytes,
-    /// Ignore other SuperMD files in this directory and any sub-directory.
-    /// Can only be meaningfully set to true for 'index.smd' pages.
-    skip_subdirs: ?bool,
     /// When set to true this file will be ignored when bulding the website,
     /// unless the '--drafts' option has been passed to Zine.
     draft: ?bool,
+    /// This property can only be set in the frontmatter of a section page
+    /// (i.e. a page named 'index.smd') to ensure that it will not contain
+    /// subsections.
+    ///
+    /// When set to true, any 'index.smd' subpage will trigger a build
+    /// error, requiring the user to reame the subpage to something else.
+    ///
+    /// As a reminder, `foo/bar/index.smd` and `foo/bar.smd` are equivalent
+    /// definitions with the only difference that the latter will not
+    /// define a new section.
+    ///
+    /// This property is useful for guaranteeing correct behavior from
+    /// `$page.leaves()` and other sectioning-related builtin functions.
+    forbid_subsections: ?bool,
     /// User-defined properties that you can reference from SuperHTML via
     /// '$page.custom'
     custom: {:}any,

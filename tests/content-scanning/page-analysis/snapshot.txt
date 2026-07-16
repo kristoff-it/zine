@@ -124,6 +124,8 @@ content/other.smd:22:1: error: unknown language code
   ------- SECTION -------
 .index = 1,
 .section_path = content/,
+.active = true,
+.forbid_subsections false,
 .pages = [
     content/parse.smd
     content/other.smd

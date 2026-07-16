@@ -102,6 +102,8 @@ pub const LocationHint = struct {
 
 pub const Section = struct {
     active: bool = true,
+    forbid_subsections: bool = false,
+
     content_sub_path: Path,
     parent_section: u32, // index into sections, 0 = no parent section
     index: u32, // index into pages
@@ -137,6 +139,7 @@ pub const Section = struct {
 
         index.parse(io, gpa, worker.cmark, null, variant, drafts);
         s.active = index._parse.active;
+        s.forbid_subsections = index._parse.forbid_subsections;
     }
 
     pub fn indexAndSortPages(

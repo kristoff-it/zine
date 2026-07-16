@@ -60,6 +60,8 @@ nested/path/page/README.html: error: output url collision detected
   ------- SECTION -------
 .index = 1,
 .section_path = content/,
+.active = true,
+.forbid_subsections false,
 .pages = [
     content/page.smd
     content/page/index.smd
@@ -70,6 +72,8 @@ nested/path/page/README.html: error: output url collision detected
   ------- SECTION -------
 .index = 2,
 .section_path = content/page/,
+.active = true,
+.forbid_subsections false,
 .pages = [
 ],
 

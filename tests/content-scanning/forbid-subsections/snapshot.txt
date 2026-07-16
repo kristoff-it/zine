@@ -19,6 +19,26 @@
 |                                               |
 *-----------------------------------------------*
 
+content/archive/2024/index.smd: error: the parent section forbids subsections
+| note: you can preserve the same URL by moving this page to:
+|       'content/archive/2024.smd'
+| note: the parent section is:
+|       'content/archive/index.smd'
+| note: this is usually done to guarantee that `$page.leaves()`
+|       correctly returns all pages in the parent section
+
+content/archive/2025/index.smd: error: the parent section forbids subsections
+| note: you can preserve the same URL by moving this page to:
+|       'content/archive/2025.smd'
+| note: the parent section is:
+|       'content/archive/index.smd'
+| note: this is usually done to guarantee that `$page.leaves()`
+|       correctly returns all pages in the parent section
+
+content/archive/2024/first.smd:6:23: error: forbid_subsections can only be true in 'index.smd' pages
+|    .forbid_subsections = true, // should not be set on a non-index page
+|                          ^^^^
+
 ----------------------------
        -- VARIANT --
 ----------------------------
@@ -40,7 +60,7 @@
 .index = 2,
 .section_path = content/archive/,
 .active = true,
-.forbid_subsections false,
+.forbid_subsections true,
 .pages = [
     content/archive/2025/index.smd
     content/archive/2024/index.smd
@@ -53,12 +73,22 @@
 .active = true,
 .forbid_subsections false,
 .pages = [
+    content/archive/2024/second/index.smd
     content/archive/2024/first.smd
 ],
 
 
   ------- SECTION -------
 .index = 4,
+.section_path = content/archive/2024/second/,
+.active = true,
+.forbid_subsections false,
+.pages = [
+],
+
+
+  ------- SECTION -------
+.index = 5,
 .section_path = content/archive/2025/,
 .active = true,
 .forbid_subsections false,
@@ -68,4 +98,4 @@
 
 
 
- ----- EXIT CODE: 0 -----
+ ----- EXIT CODE: 1 -----

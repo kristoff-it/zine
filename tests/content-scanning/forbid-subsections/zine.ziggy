@@ -1,0 +1,9 @@
+.zine_version = "0.12.1-dev",
+.site = .simple(.{
+    .title = "Sample Site",
+    .host_url = "https://example.com",
+    .content_dir_path = "content",
+    .layouts_dir_path = "layouts",
+    .assets_dir_path = "content",
+})
+
