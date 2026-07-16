@@ -851,7 +851,7 @@ pub fn run(
                     std.debug.print(
                         \\{s}: error: the parent section forbids subsections
                         \\| note: you can preserve the same URL by moving this page to:
-                        \\|       '{s}{c}{s}.smd'
+                        \\|       '{s}/{s}.smd'
                         \\| note: the parent section is:
                         \\|       '{f}'
                         \\| note: this is usually done to guarantee that `$page.leaves()`
@@ -861,7 +861,6 @@ pub fn run(
                     , .{
                         file_path,
                         std.fs.path.dirname(parent_dir) orelse "",
-                        std.fs.path.sep,
                         std.fs.path.basename(parent_dir),
                         v.pages.items[parent.index]._scan.file.fmt(
                             &v.string_table,
@@ -876,7 +875,7 @@ pub fn run(
                             .msg = try std.fmt.allocPrint(gpa,
                                 \\{s}: error: the parent section forbids subsections
                                 \\| note: you can preserve the same URL by moving this page to:
-                                \\|       '{s}{c}{s}.smd'
+                                \\|       '{s}/{s}.smd'
                                 \\| note: the parent section is:
                                 \\|       '{f}'
                                 \\| note: this is usually done to guarantee that `$page.leaves()`
@@ -886,7 +885,6 @@ pub fn run(
                             , .{
                                 file_path,
                                 std.fs.path.dirname(parent_dir) orelse "",
-                                std.fs.path.sep,
                                 std.fs.path.basename(parent_dir),
                                 v.pages.items[parent.index]._scan.file.fmt(
                                     &v.string_table,
