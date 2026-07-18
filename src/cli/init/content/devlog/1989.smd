@@ -4,7 +4,7 @@
 .layout = "devlog.shtml",
 ---
 []($section.id('about'))
-## About this Devlog
+# About this Devlog
 This is a non-exhaustive, curated list of changes meant to help users quickly see what has improved since they last checked.
 
 You can [subscribe the latest devlog via RSS]($link.page('devlog').alternative('rss')).

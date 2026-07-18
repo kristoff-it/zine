@@ -37,3 +37,20 @@
 
 []($link.page('a//foo/..')) //wrong 9/9
 
+# Invalid sections
+## []($section)
+
+
+> []($section.id('foo'))
+>
+>
+
+# Alt
+[]($link.page("foo") "arst")
+
+# Expr in image syntax
+![]($link)
+
+# Empty expression
+[arst]()
+

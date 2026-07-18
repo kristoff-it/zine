@@ -1,0 +1,16 @@
+---
+.title = "ids",
+.date = .date("2020-07-06T00:00:00"),
+.layout = "sections.shtml",
+.draft = false,
+--- 
+
+# Unknown ids
+[arst](#apple)
+[arst]($link.ref("banana"))
+[arst]($link.ref("orange"))
+[arst]($link.ref("melon"))
+
+# Duplicate ids
+[arst1]($text.id("arst"))
+[arst2]($text.id("arst"))

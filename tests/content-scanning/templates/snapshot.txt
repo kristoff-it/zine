@@ -21,8 +21,8 @@
 
 WARNING: found plain HTML file layouts/oops.html, did you mean to give it a shtml extension?
 content/another.smd:4:11: error: missing layout file
-|    .layout = "doesntexist-layout.shtml",
-|              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+|   .layout = "doesntexist-layout.shtml",
+|             ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 layouts/badextend.shtml: error: extending a template that doesn't exist 
    template 'doesntexist-template.shtml' does not exist

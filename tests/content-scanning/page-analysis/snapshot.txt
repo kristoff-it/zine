@@ -19,65 +19,138 @@
 |                                               |
 *-----------------------------------------------*
 
-content/code.smd:17:3: [html] erroneous end tag
+content/code.smd:17:3: [html] error: erroneous end tag
 |    </span> wrong!
 |      ^^^^
 
-content/parse.smd:10:1: [html_is_forbidden]
-|    <div>wrong block-level html</div>
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+content/date.smd:3:9: error: unable to parse date: InvalidISO8601
+|   .date = .date("2020-7-6T00:00:00"),
+|           ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:12:1: [scripty] unexpected token
-|    []($link.page(/other))  //wrong
-|    ^^^^^^^^^^^^^^^^^^^^^^
+content/heading.smd:8:1: error: skipped heading level
+|    ## Starting at two
+|    ^^^^^^^^^^^^^^^^^^
+| -- note: supermd documents start at heading level 1 ('#')
+| -- note: if your intent is to start the content at '<h2>', you
+|          can change how headings render in html by setting the
+|          corresponding option in your zine config file
 
-content/parse.smd:13:1: [scripty] unexpected token
-|    []($link.page('/other))  //wrong
-|    ^^^^^^^^^^^^^^^^^^^^^^^
+content/heading.smd:11:1: error: skipped heading level
+|    #### Wrong jump
+|    ^^^^^^^^^^^^^^^
+| -- note: previous heading (level 2):
+|    ## Starting at two
+|    ^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:16:1: [scripty] path must be relative
-|    []($link.page('/other'))  //wrong
-|    ^^^^^^^^^^^^^^^^^^^^^^^^
+content/heading.smd:13:1: error: skipped heading level
+|    ##### One Last
+|    ^^^^^^^^^^^^^^
+| -- note: previous heading (level 1):
+|    # Another
+|    ^^^^^^^^^
 
-content/parse.smd:19:1: [scripty] '.' and '..' are not allowed in paths
-|    []($link.page('./other')) //wrong
+content/ids.smd:16:1: error: duplicate id 'arst'
+|    [arst2]($text.id("arst"))
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^
+| -- note: first definition was on line 15 col 1:
+|    [arst1]($text.id("arst"))
 |    ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-content/parse.smd:22:1: [scripty] empty component in path
+content/ids.smd:9:1: error: unknown ref
+|    [arst](#apple)
+|    ^^^^^^^^^^^^^^
+
+content/ids.smd:10:1: error: unknown ref
+|    [arst]($link.ref("banana"))
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/ids.smd:11:1: error: unknown ref
+|    [arst]($link.ref("orange"))
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/ids.smd:12:1: error: unknown ref
+|    [arst]($link.ref("melon"))
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:10:1: error: markdown inline html syntax is forbidden
+|    <div>wrong block-level html</div>
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+| -- note: superhtml supports `=html` code blocks as an alternative
+
+content/parse.smd:12:1: [scripty] error: unexpected token
+|    []($link.page(/other))  //wrong
+|                  ^
+
+content/parse.smd:13:1: [scripty] error: unexpected token
+|    []($link.page('/other))  //wrong
+|                  ^^^^^^^^
+
+content/parse.smd:16:1: [scripty] error: path must be relative
+|    []($link.page('/other'))  //wrong
+|             ^^^^
+
+content/parse.smd:19:1: [scripty] error: '.' and '..' are not allowed in paths
+|    []($link.page('./other')) //wrong
+|             ^^^^
+
+content/parse.smd:22:1: [scripty] error: empty component in path
 |    []($link.page('foo//bar')) //wrong 1/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:24:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:24:1: [scripty] error: '.' and '..' are not allowed in paths
 |    []($link.page('foo/./bar')) //wrong 2/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:26:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:26:1: [scripty] error: '.' and '..' are not allowed in paths
 |    []($link.page('foo/../bar')) //wrong 3/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:28:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:28:1: [scripty] error: '.' and '..' are not allowed in paths
 |    []($link.page('foo/.')) //wrong 4/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:30:1: [scripty] '.' and '..' are not allowed in paths
+content/parse.smd:30:1: [scripty] error: '.' and '..' are not allowed in paths
 |    []($link.page('foo/..')) //wrong 5/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:32:1: [scripty] empty component in path
+content/parse.smd:32:1: [scripty] error: empty component in path
 |    []($link.page('a//foo/./bar')) //wrong 6/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:34:1: [scripty] empty component in path
+content/parse.smd:34:1: [scripty] error: empty component in path
 |    []($link.page('a//foo/../bar')) //wrong 7/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:36:1: [scripty] empty component in path
+content/parse.smd:36:1: [scripty] error: empty component in path
 |    []($link.page('a//foo/.')) //wrong 8/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
 
-content/parse.smd:38:1: [scripty] empty component in path
+content/parse.smd:38:1: [scripty] error: empty component in path
 |    []($link.page('a//foo/..')) //wrong 9/9
-|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+|             ^^^^
+
+content/parse.smd:41:4: error: missing section id
+|    ## []($section)
+|       ^^^^^^^^^^^^
+| -- note: all heading sections must have an id
+
+content/parse.smd:44:3: [scripty] error: sections must be top level elements or be embedded in headings
+|    > []($section.id('foo'))
+|         ^^^^^^^^^^^^^^^^^^
+
+content/parse.smd:49:1: error: vanilla alt text in scripted link syntax
+|    []($link.page("foo") "arst")
+|    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+| -- note: use `.alt()` to provide alt text
+
+content/parse.smd:52:1: error: scripty expression in image syntax
+|    ![]($link)
+|    ^^^^^^^^^^
+| -- note: scripty expressions go in link syntax, remove the '!'
+
+content/parse.smd:55:1: error: link syntax without link or scripty expression
+|    [arst]()
+|    ^^^^^^^^
 
 content/index.smd:17:1: error: missing site asset
 |    []($image.siteAsset('doesntexist.jpg')) //wrong
@@ -129,7 +202,10 @@ content/other.smd:22:1: error: unknown language code
 .pages = [
     content/parse.smd
     content/other.smd
+    content/ids.smd
+    content/heading.smd
     content/code.smd
+    content/date.smd
 ],
 
 skater.webp (0)

@@ -25,24 +25,24 @@ content/wrong-syntax.smd:16:15 missing token: ',' after field value
 
 
 content/index.smd:4:11: error: missing layout file
-|    .layout = "",
-|              ^^
+|   .layout = "",
+|             ^^
 
 content/validation-errors.smd:4:11: error: missing layout file
-|    .layout = "",
-|              ^^
+|   .layout = "",
+|             ^^
 
 content/validation-errors.smd:8:4: error: invalid value in 'aliases'
-|    "bad path 💩",
-|    ^^^^^^^^^^^^^^^^
+|   "bad path 💩",
+|   ^^^^^^^^^^^^^^^^
 
 content/validation-errors.smd:15:13: error: invalid name in alternatives
-|    .name = "",
-|            ^^
+|   .name = "",
+|           ^^
 
 content/validation-errors.smd:20:15: error: invalid path in alternatives
-|    .output = "",
-|              ^^
+|   .output = "",
+|             ^^
 
 ----------------------------
        -- VARIANT --

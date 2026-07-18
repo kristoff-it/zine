@@ -4,7 +4,7 @@
 .layout = "devlog.shtml",
 ---
 []($section.id('about'))
-## About this Devlog
+# About this Devlog
 
 This is where you should describe to your users what your devlog is about.
 Refer to the corresponding section in the home page to learn more about devlogs.

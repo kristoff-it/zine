@@ -20,24 +20,24 @@
 *-----------------------------------------------*
 
 content/archive/2024/index.smd: error: the parent section forbids subsections
-| note: you can preserve the same URL by moving this page to:
-|       'content/archive/2024.smd'
-| note: the parent section is:
-|       'content/archive/index.smd'
-| note: this is usually done to guarantee that `$page.leaves()`
-|       correctly returns all pages in the parent section
+| -- note: you can preserve the same URL by moving this page to:
+|          'content/archive/2024.smd'
+| -- note: the parent section is:
+|          'content/archive/index.smd'
+| -- note: this is usually done to guarantee that `$page.leaves()`
+|          correctly returns all pages in the parent section
 
 content/archive/2025/index.smd: error: the parent section forbids subsections
-| note: you can preserve the same URL by moving this page to:
-|       'content/archive/2025.smd'
-| note: the parent section is:
-|       'content/archive/index.smd'
-| note: this is usually done to guarantee that `$page.leaves()`
-|       correctly returns all pages in the parent section
+| -- note: you can preserve the same URL by moving this page to:
+|          'content/archive/2025.smd'
+| -- note: the parent section is:
+|          'content/archive/index.smd'
+| -- note: this is usually done to guarantee that `$page.leaves()`
+|          correctly returns all pages in the parent section
 
 content/archive/2024/first.smd:6:23: error: forbid_subsections can only be true in 'index.smd' pages
-|    .forbid_subsections = true, // should not be set on a non-index page
-|                          ^^^^
+|   .forbid_subsections = true, // should not be set on a non-index page
+|                         ^^^^
 
 ----------------------------
        -- VARIANT --

@@ -1,0 +1,6 @@
+---
+.title = "date",
+.date = .date("2020-7-6T00:00:00"),
+.layout = "sections.shtml",
+.draft = false,
+--- 

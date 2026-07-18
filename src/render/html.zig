@@ -190,7 +190,8 @@ pub fn html(
                     if (node.getDirective()) |d| switch (d.kind) {
                         else => {},
                         .heading => {
-                            try w.print("<h{}", .{node.headingLevel()});
+                            const lvl = node.headingLevel() + @intFromBool(ctx._meta.build.cfg.supermd.headings_h2);
+                            try w.print("<h{}", .{lvl});
                             if (d.id) |id| try w.print(" id=\"{s}\"", .{id});
                             if (d.attrs) |attrs| {
                                 try w.print(" class=\"", .{});
@@ -218,7 +219,8 @@ pub fn html(
                         },
                     };
 
-                    try w.print("<h{}>", .{node.headingLevel()});
+                    const lvl = node.headingLevel() + @intFromBool(ctx._meta.build.cfg.supermd.headings_h2);
+                    try w.print("<h{}>", .{lvl});
                 },
                 .exit => {
                     if (node.parent()) |p| if (p.getDirective()) |pd| switch (pd.kind) {
@@ -230,7 +232,8 @@ pub fn html(
                             }
                         },
                     };
-                    try w.print("</h{}>", .{node.headingLevel()});
+                    const lvl = node.headingLevel() + @intFromBool(ctx._meta.build.cfg.supermd.headings_h2);
+                    try w.print("</h{}>", .{lvl});
                 },
             },
             .THEMATIC_BREAK => switch (ev.dir) {

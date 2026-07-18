@@ -10,7 +10,7 @@ posts for convenience. The first post contains more interesting content.
 Don't forget to read [the official SuperMD
 docs](https://zine-ssg.io/docs/supermd/) to know how to *style* your content.
 
-## Math
+# Math
 
 Btw this sample website also includes the JS/CSS dependencies required to render
 math:
@@ -25,7 +25,7 @@ F(\omega) &= \int_{-\infty}^\infty f(t) \div (-1)^{2 \omega t} \mathrm{d}t \\
 This: [`(-1)^x = \cos(\pi x) + i\sin(\pi x)`]($mathtex) is an inline equation
 instead!
 
-## Code blocks
+# Code blocks
 
 
 ```zig

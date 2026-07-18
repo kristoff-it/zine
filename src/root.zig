@@ -154,12 +154,17 @@ pub const Site = union(enum) {
 
 pub const Config = struct {
     zine_version: []const u8,
-    auto_target_blank: bool = false,
+    supermd: SuperMd = .{},
     site: Site,
     custom: ziggy.Dictionary(ziggy.Dynamic) = .empty,
 
     const config_file_basename = "zine.ziggy";
     pub const Search = union(enum) { auto, path: []const u8 };
+
+    pub const SuperMd = struct {
+        headings_h2: bool = false,
+        auto_target_blank: bool = false,
+    };
 
     /// Returns the cfg and the the directory where the config file was
     /// found. The directory is then used by other code to place the output
@@ -283,7 +288,7 @@ pub const Config = struct {
             .eq => return,
             .lt => {
                 fatal.msg(
-                    \\error: site requires a newer version of zine
+                    \\zine.ziggy: error: site requires a newer version of zine
                     \\|   site requires: {s}
                     \\|   exe version:   {s}
                     \\
@@ -291,7 +296,7 @@ pub const Config = struct {
             },
             .gt => {
                 fatal.msg(
-                    \\error: site requires an older version of zine
+                    \\zine.ziggy: error: site requires an older version of zine
                     \\|   site requires: {s}
                     \\|   exe version:   {s}
                     \\|
@@ -850,12 +855,12 @@ pub fn run(
 
                     std.debug.print(
                         \\{s}: error: the parent section forbids subsections
-                        \\| note: you can preserve the same URL by moving this page to:
-                        \\|       '{s}/{s}.smd'
-                        \\| note: the parent section is:
-                        \\|       '{f}'
-                        \\| note: this is usually done to guarantee that `$page.leaves()`
-                        \\|       correctly returns all pages in the parent section
+                        \\| -- note: you can preserve the same URL by moving this page to:
+                        \\|          '{s}/{s}.smd'
+                        \\| -- note: the parent section is:
+                        \\|          '{f}'
+                        \\| -- note: this is usually done to guarantee that `$page.leaves()`
+                        \\|          correctly returns all pages in the parent section
                         \\
                         \\
                     , .{
@@ -874,12 +879,12 @@ pub fn run(
                             .ref = "",
                             .msg = try std.fmt.allocPrint(gpa,
                                 \\{s}: error: the parent section forbids subsections
-                                \\| note: you can preserve the same URL by moving this page to:
-                                \\|       '{s}/{s}.smd'
-                                \\| note: the parent section is:
-                                \\|       '{f}'
-                                \\| note: this is usually done to guarantee that `$page.leaves()`
-                                \\|       correctly returns all pages in the parent section
+                                \\| -- note: you can preserve the same URL by moving this page to:
+                                \\|          '{s}/{s}.smd'
+                                \\| -- note: the parent section is:
+                                \\|          '{f}'
+                                \\| -- note: this is usually done to guarantee that `$page.leaves()`
+                                \\|          correctly returns all pages in the parent section
                                 \\
                                 \\
                             , .{
@@ -1097,55 +1102,30 @@ pub fn run(
                         const loc = p.date._loc.?;
                         const sel = loc.getSelection(p._parse.full_src);
 
-                        const line_off = loc.line(p._parse.full_src);
-
-                        const line_trim_left = std.mem.trimStart(u8, line_off.line, &std.ascii.whitespace);
-                        const start_trim_left = line_off.start + line_off.line.len - line_trim_left.len;
-
-                        const caret_len = loc.end - loc.start;
-                        const caret_spaces_len = loc.start -| start_trim_left;
-
-                        const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
-
-                        var hl_buf: [1024]u8 = undefined;
-
-                        const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
-                            const h = hl_buf[0 .. caret_len + caret_spaces_len];
-                            @memset(h[0..caret_spaces_len], ' ');
-                            @memset(h[caret_spaces_len..][0..caret_len], '^');
-                            break :blk h;
-                        } else "";
-
                         std.debug.print(
                             \\{s}:{}:{}: error: unable to parse date: {t}
-                            \\|    {s}
-                            \\|    {s}
-                            \\
+                            \\{f}
                             \\
                         , .{
                             path,
                             sel.start.line,
                             sel.start.col,
                             err,
-                            line_trim,
-                            highlight,
+                            ziggy.Deserializer.linePreview(p._parse.full_src, loc),
                         });
                         if (build.mode == .memory) {
                             try build.mode.memory.errors.append(gpa, .{
                                 .ref = "",
                                 .msg = try std.fmt.allocPrint(gpa,
                                     \\{s}:{}:{}: error: unable to parse date: {t}
-                                    \\|    {s}
-                                    \\|    {s}
-                                    \\
+                                    \\{f}
                                     \\
                                 , .{
                                     path,
                                     sel.start.line,
                                     sel.start.col,
                                     err,
-                                    line_trim,
-                                    highlight,
+                                    ziggy.Deserializer.linePreview(p._parse.full_src, loc),
                                 }),
                             });
                         }
@@ -1290,30 +1270,9 @@ pub fn run(
                 for (fm_errors.items) |err| {
                     const loc = err.location(full_src, ast);
                     const sel = loc.getSelection(full_src);
-                    const line_off = loc.line(full_src);
-
-                    const line_trim_left = std.mem.trimStart(u8, line_off.line, &std.ascii.whitespace);
-                    const start_trim_left = line_off.start + line_off.line.len - line_trim_left.len;
-
-                    const caret_len = loc.end - loc.start;
-                    const caret_spaces_len = loc.start -| start_trim_left;
-
-                    const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
-
-                    var hl_buf: [1024]u8 = undefined;
-
-                    const highlight = if (caret_len + caret_spaces_len < 1024) blk: {
-                        const h = hl_buf[0 .. caret_len + caret_spaces_len];
-                        @memset(h[0..caret_spaces_len], ' ');
-                        @memset(h[caret_spaces_len..][0..caret_len], '^');
-                        break :blk h;
-                    } else "";
-
                     std.debug.print(
                         \\{f}:{}:{}: error: {s}
-                        \\|    {s}
-                        \\|    {s}
-                        \\
+                        \\{f}
                         \\
                     , .{
                         p._scan.file.fmt(
@@ -1325,17 +1284,14 @@ pub fn run(
                         sel.start.line,
                         sel.start.col,
                         err.title(),
-                        line_trim,
-                        highlight,
+                        ziggy.Deserializer.linePreview(full_src, loc),
                     });
                     if (build.mode == .memory) {
                         try build.mode.memory.errors.append(gpa, .{
                             .ref = "",
                             .msg = try std.fmt.allocPrint(gpa,
                                 \\{f}:{}:{}: error: {s}
-                                \\|    {s}
-                                \\|    {s}
-                                \\
+                                \\{f}
                                 \\
                             , .{
                                 p._scan.file.fmt(
@@ -1347,8 +1303,7 @@ pub fn run(
                                 sel.start.line,
                                 sel.start.col,
                                 err.title(),
-                                line_trim,
-                                highlight,
+                                ziggy.Deserializer.linePreview(full_src, loc),
                             }),
                         });
                     }
@@ -1365,41 +1320,12 @@ pub fn run(
                     const n = err.node;
                     const range = n.range();
                     const md_src = p._parse.full_src[p._parse.ziggy_doc.end..];
-                    const line = blk: {
-                        var it = std.mem.splitScalar(u8, md_src, '\n');
-                        for (1..range.start.row) |_| _ = it.next();
-                        break :blk it.next().?;
-                    };
-
-                    const line_trim_left = std.mem.trimStart(
-                        u8,
-                        line,
-                        &std.ascii.whitespace,
-                    );
-
-                    const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
-
-                    const start_trim_left = line.len - line_trim_left.len;
-                    const caret_len = if (range.start.row == range.end.row)
-                        range.end.col - range.start.col
-                    else
-                        line_trim.len - start_trim_left;
-                    const caret_spaces_len = range.start.col - 1 - start_trim_left;
-
-                    var hl_buf: [1024]u8 = undefined;
-
-                    const highlight = if (caret_len + caret_spaces_len + 1 < 1024) blk: {
-                        const h = hl_buf[0 .. caret_len + caret_spaces_len + 1];
-                        @memset(h[0..caret_spaces_len], ' ');
-                        @memset(h[caret_spaces_len..][0 .. caret_len + 1], '^');
-                        break :blk h;
-                    } else "";
-
                     const fm_lines = p._parse.ziggy_doc.lines + 1;
+                    var lp = supermd.Ast.linePreview(md_src, range);
+                    lp.carets += 1;
                     std.debug.print(
                         \\{f}:{}:{}: error: {s}
-                        \\|    {s}
-                        \\|    {s}
+                        \\{f}
                         \\
                         \\
                     , .{
@@ -1412,16 +1338,14 @@ pub fn run(
                         fm_lines + n.startLine(),
                         n.startColumn(),
                         err.title(),
-                        line_trim,
-                        highlight,
+                        lp,
                     });
                     if (build.mode == .memory) {
                         try build.mode.memory.errors.append(gpa, .{
                             .ref = "",
                             .msg = try std.fmt.allocPrint(gpa,
                                 \\{f}:{}:{}: error: {s}
-                                \\|    {s}
-                                \\|    {s}
+                                \\{f}
                                 \\
                                 \\
                             , .{
@@ -1434,8 +1358,7 @@ pub fn run(
                                 fm_lines + n.startLine(),
                                 n.startColumn(),
                                 err.title(),
-                                line_trim,
-                                highlight,
+                                lp,
                             }),
                         });
                     }
@@ -1928,113 +1851,27 @@ fn printSuperMdErrors(
     file: PathName,
     ast: *const supermd.Ast,
     md_src: []const u8,
-    fm_lines: usize,
+    fm_lines: u32,
 ) void {
-    _ = arena;
-
-    // \\It's strongly recommended to setup your editor to
-    // \\leverage the `supermd` CLI tool in order to obtain
-    // \\in-editor syntax checking and autoformatting.
-    // \\
-    // \\Download it from here:
-    // \\   https://github.com/kristoff-it/supermd
+    const path = std.fmt.allocPrint(arena, "{f}", .{
+        file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
+    }) catch fatal.oom();
+    defer arena.free(path);
 
     for (ast.errors) |err| {
-        const range = err.main;
-        const line = blk: {
-            var it = std.mem.splitScalar(u8, md_src, '\n');
-            for (1..range.start.row) |_| _ = it.next();
-            break :blk it.next().?;
-        };
-
-        const line_trim_left = std.mem.trimStart(
-            u8,
-            line,
-            &std.ascii.whitespace,
-        );
-
-        const line_trim = std.mem.trimEnd(u8, line_trim_left, &std.ascii.whitespace);
-
-        const start_trim_left = line.len - line_trim_left.len;
-        const caret_len = if (range.start.row == range.end.row)
-            range.end.col - range.start.col
-        else
-            line_trim.len - start_trim_left;
-        const caret_spaces_len = range.start.col - 1 - start_trim_left;
-
-        var buf: [1024]u8 = undefined;
-
-        const extra: u32 = if (err.kind == .scripty) 1 else 0;
-
-        const highlight = if (caret_len + caret_spaces_len + extra < 1024) blk: {
-            const h = buf[0 .. caret_len + caret_spaces_len + extra];
-            @memset(h[0..caret_spaces_len], ' ');
-            @memset(h[caret_spaces_len..][0 .. caret_len + extra], '^');
-            break :blk h;
-        } else "";
-
-        std.debug.print(
-            \\{f}:{}:{}: {f}
-            \\|    {s}
-            \\|    {s}
-            \\
-        , .{
-            file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
-            fm_lines + range.start.row,
-            range.start.col,
-            fmtSuperMdError(err.kind),
-            line_trim,
-            highlight,
+        std.debug.print("{f}\n", .{
+            err.fmt(fm_lines, md_src, path),
         });
-
-        switch (err.kind) {
-            .duplicate_id => |dup| {
-                std.debug.print(
-                    \\|   note: original was defined on line {}
-                    \\
-                    \\
-                , .{fm_lines + dup.original.range().start.row});
-            },
-            else => std.debug.print("\n", .{}),
-        }
 
         if (build.mode == .memory) {
             build.mode.memory.errors.append(gpa, .{
                 .ref = "",
-                .msg = std.fmt.allocPrint(gpa,
-                    \\{f}:{}:{}: {f}
-                    \\|    {s}
-                    \\|    {s}
-                    \\
-                    \\
-                , .{
-                    file.fmt(&v.string_table, &v.path_table, v.content_dir_path, ""),
-                    fm_lines + range.start.row,
-                    range.start.col,
-                    fmtSuperMdError(err.kind),
-                    line_trim,
-                    highlight,
+                .msg = std.fmt.allocPrint(gpa, "{f}\n", .{
+                    err.fmt(fm_lines, md_src, path),
                 }) catch fatal.oom(),
             }) catch fatal.oom();
         }
     }
-}
-
-const FormatSuperMdError = struct {
-    kind: supermd.Ast.Error.Kind,
-
-    pub fn format(err: FormatSuperMdError, w: *Io.Writer) Io.Writer.Error!void {
-        try w.print("[{t}]", .{err.kind});
-        switch (err.kind) {
-            .scripty => |s| try w.print(" {s}", .{s.err}),
-            .html => |h| try w.print(" {f}", .{h.tag.fmt("html")}),
-            else => {},
-        }
-    }
-};
-
-fn fmtSuperMdError(kind: supermd.Ast.Error.Kind) FormatSuperMdError {
-    return .{ .kind = kind };
 }
 
 pub fn fmtJoin(sep: u8, paths: []const []const u8) FormatJoin {

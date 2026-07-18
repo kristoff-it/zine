@@ -17,7 +17,7 @@ template which adds at the bottom page navigation within the blog section.
 
 Enough about Zine, let's talk about zines.
 
-## Fanzines
+# Fanzines
 
 A zine (short for *fanzine*, from "fan" + "magazine") is a non-professional
 publication created by people that want to express themselves in paper form,
@@ -25,7 +25,7 @@ usually in relation to a cultural phenomenon of some kind.
 
 [An example of zine from 1976.](<$image.asset("fanzine.jpg").alt("A photo of a black and white flyer. The main title reads 'A night of pure energy' and the rest of the page contains a mix of pictures of guitarists interleaved with other text snippets, some seemingly taken from a professional publication of some kind, and some handwritten to announce concert night dates, presumably for the musicians in the picture.")>)
 
-## Zines in the digital era
+# Zines in the digital era
 
 In the digital age, some of the cultural impetus behind zines got redirected to
 personal blogs and similar digital, non-professional publications. The 90's and
@@ -60,7 +60,7 @@ be used for hasty decision making.
 Likewise, [corpowave]($text.attrs('wave')) never goes out of style on LinkedIn.
 Spend enough time in there and you will become a character from Severance.
 
-## We're not in 1990 anymore
+# We're not in 1990 anymore
 
 Despite all the issues with social media, there is no point in thinking of the
 90's as a better time. It was not. And despite the winks at the past, Zine is
