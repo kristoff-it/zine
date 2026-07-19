@@ -292,7 +292,7 @@ pub const Config = struct {
                     \\|   site requires: {s}
                     \\|   exe version:   {s}
                     \\
-                , .{ options.version, project_version_str });
+                , .{ project_version_str, options.version });
             },
             .gt => {
                 fatal.msg(
@@ -328,7 +328,7 @@ pub const Config = struct {
                     \\
                     \\
                 , .{
-                    options.version, project_version_str,
+                    project_version_str, options.version,
                     if (builtin.target.os.tag == .windows)
                         "git diff --no-index new old"
                     else

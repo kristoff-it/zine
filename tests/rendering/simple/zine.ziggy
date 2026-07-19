@@ -1,4 +1,4 @@
-.zine_version = "0.12.1-dev",
+.zine_version = "0.13.0",
 .site = .simple(.{
     .title = "Simple Test Website",
     .host_url = "https://example.com",

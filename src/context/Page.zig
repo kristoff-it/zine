@@ -1158,8 +1158,12 @@ pub const Builtins = struct {
             \\Sections are defined by `index.smd` files, see the content 
             \\structure section in the official docs for more info.
             \\
+            \\Make strategical use of the frontmatter `forbid_subsections`
+            \\setting to ensure that "terminal" sections only contain
+            \\leaf pages.
+            \\
             \\Accepts an optional argument to limit the number of pages
-            \\to iterate on. 
+            \\to iterate on.
         ;
         pub const examples =
             \\<div :loop="$page.leaves()">
