@@ -620,6 +620,26 @@ pub const Server = struct {
             '?',
         ) orelse path_with_query.len];
 
+        if (std.mem.eql(u8, path, "/__zine/zinereload.js")) {
+            req.respond(zinereload_js, .{
+                .extra_headers = &.{
+                    .{ .name = "content-type", .value = "text/javascript" },
+                    // .{ .name = "connection", .value = "close" },
+                },
+            }) catch |err| log.debug(
+                "error while sending http response: {}",
+                .{err},
+            );
+
+            log.debug("sent livereload script", .{});
+            return;
+        }
+
+        if (std.mem.eql(u8, path, "/__zine/ws")) {
+            server.handleWebsocket(req);
+            return error.Websocket;
+        }
+
         switch (server.build.cfg.site) {
             .simple => |s| {
                 const url_path_prefix = s.url_path_prefix orelse "";
@@ -655,26 +675,6 @@ pub const Server = struct {
                 path,
                 "index.html",
             });
-        }
-
-        if (std.mem.eql(u8, path, "/__zine/zinereload.js")) {
-            req.respond(zinereload_js, .{
-                .extra_headers = &.{
-                    .{ .name = "content-type", .value = "text/javascript" },
-                    // .{ .name = "connection", .value = "close" },
-                },
-            }) catch |err| log.debug(
-                "error while sending http response: {}",
-                .{err},
-            );
-
-            log.debug("sent livereload script", .{});
-            return;
-        }
-
-        if (std.mem.eql(u8, path, "/__zine/ws")) {
-            server.handleWebsocket(req);
-            return error.Websocket;
         }
 
         const ext = std.fs.path.extension(path);
