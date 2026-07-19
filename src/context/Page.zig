@@ -1147,7 +1147,7 @@ pub const Builtins = struct {
 
     pub const leaves = struct {
         pub const signature: Signature = .{
-            .params = &.{.{ .Opt = .String }},
+            .params = &.{.{ .Opt = .Int }},
             .ret = .{ .Many = .Page },
         };
         pub const docs_description =
