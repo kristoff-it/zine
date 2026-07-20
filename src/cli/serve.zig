@@ -71,14 +71,14 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
     switch (cfg.site) {
         .simple => |*s| s.host_url = try std.fmt.allocPrint(
             gpa,
-            "http://{s}:{}/",
+            "http://{s}:{}",
             .{ cmd.host, cmd.port },
         ),
 
         .multilingual => |*ml| {
             ml.host_url = try std.fmt.allocPrint(
                 gpa,
-                "http://{s}:{}/",
+                "http://{s}:{}",
                 .{ cmd.host, cmd.port },
             );
 
@@ -168,7 +168,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
         ),
         .multilingual => try std.fmt.allocPrint(
             gpa,
-            "Listening at http://{s}:{}/",
+            "Listening at http://{s}:{}",
             .{ cmd.host, cmd.port },
         ),
     };
@@ -960,11 +960,11 @@ pub const Server = struct {
         mime_type: mime.Type,
         file_path: []const u8,
     ) !void {
-        assert(file_path[0] != '/');
+        const trimmed_file_path = std.mem.trimStart(u8, file_path, "/");
 
         const contents = try dir.readFileAlloc(
             io,
-            file_path,
+            trimmed_file_path,
             arena,
             .unlimited,
         );
