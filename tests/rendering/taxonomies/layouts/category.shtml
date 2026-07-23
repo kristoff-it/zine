@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <ctx :if="$page.taxonomyTerm?()">
+      <h1 :text="$if.name"></h1>
+      <p :text="$if.slug"></p>
+      <ul :loop="$if.pages()">
+        <li><a href="$loop.it.link()" :text="$loop.it.title"></a></li>
+      </ul>
+    </ctx>
+  </body>
+</html>

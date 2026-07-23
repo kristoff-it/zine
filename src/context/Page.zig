@@ -38,6 +38,7 @@ pub const ziggy_options: ziggy.Options(Page) = .{
         ._parse,
         ._analysis,
         ._render,
+        ._taxonomy,
     },
 };
 
@@ -120,6 +121,15 @@ _render: struct {
         errors: []const u8,
     },
 } = undefined,
+
+/// Set on synthetic taxonomy pages (list pages and term pages).
+/// null for regular content pages.
+_taxonomy: ?TaxonomyPageMeta = null,
+
+pub const TaxonomyPageMeta = struct {
+    taxonomy_idx: u32,
+    term_slug: ?[]const u8, // null = list page, set = term page
+};
 
 pub const PageAnalysisError = struct {
     node: supermd.Node,
@@ -596,6 +606,24 @@ pub const Footnote = struct {
 };
 
 pub const Dot = true;
+pub fn dynamicDot(self: *const Page, gpa: Allocator, path: []const u8) error{OutOfMemory}!Value {
+    if (std.mem.eql(u8, path, "date") and self._taxonomy != null) {
+        return .{ .err = "date is not available on taxonomy pages" };
+    }
+    const info = @typeInfo(Page).@"struct";
+    inline for (info.field_names, info.field_types) |f_name, f_type| {
+        if (f_name[0] == '_') continue;
+        if (std.mem.eql(u8, f_name, path)) {
+            const by_ref = @typeInfo(f_type) == .@"struct" and
+                @hasDecl(f_type, "PassByRef") and f_type.PassByRef;
+            return if (by_ref)
+                Value.from(gpa, &@field(self, f_name))
+            else
+                Value.from(gpa, @field(self, f_name));
+        }
+    }
+    return .{ .err = "field not found" };
+}
 pub const PassByRef = true;
 
 pub const docs_description =
@@ -1084,6 +1112,7 @@ pub const Builtins = struct {
         ) context.CallError!Value {
             _ = gpa;
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (page._taxonomy != null) return .{ .err = "wordCount() is not available on taxonomy pages" };
             return .{
                 .int = .{
                     .value = @intCast(page._parse.full_src[page._parse.ziggy_doc.end..].len / 6),
@@ -1695,6 +1724,8 @@ pub const Builtins = struct {
                 else => return bad_arg,
             };
 
+            if (p._taxonomy != null) return .{ .err = "linkRef() is not available on taxonomy pages" };
+
             const ast = p._parse.ast;
             if (!ast.ids.contains(elem_id)) return Value.errFmt(
                 gpa,
@@ -1772,6 +1803,84 @@ pub const Builtins = struct {
         }
     };
 
+    pub const @"taxonomy?" = struct {
+        pub const signature: Signature = .{ .ret = .{ .Opt = .Taxonomy } };
+        pub const docs_description =
+            \\If this page is a taxonomy list page (e.g. `/tags/`), returns the
+            \\associated Taxonomy. Returns null otherwise.
+            \\
+            \\To be used in conjunction with an `if` attribute.
+        ;
+        pub const examples =
+            \\<ul :if="$page.taxonomy?()">
+            \\  <li :loop="$if.terms()" :text="$loop.it.name"></li>
+            \\</ul>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            const meta = p._taxonomy orelse return Optional.Null;
+            if (meta.term_slug != null) return Optional.Null;
+
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+            const t = try gpa.create(context.Taxonomy);
+            t.* = .{
+                .name = v.taxonomy_indices[meta.taxonomy_idx].name,
+                ._meta = .{
+                    .variant_id = p._scan.variant_id,
+                    .taxonomy_idx = meta.taxonomy_idx,
+                },
+            };
+            return Optional.init(gpa, t);
+        }
+    };
+
+    pub const @"taxonomyTerm?" = struct {
+        pub const signature: Signature = .{ .ret = .{ .Opt = .Term } };
+        pub const docs_description =
+            \\If this page is a taxonomy term page (e.g. `/tags/zig/`), returns
+            \\the associated Term. Returns null otherwise.
+            \\
+            \\To be used in conjunction with an `if` attribute.
+        ;
+        pub const examples =
+            \\<ul :if="$page.taxonomyTerm?()">
+            \\  <li :loop="$if.pages()" :text="$loop.it.title"></li>
+            \\</ul>
+        ;
+        pub fn call(
+            p: *const Page,
+            gpa: Allocator,
+            ctx: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            if (args.len != 0) return .{ .err = "expected 0 arguments" };
+
+            const meta = p._taxonomy orelse return Optional.Null;
+            const slug = meta.term_slug orelse return Optional.Null;
+
+            const v = &ctx._meta.build.variants[p._scan.variant_id];
+            const ti = &v.taxonomy_indices[meta.taxonomy_idx];
+            const td = ti.terms.getPtr(slug) orelse return .{
+                .err = "term not found",
+            };
+
+            return Optional.init(gpa, context.Term{
+                .name = td.display_name,
+                .slug = td.slug,
+                ._meta = .{
+                    .variant_id = p._scan.variant_id,
+                    .taxonomy_idx = meta.taxonomy_idx,
+                },
+            });
+        }
+    };
+
     pub const content = struct {
         pub const signature: Signature = .{ .ret = .String };
         pub const docs_description =
@@ -1785,6 +1894,7 @@ pub const Builtins = struct {
             args: []const Value,
         ) context.CallError!Value {
             if (args.len != 0) return .{ .err = "expected 0 arguments" };
+            if (p._taxonomy != null) return .{ .err = "content() is not available on taxonomy pages" };
 
             var aw: Writer.Allocating = .init(gpa);
             const ast = p._parse.ast;
@@ -1821,6 +1931,7 @@ pub const Builtins = struct {
                 .err = "expected 1 string argument",
             };
             if (args.len != 1) return bad_arg;
+            if (p._taxonomy != null) return .{ .err = "contentSection() is not available on taxonomy pages" };
 
             const section_id = switch (args[0]) {
                 .string => |s| s.value,
@@ -1880,6 +1991,7 @@ pub const Builtins = struct {
                 .err = "expected 1 string argument argument",
             };
             if (args.len != 1) return bad_arg;
+            if (p._taxonomy != null) return .{ .err = "hasContentSection() is not available on taxonomy pages" };
 
             const section_id = switch (args[0]) {
                 .string => |s| s.value,
@@ -1923,6 +2035,7 @@ pub const Builtins = struct {
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
+            if (p._taxonomy != null) return .{ .err = "contentSections() is not available on taxonomy pages" };
 
             const ast = p._parse.ast;
 
@@ -1974,6 +2087,7 @@ pub const Builtins = struct {
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
+            if (p._taxonomy != null) return .{ .err = "footnotes?() is not available on taxonomy pages" };
 
             const ast = p._parse.ast;
             if (ast.footnotes.count() == 0) {
@@ -2010,6 +2124,7 @@ pub const Builtins = struct {
                 .err = "expected 0 arguments",
             };
             if (args.len != 0) return bad_arg;
+            if (p._taxonomy != null) return .{ .err = "toc() is not available on taxonomy pages" };
 
             var aw: Writer.Allocating = .init(gpa);
             const w = &aw.writer;
