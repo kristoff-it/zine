@@ -1,6 +1,6 @@
 .{
     .name = .zine,
-    .version = "0.13.0",
+    .version = "0.13.1",
     .fingerprint = 0xa466bcb520a7eea2,
     .minimum_zig_version = "0.17.0-dev.857+2b2b85c5f",
     .dependencies = .{
@@ -46,8 +46,8 @@
             .hash = "ziggy-0.2.0-kTg8v6TvBwDaJXZ-bHaKizTGqzwLLESmrR2bjWCXDHUf",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#da528ac38e6940d23b7c2bf611ccf01fe6231e82",
-            .hash = "supermd-0.1.0-3Mco3D69WADCswLaF7w1pp--DKXnkGXy-8aH7S5cVZs3",
+            .url = "git+https://github.com/kristoff-it/supermd#54be0dea412ff0a7ecc2424759acd1f03bc5c4ad",
+            .hash = "supermd-0.1.0-3Mco3Oq8WAD0AClKssDfKJ9qbLphnHjo3Q7H35C4pLih",
         },
         .translate_c = .{
             .url = "git+https://codeberg.org/kristoff/translate-c?ref=0.17.x#c01b34d1e57010019d77ffef1dbc704af870a2eb",

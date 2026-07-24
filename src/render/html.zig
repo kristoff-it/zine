@@ -254,7 +254,11 @@ pub fn html(
                 .exit => {},
             },
             .FOOTNOTE_DEFINITION => switch (ev.dir) {
-                .enter => {},
+                .enter => {
+                    if (start.nodeType() != .FOOTNOTE_DEFINITION) {
+                        it.reset(node, .exit);
+                    }
+                },
                 .exit => {},
             },
             .HTML_INLINE => switch (ev.dir) {
