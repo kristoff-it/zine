@@ -34,8 +34,8 @@
             .hash = "superhtml-0.7.0-Y7MdPDqHJgB3G-imgMY4mZF8ikIYJ3O-4hVNxBDP9Imp",
         },
         .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit#905396257dcf0b1bfa3c0e8265657a0e748105ad",
-            .hash = "zeit-0.10.0-dev-5I6bk3m9AgB8Ndev81pibV70MJe9VCOXAGZBNU833c4Y",
+            .url = "git+https://github.com/rockorager/zeit#ed64c36035fe44d6372c20cbcd447b0090687167",
+            .hash = "zeit-0.10.0-dev-5I6bk4i0AgANIwpoMN_iBL-OGEpyDuInvQLfrPe_FVb1",
         },
         .flow_syntax = .{
             .url = "git+https://github.com/kristoff-it/flow-syntax#b42c3e985215e88a8faa260cbf7eb248822c339c",
