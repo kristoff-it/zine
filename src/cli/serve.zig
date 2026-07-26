@@ -69,11 +69,16 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
     );
     var cfg, const base_dir_path = root.Config.load(io, gpa, .auto);
     switch (cfg.site) {
-        .simple => |*s| s.host_url = try std.fmt.allocPrint(
-            gpa,
-            "http://{s}:{}/",
-            .{ cmd.host, cmd.port },
-        ),
+        .simple => |*s| {
+            if (cmd.url_path_prefix) |url_path_prefix| {
+                s.url_path_prefix = url_path_prefix;
+            }
+            s.host_url = try std.fmt.allocPrint(
+                gpa,
+                "http://{s}:{}/",
+                .{ cmd.host, cmd.port },
+            );
+        },
 
         .multilingual => |*ml| {
             ml.host_url = try std.fmt.allocPrint(
@@ -301,6 +306,7 @@ pub const Command = struct {
     // search: root.Config.Search,
     host: []const u8,
     port: u16,
+    url_path_prefix: ?[]const u8,
     debounce: u16,
     build_assets: std.StringArrayHashMapUnmanaged(BuildAsset),
     drafts: bool,
@@ -347,6 +353,7 @@ pub const Command = struct {
         // var config_path: ?[]const u8 = null;
         var host: ?[]const u8 = null;
         var port: ?u16 = null;
+        var url_path_prefix: ?[]const u8 = null;
         var debounce: ?u16 = null;
         var build_assets: std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
         var drafts: ?bool = null;
@@ -366,6 +373,16 @@ pub const Command = struct {
                 );
                 host, const maybe_port = parseAddress(args[idx]);
                 if (maybe_port) |p| port = p;
+            } else if (std.mem.startsWith(u8, arg, "--url-path-prefix=")) {
+                const suffix = arg["--url-path-prefix=".len..];
+                url_path_prefix = suffix;
+            } else if (std.mem.eql(u8, arg, "--url-path-prefix")) {
+                idx += 1;
+                if (idx >= args.len) fatal.msg(
+                    "error: missing argument to '--url-path-prefix'",
+                    .{},
+                );
+                url_path_prefix = args[idx];
             } else if (std.mem.startsWith(u8, arg, "--port=")) {
                 const suffix = arg["--port=".len..];
                 port = std.fmt.parseInt(u16, suffix, 10) catch |err| fatal.msg(
@@ -461,6 +478,7 @@ pub const Command = struct {
             // .search = if (config_path) |p| .{ .path = p } else .auto,
             .host = host orelse "localhost",
             .port = port orelse 1990,
+            .url_path_prefix = url_path_prefix,
             .debounce = debounce orelse 25,
             .build_assets = build_assets,
             .drafts = drafts orelse false,
