@@ -420,7 +420,7 @@ fn scanContentDirInner(
                 .parent_section_id = dir_entry.parent_section,
                 .variant_id = variant_id,
             };
-            if (builtin.mode == .Debug) {
+            if (builtin.mode == .debug) {
                 index_page._debug = .{ .stage = .init(.scanned) };
             }
 
@@ -447,7 +447,7 @@ fn scanContentDirInner(
         const pages_old_len = pages.items.len;
         try pages.resize(gpa, pages_old_len + page_names.items.len);
 
-        if (builtin.mode == .Debug) {
+        if (builtin.mode == .debug) {
             const Ctx = struct {
                 st: *StringTable,
                 pub fn lessThan(ctx: @This(), lhs: String, rhs: String) bool {
@@ -494,7 +494,7 @@ fn scanContentDirInner(
                 .parent_section_id = current_section,
                 .variant_id = variant_id,
             };
-            if (builtin.mode == .Debug) {
+            if (builtin.mode == .debug) {
                 p._debug = .{ .stage = .init(.scanned) };
             }
 

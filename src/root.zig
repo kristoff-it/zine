@@ -626,7 +626,7 @@ pub fn run(
         // directory in this thread.
         // TODO: find a better moment for this work
         try build.scanTemplates(io, gpa, arena);
-        if (builtin.mode == .Debug) {
+        if (builtin.mode == .debug) {
             const Ctx = struct {
                 b: *Build,
                 pub fn lessThan(ctx: @This(), lid: usize, rid: usize) bool {

@@ -26,6 +26,7 @@ const outside_html = @embedFile("serve/outside.html");
 const Watcher = switch (builtin.target.os.tag) {
     .linux => @import("serve/watcher/LinuxWatcher.zig"),
     .freebsd => @import("serve/watcher/LinuxWatcher.zig"),
+    .netbsd => @import("serve/watcher/NetBSDWatcher.zig"),
     .macos => @import("serve/watcher/MacosWatcher.zig"),
     .windows => @import("serve/watcher/WindowsWatcher.zig"),
     else => @compileError("unsupported platform"),
@@ -52,7 +53,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
     const cmd: Command = try .parse(gpa, args);
 
     worker.start(io);
-    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit(io);
+    defer if (builtin.mode == .debug) worker.stopWaitAndDeinit(io);
 
     var buf: [64]ServeEvent = undefined;
     var channel: Channel(ServeEvent) = .init(&buf);
@@ -94,7 +95,7 @@ pub fn serve(io: Io, gpa: Allocator, args: []const []const u8) error{OutOfMemory
     }
 
     var dirs_to_watch: std.ArrayListUnmanaged([:0]const u8) = .empty;
-    defer if (builtin.mode == .Debug) dirs_to_watch.deinit(gpa);
+    defer if (builtin.mode == .debug) dirs_to_watch.deinit(gpa);
 
     try dirs_to_watch.appendSlice(
         gpa,
