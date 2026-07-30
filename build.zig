@@ -59,7 +59,7 @@ pub const Options = struct {
     /// Debug settings for Zine.
     debug: struct {
         /// The optimization level to use when building Zine.
-        optimize: std.builtin.OptimizeMode = .ReleaseFast,
+        optimize: std.builtin.OptimizeMode = .fast,
 
         /// Logging scopes to enable.
         scopes: []const []const u8 = &.{},
@@ -147,7 +147,7 @@ pub fn serve(project: *std.Build, opts: Options) *std.Build.Step.Run {
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{
-        // .preferred_optimize_mode = .ReleaseFast,
+        // .preferred_optimize_mode = .fast,
     });
 
     const no_git_version = b.option(
@@ -267,7 +267,7 @@ pub fn build(b: *std.Build) !void {
 
     const wuffs = b.dependency("wuffs", mode);
     const translate_c = b.dependency("translate_c", .{
-        .optimize = .ReleaseFast,
+        .optimize = .fast,
     });
 
     const release = b.step("release", "Create release builds of Zine");
@@ -285,7 +285,7 @@ pub fn build(b: *std.Build) !void {
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/docgen.zig"),
             .target = target,
-            .optimize = .Debug,
+            .optimize = .debug,
         }),
     });
     shtml_docgen.root_module.addImport("zeit", zeit);
@@ -311,6 +311,7 @@ pub fn build(b: *std.Build) !void {
     switch (target.result.os.tag) {
         else => @panic("target must be added to build.zig"),
         .linux => {},
+        .netbsd => {},
         .freebsd => {
             // only required for FreeBSD < 15
             // zine_exe.linkSystemLibrary("inotify");
@@ -374,7 +375,7 @@ fn setupSchemaCheck(
         types_mod.addImport("zine", zine_mod);
 
         const ziggy = @import("ziggy");
-        const check_step = ziggy.addTypeCheckStep(b, target, .Debug, types_mod, schema);
+        const check_step = ziggy.addTypeCheckStep(b, target, .debug, types_mod, schema);
         test_step.dependOn(check_step);
     }
 
@@ -386,7 +387,7 @@ fn setupSchemaCheck(
         types_mod.addImport("zine", zine_mod);
 
         const ziggy = @import("ziggy");
-        const check_step = ziggy.addTypeCheckStep(b, target, .Debug, types_mod, schema);
+        const check_step = ziggy.addTypeCheckStep(b, target, .debug, types_mod, schema);
         test_step.dependOn(check_step);
     }
 }
@@ -402,7 +403,7 @@ fn setupSnapshotTesting(
         .root_module = b.createModule(.{
             .root_source_file = b.path("build/camera.zig"),
             .target = target,
-            .optimize = .ReleaseFast,
+            .optimize = .fast,
         }),
     });
 
@@ -557,7 +558,7 @@ fn setupReleaseStep(
 
     for (targets) |t| {
         const target = b.resolveTargetQuery(t);
-        const optimize = .ReleaseFast;
+        const optimize = .fast;
 
         const tracy = b.dependency("tracy", .{ .enable = false });
         const scripty = b.dependency("scripty", .{
@@ -639,7 +640,7 @@ fn setupReleaseStep(
             .root_module = b.createModule(.{
                 .root_source_file = b.path("src/main.zig"),
                 .target = target,
-                .optimize = .ReleaseFast,
+                .optimize = .fast,
             }),
         });
 
@@ -658,6 +659,7 @@ fn setupReleaseStep(
         switch (target.result.os.tag) {
             else => @panic("target must be added to build.zig"),
             .linux => {},
+            .netbsd => {},
             .freebsd => {
                 // only required for FreeBSD < 15
                 // zine_exe_release.linkSystemLibrary("inotify");

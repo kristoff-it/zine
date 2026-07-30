@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) u8 {
     root.progress = std.Progress.start(io, .{ .draw_buffer = &root.progress_buf });
     defer root.progress.end();
 
-    if (builtin.mode == .Debug) {
+    if (builtin.mode == .debug) {
         std.debug.print(
             \\*-----------------------------------------------*
             \\|    WARNING: THIS IS A DEBUG BUILD OF ZINE     |
@@ -54,7 +54,7 @@ pub fn main(init: std.process.Init) u8 {
             \\|                                               |
             \\| To create a release build, run:               |
             \\|                                               |
-            \\|       zig build -Doptimize=ReleaseFast        |
+            \\|       zig build -Doptimize=fast               |
             \\|                                               |
             \\| If you're investigating a bug in Zine, then a |
             \\| debug build might turn confusing behavior     |

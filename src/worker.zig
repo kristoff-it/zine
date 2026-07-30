@@ -119,7 +119,7 @@ pub fn start(io: Io) void {
 }
 
 pub fn stopWaitAndDeinit(io: Io) void {
-    if (builtin.mode != .Debug) return;
+    if (builtin.mode != .debug) return;
     if (builtin.single_threaded) addJob(io, .leave);
 
     for (threads) |_| addJob(io, .leave);
@@ -134,7 +134,7 @@ pub fn addJob(io: Io, job: Job) void {
         const continue_ = runOneJob(io, single_threaded_arena, job);
         _ = single_threaded_arena_state.reset(.retain_capacity);
 
-        if (builtin.mode == .Debug and !continue_) {
+        if (builtin.mode == .debug and !continue_) {
             single_threaded_arena_state.deinit();
         }
     } else {
@@ -246,7 +246,7 @@ fn analyzePage(
     defer zone.end();
 
     assert(page._parse.status == .parsed);
-    if (builtin.mode == .Debug) {
+    if (builtin.mode == .debug) {
         const last = page._debug.stage.swap(.analyzed, .monotonic);
         assert(last == .parsed);
     }
@@ -560,7 +560,7 @@ fn analyzeContent(
                                     p.ref,
                                 )) |path| break :blk path;
                                 log.debug("page link '{s}': path not found", .{p.ref});
-                                if (builtin.mode == .Debug) {
+                                if (builtin.mode == .debug) {
                                     var it = std.mem.tokenizeScalar(u8, p.ref, '/');
                                     while (it.next()) |c| {
                                         log.debug("'{s}' -> [{?d}]", .{

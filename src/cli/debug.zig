@@ -30,7 +30,7 @@ fn debugInner(
     const cfg, const base_dir_path = root.Config.load(io, gpa, .auto);
 
     worker.start(io);
-    defer if (builtin.mode == .Debug) worker.stopWaitAndDeinit(io);
+    defer if (builtin.mode == .debug) worker.stopWaitAndDeinit(io);
 
     // build_assets: *const std.StringArrayHashMapUnmanaged(BuildAsset) = .empty;
     const build = root.run(io, gpa, &cfg, .{
@@ -40,7 +40,7 @@ fn debugInner(
         .mode = .memory,
     }) catch fatal.oom();
 
-    defer if (builtin.mode == .Debug) build.deinit(io, gpa);
+    defer if (builtin.mode == .debug) build.deinit(io, gpa);
 
     for (build.variants, 0..) |*variant, vidx| {
         std.debug.print(
