@@ -48,7 +48,7 @@ pub const PathName = packed struct {
     pub const empty_name: String = @enumFromInt(0);
     pub const empty_path: Path = @enumFromInt(0);
     pub fn get(st: *const StringTable, pt: *const PathTable, src: []const u8) ?PathName {
-        if (builtin.mode == .Debug) {
+        if (builtin.mode == .debug) {
             assert(!std.mem.endsWith(u8, src, "/\\"));
             assert(st.get("") == empty_name);
             assert(pt.get(&.{}) == empty_path);

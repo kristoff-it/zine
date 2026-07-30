@@ -56,7 +56,7 @@ custom: ziggy.Dynamic = .{ .kv = .empty },
 
 /// Only present in debug builds to catch programming errors
 /// in the processing pipeline.
-_debug: if (builtin.mode != .Debug) void else struct {
+_debug: if (builtin.mode != .debug) void else struct {
     stage: std.atomic.Value(Stage),
     pub const Stage = enum(u8) { scanned, parsed, analyzed, rendered };
 } = undefined,
@@ -326,7 +326,7 @@ pub fn parse(
         ),
     }) catch unreachable;
 
-    if (builtin.mode == .Debug) {
+    if (builtin.mode == .debug) {
         const last = p._debug.stage.swap(.parsed, .acq_rel);
         assert(last == .scanned);
         tracy.messageCopy(path_bytes);
