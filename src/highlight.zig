@@ -98,7 +98,7 @@ fn printSpan(
     });
 }
 
-pub fn highlightCode(
+pub fn run(
     io: Io,
     arena: Allocator,
     lang_name: []const u8,
@@ -208,5 +208,34 @@ pub fn highlightCode(
     if (current_pos < code.len) {
         try current_classes.getClasses(arena, &class_list);
         try printSpan(arena, w, code, current_pos, code.len, class_list.items);
+    }
+}
+
+pub fn runConsole(w: *Writer, source: []const u8) Writer.Error!void {
+    var it = std.mem.splitScalar(u8, source, '\n');
+    while (it.next()) |line| {
+        const prompt_end: ?usize = end: {
+            if (line.len == 0) break :end null;
+            switch (line[0]) {
+                else => break :end null,
+                '$', '#' => break :end 1,
+                '[' => {},
+            }
+            const i = std.mem.findScalar(u8, line, ']') orelse break :end null;
+            if (i == line.len - 1) break :end null;
+            break :end switch (line[i + 1]) {
+                '$', '#' => i + 2,
+                else => null,
+            };
+        };
+        if (prompt_end) |index| {
+            try w.print("<span class=\"prompt\">{f}</span> <span class=\"command\">{f}</span>", .{
+                @as(HtmlSafe, .{ .bytes = line[0..index] }),
+                @as(HtmlSafe, .{ .bytes = std.mem.trim(u8, line[index..], &std.ascii.whitespace) }),
+            });
+        } else {
+            try w.print("{f}", .{@as(HtmlSafe, .{ .bytes = line })});
+        }
+        if (it.index != null) try w.writeByte('\n');
     }
 }

@@ -1199,6 +1199,7 @@ pub fn languageExists(language: ?[]const u8) bool {
     const lang = language orelse return true;
     if (std.mem.eql(u8, lang, "=html")) return true;
     if (std.mem.eql(u8, lang, "=mathtex")) return true;
+    if (std.mem.eql(u8, lang, "console")) return true;
 
     const syntax = @import("syntax");
     if (syntax.FileType.get_by_name_static(lang) == null) {

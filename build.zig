@@ -406,20 +406,16 @@ fn setupSnapshotTesting(
         }),
     });
 
-    const diff = b.addSystemCommand(&.{
-        "git",
-        "diff",
-        "--cached",
-        "--exit-code",
-    });
+    const diff = b.addSystemCommand(&.{ "git", "diff", "--exit-code" });
     diff.addDirectoryArg(b.path("tests"));
     diff.setName("git diff tests/");
     test_step.dependOn(&diff.step);
 
-    // We need to stage all of tests/ in order for untracked files to show up in
-    // the diff. It's also not a bad automatism since it avoids the problem of
-    // forgetting to stage new snapshot files.
-    const git_add = b.addSystemCommand(&.{ "git", "add" });
+    // We need to add all files in `tests/` to the index so that previously-untracked files show up
+    // in the diff. By using `--intent-to-add`, we add new paths to the index with no content, so
+    // the actual changes are still unstaged. By using `--ignore-removal`, we prevent paths being
+    // *removed* from the index when a file is deleted, so deleted files still appear in the diff.
+    const git_add = b.addSystemCommand(&.{ "git", "add", "--intent-to-add", "--ignore-removal" });
     git_add.addDirectoryArg(b.path("tests/"));
     git_add.setName("git add tests/");
     diff.step.dependOn(&git_add.step);
