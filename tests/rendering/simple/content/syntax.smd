@@ -49,3 +49,15 @@ impl<'a, T: Display> ComplexData<'a, T> {
     }
 }
 ```
+
+```console
+[user@hostname ~]$ cat hello
+This is the contents of
+a hello world file!
+symbols in $ the middle of lines
+do not cause # highlighting to happen
+$ true
+[root ~]# true
+# echo 'i am running as root'
+i am running as root
+```

@@ -6,8 +6,7 @@ const Ast = supermd.Ast;
 const Iter = Ast.Iter;
 const tracy = @import("tracy");
 const root = @import("../root.zig");
-const hl = @import("../highlight.zig");
-const highlightCode = hl.highlightCode;
+const highlight = @import("../highlight.zig");
 const context = @import("../context.zig");
 const StringTable = @import("../StringTable.zig");
 const PathTable = @import("../PathTable.zig");
@@ -326,17 +325,25 @@ pub fn html(
 
                             try w.print("<pre><code class=\"{s}\">", .{lang_name});
 
-                            highlightCode(
-                                ctx._meta.io,
-                                gpa,
-                                lang_name,
-                                code,
-                                w,
-                            ) catch |err| switch (err) {
-                                error.OutOfMemory => return error.OutOfMemory,
-                                // Already validated in analyzePage
-                                else => unreachable,
-                            };
+                            if (std.mem.eql(u8, lang_name, "console")) {
+                                try highlight.runConsole(w, code);
+                            } else {
+                                highlight.run(
+                                    ctx._meta.io,
+                                    gpa,
+                                    lang_name,
+                                    code,
+                                    w,
+                                ) catch |err| switch (err) {
+                                    error.OutOfMemory,
+                                    error.WriteFailed,
+                                    => |e| return e,
+                                    // Already validated in analyzePage
+                                    error.NoLanguage => unreachable,
+                                    error.Unknown => unreachable,
+                                };
+                            }
+
                             try w.writeAll("</code></pre>\n");
                         }
                     }
@@ -607,18 +614,25 @@ fn renderDirective(
                     try w.print("><code class=\"{?s}\">", .{code.language});
 
                     if (code.language) |lang| {
-                        highlightCode(
-                            ctx._meta.io,
-                            gpa,
-                            lang,
-                            code.src.?.url,
-                            w,
-                        ) catch |err| switch (err) {
-                            error.OutOfMemory => return error.OutOfMemory,
-                            // We assert success because the language code was
-                            // validated during the page analysis phase.
-                            else => unreachable,
-                        };
+                        if (std.mem.eql(u8, lang, "console")) {
+                            try highlight.runConsole(w, code.src.?.url);
+                        } else {
+                            highlight.run(
+                                ctx._meta.io,
+                                gpa,
+                                lang,
+                                code.src.?.url,
+                                w,
+                            ) catch |err| switch (err) {
+                                error.OutOfMemory,
+                                error.WriteFailed,
+                                => |e| return e,
+                                // We assert success because the language code was
+                                // validated during the page analysis phase.
+                                error.NoLanguage => unreachable,
+                                error.Unknown => unreachable,
+                            };
+                        }
                     } else {
                         try w.print("{f}", .{HtmlSafe{ .bytes = code.src.?.url }});
                     }
