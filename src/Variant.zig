@@ -313,11 +313,13 @@ fn scanContentDirInner(
     var urls: std.AutoHashMapUnmanaged(PathName, LocationHint) = .empty;
     var collisions: std.ArrayListUnmanaged(Collision) = .empty;
 
-    var dir_stack: std.ArrayListUnmanaged(struct {
+    const DirStackEntry = struct {
         path: []const u8,
         parent_section: u32, // index into sections
         page_assets_owner: u32, // index into pages
-    }) = .empty;
+    };
+
+    var dir_stack: std.ArrayListUnmanaged(DirStackEntry) = .empty;
     try dir_stack.append(arena, .{
         .path = "",
         .parent_section = 0,
@@ -333,6 +335,17 @@ fn scanContentDirInner(
     }) catch |err| fatal.dir(content_dir_path, err);
 
     while (dir_stack.pop()) |dir_entry| {
+        defer if (builtin.mode == .debug) {
+            const Ctx = struct {
+                pub fn greaterThan(_: @This(), lhs: DirStackEntry, rhs: DirStackEntry) bool {
+                    return std.mem.order(u8, lhs.path, rhs.path) != .lt;
+                }
+            };
+
+            const ctx: Ctx = .{};
+            std.mem.sort(DirStackEntry, dir_stack.items, ctx, Ctx.greaterThan);
+        };
+
         var dir = switch (dir_entry.path.len) {
             0 => content_dir,
             else => content_dir.openDir(io, dir_entry.path, .{ .iterate = true }) catch |err| {
@@ -382,7 +395,6 @@ fn scanContentDirInner(
             ),
         };
 
-        // Would be nice to be able to use destructuring...
         var current_section = dir_entry.parent_section;
         const assets_owner_id = if (found_index_smd) blk: {
             const page_id: u32 = @intCast(pages.items.len);
