@@ -146,9 +146,7 @@ pub fn serve(project: *std.Build, opts: Options) *std.Build.Step.Run {
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{
-        // .preferred_optimize_mode = .fast,
-    });
+    const optimize = b.standardOptimizeOption(.{});
 
     const no_git_version = b.option(
         bool,
@@ -209,8 +207,6 @@ pub fn build(b: *std.Build) !void {
         "logging scopes to enable",
     ) orelse &.{};
 
-    const mode = .{ .target = target, .optimize = optimize };
-
     const options = blk: {
         const options = b.addOptions();
         try options.contents.print(b.allocator,
@@ -242,7 +238,10 @@ pub fn build(b: *std.Build) !void {
         .tracy = enable_tracy,
     }).module("superhtml");
 
-    const ziggy = b.dependency("ziggy", mode).module("ziggy");
+    const ziggy = b.dependency("ziggy", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("ziggy");
     const supermd = b.dependency("supermd", .{
         .target = target,
         .optimize = optimize,
@@ -252,12 +251,18 @@ pub fn build(b: *std.Build) !void {
     supermd.addImport("superhtml", superhtml);
     supermd.addImport("ziggy", ziggy);
 
-    const zeit = b.dependency("zeit", mode).module("zeit");
+    const zeit = b.dependency("zeit", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("zeit");
     const syntax = b.dependency("flow_syntax", .{
         .target = target,
         .optimize = optimize,
     });
-    const ts = syntax.builder.dependency("tree_sitter", mode);
+    const ts = syntax.builder.dependency("tree_sitter", .{
+        .target = target,
+        .optimize = optimize,
+    });
     const treez = ts.module("treez");
 
     const mime = b.dependency("mime", .{
@@ -265,7 +270,10 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    const wuffs = b.dependency("wuffs", mode);
+    const wuffs = b.dependency("wuffs", .{
+        .target = target,
+        .optimize = optimize,
+    });
     const translate_c = b.dependency("translate_c", .{
         .optimize = .fast,
     });
@@ -301,13 +309,6 @@ pub fn build(b: *std.Build) !void {
         b.installArtifact(shtml_docgen);
     }
 
-    const Translator = @import("translate_c").Translator;
-    const t: Translator = .init(translate_c, .{
-        .c_source_file = b.path("src/c.h"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     switch (target.result.os.tag) {
         else => @panic("target must be added to build.zig"),
         .linux => {},
@@ -318,6 +319,13 @@ pub fn build(b: *std.Build) !void {
         },
         .windows => {},
         .macos => {
+            const Translator = @import("translate_c").Translator;
+            const t: Translator = .init(translate_c, .{
+                .c_source_file = b.path("src/c.h"),
+                .target = target,
+                .optimize = optimize,
+            });
+
             const frameworks = b.lazyDependency("frameworks", .{}) orelse return;
             zine_mod.addIncludePath(frameworks.path("include"));
             zine_mod.addFrameworkPath(frameworks.path("Frameworks"));
@@ -327,7 +335,6 @@ pub fn build(b: *std.Build) !void {
             t.addFrameworkPath(frameworks.path("Frameworks"));
             t.mod.addLibraryPath(frameworks.path("lib"));
             t.mod.linkFramework("CoreServices", .{});
-
             zine_mod.addImport("c", t.mod);
         },
     }
