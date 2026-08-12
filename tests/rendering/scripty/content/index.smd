@@ -1,0 +1,10 @@
+---
+.title = "Homepage",
+.date = .date("2020-07-06T00:00:00"),
+.layout = "index.shtml",
+--- 
+
+This site contains tests for scripty code.
+
+Each page corresponds to a definition in Zig code (eg Page, String, Arrray)
+and should test all builtin functions defined therein.

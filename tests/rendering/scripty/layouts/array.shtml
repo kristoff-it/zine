@@ -1,0 +1,5 @@
+<meta name="keywords" content="$page.tags.join(', ')">
+
+<ul :loop="$page.tags">
+	<li :text="$loop.it"></li>
+</ul>

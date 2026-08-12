@@ -1,6 +1,7 @@
 const Array = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const ziggy = @import("ziggy");
 const superhtml = @import("superhtml");
 const scripty = @import("scripty");
@@ -227,6 +228,66 @@ pub const Builtins = struct {
             if (arr._items.len == 0) return Optional.Null;
 
             return Optional.init(gpa, arr._items[arr._items.len - 1]);
+        }
+    };
+
+    pub const join = struct {
+        pub const signature: Signature = .{
+            .params = &.{.String},
+            .ret = .String,
+        };
+
+        pub const docs_description =
+            \\Joins all items into a string, using the provided argument
+            \\as separator.
+            \\
+            \\The array must contain only strings or numbers.
+        ;
+
+        pub const examples =
+            \\<meta name="keywords" content="$page.tags.join(', ')">
+        ;
+
+        pub fn call(
+            arr: Array,
+            gpa: Allocator,
+            _: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            const bad_arg: Value = .{ .err = "expected 1 string argument" };
+            if (args.len != 1) return bad_arg;
+
+            const sep = switch (args[0]) {
+                .string => |s| s.value,
+                else => return bad_arg,
+            };
+
+            var aw: Io.Writer.Allocating = .init(gpa);
+            defer aw.deinit();
+
+            const w = &aw.writer;
+
+            for (arr._items, 0..) |e, idx| {
+                switch (e) {
+                    .string => |s| {
+                        w.print("{s}", .{s.value}) catch return error.OutOfMemory;
+                    },
+                    inline .int, .float => |x| {
+                        w.print("{}", .{x.value}) catch return error.OutOfMemory;
+                    },
+                    else => return Value.errFmt(
+                        gpa,
+                        "element at index {} is not a string nor a number",
+                        .{idx},
+                    ),
+                }
+
+                if (idx < arr._items.len - 1) {
+                    w.writeAll(sep) catch return error.OutOfMemory;
+                }
+            }
+
+            return context.String.init(try aw.toOwnedSlice());
         }
     };
 };
