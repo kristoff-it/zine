@@ -1,0 +1,20 @@
+.zine_version = "0.13.0",
+.site = .simple(.{
+    .title = "Taxonomy Test",
+    .host_url = "https://example.com",
+    .content_dir_path = "content",
+    .layouts_dir_path = "layouts",
+    .assets_dir_path = "assets",
+    .taxonomies = [
+        .{
+            .name = "tags",
+            .layout = "tags.shtml",
+            .term_layout = "tag.shtml",
+        },
+        .{
+            .name = "categories",
+            .layout = "categories.shtml",
+            .term_layout = "category.shtml",
+        },
+    ],
+})
