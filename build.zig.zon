@@ -2,7 +2,7 @@
     .name = .zine,
     .version = "0.14.1",
     .fingerprint = 0xa466bcb520a7eea2,
-    .minimum_zig_version = "0.17.0-dev.2307+392b17125",
+    .minimum_zig_version = "0.17.0-dev.2338+b46a7f3a2",
     .dependencies = .{
         .scripty = .{
             .url = "git+https://github.com/kristoff-it/scripty#51a03222e9a125a65888a5df6e2a41e36c86ccd5",
@@ -17,8 +17,8 @@
             .hash = "mime-3.0.0-zwmL--0gAAByELrj57sRm2EFBRzjKLFrMgHQcs7sFZev",
         },
         .wuffs = .{
-            .url = "git+https://github.com/allyourcodebase/wuffs#8a2e3454aaa683a1772363e22c09d3cd3582e0a6",
-            .hash = "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgY8LAAAZg4f40Gr5XKG1LQ9cangZnDD55McUG0WJ",
+            .url = "git+https://github.com/allyourcodebase/wuffs#b410781f44698b221fb7c996323563f260eae944",
+            .hash = "wuffs-0.4.0-alpha.9+3837.20240914-3CHJgY8LAADtPnOWAFD0GgnP0MKcB9XPGy_WXENdJC6S",
         },
         .frameworks = .{
             .url = "git+https://code.hexops.org/hexops/xcode-frameworks.git#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
@@ -42,12 +42,12 @@
             .hash = "ziggy-0.2.0-kTg8v5XyBwAL-S3Ci2S2QXYbe0m30-xUIbblJHdFFkKd",
         },
         .supermd = .{
-            .url = "git+https://github.com/kristoff-it/supermd#c45acf7d878305e0af06d4ce470958eb398d6f89",
-            .hash = "supermd-0.1.0-3Mco3Fa_WACFWtK0HQ8grhGfWQYubS-LAGpMtDXhzayB",
+            .url = "git+https://github.com/kristoff-it/supermd#38fcc2f0c065ba311cd9d18e1a48c8d975fc717e",
+            .hash = "supermd-0.1.0-3Mco3Fa_WAAiMH9Z7G_q7AScXO4M61_3rVSnP4WXt0zS",
         },
         .translate_c = .{
-            .url = "git+https://codeberg.org/ziglang/translate-c#14d8a0232cee6488377bae62127cf401f4c4bd29",
-            .hash = "translate_c-0.0.0-Q_BUWo5NBwAWyRlnrU_almDUdEYvRuUu39bYZkwop6Ak",
+            .url = "git+https://codeberg.org/ziglang/translate-c#5c31f38abf3aba28535ea545a2f393716c553d2c",
+            .hash = "translate_c-0.0.0-Q_BUWo5NBwB68fI9lsRU6WtgtSy9jS5M3hCFAjSrnY78",
         },
     },
     .paths = .{"."},
