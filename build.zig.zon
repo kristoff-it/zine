@@ -50,5 +50,12 @@
             .hash = "translate_c-0.0.0-Q_BUWo5NBwB68fI9lsRU6WtgtSy9jS5M3hCFAjSrnY78",
         },
     },
-    .paths = .{"."},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "build",
+        "tests",
+        "src",
+        "LICENSE",
+    },
 }
