@@ -28,6 +28,16 @@ struct SuperMd {
     auto_target_blank: ?bool,
 }
 
+struct TaxonomyConfig {
+    /// The name of the taxonomy. For "tags", reads from page.tags.
+    /// For anything else, reads from page.custom.{name}.
+    name: bytes,
+    /// Layout for the taxonomy list page (e.g. /tags/).
+    layout: bytes,
+    /// Layout for individual term pages (e.g. /tags/zig/).
+    term_layout: bytes,
+}
+
 union Site {
     simple: Simple,
     multilingual: Multilingual,
@@ -74,6 +84,8 @@ union Site {
         ///    img { height: auto; }
         ///
         image_size_attributes: ?bool,
+        /// Taxonomies to be generated from page metadata.
+        taxonomies: []TaxonomyConfig,
     }
 
     struct Multilingual {
@@ -131,6 +143,8 @@ union Site {
         ///    img { height: auto; }
         ///
         image_size_attributes: ?bool,
+        /// Taxonomies to be generated from page metadata.
+        taxonomies: []TaxonomyConfig,
 
         struct Locale {
             /// A language-NATION code, e.g. 'en-US', used to identify each

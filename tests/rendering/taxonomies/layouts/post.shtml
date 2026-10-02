@@ -1,0 +1,7 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <h1 :text="$page.title"></h1>
+    <div :html="$page.content()"></div>
+  </body>
+</html>
