@@ -42,6 +42,10 @@ urls: std.AutoHashMapUnmanaged(PathName, LocationHint),
 /// Overflowing LocationHints end up in here, populated alongside 'urls'.
 collisions: std.ArrayListUnmanaged(Collision),
 
+/// Taxonomy indices, one per taxonomy config entry.
+/// Built during the taxonomy build phase (after page analysis).
+taxonomy_indices: []TaxonomyIndex = &.{},
+
 i18n: context.Map.DynamicDict,
 i18n_src: [:0]const u8,
 i18n_err: ?DeserializeErr,
@@ -51,6 +55,21 @@ const Collision = struct {
     url: PathName,
     loc: LocationHint,
     previous: LocationHint,
+};
+
+pub const TaxonomyIndex = struct {
+    name: []const u8,
+    /// Slug -> TermData mapping.
+    terms: std.StringArrayHashMapUnmanaged(TermData),
+
+    pub const TermData = struct {
+        /// Original (display) name of the term (first seen casing).
+        display_name: []const u8,
+        /// Slugified name (lowercase, hyphen-separated).
+        slug: []const u8,
+        /// Page indices that have this term.
+        pages: std.ArrayListUnmanaged(u32),
+    };
 };
 
 /// Tells you where to look when figuring out what an output URL maps to.
@@ -241,6 +260,16 @@ pub fn deinit(v: *const Variant, io: Io, gpa: Allocator) void {
         var p = v.pages;
         p.deinit(gpa);
     }
+    for (v.taxonomy_indices) |*ti| {
+        for (ti.terms.keys(), ti.terms.values()) |slug, *td| {
+            var pages_list = td.pages;
+            pages_list.deinit(gpa);
+            gpa.free(slug);
+        }
+        var terms = ti.terms;
+        terms.deinit(gpa);
+    }
+    if (v.taxonomy_indices.len > 0) gpa.free(v.taxonomy_indices);
     {
         var u = v.urls;
         u.deinit(gpa);
