@@ -904,7 +904,7 @@ pub fn run(
 
                 pages_to_parse += s.pages.items.len;
 
-                const index_smd: String = @enumFromInt(1);
+                const index_smd: String = @fromBackingInt(@intCast(1));
                 assert(v.string_table.get("index.smd").? == index_smd);
                 for (s.pages.items) |page_index| {
                     const p = &v.pages.items[page_index];
@@ -1671,7 +1671,7 @@ pub fn run(
                 ),
             });
 
-            const parent_name = template.ast.nodes[template.ast.extends_idx].templateValue().span.slice(template.src);
+            const parent_name = template.ast.nodes[template.ast.extends_idx].templateValue().loc.slice(template.src);
             std.debug.print(
                 \\{s}: error: extending a template that doesn't exist 
                 \\   template '{s}' does not exist

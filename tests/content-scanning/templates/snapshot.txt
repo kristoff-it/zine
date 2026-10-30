@@ -29,11 +29,11 @@ layouts/badextend.shtml: error: extending a template that doesn't exist
 layouts/badhtml.shtml:1:4: erroneous end tag
    </span>
      ^^^^
-layouts/badshtml.shtml:0:1: extend_without_template_attr
-layouts/badshtml.shtml:2:3: super_parent_element_missing_id
-layouts/badshtml.shtml:8:3: unexpected_extend
-layouts/badshtml.shtml:10:1: top_level_super
-layouts/badshtml.shtml:6:4: super_under_branching
+layouts/badshtml.shtml:1:2: extend_without_template_attr
+layouts/badshtml.shtml:3:4: super_parent_element_missing_id
+layouts/badshtml.shtml:9:4: unexpected_extend
+layouts/badshtml.shtml:11:2: top_level_super
+layouts/badshtml.shtml:7:5: super_under_branching
 ----------------------------
        -- VARIANT --
 ----------------------------

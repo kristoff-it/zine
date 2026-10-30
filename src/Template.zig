@@ -79,7 +79,7 @@ fn parseInner(
     t.ast = try .init(gpa, t.html_ast, src);
 
     if (t.ast.errors.len == 0 and t.ast.extends_idx != 0) {
-        const parent_name = t.ast.nodes[t.ast.extends_idx].templateValue().span.slice(src);
+        const parent_name = t.ast.nodes[t.ast.extends_idx].templateValue().loc.slice(src);
         const parent_path = try root.join(arena, &.{ "templates", parent_name }, '/');
         const parent_pn = PathName.get(&build.st, &build.pt, parent_path) orelse {
             t.missing_parent = true;
