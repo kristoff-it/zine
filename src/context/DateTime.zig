@@ -419,6 +419,35 @@ pub const Builtins = struct {
             return String.init(formatted_date);
         }
     };
+
+    pub const formatISO8601 = struct {
+        pub const signature: Signature = .{ .ret = .String };
+        pub const docs_description =
+            \\Formats a datetime according to the ISO 8601 datetime spec.
+            \\
+        ;
+        pub const examples =
+            \\$page.date.formatISO8601()
+        ;
+        pub fn call(
+            dt: DateTime,
+            gpa: Allocator,
+            _: *const context.Root,
+            args: []const Value,
+        ) context.CallError!Value {
+            const argument_error: Value = .{
+                .err = "'formatISO8601' wants no argument",
+            };
+            if (args.len != 0) return argument_error;
+
+            var w: Io.Writer.Allocating = .init(gpa);
+            errdefer w.deinit();
+
+            dt._inst.time().gofmt(&w.writer, "2006-01-02T15:04:05Z07:00") catch return error.OutOfMemory;
+
+            return String.init(try w.toOwnedSlice());
+        }
+    };
 };
 
 fn deserialize(
