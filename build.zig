@@ -761,9 +761,27 @@ fn getVersion(b: *std.Build, no_git_version: bool) []const u8 {
             b.root.root_dir.path.?, "describe",
             "--match",              "*.*.*",
             "--tags",
-        }, &out, .ignore) catch unreachable,
+        }, &out, .ignore) catch "",
         " \n\r",
     );
+
+    // for repos with no tags, fallback to either the short commit or "unknown"
+    if (git_describe.len == 0) {
+        const git_rev_parse = std.mem.trim(
+            u8,
+            b.runAllowFail(&[_][]const u8{
+                git_path,               "-C",
+                b.root.root_dir.path.?, "rev-parse",
+                "--short",              "HEAD",
+            }, &out, .ignore) catch "unknown",
+            " \n\r",
+        );
+
+        return b.fmt("{s}-dev+{s}", .{
+            zon.version,
+            git_rev_parse,
+        });
+    }
 
     switch (std.mem.count(u8, git_describe, "-")) {
         0, 1 => {
